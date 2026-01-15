@@ -50,10 +50,20 @@
   align-items: center;
 }
 
+.userInfo {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-weight: 500;
+}
+
 .authLink {
   text-decoration: none;
   color: #111827;
   font-weight: 500;
+  border: none;
+  background: transparent;
+  cursor: pointer;
 }
 
 .cartButton {

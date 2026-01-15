@@ -2,6 +2,7 @@ import { ReactNode } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { useCartStore } from '../../app/store/cartStore';
 import { useUiStore } from '../../app/store/uiStore';
+import { useAuthStore } from '../../app/store/authStore';
 import { CartDrawer } from '../shop/CartDrawer';
 import { ProductModal } from '../shop/ProductModal';
 import styles from './Layout.module.css';
@@ -13,6 +14,7 @@ interface LayoutProps {
 export const Layout = ({ children }: LayoutProps) => {
   const cartItems = useCartStore((state) => state.items);
   const openCart = useUiStore((state) => state.openCart);
+  const { user, logout } = useAuthStore();
 
   return (
     <div className={styles.app}>
@@ -28,17 +30,30 @@ export const Layout = ({ children }: LayoutProps) => {
             <NavLink to="/catalog" className={({ isActive }) => (isActive ? styles.active : '')}>
               Каталог
             </NavLink>
-            <NavLink to="/account" className={({ isActive }) => (isActive ? styles.active : '')}>
-              Кабинет
-            </NavLink>
-            <NavLink to="/seller" className={({ isActive }) => (isActive ? styles.active : '')}>
-              Продавец
-            </NavLink>
+            {user && (
+              <NavLink to="/account" className={({ isActive }) => (isActive ? styles.active : '')}>
+                Кабинет
+              </NavLink>
+            )}
+            {user?.role === 'seller' && (
+              <NavLink to="/seller" className={({ isActive }) => (isActive ? styles.active : '')}>
+                Продавец
+              </NavLink>
+            )}
           </nav>
           <div className={styles.actions}>
-            <Link to="/auth" className={styles.authLink}>
-              Войти
-            </Link>
+            {user ? (
+              <div className={styles.userInfo}>
+                <span>{user.name}</span>
+                <button className={styles.authLink} onClick={() => logout()}>
+                  Выйти
+                </button>
+              </div>
+            ) : (
+              <Link to="/auth" className={styles.authLink}>
+                Войти
+              </Link>
+            )}
             <button className={styles.cartButton} onClick={openCart} aria-label="Открыть корзину">
               Корзина
               <span className={styles.cartCount}>{cartItems.length}</span>

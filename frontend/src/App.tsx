@@ -5,6 +5,7 @@ import { CatalogPage } from './pages/CatalogPage';
 import { BuyerAccountPage } from './pages/BuyerAccountPage';
 import { SellerAccountPage } from './pages/SellerAccountPage';
 import { AuthPage } from './pages/AuthPage';
+import { ProtectedRoute } from './app/routes/ProtectedRoute';
 
 const App = () => {
   return (
@@ -12,8 +13,22 @@ const App = () => {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/catalog" element={<CatalogPage />} />
-        <Route path="/account" element={<BuyerAccountPage />} />
-        <Route path="/seller" element={<SellerAccountPage />} />
+        <Route
+          path="/account"
+          element={
+            <ProtectedRoute>
+              <BuyerAccountPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/seller"
+          element={
+            <ProtectedRoute requiredRole="seller">
+              <SellerAccountPage />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/auth" element={<AuthPage />} />
       </Routes>
     </Layout>

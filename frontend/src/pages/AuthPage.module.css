@@ -44,3 +44,18 @@
   color: #16a34a;
   font-weight: 600;
 }
+
+.error {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+.hint {
+  background: #f3f4f6;
+  border-radius: 12px;
+  padding: 12px;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}

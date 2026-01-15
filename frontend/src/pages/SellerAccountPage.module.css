@@ -30,6 +30,24 @@
   margin-bottom: 32px;
 }
 
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.addButton {
+  border: none;
+  background: #111827;
+  color: #ffffff;
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
 .productGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

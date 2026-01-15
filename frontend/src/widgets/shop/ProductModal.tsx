@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useCartStore } from '../../app/store/cartStore';
 import { useUiStore } from '../../app/store/uiStore';
 import { Button } from '../../shared/ui/Button';
+import { useModalFocus } from '../../shared/lib/useModalFocus';
 import styles from './ProductModal.module.css';
 
 export const ProductModal = () => {
@@ -9,34 +10,21 @@ export const ProductModal = () => {
   const close = useUiStore((state) => state.closeProduct);
   const addItem = useCartStore((state) => state.addItem);
   const [quantity, setQuantity] = useState(1);
+  const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setQuantity(1);
   }, [product]);
 
-  useEffect(() => {
-    const handleKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        close();
-      }
-    };
-
-    if (product) {
-      window.addEventListener('keydown', handleKey);
-    }
-
-    return () => {
-      window.removeEventListener('keydown', handleKey);
-    };
-  }, [product, close]);
+  useModalFocus(Boolean(product), close, modalRef);
 
   if (!product) {
     return null;
   }
 
   return (
-    <div className={styles.overlay} role="dialog" aria-modal="true">
-      <div className={styles.modal}>
+    <div className={styles.overlay} role="dialog" aria-modal="true" onClick={close}>
+      <div className={styles.modal} ref={modalRef} onClick={(event) => event.stopPropagation()}>
         <button className={styles.close} onClick={close} aria-label="Закрыть модальное окно">
           ✕
         </button>

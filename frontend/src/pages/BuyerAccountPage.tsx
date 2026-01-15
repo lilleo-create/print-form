@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
-import { api } from '../shared/api';
-import { Order } from '../shared/types';
+import { useEffect } from 'react';
+import { useOrdersStore } from '../app/store/ordersStore';
+import { useAuthStore } from '../app/store/authStore';
+import { OrderStatus } from '../shared/types';
 import styles from './BuyerAccountPage.module.css';
 
-const statusMap: Record<Order['status'], string> = {
+const statusMap: Record<OrderStatus, string> = {
   processing: 'В обработке',
   printing: 'В печати',
   shipped: 'Отправлен',
@@ -11,11 +12,13 @@ const statusMap: Record<Order['status'], string> = {
 };
 
 export const BuyerAccountPage = () => {
-  const [orders, setOrders] = useState<Order[]>([]);
+  const loadOrders = useOrdersStore((state) => state.loadOrders);
+  const orders = useOrdersStore((state) => state.orders);
+  const user = useAuthStore((state) => state.user);
 
   useEffect(() => {
-    api.getOrders().then((response) => setOrders(response.data));
-  }, []);
+    loadOrders();
+  }, [loadOrders]);
 
   return (
     <section className={styles.page}>
@@ -26,8 +29,8 @@ export const BuyerAccountPage = () => {
             <p>Профиль покупателя и история заказов.</p>
           </div>
           <div className={styles.profileCard}>
-            <h4>Алина Смирнова</h4>
-            <p>buyer@3dmarket.ru</p>
+            <h4>{user?.name}</h4>
+            <p>{user?.email}</p>
             <span>Статус: Premium</span>
           </div>
         </div>
@@ -46,7 +49,9 @@ export const BuyerAccountPage = () => {
               </div>
               <div className={styles.items}>
                 {order.items.map((item) => (
-                  <span key={item.product.id}>{item.product.title}</span>
+                  <span key={item.productId}>
+                    {item.name} × {item.qty}
+                  </span>
                 ))}
               </div>
             </article>

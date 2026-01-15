@@ -166,8 +166,18 @@ export const orders: Order[] = [
     total: 7700,
     createdAt: '2024-08-03',
     items: [
-      { product: products[0], quantity: 1 },
-      { product: products[3], quantity: 2 }
+      {
+        productId: products[0].id,
+        name: products[0].title,
+        price: products[0].price,
+        qty: 1
+      },
+      {
+        productId: products[3].id,
+        name: products[3].title,
+        price: products[3].price,
+        qty: 2
+      }
     ]
   },
   {
@@ -175,6 +185,13 @@ export const orders: Order[] = [
     status: 'delivered',
     total: 5200,
     createdAt: '2024-07-18',
-    items: [{ product: products[4], quantity: 1 }]
+    items: [
+      {
+        productId: products[4].id,
+        name: products[4].title,
+        price: products[4].price,
+        qty: 1
+      }
+    ]
   }
 ];

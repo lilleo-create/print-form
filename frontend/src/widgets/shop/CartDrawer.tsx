@@ -1,11 +1,12 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useCartStore } from '../../app/store/cartStore';
 import { useUiStore } from '../../app/store/uiStore';
-import { api } from '../../shared/api';
+import { useOrdersStore } from '../../app/store/ordersStore';
 import { Button } from '../../shared/ui/Button';
+import { useModalFocus } from '../../shared/lib/useModalFocus';
 import styles from './CartDrawer.module.css';
 
 const checkoutSchema = z.object({
@@ -20,53 +21,57 @@ type CheckoutFormValues = z.infer<typeof checkoutSchema>;
 export const CartDrawer = () => {
   const { items, updateQuantity, removeItem, clear } = useCartStore();
   const { isCartOpen, closeCart } = useUiStore();
+  const createOrder = useOrdersStore((state) => state.createOrder);
+  const [submitted, setSubmitted] = useState(false);
+  const drawerRef = useRef<HTMLDivElement>(null);
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitSuccessful },
+    formState: { errors },
     reset
   } = useForm<CheckoutFormValues>({ resolver: zodResolver(checkoutSchema) });
 
+  const total = useMemo(
+    () => items.reduce((sum, item) => sum + item.product.price * item.quantity, 0),
+    [items]
+  );
+
+  useModalFocus(isCartOpen, closeCart, drawerRef);
+
   useEffect(() => {
-    if (isSubmitSuccessful) {
+    if (submitted) {
       reset();
       clear();
     }
-  }, [isSubmitSuccessful, reset, clear]);
+  }, [submitted, reset, clear]);
 
   useEffect(() => {
-    const handleKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        closeCart();
-      }
-    };
-
-    if (isCartOpen) {
-      window.addEventListener('keydown', handleKey);
+    if (!isCartOpen) {
+      setSubmitted(false);
     }
-
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [isCartOpen, closeCart]);
+  }, [isCartOpen]);
 
   if (!isCartOpen) {
     return null;
   }
 
-  const total = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
-
   const onSubmit = async () => {
-    await api.createOrder({
-      total,
-      items: items.map((item) => ({
-        productId: item.product.id,
-        quantity: item.quantity
-      }))
-    });
+    if (items.length === 0) {
+      return;
+    }
+    const orderItems = items.map((item) => ({
+      productId: item.product.id,
+      name: item.product.title,
+      price: item.product.price,
+      qty: item.quantity
+    }));
+    await createOrder(orderItems, total);
+    setSubmitted(true);
   };
 
   return (
-    <div className={styles.overlay} role="dialog" aria-modal="true">
-      <div className={styles.drawer}>
+    <div className={styles.overlay} role="dialog" aria-modal="true" onClick={closeCart}>
+      <div className={styles.drawer} ref={drawerRef} onClick={(event) => event.stopPropagation()}>
         <div className={styles.header}>
           <h3>Корзина</h3>
           <button className={styles.close} onClick={closeCart} aria-label="Закрыть корзину">
@@ -121,7 +126,7 @@ export const CartDrawer = () => {
             </select>
             {errors.delivery && <span>{errors.delivery.message}</span>}
             <Button type="submit">Оформить заказ</Button>
-            {isSubmitSuccessful && <p className={styles.success}>Заказ отправлен!</p>}
+            {submitted && <p className={styles.success}>Заказ отправлен!</p>}
           </form>
         </div>
       </div>

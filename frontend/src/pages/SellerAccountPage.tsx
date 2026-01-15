@@ -1,18 +1,51 @@
 import { useEffect, useState } from 'react';
-import { api } from '../shared/api';
-import { Order, Product } from '../shared/types';
+import { useOrdersStore } from '../app/store/ordersStore';
+import { useProductsStore } from '../app/store/productsStore';
+import { Product } from '../shared/types';
+import { SellerProductModal } from '../widgets/seller/SellerProductModal';
 import styles from './SellerAccountPage.module.css';
 
 export const SellerAccountPage = () => {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [activeProduct, setActiveProduct] = useState<Product | null>(null);
+  const [isModalOpen, setModalOpen] = useState(false);
+  const products = useProductsStore((state) => state.products);
+  const loadProducts = useProductsStore((state) => state.loadProducts);
+  const addProduct = useProductsStore((state) => state.addProduct);
+  const updateProduct = useProductsStore((state) => state.updateProduct);
+  const removeProduct = useProductsStore((state) => state.removeProduct);
+  const orders = useOrdersStore((state) => state.orders);
+  const loadOrders = useOrdersStore((state) => state.loadOrders);
 
   useEffect(() => {
-    api.getSellerProducts().then((response) => setProducts(response.data));
-    api.getSellerOrders().then((response) => setOrders(response.data));
-  }, []);
+    loadProducts();
+    loadOrders();
+  }, [loadProducts, loadOrders]);
 
   const revenue = orders.reduce((sum, order) => sum + order.total, 0);
+
+  const openCreate = () => {
+    setActiveProduct(null);
+    setModalOpen(true);
+  };
+
+  const openEdit = (product: Product) => {
+    setActiveProduct(product);
+    setModalOpen(true);
+  };
+
+  const handleDelete = async (productId: string) => {
+    if (window.confirm('Удалить товар?')) {
+      await removeProduct(productId);
+    }
+  };
+
+  const handleSubmit = async (product: Product) => {
+    if (products.some((item) => item.id === product.id)) {
+      await updateProduct(product);
+    } else {
+      await addProduct(product);
+    }
+  };
 
   return (
     <section className={styles.page}>
@@ -39,9 +72,14 @@ export const SellerAccountPage = () => {
         </div>
 
         <div className={styles.section}>
-          <h2>Товары</h2>
+          <div className={styles.sectionHeader}>
+            <h2>Товары</h2>
+            <button className={styles.addButton} onClick={openCreate}>
+              + Добавить товар
+            </button>
+          </div>
           <div className={styles.productGrid}>
-            {products.slice(0, 6).map((product) => (
+            {products.map((product) => (
               <div key={product.id} className={styles.productCard}>
                 <img src={product.image} alt={product.title} />
                 <div>
@@ -49,8 +87,8 @@ export const SellerAccountPage = () => {
                   <p>{product.price.toLocaleString('ru-RU')} ₽</p>
                 </div>
                 <div className={styles.actions}>
-                  <button>Редактировать</button>
-                  <button>Удалить</button>
+                  <button onClick={() => openEdit(product)}>Редактировать</button>
+                  <button onClick={() => handleDelete(product.id)}>Удалить</button>
                 </div>
               </div>
             ))}
@@ -75,6 +113,13 @@ export const SellerAccountPage = () => {
           </div>
         </div>
       </div>
+      {isModalOpen && (
+        <SellerProductModal
+          product={activeProduct}
+          onClose={() => setModalOpen(false)}
+          onSubmit={handleSubmit}
+        />
+      )}
     </section>
   );
 };

@@ -1,5 +1,7 @@
 export type MaterialType = 'PLA' | 'ABS' | 'PETG' | 'RESIN';
 export type TechnologyType = 'FDM' | 'SLA';
+export type Role = 'buyer' | 'seller';
+export type OrderStatus = 'processing' | 'printing' | 'shipped' | 'delivered';
 
 export interface Product {
   id: string;
@@ -20,19 +22,26 @@ export interface CartItem {
   quantity: number;
 }
 
+export interface OrderItem {
+  productId: string;
+  name: string;
+  price: number;
+  qty: number;
+}
+
 export interface Order {
   id: string;
-  status: 'processing' | 'printing' | 'shipped' | 'delivered';
+  status: OrderStatus;
   total: number;
   createdAt: string;
-  items: CartItem[];
+  items: OrderItem[];
 }
 
 export interface User {
   id: string;
   name: string;
   email: string;
-  role: 'buyer' | 'seller';
+  role: Role;
 }
 
 export interface SellerProfile {

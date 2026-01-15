@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { api } from '../shared/api';
 import { Button } from '../shared/ui/Button';
+import { useAuthStore } from '../app/store/authStore';
 import styles from './AuthPage.module.css';
 
 const loginSchema = z.object({
@@ -22,18 +22,31 @@ type RegisterValues = z.infer<typeof registerSchema>;
 export const AuthPage = () => {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const login = useAuthStore((state) => state.login);
+  const register = useAuthStore((state) => state.register);
 
   const loginForm = useForm<LoginValues>({ resolver: zodResolver(loginSchema) });
   const registerForm = useForm<RegisterValues>({ resolver: zodResolver(registerSchema) });
 
   const onLogin = async (values: LoginValues) => {
-    await api.login(values);
-    setMessage('Добро пожаловать!');
+    setError('');
+    try {
+      await login(values.email, values.password);
+      setMessage('Добро пожаловать!');
+    } catch {
+      setError('Неверный email или пароль. Попробуйте снова.');
+    }
   };
 
   const onRegister = async (values: RegisterValues) => {
-    await api.register(values);
-    setMessage('Регистрация завершена!');
+    setError('');
+    try {
+      await register({ name: values.name, email: values.email, password: values.password });
+      setMessage('Регистрация завершена!');
+    } catch {
+      setError('Пользователь с таким email уже существует.');
+    }
   };
 
   return (
@@ -69,16 +82,23 @@ export const AuthPage = () => {
             <Button type="submit">Создать аккаунт</Button>
           </form>
         )}
+        {error && <p className={styles.error}>{error}</p>}
         {message && <p className={styles.success}>{message}</p>}
         <button
           className={styles.switch}
           onClick={() => {
             setMode(mode === 'login' ? 'register' : 'login');
             setMessage('');
+            setError('');
           }}
         >
           {mode === 'login' ? 'Нет аккаунта? Зарегистрироваться' : 'Уже есть аккаунт? Войти'}
         </button>
+        <div className={styles.hint}>
+          <p>Тестовые аккаунты:</p>
+          <p>buyer@3dmarket.ru / password123</p>
+          <p>seller@3dmarket.ru / password123</p>
+        </div>
       </div>
     </section>
   );
