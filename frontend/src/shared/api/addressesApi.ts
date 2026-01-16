@@ -2,26 +2,36 @@ import { Address } from '../types';
 import { loadFromStorage, saveToStorage } from '../lib/storage';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 
-const getAddresses = () => loadFromStorage<Address[]>(STORAGE_KEYS.addresses, []);
+const addressesKey = (userId: string) => `${STORAGE_KEYS.addresses}_${userId}`;
+const defaultKey = (userId: string) => `${STORAGE_KEYS.defaultAddressPrefix}${userId}`;
 
 export const addressesApi = {
   listByUser: async (userId: string) => {
-    const addresses = getAddresses();
-    return addresses.filter((address) => address.userId === userId);
+    return loadFromStorage<Address[]>(addressesKey(userId), []);
   },
   create: async (payload: Omit<Address, 'id' | 'createdAt'>) => {
-    const addresses = getAddresses();
+    const existing = loadFromStorage<Address[]>(addressesKey(payload.userId), []);
     const newAddress: Address = {
       ...payload,
       id: `address-${Date.now()}`,
       createdAt: new Date().toISOString()
     };
-    saveToStorage(STORAGE_KEYS.addresses, [newAddress, ...addresses]);
+    saveToStorage(addressesKey(payload.userId), [newAddress, ...existing]);
     return newAddress;
   },
-  setDefault: async (userId: string, addressId: string) => {
-    saveToStorage(`${STORAGE_KEYS.defaultAddressPrefix}${userId}`, addressId);
+  update: async (payload: Address) => {
+    const existing = loadFromStorage<Address[]>(addressesKey(payload.userId), []);
+    const next = existing.map((address) => (address.id === payload.id ? payload : address));
+    saveToStorage(addressesKey(payload.userId), next);
+    return payload;
   },
-  getDefault: async (userId: string) =>
-    loadFromStorage<string | null>(`${STORAGE_KEYS.defaultAddressPrefix}${userId}`, null)
+  remove: async (userId: string, addressId: string) => {
+    const existing = loadFromStorage<Address[]>(addressesKey(userId), []);
+    const next = existing.filter((address) => address.id !== addressId);
+    saveToStorage(addressesKey(userId), next);
+  },
+  setDefault: async (userId: string, addressId: string) => {
+    saveToStorage(defaultKey(userId), addressId);
+  },
+  getDefault: async (userId: string) => loadFromStorage<string | null>(defaultKey(userId), null)
 };

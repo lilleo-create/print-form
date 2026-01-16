@@ -9,19 +9,29 @@
 }
 
 .primary {
-  background: #111827;
+  background: var(--color-primary);
   color: #ffffff;
+  box-shadow: 0 10px 20px rgba(29, 78, 216, 0.2);
+}
+
+.primary:hover {
+  background: var(--color-primary-dark);
 }
 
 .secondary {
   background: #ffffff;
-  color: #111827;
-  border: 1px solid #e5e7eb;
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+}
+
+.secondary:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
 }
 
 .ghost {
   background: transparent;
-  color: #111827;
+  color: var(--color-text);
 }
 
 .sm {
@@ -34,6 +44,6 @@
 }
 
 .button:focus-visible {
-  outline: 2px solid #6366f1;
+  outline: 2px solid var(--color-primary);
   outline-offset: 3px;
 }

@@ -2,21 +2,26 @@ import { Contact } from '../types';
 import { loadFromStorage, saveToStorage } from '../lib/storage';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 
-const getContacts = () => loadFromStorage<Contact[]>(STORAGE_KEYS.contacts, []);
+const contactsKey = (userId: string) => `${STORAGE_KEYS.contacts}_${userId}`;
 
 export const contactsApi = {
   listByUser: async (userId: string) => {
-    const contacts = getContacts();
-    return contacts.filter((contact) => contact.userId === userId);
+    return loadFromStorage<Contact[]>(contactsKey(userId), []);
   },
   create: async (payload: Omit<Contact, 'id' | 'createdAt'>) => {
-    const contacts = getContacts();
+    const existing = loadFromStorage<Contact[]>(contactsKey(payload.userId), []);
     const newContact: Contact = {
       ...payload,
       id: `contact-${Date.now()}`,
       createdAt: new Date().toISOString()
     };
-    saveToStorage(STORAGE_KEYS.contacts, [newContact, ...contacts]);
+    saveToStorage(contactsKey(payload.userId), [newContact, ...existing]);
     return newContact;
+  },
+  update: async (payload: Contact) => {
+    const existing = loadFromStorage<Contact[]>(contactsKey(payload.userId), []);
+    const next = existing.map((contact) => (contact.id === payload.id ? payload : contact));
+    saveToStorage(contactsKey(payload.userId), next);
+    return payload;
   }
 };

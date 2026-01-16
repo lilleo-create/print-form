@@ -19,13 +19,13 @@
 }
 
 .form {
-  background: #ffffff;
+  background: var(--color-surface);
   padding: 24px;
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   display: flex;
   flex-direction: column;
   gap: 16px;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+  box-shadow: var(--shadow-sm);
 }
 
 .form label {
@@ -35,15 +35,8 @@
   font-weight: 500;
 }
 
-.form input,
-.form select {
-  border: 1px solid #e5e7eb;
-  padding: 10px;
-  border-radius: 8px;
-}
-
 .form span {
-  color: #ef4444;
+  color: var(--color-danger);
   font-size: 12px;
 }
 
@@ -53,20 +46,10 @@
   gap: 12px;
 }
 
-.form button {
-  border: none;
-  background: #111827;
-  color: #ffffff;
-  padding: 12px 18px;
-  border-radius: 999px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
 .secondaryButton {
-  border: 1px solid #e5e7eb;
-  background: #ffffff;
-  color: #111827;
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-primary);
   padding: 10px 14px;
   border-radius: 999px;
   font-weight: 600;
@@ -74,8 +57,8 @@
 }
 
 .summary {
-  background: #f3f4f6;
-  border-radius: 16px;
+  background: var(--color-surface-muted);
+  border-radius: var(--radius-lg);
   padding: 24px;
   height: fit-content;
   display: flex;
@@ -107,7 +90,7 @@
 
 .primaryButton {
   border: none;
-  background: #111827;
+  background: var(--color-primary);
   color: #ffffff;
   padding: 12px 18px;
   border-radius: 999px;

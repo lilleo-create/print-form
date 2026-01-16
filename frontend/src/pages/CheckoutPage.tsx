@@ -9,6 +9,7 @@ import { useAuthStore } from '../app/store/authStore';
 import { addressesApi } from '../shared/api/addressesApi';
 import { contactsApi } from '../shared/api/contactsApi';
 import { Address, Contact } from '../shared/types';
+import { Button } from '../shared/ui/Button';
 import styles from './CheckoutPage.module.css';
 
 const contactSchema = z.object({
@@ -18,7 +19,6 @@ const contactSchema = z.object({
 });
 
 const addressSchema = z.object({
-  label: z.string().min(2, 'Например, Дом'),
   city: z.string().min(2, 'Город'),
   street: z.string().min(2, 'Улица'),
   house: z.string().min(1, 'Дом'),
@@ -41,19 +41,8 @@ export const CheckoutPage = () => {
   const [selectedAddressId, setSelectedAddressId] = useState('');
   const [showAddressForm, setShowAddressForm] = useState(false);
 
-  const {
-    register: registerContact,
-    handleSubmit: handleContactSubmit,
-    formState: { errors: contactErrors },
-    reset: resetContact
-  } = useForm<ContactFormValues>({ resolver: zodResolver(contactSchema) });
-
-  const {
-    register: registerAddress,
-    handleSubmit: handleAddressSubmit,
-    formState: { errors: addressErrors },
-    reset: resetAddress
-  } = useForm<AddressFormValues>({ resolver: zodResolver(addressSchema) });
+  const contactForm = useForm<ContactFormValues>({ resolver: zodResolver(contactSchema) });
+  const addressForm = useForm<AddressFormValues>({ resolver: zodResolver(addressSchema) });
 
   useEffect(() => {
     if (!user) {
@@ -62,7 +51,7 @@ export const CheckoutPage = () => {
     contactsApi.listByUser(user.id).then((data) => {
       setContacts(data);
       if (data[0]) {
-        resetContact({ name: data[0].name, phone: data[0].phone, email: data[0].email ?? '' });
+        contactForm.reset({ name: data[0].name, phone: data[0].phone, email: data[0].email ?? '' });
       }
     });
     addressesApi.listByUser(user.id).then((data) => {
@@ -71,7 +60,7 @@ export const CheckoutPage = () => {
         setSelectedAddressId(defaultId ?? (data[0]?.id ?? ''));
       });
     });
-  }, [resetContact, user]);
+  }, [contactForm, user]);
 
   const total = useMemo(
     () => items.reduce((sum, item) => sum + item.product.price * item.quantity, 0),
@@ -84,7 +73,13 @@ export const CheckoutPage = () => {
     }
     const existing = contacts[0];
     if (existing) {
-      setContacts([{ ...existing, ...values }]);
+      const updated = await contactsApi.update({
+        ...existing,
+        name: values.name,
+        phone: values.phone,
+        email: values.email || undefined
+      });
+      setContacts([updated]);
       return;
     }
     const created = await contactsApi.create({
@@ -102,7 +97,6 @@ export const CheckoutPage = () => {
     }
     const created = await addressesApi.create({
       userId: user.id,
-      label: values.label,
       city: values.city,
       street: values.street,
       house: values.house,
@@ -113,7 +107,7 @@ export const CheckoutPage = () => {
     setAddresses(nextAddresses);
     setSelectedAddressId(created.id);
     await addressesApi.setDefault(user.id, created.id);
-    resetAddress({ label: '', city: '', street: '', house: '', apt: '', comment: '' });
+    addressForm.reset({ city: '', street: '', house: '', apt: '', comment: '' });
     setShowAddressForm(false);
   };
 
@@ -121,8 +115,32 @@ export const CheckoutPage = () => {
     if (!user || items.length === 0) {
       return;
     }
-    const contact = contacts[0];
-    if (!contact || !selectedAddressId) {
+    let contact = contacts[0];
+    if (!contact) {
+      const values = contactForm.getValues();
+      if (!values.name || !values.phone) {
+        return;
+      }
+      contact = await contactsApi.create({
+        userId: user.id,
+        name: values.name,
+        phone: values.phone,
+        email: values.email || undefined
+      });
+      setContacts([contact]);
+    } else {
+      const values = contactForm.getValues();
+      if (values.name && values.phone) {
+        contact = await contactsApi.update({
+          ...contact,
+          name: values.name,
+          phone: values.phone,
+          email: values.email || undefined
+        });
+        setContacts([contact]);
+      }
+    }
+    if (!selectedAddressId) {
       return;
     }
     const orderItems = items.map((item) => ({
@@ -153,23 +171,30 @@ export const CheckoutPage = () => {
         </div>
         <div className={styles.content}>
           <div className={styles.forms}>
-            <form className={styles.form} onBlur={handleContactSubmit(handleSaveContact)}>
+            <form className={styles.form} onSubmit={contactForm.handleSubmit(handleSaveContact)}>
               <h3>Контактные данные</h3>
               <label>
                 Имя
-                <input {...registerContact('name')} />
-                {contactErrors.name && <span>{contactErrors.name.message}</span>}
+                <input {...contactForm.register('name')} />
+                {contactForm.formState.errors.name && (
+                  <span>{contactForm.formState.errors.name.message}</span>
+                )}
               </label>
               <label>
                 Телефон
-                <input {...registerContact('phone')} />
-                {contactErrors.phone && <span>{contactErrors.phone.message}</span>}
+                <input {...contactForm.register('phone')} />
+                {contactForm.formState.errors.phone && (
+                  <span>{contactForm.formState.errors.phone.message}</span>
+                )}
               </label>
               <label>
                 Email (опционально)
-                <input {...registerContact('email')} />
-                {contactErrors.email && <span>{contactErrors.email.message}</span>}
+                <input {...contactForm.register('email')} />
+                {contactForm.formState.errors.email && (
+                  <span>{contactForm.formState.errors.email.message}</span>
+                )}
               </label>
+              <Button type="submit">Сохранить контакт</Button>
             </form>
 
             <div className={styles.form}>
@@ -189,7 +214,8 @@ export const CheckoutPage = () => {
                     >
                       {addresses.map((address) => (
                         <option key={address.id} value={address.id}>
-                          {address.label} — {address.city}, {address.street} {address.house}
+                          {address.city}, {address.street} {address.house}
+                          {address.apt ? `, кв. ${address.apt}` : ''}
                         </option>
                       ))}
                     </select>
@@ -203,38 +229,39 @@ export const CheckoutPage = () => {
                   </button>
                 </>
               ) : (
-                <form onSubmit={handleAddressSubmit(handleSaveAddress)}>
+                <form onSubmit={addressForm.handleSubmit(handleSaveAddress)}>
                   <div className={styles.addressGrid}>
                     <label>
-                      Метка
-                      <input {...registerAddress('label')} />
-                      {addressErrors.label && <span>{addressErrors.label.message}</span>}
-                    </label>
-                    <label>
                       Город
-                      <input {...registerAddress('city')} />
-                      {addressErrors.city && <span>{addressErrors.city.message}</span>}
+                      <input {...addressForm.register('city')} />
+                      {addressForm.formState.errors.city && (
+                        <span>{addressForm.formState.errors.city.message}</span>
+                      )}
                     </label>
                     <label>
                       Улица
-                      <input {...registerAddress('street')} />
-                      {addressErrors.street && <span>{addressErrors.street.message}</span>}
+                      <input {...addressForm.register('street')} />
+                      {addressForm.formState.errors.street && (
+                        <span>{addressForm.formState.errors.street.message}</span>
+                      )}
                     </label>
                     <label>
                       Дом
-                      <input {...registerAddress('house')} />
-                      {addressErrors.house && <span>{addressErrors.house.message}</span>}
+                      <input {...addressForm.register('house')} />
+                      {addressForm.formState.errors.house && (
+                        <span>{addressForm.formState.errors.house.message}</span>
+                      )}
                     </label>
                     <label>
                       Квартира
-                      <input {...registerAddress('apt')} />
+                      <input {...addressForm.register('apt')} />
                     </label>
                     <label>
                       Комментарий
-                      <input {...registerAddress('comment')} />
+                      <input {...addressForm.register('comment')} />
                     </label>
                   </div>
-                  <button type="submit">Сохранить адрес</button>
+                  <Button type="submit">Сохранить адрес</Button>
                 </form>
               )}
             </div>
@@ -254,11 +281,7 @@ export const CheckoutPage = () => {
               <span>Итого</span>
               <strong>{total.toLocaleString('ru-RU')} ₽</strong>
             </div>
-            <button
-              className={styles.primaryButton}
-              type="button"
-              onClick={handleContactSubmit(onSubmit)}
-            >
+            <button className={styles.primaryButton} type="button" onClick={onSubmit}>
               Подтвердить заказ
             </button>
           </aside>

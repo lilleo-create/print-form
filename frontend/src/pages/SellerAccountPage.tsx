@@ -26,19 +26,34 @@ export const SellerAccountPage = () => {
   const orders = useOrdersStore((state) => state.orders);
   const loadSellerOrders = useOrdersStore((state) => state.loadSellerOrders);
   const user = useAuthStore((state) => state.user);
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [addresses, setAddresses] = useState<Address[]>([]);
+  const [contacts, setContacts] = useState<Record<string, Contact[]>>({});
+  const [addresses, setAddresses] = useState<Record<string, Address[]>>({});
 
   useEffect(() => {
     loadProducts();
     if (user) {
       loadSellerOrders(user.id);
-      contactsApi.listByUser(user.id).then(setContacts);
-      addressesApi.listByUser(user.id).then(setAddresses);
     }
   }, [loadProducts, loadSellerOrders, user]);
 
-  const revenue = orders.reduce((sum, order) => sum + order.total, 0);
+  useEffect(() => {
+    const buyerIds = Array.from(new Set(orders.map((order) => order.buyerId)));
+    if (buyerIds.length === 0) {
+      setContacts({});
+      setAddresses({});
+      return;
+    }
+
+    Promise.all(buyerIds.map((buyerId) => contactsApi.listByUser(buyerId).then((list) => [buyerId, list])))
+      .then((entries) => {
+        setContacts(Object.fromEntries(entries));
+      });
+
+    Promise.all(buyerIds.map((buyerId) => addressesApi.listByUser(buyerId).then((list) => [buyerId, list])))
+      .then((entries) => {
+        setAddresses(Object.fromEntries(entries));
+      });
+  }, [orders]);
 
   const orderGroups = useMemo<SellerOrderGroup[]>(() => {
     if (!user) {
@@ -47,12 +62,16 @@ export const SellerAccountPage = () => {
     return orders
       .map((order) => {
         const items = order.items.filter((item) => item.sellerId === user.id);
-        const contact = contacts.find((entry) => entry.id === order.contactId);
-        const address = addresses.find((entry) => entry.id === order.shippingAddressId);
+        const buyerContacts = contacts[order.buyerId] ?? [];
+        const buyerAddresses = addresses[order.buyerId] ?? [];
+        const contact = buyerContacts.find((entry) => entry.id === order.contactId);
+        const address = buyerAddresses.find((entry) => entry.id === order.shippingAddressId);
         return { order, items, contact, address };
       })
       .filter((group) => group.items.length > 0);
   }, [addresses, contacts, orders, user]);
+
+  const revenue = orderGroups.reduce((sum, group) => sum + group.items.reduce((itemSum, item) => itemSum + item.lineTotal, 0), 0);
 
   const openCreate = () => {
     setActiveProduct(null);
