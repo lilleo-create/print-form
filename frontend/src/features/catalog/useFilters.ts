@@ -1,24 +1,19 @@
-import { useEffect, useState } from 'react';
-import { api } from '../../shared/api';
+import { useEffect, useMemo } from 'react';
+import { useProductsStore } from '../../app/store/productsStore';
 
 export const useFilters = () => {
-  const [filters, setFilters] = useState({ categories: [], materials: [], sizes: [] } as {
-    categories: string[];
-    materials: string[];
-    sizes: string[];
-  });
+  const { allProducts, loadProducts } = useProductsStore();
 
   useEffect(() => {
-    let active = true;
-    api.getFilters().then((response) => {
-      if (active) {
-        setFilters(response.data);
-      }
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
+    loadProducts();
+  }, [loadProducts]);
+
+  const filters = useMemo(() => {
+    const categories = Array.from(new Set(allProducts.map((item) => item.category)));
+    const materials = Array.from(new Set(allProducts.map((item) => item.material)));
+    const sizes = Array.from(new Set(allProducts.map((item) => item.size)));
+    return { categories, materials, sizes };
+  }, [allProducts]);
 
   return filters;
 };

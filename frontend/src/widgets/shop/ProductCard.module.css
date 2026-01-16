@@ -5,6 +5,18 @@
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
   display: flex;
   flex-direction: column;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.12);
+}
+
+.card:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 4px;
 }
 
 .image {
@@ -30,4 +42,10 @@
 .price {
   font-size: 18px;
   font-weight: 700;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
 }

@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react';
-import { api } from '../../shared/api';
-import { Product } from '../../shared/types';
+import { useEffect, useMemo } from 'react';
+import { useProductsStore } from '../../app/store/productsStore';
 
 export interface CatalogFilters {
   category?: string;
@@ -10,22 +9,26 @@ export interface CatalogFilters {
 }
 
 export const useCatalog = (filters: CatalogFilters) => {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { allProducts, loadProducts } = useProductsStore();
 
   useEffect(() => {
-    let active = true;
-    setLoading(true);
-    api.getProducts(filters).then((response) => {
-      if (active) {
-        setProducts(response.data);
-        setLoading(false);
-      }
-    });
-    return () => {
-      active = false;
-    };
-  }, [filters.category, filters.material, filters.price, filters.size]);
+    loadProducts();
+  }, [loadProducts]);
 
-  return { products, loading };
+  const products = useMemo(() => {
+    return allProducts.filter((item) => {
+      const matchCategory = filters.category ? item.category === filters.category : true;
+      const matchMaterial = filters.material ? item.material === filters.material : true;
+      const matchSize = filters.size ? item.size === filters.size : true;
+      const matchPrice = filters.price
+        ? (() => {
+            const [min, max] = filters.price.split('-').map(Number);
+            return item.price >= min && item.price <= max;
+          })()
+        : true;
+      return matchCategory && matchMaterial && matchSize && matchPrice;
+    });
+  }, [allProducts, filters.category, filters.material, filters.price, filters.size]);
+
+  return { products, loading: allProducts.length === 0 };
 };

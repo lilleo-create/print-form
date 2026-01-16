@@ -4,12 +4,15 @@ import { STORAGE_KEYS } from '../constants/storageKeys';
 
 interface UserRecord extends User {
   password: string;
+  createdAt: string;
 }
 
 interface StoredSession {
   token: string;
   user: User;
 }
+
+const now = () => new Date().toISOString();
 
 const seedUsers = (): UserRecord[] => {
   const existing = loadFromStorage<UserRecord[]>(STORAGE_KEYS.users, []);
@@ -22,14 +25,16 @@ const seedUsers = (): UserRecord[] => {
       name: 'Покупатель',
       email: 'buyer@test.com',
       role: 'buyer',
-      password: 'buyer123'
+      password: 'buyer123',
+      createdAt: now()
     },
     {
       id: 'seller-1',
       name: 'Продавец',
       email: 'seller@test.com',
       role: 'seller',
-      password: 'seller123'
+      password: 'seller123',
+      createdAt: now()
     }
   ];
   saveToStorage(STORAGE_KEYS.users, seeded);
@@ -62,7 +67,8 @@ export const authApi = {
       name: payload.name,
       email: payload.email,
       role: payload.role ?? 'buyer',
-      password: payload.password
+      password: payload.password,
+      createdAt: now()
     };
     const nextUsers = [...users, newUser];
     saveToStorage(STORAGE_KEYS.users, nextUsers);

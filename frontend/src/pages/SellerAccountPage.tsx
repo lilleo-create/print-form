@@ -9,7 +9,7 @@ import styles from './SellerAccountPage.module.css';
 export const SellerAccountPage = () => {
   const [activeProduct, setActiveProduct] = useState<Product | null>(null);
   const [isModalOpen, setModalOpen] = useState(false);
-  const products = useProductsStore((state) => state.products);
+  const sellerProducts = useProductsStore((state) => state.sellerProducts);
   const loadProducts = useProductsStore((state) => state.loadProducts);
   const addProduct = useProductsStore((state) => state.addProduct);
   const updateProduct = useProductsStore((state) => state.updateProduct);
@@ -44,7 +44,7 @@ export const SellerAccountPage = () => {
   };
 
   const handleSubmit = async (product: Product) => {
-    if (products.some((item) => item.id === product.id)) {
+    if (sellerProducts.some((item) => item.id === product.id)) {
       await updateProduct(product);
     } else {
       await addProduct(product);
@@ -70,7 +70,7 @@ export const SellerAccountPage = () => {
             </div>
             <div>
               <span>Товары</span>
-              <strong>{products.length}</strong>
+              <strong>{sellerProducts.length}</strong>
             </div>
           </div>
         </div>
@@ -83,7 +83,7 @@ export const SellerAccountPage = () => {
             </button>
           </div>
           <div className={styles.productGrid}>
-            {products.map((product) => (
+            {sellerProducts.map((product) => (
               <div key={product.id} className={styles.productCard}>
                 <img src={product.image} alt={product.title} />
                 <div>
