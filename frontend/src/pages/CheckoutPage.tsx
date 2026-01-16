@@ -9,7 +9,8 @@ import { useAuthStore } from '../app/store/authStore';
 import { addressesApi } from '../shared/api/addressesApi';
 import { contactsApi } from '../shared/api/contactsApi';
 import { Address, Contact } from '../shared/types';
-import { AddressPickerMap } from '../shared/ui/AddressPickerMap';
+import { formatAddress } from '../shared/lib/formatAddress';
+import { AddressModal } from '../shared/ui/AddressModal';
 import { Button } from '../shared/ui/Button';
 import styles from './CheckoutPage.module.css';
 
@@ -19,17 +20,7 @@ const contactSchema = z.object({
   email: z.string().email('Введите корректный email').optional().or(z.literal(''))
 });
 
-const addressSchema = z.object({
-  city: z.string().min(2, 'Город'),
-  street: z.string().min(2, 'Улица'),
-  house: z.string().min(1, 'Дом'),
-  apt: z.string().optional(),
-  comment: z.string().optional()
-});
-
 type ContactFormValues = z.infer<typeof contactSchema>;
-
-type AddressFormValues = z.infer<typeof addressSchema>;
 
 export const CheckoutPage = () => {
   const items = useCartStore((state) => state.items);
@@ -40,12 +31,10 @@ export const CheckoutPage = () => {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState('');
-  const [showAddressForm, setShowAddressForm] = useState(false);
-  const [showMapPicker, setShowMapPicker] = useState(false);
-  const [addressCoords, setAddressCoords] = useState<Address['coords'] | null>(null);
+  const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+  const selectedAddress = addresses.find((address) => address.id === selectedAddressId);
 
   const contactForm = useForm<ContactFormValues>({ resolver: zodResolver(contactSchema) });
-  const addressForm = useForm<AddressFormValues>({ resolver: zodResolver(addressSchema) });
 
   useEffect(() => {
     if (!user) {
@@ -62,9 +51,6 @@ export const CheckoutPage = () => {
       addressesApi.getDefault(user.id).then((defaultId) => {
         setSelectedAddressId(defaultId ?? (data[0]?.id ?? ''));
       });
-      if (data.length === 0) {
-        setShowAddressForm(false);
-      }
     });
   }, [contactForm, user]);
 
@@ -95,36 +81,6 @@ export const CheckoutPage = () => {
       email: values.email || undefined
     });
     setContacts([created]);
-  };
-
-  const handleSaveAddress = async (values: AddressFormValues) => {
-    if (!user) {
-      return;
-    }
-    const created = await addressesApi.create({
-      userId: user.id,
-      city: values.city,
-      street: values.street,
-      house: values.house,
-      apt: values.apt,
-      comment: values.comment,
-      coords: addressCoords ?? undefined
-    });
-    const nextAddresses = [created, ...addresses];
-    setAddresses(nextAddresses);
-    setSelectedAddressId(created.id);
-    await addressesApi.setDefault(user.id, created.id);
-    addressForm.reset({ city: '', street: '', house: '', apt: '', comment: '' });
-    setAddressCoords(null);
-    setShowAddressForm(false);
-    setShowMapPicker(false);
-  };
-
-  const handleCancelAddress = () => {
-    addressForm.reset({ city: '', street: '', house: '', apt: '', comment: '' });
-    setAddressCoords(null);
-    setShowAddressForm(false);
-    setShowMapPicker(false);
   };
 
   const onSubmit = async () => {
@@ -217,129 +173,16 @@ export const CheckoutPage = () => {
 
             <div className={styles.form}>
               <h3>Адрес доставки</h3>
-              {addresses.length > 0 && !showAddressForm ? (
-                <>
-                  <label>
-                    Выберите адрес
-                    <select
-                      value={selectedAddressId}
-                      onChange={(event) => {
-                        setSelectedAddressId(event.target.value);
-                        if (user) {
-                          addressesApi.setDefault(user.id, event.target.value);
-                        }
-                      }}
-                    >
-                      {addresses.map((address) => (
-                        <option key={address.id} value={address.id}>
-                          {address.city}, {address.street} {address.house}
-                          {address.apt ? `, кв. ${address.apt}` : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <button
-                    type="button"
-                    className={styles.secondaryButton}
-                    onClick={() => {
-                      setShowAddressForm(true);
-                      setShowMapPicker(false);
-                      setAddressCoords(null);
-                      addressForm.reset({ city: '', street: '', house: '', apt: '', comment: '' });
-                    }}
-                  >
-                    Добавить новый адрес
-                  </button>
-                </>
-              ) : (
-                <>
-                  {addresses.length === 0 && !showAddressForm ? (
-                    <div className={styles.emptyState}>
-                      <p>Адресов пока нет.</p>
-                      <button
-                        type="button"
-                        className={styles.secondaryButton}
-                        onClick={() => {
-                          setShowAddressForm(true);
-                          setShowMapPicker(false);
-                          setAddressCoords(null);
-                          addressForm.reset({ city: '', street: '', house: '', apt: '', comment: '' });
-                        }}
-                      >
-                        Добавить адрес
-                      </button>
-                    </div>
-                  ) : (
-                    showAddressForm && (
-                      <form onSubmit={addressForm.handleSubmit(handleSaveAddress)}>
-                        <div className={styles.addressGrid}>
-                          <label>
-                            Город
-                            <input {...addressForm.register('city')} />
-                            {addressForm.formState.errors.city && (
-                              <span>{addressForm.formState.errors.city.message}</span>
-                            )}
-                          </label>
-                          <label>
-                            Улица
-                            <input {...addressForm.register('street')} />
-                            {addressForm.formState.errors.street && (
-                              <span>{addressForm.formState.errors.street.message}</span>
-                            )}
-                          </label>
-                          <label>
-                            Дом
-                            <input {...addressForm.register('house')} />
-                            {addressForm.formState.errors.house && (
-                              <span>{addressForm.formState.errors.house.message}</span>
-                            )}
-                          </label>
-                          <label>
-                            Квартира
-                            <input {...addressForm.register('apt')} />
-                          </label>
-                          <label>
-                            Комментарий
-                            <input {...addressForm.register('comment')} />
-                          </label>
-                        </div>
-                        <div className={styles.addressActions}>
-                          <button
-                            type="button"
-                            className={styles.secondaryButton}
-                            onClick={() => setShowMapPicker((prev) => !prev)}
-                          >
-                            Выбрать на карте
-                          </button>
-                        </div>
-                        {showMapPicker && (
-                          <AddressPickerMap
-                            initialCoords={addressCoords ?? undefined}
-                            onConfirm={(data) => {
-                              addressForm.setValue('city', data.city);
-                              addressForm.setValue('street', data.street);
-                              addressForm.setValue('house', data.house);
-                              setAddressCoords(data.coords);
-                              setShowMapPicker(false);
-                            }}
-                            onCancel={() => setShowMapPicker(false)}
-                          />
-                        )}
-                        <div className={styles.formActions}>
-                          <Button type="submit">Сохранить адрес</Button>
-                          <button
-                            type="button"
-                            className={styles.secondaryButton}
-                            onClick={handleCancelAddress}
-                          >
-                            Отмена
-                          </button>
-                        </div>
-                      </form>
-                    )
-                  )}
-                </>
-              )}
+              <button
+                type="button"
+                className={styles.addressSelector}
+                onClick={() => setIsAddressModalOpen(true)}
+              >
+                <span className={styles.marker}>📍</span>
+                <span>
+                  {selectedAddress ? formatAddress(selectedAddress) : 'Выберите адрес'}
+                </span>
+              </button>
             </div>
           </div>
 
@@ -363,6 +206,46 @@ export const CheckoutPage = () => {
           </aside>
         </div>
       </div>
+      {user && (
+        <AddressModal
+          isOpen={isAddressModalOpen}
+          addresses={addresses}
+          selectedAddressId={selectedAddressId}
+          userId={user.id}
+          onClose={() => setIsAddressModalOpen(false)}
+          onSelect={(addressId) => {
+            setSelectedAddressId(addressId);
+            addressesApi.setDefault(user.id, addressId);
+          }}
+          onCreate={async (payload) => {
+            const created = await addressesApi.create(payload);
+            setAddresses([created, ...addresses]);
+            setSelectedAddressId(created.id);
+            await addressesApi.setDefault(user.id, created.id);
+            return created;
+          }}
+          onUpdate={async (payload) => {
+            const updated = await addressesApi.update(payload);
+            setAddresses(addresses.map((address) => (address.id === updated.id ? updated : address)));
+            return updated;
+          }}
+          onDelete={async (addressId) => {
+            if (!window.confirm('Удалить адрес?')) {
+              return;
+            }
+            await addressesApi.remove(user.id, addressId);
+            const next = addresses.filter((address) => address.id !== addressId);
+            setAddresses(next);
+            if (selectedAddressId === addressId) {
+              const fallbackId = next[0]?.id ?? '';
+              setSelectedAddressId(fallbackId);
+              if (fallbackId) {
+                await addressesApi.setDefault(user.id, fallbackId);
+              }
+            }
+          }}
+        />
+      )}
     </section>
   );
 };

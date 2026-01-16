@@ -61,6 +61,13 @@ npm install
 npm run dev
 ```
 
+#### Yandex Maps (address picker)
+1. Создайте `frontend/.env` и добавьте ключ:
+   ```
+   VITE_YMAPS_API_KEY=ваш_ключ
+   ```
+2. Перезапустите dev server после изменения env.
+
 ### Backend
 ```bash
 cd backend

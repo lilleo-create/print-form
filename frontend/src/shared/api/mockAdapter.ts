@@ -1,4 +1,4 @@
-import { products } from './mockData';
+import { products, orders } from './mockData';
 import { ApiClient } from './client';
 import { CustomPrintRequest, Product } from '../types';
 
@@ -68,9 +68,9 @@ export const filterProducts = (
     const matchSize = filters.size ? item.size === filters.size : true;
     const matchPrice = filters.price
       ? (() => {
-        const [min, max] = filters.price.split('-').map(Number);
-        return item.price >= min && item.price <= max;
-      })()
+          const [min, max] = filters.price.split('-').map(Number);
+          return item.price >= min && item.price <= max;
+        })()
       : true;
     return matchCategory && matchMaterial && matchSize && matchPrice;
   });

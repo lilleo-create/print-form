@@ -41,56 +41,20 @@
   gap: 12px;
 }
 
-.addressList {
+.addressSelector {
+  border: 1px solid var(--color-border);
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 12px 16px;
   display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.addressItem {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px;
-  border-radius: var(--radius-md);
-  background: var(--color-surface-muted);
-}
-
-.addressActions {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.addressActions button {
-  border: none;
-  background: transparent;
-  color: var(--color-primary);
+  align-items: center;
+  gap: 10px;
   cursor: pointer;
-  font-weight: 600;
+  font-weight: 500;
 }
 
-.addressForm {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 12px;
-}
-
-.emptyState {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.addressActionsRow {
-  grid-column: 1 / -1;
-}
-
-.formActions {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
+.marker {
+  font-size: 18px;
 }
 
 .orders {
@@ -164,16 +128,6 @@
 
 .orderItemStatus {
   font-weight: 600;
-}
-
-.secondaryButton {
-  border: 1px solid var(--color-border);
-  background: transparent;
-  color: var(--color-primary);
-  padding: 6px 12px;
-  border-radius: 999px;
-  font-weight: 600;
-  cursor: pointer;
 }
 
 .empty {
