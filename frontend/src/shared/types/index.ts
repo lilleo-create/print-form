@@ -15,6 +15,7 @@ export interface Product {
   technology: TechnologyType;
   printTime: string;
   color: string;
+  sellerId: string | null;
 }
 
 export interface CartItem {
@@ -24,15 +25,19 @@ export interface CartItem {
 
 export interface OrderItem {
   productId: string;
-  name: string;
+  title: string;
   price: number;
   qty: number;
+  sellerId: string;
+  lineTotal: number;
 }
 
 export interface Order {
   id: string;
-  userId: string;
-  userEmail: string;
+  buyerId: string;
+  buyerEmail: string;
+  contactId: string;
+  shippingAddressId: string;
   status: OrderStatus;
   total: number;
   createdAt: string;
@@ -44,6 +49,27 @@ export interface User {
   name: string;
   email: string;
   role: Role;
+}
+
+export interface Contact {
+  id: string;
+  userId: string;
+  name: string;
+  phone: string;
+  email?: string;
+  createdAt: string;
+}
+
+export interface Address {
+  id: string;
+  userId: string;
+  label: string;
+  city: string;
+  street: string;
+  house: string;
+  apt?: string;
+  comment?: string;
+  createdAt: string;
 }
 
 export interface SellerProfile {

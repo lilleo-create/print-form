@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Product } from '../../shared/types';
 import { Button } from '../../shared/ui/Button';
 import { useModalFocus } from '../../shared/lib/useModalFocus';
+import { useAuthStore } from '../../app/store/authStore';
 import styles from './SellerProductModal.module.css';
 
 const productSchema = z.object({
@@ -26,6 +27,7 @@ interface SellerProductModalProps {
 
 export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProductModalProps) => {
   const modalRef = useRef<HTMLDivElement>(null);
+  const user = useAuthStore((state) => state.user);
   const {
     register,
     handleSubmit,
@@ -70,7 +72,8 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
       description: product?.description ?? 'Кастомный товар от продавца.',
       technology: product?.technology ?? 'FDM',
       printTime: product?.printTime ?? '8 часов',
-      color: product?.color ?? 'Черный'
+      color: product?.color ?? 'Черный',
+      sellerId: product?.sellerId ?? user?.id ?? null
     };
 
     await onSubmit(nextProduct);

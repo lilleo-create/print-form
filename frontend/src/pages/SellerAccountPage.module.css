@@ -96,7 +96,20 @@
   background: #ffffff;
   padding: 16px 20px;
   border-radius: 16px;
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
   box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+}
+
+.orderItems {
+  grid-column: span 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  color: #6b7280;
+}
+
+.empty {
+  color: #6b7280;
 }

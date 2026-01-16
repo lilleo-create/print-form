@@ -1,4 +1,4 @@
-import { Order, Product } from '../types';
+import { Product } from '../types';
 
 export const products: Product[] = [
   {
@@ -12,7 +12,8 @@ export const products: Product[] = [
     size: '120×90×35 мм',
     technology: 'FDM',
     printTime: '6 часов',
-    color: 'Черный'
+    color: 'Черный',
+    sellerId: 'platform'
   },
   {
     id: 'p2',
@@ -25,7 +26,8 @@ export const products: Product[] = [
     size: '240×160×90 мм',
     technology: 'FDM',
     printTime: '12 часов',
-    color: 'Белый'
+    color: 'Белый',
+    sellerId: 'platform'
   },
   {
     id: 'p3',
@@ -38,7 +40,8 @@ export const products: Product[] = [
     size: '180×80×60 мм',
     technology: 'SLA',
     printTime: '9 часов',
-    color: 'Стальной'
+    color: 'Стальной',
+    sellerId: 'platform'
   },
   {
     id: 'p4',
@@ -51,7 +54,8 @@ export const products: Product[] = [
     size: '200×150×80 мм',
     technology: 'FDM',
     printTime: '4 часа',
-    color: 'Графит'
+    color: 'Графит',
+    sellerId: 'platform'
   },
   {
     id: 'p5',
@@ -64,7 +68,8 @@ export const products: Product[] = [
     size: '220×220×160 мм',
     technology: 'FDM',
     printTime: '10 часов',
-    color: 'Айвори'
+    color: 'Айвори',
+    sellerId: 'platform'
   },
   {
     id: 'p6',
@@ -77,7 +82,8 @@ export const products: Product[] = [
     size: '300×180×25 мм',
     technology: 'FDM',
     printTime: '7 часов',
-    color: 'Темно-серый'
+    color: 'Темно-серый',
+    sellerId: 'platform'
   },
   {
     id: 'p7',
@@ -90,7 +96,8 @@ export const products: Product[] = [
     size: '320×320×40 мм',
     technology: 'SLA',
     printTime: '14 часов',
-    color: 'Прозрачный дым'
+    color: 'Прозрачный дым',
+    sellerId: 'platform'
   },
   {
     id: 'p8',
@@ -103,7 +110,8 @@ export const products: Product[] = [
     size: '140×120×180 мм',
     technology: 'FDM',
     printTime: '3 часа',
-    color: 'Синий'
+    color: 'Синий',
+    sellerId: 'platform'
   },
   {
     id: 'p9',
@@ -116,7 +124,8 @@ export const products: Product[] = [
     size: '400×300×120 мм',
     technology: 'FDM',
     printTime: '11 часов',
-    color: 'Песочный'
+    color: 'Песочный',
+    sellerId: 'platform'
   },
   {
     id: 'p10',
@@ -129,7 +138,8 @@ export const products: Product[] = [
     size: '260×140×70 мм',
     technology: 'FDM',
     printTime: '13 часов',
-    color: 'Белый'
+    color: 'Белый',
+    sellerId: 'platform'
   },
   {
     id: 'p11',
@@ -142,7 +152,8 @@ export const products: Product[] = [
     size: '30×30×50 мм',
     technology: 'SLA',
     printTime: '5 часов',
-    color: 'Серый'
+    color: 'Серый',
+    sellerId: 'platform'
   },
   {
     id: 'p12',
@@ -155,47 +166,7 @@ export const products: Product[] = [
     size: '210×130×55 мм',
     technology: 'FDM',
     printTime: '6 часов',
-    color: 'Белый'
-  }
-];
-
-export const orders: Order[] = [
-  {
-    id: 'o1',
-    userId: 'buyer-1',
-    userEmail: 'buyer@test.com',
-    status: 'printing',
-    total: 7700,
-    createdAt: '2024-08-03',
-    items: [
-      {
-        productId: products[0].id,
-        name: products[0].title,
-        price: products[0].price,
-        qty: 1
-      },
-      {
-        productId: products[3].id,
-        name: products[3].title,
-        price: products[3].price,
-        qty: 2
-      }
-    ]
-  },
-  {
-    id: 'o2',
-    userId: 'buyer-1',
-    userEmail: 'buyer@test.com',
-    status: 'delivered',
-    total: 5200,
-    createdAt: '2024-07-18',
-    items: [
-      {
-        productId: products[4].id,
-        name: products[4].title,
-        price: products[4].price,
-        qty: 1
-      }
-    ]
+    color: 'Белый',
+    sellerId: 'platform'
   }
 ];

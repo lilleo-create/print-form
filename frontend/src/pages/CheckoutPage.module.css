@@ -8,8 +8,14 @@
 
 .content {
   display: grid;
-  grid-template-columns: 1.2fr 1fr;
+  grid-template-columns: 1.3fr 1fr;
   gap: 24px;
+}
+
+.forms {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .form {
@@ -29,7 +35,8 @@
   font-weight: 500;
 }
 
-.form input {
+.form input,
+.form select {
   border: 1px solid #e5e7eb;
   padding: 10px;
   border-radius: 8px;
@@ -38,6 +45,12 @@
 .form span {
   color: #ef4444;
   font-size: 12px;
+}
+
+.addressGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .form button {
@@ -50,17 +63,30 @@
   cursor: pointer;
 }
 
+.secondaryButton {
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #111827;
+  padding: 10px 14px;
+  border-radius: 999px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .summary {
   background: #f3f4f6;
   border-radius: 16px;
   padding: 24px;
   height: fit-content;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .summary ul {
   list-style: none;
   padding: 0;
-  margin: 16px 0;
+  margin: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -79,8 +105,22 @@
   font-weight: 600;
 }
 
+.primaryButton {
+  border: none;
+  background: #111827;
+  color: #ffffff;
+  padding: 12px 18px;
+  border-radius: 999px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 @media (max-width: 900px) {
   .content {
+    grid-template-columns: 1fr;
+  }
+
+  .addressGrid {
     grid-template-columns: 1fr;
   }
 }

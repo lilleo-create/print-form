@@ -44,8 +44,5 @@ export const api = {
       method: 'POST',
       body: payload
     });
-  },
-  async createOrder(payload: { items: { productId: string; quantity: number }[]; total: number }) {
-    return client.request<{ success: boolean }>('/orders', { method: 'POST', body: payload });
   }
 };

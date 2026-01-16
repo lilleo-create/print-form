@@ -68,7 +68,8 @@ export const ProductModal = () => {
               </label>
               <div className={styles.buttons}>
                 <Button
-                  onClick={() => {
+                  onClick={(event) => {
+                    event.stopPropagation();
                     addItem(product, quantity);
                     close();
                   }}

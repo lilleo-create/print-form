@@ -1,10 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useOrdersStore } from '../app/store/ordersStore';
 import { useProductsStore } from '../app/store/productsStore';
 import { useAuthStore } from '../app/store/authStore';
-import { Product } from '../shared/types';
+import { addressesApi } from '../shared/api/addressesApi';
+import { contactsApi } from '../shared/api/contactsApi';
+import { Address, Contact, Order, Product } from '../shared/types';
 import { SellerProductModal } from '../widgets/seller/SellerProductModal';
 import styles from './SellerAccountPage.module.css';
+
+interface SellerOrderGroup {
+  order: Order;
+  items: Order['items'];
+  contact?: Contact;
+  address?: Address;
+}
 
 export const SellerAccountPage = () => {
   const [activeProduct, setActiveProduct] = useState<Product | null>(null);
@@ -15,17 +24,35 @@ export const SellerAccountPage = () => {
   const updateProduct = useProductsStore((state) => state.updateProduct);
   const removeProduct = useProductsStore((state) => state.removeProduct);
   const orders = useOrdersStore((state) => state.orders);
-  const loadOrders = useOrdersStore((state) => state.loadOrders);
+  const loadSellerOrders = useOrdersStore((state) => state.loadSellerOrders);
   const user = useAuthStore((state) => state.user);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [addresses, setAddresses] = useState<Address[]>([]);
 
   useEffect(() => {
     loadProducts();
     if (user) {
-      loadOrders(user);
+      loadSellerOrders(user.id);
+      contactsApi.listByUser(user.id).then(setContacts);
+      addressesApi.listByUser(user.id).then(setAddresses);
     }
-  }, [loadProducts, loadOrders, user]);
+  }, [loadProducts, loadSellerOrders, user]);
 
   const revenue = orders.reduce((sum, order) => sum + order.total, 0);
+
+  const orderGroups = useMemo<SellerOrderGroup[]>(() => {
+    if (!user) {
+      return [];
+    }
+    return orders
+      .map((order) => {
+        const items = order.items.filter((item) => item.sellerId === user.id);
+        const contact = contacts.find((entry) => entry.id === order.contactId);
+        const address = addresses.find((entry) => entry.id === order.shippingAddressId);
+        return { order, items, contact, address };
+      })
+      .filter((group) => group.items.length > 0);
+  }, [addresses, contacts, orders, user]);
 
   const openCreate = () => {
     setActiveProduct(null);
@@ -66,7 +93,7 @@ export const SellerAccountPage = () => {
             </div>
             <div>
               <span>Заказы</span>
-              <strong>{orders.length}</strong>
+              <strong>{orderGroups.length}</strong>
             </div>
             <div>
               <span>Товары</span>
@@ -82,39 +109,68 @@ export const SellerAccountPage = () => {
               + Добавить товар
             </button>
           </div>
-          <div className={styles.productGrid}>
-            {sellerProducts.map((product) => (
-              <div key={product.id} className={styles.productCard}>
-                <img src={product.image} alt={product.title} />
-                <div>
-                  <h4>{product.title}</h4>
-                  <p>{product.price.toLocaleString('ru-RU')} ₽</p>
+          {sellerProducts.length === 0 ? (
+            <p className={styles.empty}>Нет товаров. Добавьте первый товар.</p>
+          ) : (
+            <div className={styles.productGrid}>
+              {sellerProducts.map((product) => (
+                <div key={product.id} className={styles.productCard}>
+                  <img src={product.image} alt={product.title} />
+                  <div>
+                    <h4>{product.title}</h4>
+                    <p>{product.price.toLocaleString('ru-RU')} ₽</p>
+                  </div>
+                  <div className={styles.actions}>
+                    <button onClick={() => openEdit(product)}>Редактировать</button>
+                    <button onClick={() => handleDelete(product.id)}>Удалить</button>
+                  </div>
                 </div>
-                <div className={styles.actions}>
-                  <button onClick={() => openEdit(product)}>Редактировать</button>
-                  <button onClick={() => handleDelete(product.id)}>Удалить</button>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className={styles.section}>
           <h2>Заказы</h2>
-          <div className={styles.orderList}>
-            {orders.map((order) => (
-              <div key={order.id} className={styles.orderCard}>
-                <div>
-                  <h4>Заказ #{order.id}</h4>
-                  <span>{order.createdAt}</span>
+          {orderGroups.length === 0 ? (
+            <p className={styles.empty}>Пока нет заказов.</p>
+          ) : (
+            <div className={styles.orderList}>
+              {orderGroups.map(({ order, items, contact, address }) => (
+                <div key={order.id} className={styles.orderCard}>
+                  <div>
+                    <h4>Заказ #{order.id}</h4>
+                    <span>{order.createdAt}</span>
+                    {contact && (
+                      <p>
+                        {contact.name} · {contact.phone}
+                      </p>
+                    )}
+                    {address && (
+                      <p>
+                        {address.city}, {address.street} {address.house}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <strong>
+                      {items
+                        .reduce((sum, item) => sum + item.lineTotal, 0)
+                        .toLocaleString('ru-RU')} ₽
+                    </strong>
+                    <p>Позиции: {items.length}</p>
+                  </div>
+                  <div className={styles.orderItems}>
+                    {items.map((item) => (
+                      <span key={item.productId}>
+                        {item.title} × {item.qty}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-                <div>
-                  <strong>{order.total.toLocaleString('ru-RU')} ₽</strong>
-                  <p>Позиции: {order.items.length}</p>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
       {isModalOpen && (

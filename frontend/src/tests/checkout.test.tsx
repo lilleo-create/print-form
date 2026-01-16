@@ -4,6 +4,8 @@ import { CheckoutPage } from '../pages/CheckoutPage';
 import { useCartStore } from '../app/store/cartStore';
 import { useOrdersStore } from '../app/store/ordersStore';
 import { useAuthStore } from '../app/store/authStore';
+import { addressesApi } from '../shared/api/addressesApi';
+import { contactsApi } from '../shared/api/contactsApi';
 
 const user = { id: 'buyer-1', name: 'Покупатель', email: 'buyer@test.com', role: 'buyer' as const };
 
@@ -24,7 +26,8 @@ describe('Checkout flow', () => {
             size: '10x10',
             technology: 'FDM',
             printTime: '2 часа',
-            color: 'Черный'
+            color: 'Черный',
+            sellerId: 'seller-1'
           },
           quantity: 2
         }
@@ -35,19 +38,23 @@ describe('Checkout flow', () => {
   });
 
   it('creates order and clears cart', async () => {
+    await contactsApi.create({ userId: user.id, name: 'Покупатель', phone: '12345', email: '' });
+    const address = await addressesApi.create({
+      userId: user.id,
+      label: 'Дом',
+      city: 'Москва',
+      street: 'Ленина',
+      house: '1',
+      apt: '',
+      comment: ''
+    });
+    await addressesApi.setDefault(user.id, address.id);
+
     render(
       <MemoryRouter>
         <CheckoutPage />
       </MemoryRouter>
     );
-
-    fireEvent.change(screen.getByLabelText('Имя'), { target: { value: 'Покупатель' } });
-    fireEvent.change(screen.getByLabelText('Телефон или email'), {
-      target: { value: 'buyer@test.com' }
-    });
-    fireEvent.change(screen.getByLabelText('Адрес доставки'), {
-      target: { value: 'Тестовый адрес' }
-    });
 
     fireEvent.click(screen.getByRole('button', { name: 'Подтвердить заказ' }));
 
