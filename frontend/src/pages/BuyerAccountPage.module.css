@@ -1,0 +1,126 @@
+.page {
+  padding: 64px 0;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.profileCard {
+  background: var(--color-surface);
+  padding: 16px 20px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.profileGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.profileBox {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.profileBox label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.addressHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.addressList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.addressItem {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+}
+
+.addressActions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.addressActions button {
+  border: none;
+  background: transparent;
+  color: var(--color-primary);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.addressForm {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.orders {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.orderCard {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  box-shadow: var(--shadow-sm);
+}
+
+.items {
+  grid-column: span 2;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  color: var(--color-text-muted);
+}
+
+.secondaryButton {
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-primary);
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.empty {
+  color: var(--color-text-muted);
+}
