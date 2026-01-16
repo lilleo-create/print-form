@@ -59,6 +59,10 @@
   align-items: center;
 }
 
+.addressSlot {
+  display: flex;
+}
+
 .userInfo {
   display: flex;
   gap: 12px;

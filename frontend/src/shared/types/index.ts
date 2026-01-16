@@ -66,16 +66,16 @@ export interface Contact {
 export interface Address {
   id: string;
   userId: string;
-  label: string;
-  city: string;
-  street: string;
-  house: string;
-  apt?: string;
-  comment?: string;
-  coords?: {
+  coords: {
     lat: number;
     lon: number;
-  };
+  } | null;
+  addressText: string;
+  apartment?: string;
+  floor?: string;
+  label?: string;
+  isFavorite?: boolean;
+  courierComment?: string;
   createdAt: string;
 }
 

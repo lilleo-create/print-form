@@ -5,6 +5,7 @@ import { useAuthStore } from '../app/store/authStore';
 import { addressesApi } from '../shared/api/addressesApi';
 import { contactsApi } from '../shared/api/contactsApi';
 import { Address, Contact, Order, Product } from '../shared/types';
+import { formatShortAddress } from '../shared/lib/formatShortAddress';
 import { SellerProductModal } from '../widgets/seller/SellerProductModal';
 import styles from './SellerAccountPage.module.css';
 
@@ -167,7 +168,9 @@ export const SellerAccountPage = () => {
                     )}
                     {address && (
                       <p>
-                        {address.city}, {address.street} {address.house}
+                        {address.addressText
+                          ? formatShortAddress(address.addressText)
+                          : 'Адрес не указан'}
                       </p>
                     )}
                   </div>

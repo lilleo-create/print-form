@@ -6,11 +6,10 @@ import { useNavigate } from 'react-router-dom';
 import { useCartStore } from '../app/store/cartStore';
 import { useOrdersStore } from '../app/store/ordersStore';
 import { useAuthStore } from '../app/store/authStore';
-import { addressesApi } from '../shared/api/addressesApi';
+import { useAddressStore } from '../app/store/addressStore';
 import { contactsApi } from '../shared/api/contactsApi';
-import { Address, Contact } from '../shared/types';
-import { formatAddress } from '../shared/lib/formatAddress';
-import { AddressModal } from '../shared/ui/AddressModal';
+import { Contact } from '../shared/types';
+import { formatShortAddress } from '../shared/lib/formatShortAddress';
 import { Button } from '../shared/ui/Button';
 import styles from './CheckoutPage.module.css';
 
@@ -27,11 +26,11 @@ export const CheckoutPage = () => {
   const clear = useCartStore((state) => state.clear);
   const user = useAuthStore((state) => state.user);
   const createOrder = useOrdersStore((state) => state.createOrder);
+  const addresses = useAddressStore((state) => state.addresses);
+  const selectedAddressId = useAddressStore((state) => state.selectedAddressId);
+  const openModal = useAddressStore((state) => state.openModal);
   const navigate = useNavigate();
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [addresses, setAddresses] = useState<Address[]>([]);
-  const [selectedAddressId, setSelectedAddressId] = useState('');
-  const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const selectedAddress = addresses.find((address) => address.id === selectedAddressId);
 
   const contactForm = useForm<ContactFormValues>({ resolver: zodResolver(contactSchema) });
@@ -45,12 +44,6 @@ export const CheckoutPage = () => {
       if (data[0]) {
         contactForm.reset({ name: data[0].name, phone: data[0].phone, email: data[0].email ?? '' });
       }
-    });
-    addressesApi.listByUser(user.id).then((data) => {
-      setAddresses(data);
-      addressesApi.getDefault(user.id).then((defaultId) => {
-        setSelectedAddressId(defaultId ?? (data[0]?.id ?? ''));
-      });
     });
   }, [contactForm, user]);
 
@@ -176,11 +169,15 @@ export const CheckoutPage = () => {
               <button
                 type="button"
                 className={styles.addressSelector}
-                onClick={() => setIsAddressModalOpen(true)}
+                onClick={openModal}
               >
                 <span className={styles.marker}>📍</span>
                 <span>
-                  {selectedAddress ? formatAddress(selectedAddress) : 'Выберите адрес'}
+                  {selectedAddress
+                    ? selectedAddress.isFavorite && selectedAddress.label
+                      ? selectedAddress.label
+                      : formatShortAddress(selectedAddress.addressText)
+                    : 'Выберите адрес'}
                 </span>
               </button>
             </div>
@@ -206,46 +203,6 @@ export const CheckoutPage = () => {
           </aside>
         </div>
       </div>
-      {user && (
-        <AddressModal
-          isOpen={isAddressModalOpen}
-          addresses={addresses}
-          selectedAddressId={selectedAddressId}
-          userId={user.id}
-          onClose={() => setIsAddressModalOpen(false)}
-          onSelect={(addressId) => {
-            setSelectedAddressId(addressId);
-            addressesApi.setDefault(user.id, addressId);
-          }}
-          onCreate={async (payload) => {
-            const created = await addressesApi.create(payload);
-            setAddresses([created, ...addresses]);
-            setSelectedAddressId(created.id);
-            await addressesApi.setDefault(user.id, created.id);
-            return created;
-          }}
-          onUpdate={async (payload) => {
-            const updated = await addressesApi.update(payload);
-            setAddresses(addresses.map((address) => (address.id === updated.id ? updated : address)));
-            return updated;
-          }}
-          onDelete={async (addressId) => {
-            if (!window.confirm('Удалить адрес?')) {
-              return;
-            }
-            await addressesApi.remove(user.id, addressId);
-            const next = addresses.filter((address) => address.id !== addressId);
-            setAddresses(next);
-            if (selectedAddressId === addressId) {
-              const fallbackId = next[0]?.id ?? '';
-              setSelectedAddressId(fallbackId);
-              if (fallbackId) {
-                await addressesApi.setDefault(user.id, fallbackId);
-              }
-            }
-          }}
-        />
-      )}
     </section>
   );
 };

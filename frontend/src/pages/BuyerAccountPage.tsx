@@ -5,11 +5,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useOrdersStore } from '../app/store/ordersStore';
 import { useProductsStore } from '../app/store/productsStore';
 import { useAuthStore } from '../app/store/authStore';
-import { addressesApi } from '../shared/api/addressesApi';
+import { useAddressStore } from '../app/store/addressStore';
 import { contactsApi } from '../shared/api/contactsApi';
-import { Address, Contact, OrderItemStatus, OrderStatus } from '../shared/types';
-import { formatAddress } from '../shared/lib/formatAddress';
-import { AddressModal } from '../shared/ui/AddressModal';
+import { Contact, OrderItemStatus, OrderStatus } from '../shared/types';
+import { formatShortAddress } from '../shared/lib/formatShortAddress';
 import { Button } from '../shared/ui/Button';
 import styles from './BuyerAccountPage.module.css';
 
@@ -42,10 +41,10 @@ export const BuyerAccountPage = () => {
   const allProducts = useProductsStore((state) => state.allProducts);
   const loadProducts = useProductsStore((state) => state.loadProducts);
   const user = useAuthStore((state) => state.user);
+  const addresses = useAddressStore((state) => state.addresses);
+  const selectedAddressId = useAddressStore((state) => state.selectedAddressId);
+  const openModal = useAddressStore((state) => state.openModal);
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [addresses, setAddresses] = useState<Address[]>([]);
-  const [selectedAddressId, setSelectedAddressId] = useState('');
-  const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const selectedAddress = addresses.find((address) => address.id === selectedAddressId);
 
   const contactForm = useForm<ContactFormValues>({ resolver: zodResolver(contactSchema) });
@@ -62,12 +61,6 @@ export const BuyerAccountPage = () => {
             email: data[0].email ?? ''
           });
         }
-      });
-      addressesApi.listByUser(user.id).then((data) => {
-        setAddresses(data);
-        addressesApi.getDefault(user.id).then((defaultId) => {
-          setSelectedAddressId(defaultId ?? (data[0]?.id ?? ''));
-        });
       });
     }
   }, [contactForm, loadOrders, loadProducts, user]);
@@ -94,22 +87,6 @@ export const BuyerAccountPage = () => {
         email: values.email || undefined
       });
       setContacts([created]);
-    }
-  };
-
-  const handleDeleteAddress = async (addressId: string) => {
-    if (!user || !window.confirm('Удалить адрес?')) {
-      return;
-    }
-    await addressesApi.remove(user.id, addressId);
-    const next = addresses.filter((address) => address.id !== addressId);
-    setAddresses(next);
-    if (selectedAddressId === addressId) {
-      const fallbackId = next[0]?.id ?? '';
-      setSelectedAddressId(fallbackId);
-      if (fallbackId) {
-        await addressesApi.setDefault(user.id, fallbackId);
-      }
     }
   };
 
@@ -157,11 +134,15 @@ export const BuyerAccountPage = () => {
             <button
               type="button"
               className={styles.addressSelector}
-              onClick={() => setIsAddressModalOpen(true)}
+              onClick={openModal}
             >
               <span className={styles.marker}>📍</span>
               <span>
-                {selectedAddress ? formatAddress(selectedAddress) : 'Выберите адрес'}
+                {selectedAddress
+                  ? selectedAddress.isFavorite && selectedAddress.label
+                    ? selectedAddress.label
+                    : formatShortAddress(selectedAddress.addressText)
+                  : 'Выберите адрес'}
               </span>
             </button>
           </div>
@@ -213,32 +194,6 @@ export const BuyerAccountPage = () => {
           )}
         </div>
       </div>
-      {user && (
-        <AddressModal
-          isOpen={isAddressModalOpen}
-          addresses={addresses}
-          selectedAddressId={selectedAddressId}
-          userId={user.id}
-          onClose={() => setIsAddressModalOpen(false)}
-          onSelect={(addressId) => {
-            setSelectedAddressId(addressId);
-            addressesApi.setDefault(user.id, addressId);
-          }}
-          onCreate={async (payload) => {
-            const created = await addressesApi.create(payload);
-            setAddresses([created, ...addresses]);
-            setSelectedAddressId(created.id);
-            await addressesApi.setDefault(user.id, created.id);
-            return created;
-          }}
-          onUpdate={async (payload) => {
-            const updated = await addressesApi.update(payload);
-            setAddresses(addresses.map((address) => (address.id === updated.id ? updated : address)));
-            return updated;
-          }}
-          onDelete={handleDeleteAddress}
-        />
-      )}
     </section>
   );
 };

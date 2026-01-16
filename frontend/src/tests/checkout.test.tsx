@@ -41,12 +41,13 @@ describe('Checkout flow', () => {
     await contactsApi.create({ userId: user.id, name: 'Покупатель', phone: '12345', email: '' });
     const address = await addressesApi.create({
       userId: user.id,
+      coords: null,
+      addressText: 'Москва, Ленина, 1',
+      apartment: '',
+      floor: '',
       label: 'Дом',
-      city: 'Москва',
-      street: 'Ленина',
-      house: '1',
-      apt: '',
-      comment: ''
+      isFavorite: true,
+      courierComment: ''
     });
     await addressesApi.setDefault(user.id, address.id);
 

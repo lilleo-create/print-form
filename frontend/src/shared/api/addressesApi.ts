@@ -5,9 +5,60 @@ import { STORAGE_KEYS } from '../constants/storageKeys';
 const addressesKey = (userId: string) => `${STORAGE_KEYS.addresses}_${userId}`;
 const defaultKey = (userId: string) => `${STORAGE_KEYS.defaultAddressPrefix}${userId}`;
 
+type LegacyAddress = {
+  id: string;
+  userId: string;
+  label?: string;
+  city?: string;
+  street?: string;
+  house?: string;
+  apt?: string;
+  comment?: string;
+  coords?: {
+    lat: number;
+    lon: number;
+  };
+  createdAt: string;
+};
+
+const normalizeAddress = (address: Address | LegacyAddress): Address => {
+  if ('addressText' in address) {
+    return {
+      ...address,
+      coords: address.coords ?? null
+    };
+  }
+
+  const city = address.city ?? '';
+  const street = address.street ?? '';
+  const house = address.house ?? '';
+  const apt = address.apt ?? '';
+  const addressParts = [city, street, house].filter(Boolean).join(', ');
+  const addressText = addressParts || 'Адрес не указан';
+
+  return {
+    id: address.id,
+    userId: address.userId,
+    coords: address.coords ?? null,
+    addressText,
+    apartment: apt || undefined,
+    floor: undefined,
+    label: address.label,
+    isFavorite: Boolean(address.label),
+    courierComment: address.comment,
+    createdAt: address.createdAt
+  };
+};
+
 export const addressesApi = {
   listByUser: async (userId: string) => {
-    return loadFromStorage<Address[]>(addressesKey(userId), []);
+    const stored = loadFromStorage<Array<Address | LegacyAddress>>(addressesKey(userId), []);
+    const normalized = stored.map(normalizeAddress);
+    const shouldPersist = stored.some((item) => !('addressText' in item));
+    if (shouldPersist) {
+      saveToStorage(addressesKey(userId), normalized);
+    }
+    return normalized;
   },
   create: async (payload: Omit<Address, 'id' | 'createdAt'>) => {
     const existing = loadFromStorage<Address[]>(addressesKey(payload.userId), []);

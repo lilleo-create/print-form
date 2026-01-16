@@ -1,0 +1,21 @@
+.addressButton {
+  border: 1px solid var(--color-border);
+  background: #ffffff;
+  border-radius: 999px;
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--color-text);
+}
+
+.addressButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.marker {
+  font-size: 16px;
+}

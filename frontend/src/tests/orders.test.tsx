@@ -19,12 +19,13 @@ describe('Orders history', () => {
     const contact = await contactsApi.create({ userId: user.id, name: 'Покупатель', phone: '123', email: '' });
     const address = await addressesApi.create({
       userId: user.id,
+      coords: null,
+      addressText: 'Москва, Ленина, 1',
+      apartment: '',
+      floor: '',
       label: 'Дом',
-      city: 'Москва',
-      street: 'Ленина',
-      house: '1',
-      apt: '',
-      comment: ''
+      isFavorite: true,
+      courierComment: ''
     });
 
     const createOrder = useOrdersStore.getState().createOrder;
