@@ -1,16 +1,15 @@
 import { Product } from '../types';
 import { loadFromStorage, saveToStorage } from '../lib/storage';
+import { STORAGE_KEYS } from '../constants/storageKeys';
 import { products as seedProducts } from './mockData';
 
-const PRODUCTS_KEY = 'mock_seller_products';
-
 const getSeededProducts = () => {
-  const stored = loadFromStorage<Product[]>(PRODUCTS_KEY, []);
+  const stored = loadFromStorage<Product[]>(STORAGE_KEYS.sellerProducts, []);
   if (stored.length > 0) {
     return stored;
   }
   const initial = seedProducts.slice(0, 4);
-  saveToStorage(PRODUCTS_KEY, initial);
+  saveToStorage(STORAGE_KEYS.sellerProducts, initial);
   return initial;
 };
 
@@ -19,18 +18,18 @@ export const sellerProductsApi = {
   create: async (product: Product) => {
     const current = getSeededProducts();
     const next = [product, ...current];
-    saveToStorage(PRODUCTS_KEY, next);
+    saveToStorage(STORAGE_KEYS.sellerProducts, next);
     return product;
   },
   update: async (product: Product) => {
     const current = getSeededProducts();
     const next = current.map((item) => (item.id === product.id ? product : item));
-    saveToStorage(PRODUCTS_KEY, next);
+    saveToStorage(STORAGE_KEYS.sellerProducts, next);
     return product;
   },
   remove: async (id: string) => {
     const current = getSeededProducts();
     const next = current.filter((item) => item.id !== id);
-    saveToStorage(PRODUCTS_KEY, next);
+    saveToStorage(STORAGE_KEYS.sellerProducts, next);
   }
 };

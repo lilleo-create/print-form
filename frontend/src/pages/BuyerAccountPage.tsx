@@ -17,8 +17,10 @@ export const BuyerAccountPage = () => {
   const user = useAuthStore((state) => state.user);
 
   useEffect(() => {
-    loadOrders();
-  }, [loadOrders]);
+    if (user) {
+      loadOrders(user);
+    }
+  }, [loadOrders, user]);
 
   return (
     <section className={styles.page}>
@@ -37,25 +39,29 @@ export const BuyerAccountPage = () => {
 
         <h2>История заказов</h2>
         <div className={styles.orders}>
-          {orders.map((order) => (
-            <article key={order.id} className={styles.orderCard}>
-              <div>
-                <h4>Заказ #{order.id}</h4>
-                <p>{order.createdAt}</p>
-              </div>
-              <div>
-                <strong>{statusMap[order.status]}</strong>
-                <p>{order.total.toLocaleString('ru-RU')} ₽</p>
-              </div>
-              <div className={styles.items}>
-                {order.items.map((item) => (
-                  <span key={item.productId}>
-                    {item.name} × {item.qty}
-                  </span>
-                ))}
-              </div>
-            </article>
-          ))}
+          {orders.length === 0 ? (
+            <p className={styles.empty}>Пока нет заказов.</p>
+          ) : (
+            orders.map((order) => (
+              <article key={order.id} className={styles.orderCard}>
+                <div>
+                  <h4>Заказ #{order.id}</h4>
+                  <p>{order.createdAt}</p>
+                </div>
+                <div>
+                  <strong>{statusMap[order.status]}</strong>
+                  <p>{order.total.toLocaleString('ru-RU')} ₽</p>
+                </div>
+                <div className={styles.items}>
+                  {order.items.map((item) => (
+                    <span key={item.productId}>
+                      {item.name} × {item.qty}
+                    </span>
+                  ))}
+                </div>
+              </article>
+            ))
+          )}
         </div>
       </div>
     </section>

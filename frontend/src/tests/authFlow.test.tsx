@@ -17,12 +17,12 @@ describe('Auth flow', () => {
 
   it('logs in with seeded credentials', async () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter initialEntries={['/auth/login']}>
         <AuthPage />
       </MemoryRouter>
     );
 
-    await fillAndSubmitLogin('buyer@3dmarket.ru', 'password123');
+    await fillAndSubmitLogin('buyer@test.com', 'buyer123');
 
     await waitFor(() => {
       expect(screen.getByText('Добро пожаловать!')).toBeInTheDocument();
@@ -31,12 +31,12 @@ describe('Auth flow', () => {
 
   it('shows error on invalid credentials', async () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter initialEntries={['/auth/login']}>
         <AuthPage />
       </MemoryRouter>
     );
 
-    await fillAndSubmitLogin('buyer@3dmarket.ru', 'wrongpass');
+    await fillAndSubmitLogin('buyer@test.com', 'wrongpass');
 
     await waitFor(() => {
       expect(

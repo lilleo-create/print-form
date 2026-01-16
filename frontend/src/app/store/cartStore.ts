@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { CartItem, Product } from '../../shared/types';
+import { loadFromStorage, saveToStorage } from '../../shared/lib/storage';
+import { STORAGE_KEYS } from '../../shared/constants/storageKeys';
 
 interface CartState {
   items: CartItem[];
@@ -9,29 +11,40 @@ interface CartState {
   clear: () => void;
 }
 
+const persist = (items: CartItem[]) => saveToStorage(STORAGE_KEYS.cart, items);
+
 export const useCartStore = create<CartState>((set) => ({
-  items: [],
+  items: loadFromStorage<CartItem[]>(STORAGE_KEYS.cart, []),
   addItem: (product, quantity) =>
     set((state) => {
       const existing = state.items.find((item) => item.product.id === product.id);
-      if (existing) {
-        return {
-          items: state.items.map((item) =>
+      const nextItems = existing
+        ? state.items.map((item) =>
             item.product.id === product.id
               ? { ...item, quantity: item.quantity + quantity }
               : item
           )
-        };
-      }
-      return { items: [...state.items, { product, quantity }] };
+        : [...state.items, { product, quantity }];
+      persist(nextItems);
+      return { items: nextItems };
     }),
   updateQuantity: (productId, quantity) =>
-    set((state) => ({
-      items: state.items.map((item) =>
+    set((state) => {
+      const nextItems = state.items.map((item) =>
         item.product.id === productId ? { ...item, quantity } : item
-      )
-    })),
+      );
+      persist(nextItems);
+      return { items: nextItems };
+    }),
   removeItem: (productId) =>
-    set((state) => ({ items: state.items.filter((item) => item.product.id !== productId) })),
-  clear: () => set({ items: [] })
+    set((state) => {
+      const nextItems = state.items.filter((item) => item.product.id !== productId);
+      persist(nextItems);
+      return { items: nextItems };
+    }),
+  clear: () =>
+    set(() => {
+      persist([]);
+      return { items: [] };
+    })
 }));

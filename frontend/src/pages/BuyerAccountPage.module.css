@@ -45,3 +45,8 @@
   flex-wrap: wrap;
   color: #6b7280;
 }
+
+.empty {
+  color: #6b7280;
+  margin-top: 12px;
+}

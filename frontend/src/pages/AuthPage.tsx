@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '../shared/ui/Button';
 import { useAuthStore } from '../app/store/authStore';
 import styles from './AuthPage.module.css';
@@ -20,20 +21,41 @@ type LoginValues = z.infer<typeof loginSchema>;
 type RegisterValues = z.infer<typeof registerSchema>;
 
 export const AuthPage = () => {
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const location = useLocation();
+  const navigate = useNavigate();
+  const isRegister = location.pathname.includes('/register');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const login = useAuthStore((state) => state.login);
   const register = useAuthStore((state) => state.register);
 
+  const redirectTo = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get('redirectTo');
+  }, [location.search]);
+
   const loginForm = useForm<LoginValues>({ resolver: zodResolver(loginSchema) });
   const registerForm = useForm<RegisterValues>({ resolver: zodResolver(registerSchema) });
+
+  const handleRedirect = (role?: string) => {
+    if (redirectTo) {
+      navigate(redirectTo);
+      return;
+    }
+    if (role === 'seller') {
+      navigate('/seller');
+    } else {
+      navigate('/account');
+    }
+  };
 
   const onLogin = async (values: LoginValues) => {
     setError('');
     try {
       await login(values.email, values.password);
+      const role = useAuthStore.getState().user?.role;
       setMessage('Добро пожаловать!');
+      handleRedirect(role);
     } catch {
       setError('Неверный email или пароль. Попробуйте снова.');
     }
@@ -43,7 +65,9 @@ export const AuthPage = () => {
     setError('');
     try {
       await register({ name: values.name, email: values.email, password: values.password });
+      const role = useAuthStore.getState().user?.role;
       setMessage('Регистрация завершена!');
+      handleRedirect(role);
     } catch {
       setError('Пользователь с таким email уже существует.');
     }
@@ -52,20 +76,8 @@ export const AuthPage = () => {
   return (
     <section className={styles.page}>
       <div className={styles.card}>
-        <h1>{mode === 'login' ? 'Вход' : 'Регистрация'}</h1>
-        {mode === 'login' ? (
-          <form onSubmit={loginForm.handleSubmit(onLogin)} className={styles.form}>
-            <input placeholder="Email" {...loginForm.register('email')} />
-            {loginForm.formState.errors.email && (
-              <span>{loginForm.formState.errors.email.message}</span>
-            )}
-            <input type="password" placeholder="Пароль" {...loginForm.register('password')} />
-            {loginForm.formState.errors.password && (
-              <span>{loginForm.formState.errors.password.message}</span>
-            )}
-            <Button type="submit">Войти</Button>
-          </form>
-        ) : (
+        <h1>{isRegister ? 'Регистрация' : 'Вход'}</h1>
+        {isRegister ? (
           <form onSubmit={registerForm.handleSubmit(onRegister)} className={styles.form}>
             <input placeholder="Имя" {...registerForm.register('name')} />
             {registerForm.formState.errors.name && (
@@ -81,23 +93,28 @@ export const AuthPage = () => {
             )}
             <Button type="submit">Создать аккаунт</Button>
           </form>
+        ) : (
+          <form onSubmit={loginForm.handleSubmit(onLogin)} className={styles.form}>
+            <input placeholder="Email" {...loginForm.register('email')} />
+            {loginForm.formState.errors.email && (
+              <span>{loginForm.formState.errors.email.message}</span>
+            )}
+            <input type="password" placeholder="Пароль" {...loginForm.register('password')} />
+            {loginForm.formState.errors.password && (
+              <span>{loginForm.formState.errors.password.message}</span>
+            )}
+            <Button type="submit">Войти</Button>
+          </form>
         )}
         {error && <p className={styles.error}>{error}</p>}
         {message && <p className={styles.success}>{message}</p>}
-        <button
-          className={styles.switch}
-          onClick={() => {
-            setMode(mode === 'login' ? 'register' : 'login');
-            setMessage('');
-            setError('');
-          }}
-        >
-          {mode === 'login' ? 'Нет аккаунта? Зарегистрироваться' : 'Уже есть аккаунт? Войти'}
-        </button>
+        <Link className={styles.switch} to={isRegister ? '/auth/login' : '/auth/register'}>
+          {isRegister ? 'Уже есть аккаунт? Войти' : 'Нет аккаунта? Зарегистрироваться'}
+        </Link>
         <div className={styles.hint}>
           <p>Тестовые аккаунты:</p>
-          <p>buyer@3dmarket.ru / password123</p>
-          <p>seller@3dmarket.ru / password123</p>
+          <p>buyer@test.com / buyer123</p>
+          <p>seller@test.com / seller123</p>
         </div>
       </div>
     </section>

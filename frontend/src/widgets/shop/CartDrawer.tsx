@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useCartStore } from '../../app/store/cartStore';
 import { useUiStore } from '../../app/store/uiStore';
 import { useOrdersStore } from '../../app/store/ordersStore';
+import { useAuthStore } from '../../app/store/authStore';
 import { Button } from '../../shared/ui/Button';
 import { useModalFocus } from '../../shared/lib/useModalFocus';
 import styles from './CartDrawer.module.css';
@@ -22,6 +23,7 @@ export const CartDrawer = () => {
   const { items, updateQuantity, removeItem, clear } = useCartStore();
   const { isCartOpen, closeCart } = useUiStore();
   const createOrder = useOrdersStore((state) => state.createOrder);
+  const user = useAuthStore((state) => state.user);
   const [submitted, setSubmitted] = useState(false);
   const drawerRef = useRef<HTMLDivElement>(null);
   const {
@@ -56,7 +58,7 @@ export const CartDrawer = () => {
   }
 
   const onSubmit = async () => {
-    if (items.length === 0) {
+    if (!user || items.length === 0) {
       return;
     }
     const orderItems = items.map((item) => ({
@@ -65,7 +67,7 @@ export const CartDrawer = () => {
       price: item.product.price,
       qty: item.quantity
     }));
-    await createOrder(orderItems, total);
+    await createOrder({ user, items: orderItems, total });
     setSubmitted(true);
   };
 

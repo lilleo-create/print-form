@@ -1,9 +1,7 @@
 import { ReactNode } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { useCartStore } from '../../app/store/cartStore';
-import { useUiStore } from '../../app/store/uiStore';
 import { useAuthStore } from '../../app/store/authStore';
-import { CartDrawer } from '../shop/CartDrawer';
 import { ProductModal } from '../shop/ProductModal';
 import styles from './Layout.module.css';
 
@@ -13,7 +11,6 @@ interface LayoutProps {
 
 export const Layout = ({ children }: LayoutProps) => {
   const cartItems = useCartStore((state) => state.items);
-  const openCart = useUiStore((state) => state.openCart);
   const { user, logout } = useAuthStore();
 
   return (
@@ -50,14 +47,14 @@ export const Layout = ({ children }: LayoutProps) => {
                 </button>
               </div>
             ) : (
-              <Link to="/auth" className={styles.authLink}>
+              <Link to="/auth/login" className={styles.authLink}>
                 Войти
               </Link>
             )}
-            <button className={styles.cartButton} onClick={openCart} aria-label="Открыть корзину">
+            <Link to="/cart" className={styles.cartButton} aria-label="Открыть корзину">
               Корзина
               <span className={styles.cartCount}>{cartItems.length}</span>
-            </button>
+            </Link>
           </div>
         </div>
       </header>
@@ -79,7 +76,6 @@ export const Layout = ({ children }: LayoutProps) => {
           <p>Личный кабинет</p>
         </div>
       </footer>
-      <CartDrawer />
       <ProductModal />
     </div>
   );

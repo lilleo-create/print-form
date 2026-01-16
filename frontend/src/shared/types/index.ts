@@ -31,6 +31,8 @@ export interface OrderItem {
 
 export interface Order {
   id: string;
+  userId: string;
+  userEmail: string;
   status: OrderStatus;
   total: number;
   createdAt: string;

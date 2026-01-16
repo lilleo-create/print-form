@@ -1,31 +1,32 @@
 import { Order, OrderItem } from '../types';
 import { loadFromStorage, saveToStorage } from '../lib/storage';
-import { orders as seedOrders } from './mockData';
+import { STORAGE_KEYS } from '../constants/storageKeys';
 
-const ORDERS_KEY = 'mock_orders';
-
-const getSeededOrders = () => {
-  const stored = loadFromStorage<Order[]>(ORDERS_KEY, []);
-  if (stored.length > 0) {
-    return stored;
-  }
-  saveToStorage(ORDERS_KEY, seedOrders);
-  return seedOrders;
-};
+const getOrders = () => loadFromStorage<Order[]>(STORAGE_KEYS.orders, []);
 
 export const ordersApi = {
-  list: async () => getSeededOrders(),
-  create: async (payload: { items: OrderItem[]; total: number }) => {
-    const current = getSeededOrders();
+  listByUser: async (userId: string) => {
+    const orders = getOrders();
+    return orders.filter((order) => order.userId === userId);
+  },
+  create: async (payload: {
+    userId: string;
+    userEmail: string;
+    items: OrderItem[];
+    total: number;
+  }) => {
+    const current = getOrders();
     const newOrder: Order = {
       id: `ord-${Date.now()}`,
+      userId: payload.userId,
+      userEmail: payload.userEmail,
       status: 'processing',
       total: payload.total,
       createdAt: new Date().toISOString().split('T')[0],
       items: payload.items
     };
     const next = [newOrder, ...current];
-    saveToStorage(ORDERS_KEY, next);
+    saveToStorage(STORAGE_KEYS.orders, next);
     return newOrder;
   }
 };

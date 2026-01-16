@@ -1,8 +1,6 @@
 import { User, Role } from '../types';
 import { loadFromStorage, saveToStorage, removeFromStorage } from '../lib/storage';
-
-const USERS_KEY = 'mock_users';
-const SESSION_KEY = 'mock_session';
+import { STORAGE_KEYS } from '../constants/storageKeys';
 
 interface UserRecord extends User {
   password: string;
@@ -14,31 +12,31 @@ interface StoredSession {
 }
 
 const seedUsers = (): UserRecord[] => {
-  const existing = loadFromStorage<UserRecord[]>(USERS_KEY, []);
+  const existing = loadFromStorage<UserRecord[]>(STORAGE_KEYS.users, []);
   if (existing.length > 0) {
     return existing;
   }
   const seeded: UserRecord[] = [
     {
       id: 'buyer-1',
-      name: 'Алина Смирнова',
-      email: 'buyer@3dmarket.ru',
+      name: 'Покупатель',
+      email: 'buyer@test.com',
       role: 'buyer',
-      password: 'password123'
+      password: 'buyer123'
     },
     {
       id: 'seller-1',
-      name: 'Никита Белов',
-      email: 'seller@3dmarket.ru',
+      name: 'Продавец',
+      email: 'seller@test.com',
       role: 'seller',
-      password: 'password123'
+      password: 'seller123'
     }
   ];
-  saveToStorage(USERS_KEY, seeded);
+  saveToStorage(STORAGE_KEYS.users, seeded);
   return seeded;
 };
 
-const getUsers = () => loadFromStorage<UserRecord[]>(USERS_KEY, seedUsers());
+const getUsers = () => loadFromStorage<UserRecord[]>(STORAGE_KEYS.users, seedUsers());
 
 export const authApi = {
   login: async (email: string, password: string) => {
@@ -51,7 +49,7 @@ export const authApi = {
       token: `token-${Date.now()}`,
       user: { id: user.id, name: user.name, email: user.email, role: user.role }
     };
-    saveToStorage(SESSION_KEY, session);
+    saveToStorage(STORAGE_KEYS.session, session);
     return session;
   },
   register: async (payload: { name: string; email: string; password: string; role?: Role }) => {
@@ -67,16 +65,16 @@ export const authApi = {
       password: payload.password
     };
     const nextUsers = [...users, newUser];
-    saveToStorage(USERS_KEY, nextUsers);
+    saveToStorage(STORAGE_KEYS.users, nextUsers);
     const session: StoredSession = {
       token: `token-${Date.now()}`,
       user: { id: newUser.id, name: newUser.name, email: newUser.email, role: newUser.role }
     };
-    saveToStorage(SESSION_KEY, session);
+    saveToStorage(STORAGE_KEYS.session, session);
     return session;
   },
   logout: async () => {
-    removeFromStorage(SESSION_KEY);
+    removeFromStorage(STORAGE_KEYS.session);
   },
-  getSession: () => loadFromStorage<StoredSession | null>(SESSION_KEY, null)
+  getSession: () => loadFromStorage<StoredSession | null>(STORAGE_KEYS.session, null)
 };

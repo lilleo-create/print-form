@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useOrdersStore } from '../app/store/ordersStore';
 import { useProductsStore } from '../app/store/productsStore';
+import { useAuthStore } from '../app/store/authStore';
 import { Product } from '../shared/types';
 import { SellerProductModal } from '../widgets/seller/SellerProductModal';
 import styles from './SellerAccountPage.module.css';
@@ -15,11 +16,14 @@ export const SellerAccountPage = () => {
   const removeProduct = useProductsStore((state) => state.removeProduct);
   const orders = useOrdersStore((state) => state.orders);
   const loadOrders = useOrdersStore((state) => state.loadOrders);
+  const user = useAuthStore((state) => state.user);
 
   useEffect(() => {
     loadProducts();
-    loadOrders();
-  }, [loadProducts, loadOrders]);
+    if (user) {
+      loadOrders(user);
+    }
+  }, [loadProducts, loadOrders, user]);
 
   const revenue = orders.reduce((sum, order) => sum + order.total, 0);
 

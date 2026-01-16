@@ -162,6 +162,8 @@ export const products: Product[] = [
 export const orders: Order[] = [
   {
     id: 'o1',
+    userId: 'buyer-1',
+    userEmail: 'buyer@test.com',
     status: 'printing',
     total: 7700,
     createdAt: '2024-08-03',
@@ -182,6 +184,8 @@ export const orders: Order[] = [
   },
   {
     id: 'o2',
+    userId: 'buyer-1',
+    userEmail: 'buyer@test.com',
     status: 'delivered',
     total: 5200,
     createdAt: '2024-07-18',
