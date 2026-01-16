@@ -2,6 +2,7 @@ export type MaterialType = 'PLA' | 'ABS' | 'PETG' | 'RESIN';
 export type TechnologyType = 'FDM' | 'SLA';
 export type Role = 'buyer' | 'seller';
 export type OrderStatus = 'processing' | 'printing' | 'shipped' | 'delivered';
+export type OrderItemStatus = 'new' | OrderStatus;
 
 export interface Product {
   id: string;
@@ -30,6 +31,8 @@ export interface OrderItem {
   qty: number;
   sellerId: string;
   lineTotal: number;
+  image?: string;
+  status?: OrderItemStatus;
 }
 
 export interface Order {
@@ -69,6 +72,10 @@ export interface Address {
   house: string;
   apt?: string;
   comment?: string;
+  coords?: {
+    lat: number;
+    lon: number;
+  };
   createdAt: string;
 }
 

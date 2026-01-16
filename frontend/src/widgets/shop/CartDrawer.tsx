@@ -63,9 +63,13 @@ export const CartDrawer = () => {
     }
     const orderItems = items.map((item) => ({
       productId: item.product.id,
-      name: item.product.title,
+      title: item.product.title,
       price: item.product.price,
-      qty: item.quantity
+      qty: item.quantity,
+      sellerId: item.product.sellerId ?? 'platform',
+      lineTotal: item.product.price * item.quantity,
+      image: item.product.image,
+      status: 'new'
     }));
     await createOrder({ user, items: orderItems, total });
     setSubmitted(true);

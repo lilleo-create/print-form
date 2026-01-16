@@ -3,14 +3,24 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useOrdersStore } from '../app/store/ordersStore';
+import { useProductsStore } from '../app/store/productsStore';
 import { useAuthStore } from '../app/store/authStore';
 import { addressesApi } from '../shared/api/addressesApi';
 import { contactsApi } from '../shared/api/contactsApi';
-import { Address, Contact, OrderStatus } from '../shared/types';
+import { Address, Contact, OrderItemStatus, OrderStatus } from '../shared/types';
+import { AddressPickerMap } from '../shared/ui/AddressPickerMap';
 import { Button } from '../shared/ui/Button';
 import styles from './BuyerAccountPage.module.css';
 
 const statusMap: Record<OrderStatus, string> = {
+  processing: 'В обработке',
+  printing: 'В печати',
+  shipped: 'Отправлен',
+  delivered: 'Завершен'
+};
+
+const itemStatusMap: Record<OrderItemStatus, string> = {
+  new: 'Новый',
   processing: 'В обработке',
   printing: 'В печати',
   shipped: 'Отправлен',
@@ -38,10 +48,15 @@ type AddressFormValues = z.infer<typeof addressSchema>;
 export const BuyerAccountPage = () => {
   const loadOrders = useOrdersStore((state) => state.loadBuyerOrders);
   const orders = useOrdersStore((state) => state.orders);
+  const allProducts = useProductsStore((state) => state.allProducts);
+  const loadProducts = useProductsStore((state) => state.loadProducts);
   const user = useAuthStore((state) => state.user);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
+  const [showAddressForm, setShowAddressForm] = useState(false);
+  const [showMapPicker, setShowMapPicker] = useState(false);
+  const [addressCoords, setAddressCoords] = useState<Address['coords'] | null>(null);
 
   const contactForm = useForm<ContactFormValues>({ resolver: zodResolver(contactSchema) });
   const addressForm = useForm<AddressFormValues>({ resolver: zodResolver(addressSchema) });
@@ -49,6 +64,7 @@ export const BuyerAccountPage = () => {
   useEffect(() => {
     if (user) {
       loadOrders(user);
+      loadProducts();
       contactsApi.listByUser(user.id).then((data) => {
         setContacts(data);
         if (data[0]) {
@@ -61,7 +77,7 @@ export const BuyerAccountPage = () => {
       });
       addressesApi.listByUser(user.id).then((data) => setAddresses(data));
     }
-  }, [contactForm, loadOrders, user]);
+  }, [contactForm, loadOrders, loadProducts, user]);
 
   const primaryContact = useMemo(() => contacts[0], [contacts]);
 
@@ -103,7 +119,8 @@ export const BuyerAccountPage = () => {
         street: values.street,
         house: values.house,
         apt: values.apt,
-        comment: values.comment
+        comment: values.comment,
+        coords: addressCoords ?? existing.coords
       });
       setAddresses(addresses.map((address) => (address.id === updated.id ? updated : address)));
       setEditingAddressId(null);
@@ -114,15 +131,22 @@ export const BuyerAccountPage = () => {
         street: values.street,
         house: values.house,
         apt: values.apt,
-        comment: values.comment
+        comment: values.comment,
+        coords: addressCoords ?? undefined
       });
       setAddresses([created, ...addresses]);
     }
     addressForm.reset({ city: '', street: '', house: '', apt: '', comment: '' });
+    setAddressCoords(null);
+    setShowAddressForm(false);
+    setShowMapPicker(false);
   };
 
   const handleEditAddress = (address: Address) => {
     setEditingAddressId(address.id);
+    setShowAddressForm(true);
+    setShowMapPicker(false);
+    setAddressCoords(address.coords ?? null);
     addressForm.reset({
       city: address.city,
       street: address.street,
@@ -141,7 +165,26 @@ export const BuyerAccountPage = () => {
     if (editingAddressId === addressId) {
       setEditingAddressId(null);
       addressForm.reset({ city: '', street: '', house: '', apt: '', comment: '' });
+      setAddressCoords(null);
+      setShowAddressForm(false);
+      setShowMapPicker(false);
     }
+  };
+
+  const handleAddAddress = () => {
+    setEditingAddressId(null);
+    setShowAddressForm(true);
+    setShowMapPicker(false);
+    setAddressCoords(null);
+    addressForm.reset({ city: '', street: '', house: '', apt: '', comment: '' });
+  };
+
+  const handleCancelAddress = () => {
+    setEditingAddressId(null);
+    setShowAddressForm(false);
+    setShowMapPicker(false);
+    setAddressCoords(null);
+    addressForm.reset({ city: '', street: '', house: '', apt: '', comment: '' });
   };
 
   return (
@@ -150,12 +193,7 @@ export const BuyerAccountPage = () => {
         <div className={styles.header}>
           <div>
             <h1>Личный кабинет</h1>
-            <p>Профиль покупателя и история заказов.</p>
-          </div>
-          <div className={styles.profileCard}>
-            <h4>{user?.name}</h4>
-            <p>{user?.email}</p>
-            <span>Статус: Premium</span>
+            <p>Управляйте личными данными и заказами.</p>
           </div>
         </div>
 
@@ -189,19 +227,25 @@ export const BuyerAccountPage = () => {
           <div className={styles.profileBox}>
             <div className={styles.addressHeader}>
               <h3>Адреса доставки</h3>
-              <button
-                type="button"
-                className={styles.secondaryButton}
-                onClick={() => {
-                  setEditingAddressId(null);
-                  addressForm.reset({ city: '', street: '', house: '', apt: '', comment: '' });
-                }}
-              >
-                Добавить адрес
-              </button>
+              {addresses.length > 0 && !showAddressForm && (
+                <button type="button" className={styles.secondaryButton} onClick={handleAddAddress}>
+                  Добавить адрес
+                </button>
+              )}
             </div>
             {addresses.length === 0 ? (
-              <p className={styles.empty}>Адресов пока нет.</p>
+              <div className={styles.emptyState}>
+                <p className={styles.empty}>Адресов пока нет.</p>
+                {!showAddressForm && (
+                  <button
+                    type="button"
+                    className={styles.secondaryButton}
+                    onClick={handleAddAddress}
+                  >
+                    Добавить адрес
+                  </button>
+                )}
+              </div>
             ) : (
               <div className={styles.addressList}>
                 {addresses.map((address) => (
@@ -225,40 +269,76 @@ export const BuyerAccountPage = () => {
                 ))}
               </div>
             )}
-            <form className={styles.addressForm} onSubmit={addressForm.handleSubmit(handleSaveAddress)}>
-              <label>
-                Город
-                <input {...addressForm.register('city')} />
-                {addressForm.formState.errors.city && (
-                  <span>{addressForm.formState.errors.city.message}</span>
+            {showAddressForm && (
+              <form
+                className={styles.addressForm}
+                onSubmit={addressForm.handleSubmit(handleSaveAddress)}
+              >
+                <label>
+                  Город
+                  <input {...addressForm.register('city')} />
+                  {addressForm.formState.errors.city && (
+                    <span>{addressForm.formState.errors.city.message}</span>
+                  )}
+                </label>
+                <label>
+                  Улица
+                  <input {...addressForm.register('street')} />
+                  {addressForm.formState.errors.street && (
+                    <span>{addressForm.formState.errors.street.message}</span>
+                  )}
+                </label>
+                <label>
+                  Дом
+                  <input {...addressForm.register('house')} />
+                  {addressForm.formState.errors.house && (
+                    <span>{addressForm.formState.errors.house.message}</span>
+                  )}
+                </label>
+                <label>
+                  Квартира
+                  <input {...addressForm.register('apt')} />
+                </label>
+                <label>
+                  Комментарий
+                  <input {...addressForm.register('comment')} />
+                </label>
+                <div className={styles.addressActionsRow}>
+                  <button
+                    type="button"
+                    className={styles.secondaryButton}
+                    onClick={() => setShowMapPicker((prev) => !prev)}
+                  >
+                    Выбрать на карте
+                  </button>
+                </div>
+                {showMapPicker && (
+                  <AddressPickerMap
+                    initialCoords={addressCoords ?? undefined}
+                    onConfirm={(data) => {
+                      addressForm.setValue('city', data.city);
+                      addressForm.setValue('street', data.street);
+                      addressForm.setValue('house', data.house);
+                      setAddressCoords(data.coords);
+                      setShowMapPicker(false);
+                    }}
+                    onCancel={() => setShowMapPicker(false)}
+                  />
                 )}
-              </label>
-              <label>
-                Улица
-                <input {...addressForm.register('street')} />
-                {addressForm.formState.errors.street && (
-                  <span>{addressForm.formState.errors.street.message}</span>
-                )}
-              </label>
-              <label>
-                Дом
-                <input {...addressForm.register('house')} />
-                {addressForm.formState.errors.house && (
-                  <span>{addressForm.formState.errors.house.message}</span>
-                )}
-              </label>
-              <label>
-                Квартира
-                <input {...addressForm.register('apt')} />
-              </label>
-              <label>
-                Комментарий
-                <input {...addressForm.register('comment')} />
-              </label>
-              <Button type="submit">
-                {editingAddressId ? 'Сохранить изменения' : 'Сохранить адрес'}
-              </Button>
-            </form>
+                <div className={styles.formActions}>
+                  <Button type="submit">
+                    {editingAddressId ? 'Сохранить изменения' : 'Сохранить адрес'}
+                  </Button>
+                  <button
+                    type="button"
+                    className={styles.secondaryButton}
+                    onClick={handleCancelAddress}
+                  >
+                    Отмена
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
 
@@ -278,11 +358,30 @@ export const BuyerAccountPage = () => {
                   <p>{order.total.toLocaleString('ru-RU')} ₽</p>
                 </div>
                 <div className={styles.items}>
-                  {order.items.map((item) => (
-                    <span key={item.productId}>
-                      {item.title} × {item.qty}
-                    </span>
-                  ))}
+                  {order.items.map((item) => {
+                    const productImage =
+                      item.image ?? allProducts.find((product) => product.id === item.productId)?.image;
+                    return (
+                      <div key={`${order.id}-${item.productId}`} className={styles.orderItem}>
+                        {productImage ? (
+                          <img src={productImage} alt={item.title} className={styles.orderItemImage} />
+                        ) : (
+                          <div className={styles.orderItemPlaceholder} aria-hidden="true">
+                            Нет фото
+                          </div>
+                        )}
+                        <div className={styles.orderItemInfo}>
+                          <span className={styles.orderItemTitle}>{item.title}</span>
+                          <span className={styles.orderItemMeta}>
+                            {item.price.toLocaleString('ru-RU')} ₽ · {item.qty} шт.
+                          </span>
+                        </div>
+                        <span className={styles.orderItemStatus}>
+                          {itemStatusMap[item.status ?? 'new']}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               </article>
             ))

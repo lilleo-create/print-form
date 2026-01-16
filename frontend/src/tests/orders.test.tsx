@@ -52,7 +52,8 @@ describe('Orders history', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('Тестовый товар × 2')).toBeInTheDocument();
+      expect(screen.getByText('Тестовый товар')).toBeInTheDocument();
+      expect(screen.getByText(/1\s?000 ₽ · 2 шт\./)).toBeInTheDocument();
     });
   });
 });
