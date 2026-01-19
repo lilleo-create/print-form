@@ -1,12 +1,16 @@
 import { Address } from '../types';
 
-export const formatAddress = (address?: Address | null) => {
-  if (!address) {
-    return '';
-  }
-  const parts = [`${address.city}`, `${address.street} ${address.house}`];
-  if (address.apt) {
-    parts.push(`кв. ${address.apt}`);
-  }
-  return parts.filter(Boolean).join(', ');
-};
+export function formatAddress(address: Address) {
+  const label = address.label?.trim();
+  if (label) return label;
+
+  const text = address.addressText?.trim() ?? '';
+  if (!text) return 'Адрес не указан';
+
+  // коротко: "улица, дом" как fallback
+  // очень простая версия: берем первую часть до запятой/вторую
+  const parts = text.split(',').map(s => s.trim()).filter(Boolean);
+
+  // попробуем взять что-то похожее на "улица ... дом ..."
+  return parts.length >= 2 ? `${parts[1]}` : parts[0];
+}

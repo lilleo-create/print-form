@@ -69,9 +69,16 @@ export const CartDrawer = () => {
       sellerId: item.product.sellerId ?? 'platform',
       lineTotal: item.product.price * item.quantity,
       image: item.product.image,
-      status: 'new'
     }));
-    await createOrder({ user, items: orderItems, total });
+    await createOrder({
+      user,
+      contactId: user.id,
+      shippingAddressId: 'mock-address',
+      items: orderItems,
+      total
+    });
+
+
     setSubmitted(true);
   };
 

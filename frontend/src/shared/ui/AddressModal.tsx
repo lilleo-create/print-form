@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Address } from '../types';
-import { loadYmaps } from '../lib/loadYmaps';
+import { safeLoadYmaps } from '../lib/safeLoadYmaps';
 import { formatAddress } from '../lib/formatAddress';
 import { Button } from './Button';
 import styles from './AddressModal.module.css';
@@ -12,9 +12,13 @@ const addressSchema = z.object({
   city: z.string().min(2, 'Город'),
   street: z.string().min(2, 'Улица'),
   house: z.string().min(1, 'Дом'),
+
   apt: z.string().optional(),
+  floor: z.string().optional(),
+  label: z.string().optional(),
   comment: z.string().optional()
 });
+
 
 type AddressFormValues = z.infer<typeof addressSchema>;
 
@@ -68,9 +72,11 @@ export const AddressModal = ({
   const [mapError, setMapError] = useState('');
   const [isMapReady, setIsMapReady] = useState(false);
   const mapRef = useRef<HTMLDivElement>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapInstanceRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const placemarkRef = useRef<any>(null);
-  const ymapsRef = useRef<Awaited<ReturnType<typeof loadYmaps>> | null>(null);
+  const ymapsRef = useRef<Awaited<ReturnType<typeof safeLoadYmaps>> | null>(null);
 
   const {
     register,
@@ -105,11 +111,10 @@ export const AddressModal = ({
     setCoords(address.coords ?? null);
     setMapError('');
     reset({
-      city: address.city,
-      street: address.street,
-      house: address.house,
-      apt: address.apt ?? '',
-      comment: address.comment ?? ''
+      street: '',
+      house: '',
+      apt: '',
+      comment: ''
     });
   };
 
@@ -135,7 +140,7 @@ export const AddressModal = ({
 
     let isMounted = true;
     setIsMapReady(false);
-    loadYmaps()
+    safeLoadYmaps()
       .then((ymaps) => {
         ymapsRef.current = ymaps;
         if (!isMounted || !mapRef.current) {
@@ -227,23 +232,24 @@ export const AddressModal = ({
     if (mode === 'edit' && editingAddress) {
       await onUpdate({
         ...editingAddress,
-        city: values.city,
-        street: values.street,
-        house: values.house,
-        apt: values.apt,
-        comment: values.comment,
-        coords: coords ?? undefined
+        id: editingAddress.id,
+        addressText: `${values.street} ${values.house}`.trim(),
+        label: values.label?.trim() || editingAddress.label,
+        apartment: values.apt?.trim() || editingAddress.apartment,
+        floor: values.floor?.trim() || editingAddress.floor,
+        courierComment: values.comment?.trim() || editingAddress.courierComment,
+        coords: coords ?? null
       });
+
     } else {
       await onCreate({
         userId,
-        label: '',
-        city: values.city,
-        street: values.street,
-        house: values.house,
-        apt: values.apt,
-        comment: values.comment,
-        coords: coords ?? undefined
+        addressText: `${values.street} ${values.house}`.trim(),
+        label: values.label?.trim() || '',
+        apartment: values.apt?.trim() || '',
+        floor: values.floor?.trim() || '',
+        courierComment: values.comment?.trim() || '',
+        coords: coords ?? null
       });
     }
     openList();

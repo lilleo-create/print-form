@@ -3,10 +3,10 @@ import { ApiClient } from './client';
 import { CustomPrintRequest, Product } from '../types';
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
+type RequestOptions = { method?: string; body?: unknown };
 export const createMockClient = (): ApiClient => {
   return {
-    async request<T>(path: string, options = {}) {
+    async request<T>(path: string, options: RequestOptions = {}) {
       await delay(400);
 
       if (path.startsWith('/products')) {

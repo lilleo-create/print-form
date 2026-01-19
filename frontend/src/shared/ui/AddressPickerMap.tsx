@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button } from './Button';
-import { loadYmaps } from '../lib/loadYmaps';
+import { safeLoadYmaps  } from '../lib/safeLoadYmaps';
 import styles from './AddressPickerMap.module.css';
 
 type AddressCoords = {
@@ -44,7 +44,7 @@ export const AddressPickerMap = ({ initialCoords, onConfirm, onCancel }: Address
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const placemarkRef = useRef<any>(null);
-  const ymapsRef = useRef<Awaited<ReturnType<typeof loadYmaps>> | null>(null);
+  const ymapsRef = useRef<Awaited<ReturnType<typeof safeLoadYmaps >> | null>(null);
   const [query, setQuery] = useState('');
   const [coords, setCoords] = useState<AddressCoords | null>(initialCoords ?? null);
   const [address, setAddress] = useState<{ city: string; street: string; house: string } | null>(
@@ -52,7 +52,7 @@ export const AddressPickerMap = ({ initialCoords, onConfirm, onCancel }: Address
   );
   const [error, setError] = useState('');
 
-  const updatePlacemark = (ymaps: Awaited<ReturnType<typeof loadYmaps>>, nextCoords: number[]) => {
+  const updatePlacemark = (ymaps: Awaited<ReturnType<typeof safeLoadYmaps >>, nextCoords: number[]) => {
     if (!mapInstanceRef.current) {
       return;
     }
@@ -64,7 +64,7 @@ export const AddressPickerMap = ({ initialCoords, onConfirm, onCancel }: Address
     }
   };
 
-  const reverseGeocode = async (ymaps: Awaited<ReturnType<typeof loadYmaps>>, nextCoords: number[]) => {
+  const reverseGeocode = async (ymaps: Awaited<ReturnType<typeof safeLoadYmaps >>, nextCoords: number[]) => {
     const result = await ymaps.geocode(nextCoords);
     const geoObject = result.geoObjects.get(0);
     const nextAddress = extractAddressParts(geoObject);
@@ -72,7 +72,7 @@ export const AddressPickerMap = ({ initialCoords, onConfirm, onCancel }: Address
   };
 
   const handleCoordsSelect = async (
-    ymaps: Awaited<ReturnType<typeof loadYmaps>>,
+    ymaps: Awaited<ReturnType<typeof safeLoadYmaps >>,
     nextCoords: number[]
   ) => {
     setError('');
@@ -85,7 +85,7 @@ export const AddressPickerMap = ({ initialCoords, onConfirm, onCancel }: Address
   useEffect(() => {
     let isMounted = true;
 
-    loadYmaps()
+    safeLoadYmaps ()
       .then((ymaps) => {
         ymapsRef.current = ymaps;
         if (!isMounted || !mapRef.current || mapInstanceRef.current) {

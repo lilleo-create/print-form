@@ -170,3 +170,13 @@ export const products: Product[] = [
     sellerId: 'platform'
   }
 ];
+export const orders = [
+  {
+    id: 'ord-1',
+    createdAt: new Date().toISOString(),
+    status: 'new',
+    total: 4200,
+    items: [{ productId: 'p1', qty: 1, price: 4200 }]
+  }
+];
+

@@ -10,20 +10,16 @@ export interface ApiClient {
 
 export const createFetchClient = (baseUrl: string): ApiClient => {
   return {
-    async request<T>(path: string, options = {}) {
+    async request<T>(path: string, options: { method?: HttpMethod; body?: unknown } = {}) {
       const response = await fetch(`${baseUrl}${path}`, {
         method: options.method ?? 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: options.body ? JSON.stringify(options.body) : undefined
       });
 
-      if (!response.ok) {
-        throw new Error('API error');
-      }
-
+      if (!response.ok) throw new Error('API error');
       return response.json() as Promise<ApiResponse<T>>;
     }
   };
 };
+
