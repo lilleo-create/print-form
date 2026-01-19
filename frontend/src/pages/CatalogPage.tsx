@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ProductCard } from '../widgets/shop/ProductCard';
 import { useCatalog } from '../features/catalog/useCatalog';
 import { useFilters } from '../features/catalog/useFilters';
@@ -12,12 +12,28 @@ export const CatalogPage = () => {
     size: ''
   });
   const filterData = useFilters();
-  const { products, loading } = useCatalog({
-    category: filters.category || undefined,
-    material: filters.material || undefined,
-    price: filters.price || undefined,
-    size: filters.size || undefined
-  });
+  const { products, loading } = useCatalog({});
+
+  const filteredProducts = useMemo(() => {
+    return products.filter((item) => {
+      const matchCategory = filters.category ? item.category === filters.category : true;
+      const matchMaterial = filters.material ? item.material === filters.material : true;
+      const matchSize = filters.size ? item.size === filters.size : true;
+      const matchPrice = filters.price
+        ? (() => {
+            const [minRaw, maxRaw] = filters.price.split('-');
+            const min = Number(minRaw);
+            const max = Number(maxRaw);
+            if (Number.isNaN(min) || Number.isNaN(max)) {
+              return true;
+            }
+            return item.price >= min && item.price <= max;
+          })()
+        : true;
+
+      return matchCategory && matchMaterial && matchSize && matchPrice;
+    });
+  }, [filters.category, filters.material, filters.price, filters.size, products]);
 
   return (
     <section className={styles.page}>
@@ -31,7 +47,12 @@ export const CatalogPage = () => {
         <div className={styles.filters}>
           <select
             value={filters.category}
-            onChange={(event) => setFilters({ ...filters, category: event.target.value })}
+            onChange={(event) =>
+              setFilters((prev) => ({
+                ...prev,
+                category: event.target.value
+              }))
+            }
             aria-label="Фильтр категории"
           >
             <option value="">Категория</option>
@@ -43,7 +64,12 @@ export const CatalogPage = () => {
           </select>
           <select
             value={filters.material}
-            onChange={(event) => setFilters({ ...filters, material: event.target.value })}
+            onChange={(event) =>
+              setFilters((prev) => ({
+                ...prev,
+                material: event.target.value
+              }))
+            }
             aria-label="Фильтр материала"
           >
             <option value="">Материал</option>
@@ -55,7 +81,12 @@ export const CatalogPage = () => {
           </select>
           <select
             value={filters.price}
-            onChange={(event) => setFilters({ ...filters, price: event.target.value })}
+            onChange={(event) =>
+              setFilters((prev) => ({
+                ...prev,
+                price: event.target.value
+              }))
+            }
             aria-label="Фильтр цены"
           >
             <option value="">Цена</option>
@@ -65,7 +96,12 @@ export const CatalogPage = () => {
           </select>
           <select
             value={filters.size}
-            onChange={(event) => setFilters({ ...filters, size: event.target.value })}
+            onChange={(event) =>
+              setFilters((prev) => ({
+                ...prev,
+                size: event.target.value
+              }))
+            }
             aria-label="Фильтр размера"
           >
             <option value="">Размер</option>
@@ -80,7 +116,7 @@ export const CatalogPage = () => {
           <p className={styles.loading}>Загрузка...</p>
         ) : (
           <div className={styles.grid}>
-            {products.map((product) => (
+            {filteredProducts.map((product) => (
               <ProductCard product={product} key={product.id} />
             ))}
           </div>

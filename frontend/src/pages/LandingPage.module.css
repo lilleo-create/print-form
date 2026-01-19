@@ -1,7 +1,8 @@
 .page {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 64px;
+  padding-bottom: 64px;
 }
 
 .hero {
@@ -11,6 +12,7 @@
   padding: 64px 24px;
   max-width: 1200px;
   margin: 0 auto;
+  align-items: center;
 }
 
 .heroContent {
@@ -57,6 +59,17 @@
   background: #fff;
 }
 
+.primaryLink:hover,
+.primaryLink:focus-visible {
+  background: #0f172a;
+}
+
+.secondaryLink:hover,
+.secondaryLink:focus-visible {
+  border-color: #cbd5f5;
+  color: #0f172a;
+}
+
 .heroCard {
   background: #ffffff;
   border-radius: 24px;
@@ -82,6 +95,8 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
 .link {
@@ -92,7 +107,7 @@
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 24px;
 }
 
@@ -103,6 +118,10 @@
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 24px;
   padding: 64px 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+  border-radius: 24px;
+  align-items: center;
 }
 
 .customContent {
@@ -123,14 +142,14 @@
 
 .benefitGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
   margin-top: 24px;
 }
 
 .steps {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
   margin-top: 24px;
 }
@@ -139,4 +158,37 @@
   font-size: 24px;
   font-weight: 700;
   color: #6366f1;
+}
+
+@media (max-width: 1200px) {
+  .grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 960px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .benefitGrid,
+  .steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .grid,
+  .benefitGrid,
+  .steps {
+    grid-template-columns: 1fr;
+  }
+
+  .hero {
+    padding: 48px 20px;
+  }
+
+  .customSection {
+    padding: 48px 20px;
+  }
 }
