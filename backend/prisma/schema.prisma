@@ -1,0 +1,86 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  BUYER
+  SELLER
+  ADMIN
+}
+
+enum OrderStatus {
+  PROCESSING
+  PRINTING
+  SHIPPED
+  DELIVERED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role     @default(BUYER)
+  createdAt DateTime @default(now())
+  products  Product[]
+  orders    Order[]
+  refreshTokens RefreshToken[]
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  title       String
+  category    String
+  price       Int
+  image       String
+  description String
+  material    String
+  size        String
+  technology  String
+  printTime   String
+  color       String
+  sellerId    String
+  seller      User     @relation(fields: [sellerId], references: [id])
+  createdAt   DateTime @default(now())
+}
+
+model Order {
+  id        String      @id @default(cuid())
+  buyerId   String
+  buyer     User        @relation(fields: [buyerId], references: [id])
+  status    OrderStatus @default(PROCESSING)
+  total     Int
+  createdAt DateTime    @default(now())
+  items     OrderItem[]
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id])
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int
+}
+
+model CustomRequest {
+  id        String   @id @default(cuid())
+  name      String
+  contact   String
+  comment   String
+  status    String   @default("new")
+  createdAt DateTime @default(now())
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  expiresAt DateTime
+}
