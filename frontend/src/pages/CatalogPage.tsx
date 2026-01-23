@@ -1,39 +1,56 @@
 import { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ProductCard } from '../widgets/shop/ProductCard';
 import { useCatalog } from '../features/catalog/useCatalog';
 import { useFilters } from '../features/catalog/useFilters';
+import { FilterModal } from '../widgets/catalog/FilterModal';
+import { Button } from '../shared/ui/Button';
 import styles from './CatalogPage.module.css';
 
+const sortOptions = {
+  createdAt: 'По дате добавления',
+  rating: 'По рейтингу'
+} as const;
+
 export const CatalogPage = () => {
-  const [filters, setFilters] = useState({
-    category: '',
-    material: '',
-    price: '',
-    size: ''
-  });
+  const [searchParams, setSearchParams] = useSearchParams();
   const filterData = useFilters();
-  const { products, loading } = useCatalog({});
+  const [isModalOpen, setModalOpen] = useState(false);
+
+  const [filters, setFilters] = useState({
+    category: searchParams.get('category') ?? '',
+    material: searchParams.get('material') ?? '',
+    price: searchParams.get('price') ?? '',
+    size: searchParams.get('size') ?? ''
+  });
+
+  const sort = (searchParams.get('sort') as 'createdAt' | 'rating') ?? 'createdAt';
+  const { products, loading, error } = useCatalog({
+    ...filters,
+    sort,
+    order: 'desc'
+  });
 
   const filteredProducts = useMemo(() => {
-    return products.filter((item) => {
-      const matchCategory = filters.category ? item.category === filters.category : true;
-      const matchMaterial = filters.material ? item.material === filters.material : true;
-      const matchSize = filters.size ? item.size === filters.size : true;
-      const matchPrice = filters.price
-        ? (() => {
-            const [minRaw, maxRaw] = filters.price.split('-');
-            const min = Number(minRaw);
-            const max = Number(maxRaw);
-            if (Number.isNaN(min) || Number.isNaN(max)) {
-              return true;
-            }
-            return item.price >= min && item.price <= max;
-          })()
-        : true;
+    return products;
+  }, [products]);
 
-      return matchCategory && matchMaterial && matchSize && matchPrice;
-    });
-  }, [filters.category, filters.material, filters.price, filters.size, products]);
+  const applyFilters = () => {
+    const params = new URLSearchParams();
+    if (filters.category) params.set('category', filters.category);
+    if (filters.material) params.set('material', filters.material);
+    if (filters.price) params.set('price', filters.price);
+    if (filters.size) params.set('size', filters.size);
+    if (sort) params.set('sort', sort);
+    setSearchParams(params);
+    setModalOpen(false);
+  };
+
+  const handleSortChange = (value: 'createdAt' | 'rating') => {
+    const params = new URLSearchParams(searchParams);
+    params.set('sort', value);
+    setSearchParams(params);
+  };
 
   return (
     <section className={styles.page}>
@@ -43,77 +60,29 @@ export const CatalogPage = () => {
             <h1>Каталог моделей</h1>
             <p>Подберите готовые изделия от проверенных продавцов.</p>
           </div>
+          <Button variant="secondary" onClick={() => setModalOpen(true)}>
+            Фильтр
+          </Button>
         </div>
-        <div className={styles.filters}>
-          <select
-            value={filters.category}
-            onChange={(event) =>
-              setFilters((prev) => ({
-                ...prev,
-                category: event.target.value
-              }))
-            }
-            aria-label="Фильтр категории"
-          >
-            <option value="">Категория</option>
-            {filterData.categories.map((category) => (
-              <option key={category} value={category}>
-                {category}
-              </option>
+        <div className={styles.controls}>
+          <span className={styles.controlsTitle}>Быстрая сортировка</span>
+          <div className={styles.sortButtons}>
+            {Object.entries(sortOptions).map(([value, label]) => (
+              <Button
+                key={value}
+                variant={sort === value ? 'primary' : 'ghost'}
+                size="sm"
+                onClick={() => handleSortChange(value as 'createdAt' | 'rating')}
+              >
+                {label}
+              </Button>
             ))}
-          </select>
-          <select
-            value={filters.material}
-            onChange={(event) =>
-              setFilters((prev) => ({
-                ...prev,
-                material: event.target.value
-              }))
-            }
-            aria-label="Фильтр материала"
-          >
-            <option value="">Материал</option>
-            {filterData.materials.map((material) => (
-              <option key={material} value={material}>
-                {material}
-              </option>
-            ))}
-          </select>
-          <select
-            value={filters.price}
-            onChange={(event) =>
-              setFilters((prev) => ({
-                ...prev,
-                price: event.target.value
-              }))
-            }
-            aria-label="Фильтр цены"
-          >
-            <option value="">Цена</option>
-            <option value="0-2000">до 2 000 ₽</option>
-            <option value="2000-5000">2 000 - 5 000 ₽</option>
-            <option value="5000-10000">5 000 - 10 000 ₽</option>
-          </select>
-          <select
-            value={filters.size}
-            onChange={(event) =>
-              setFilters((prev) => ({
-                ...prev,
-                size: event.target.value
-              }))
-            }
-            aria-label="Фильтр размера"
-          >
-            <option value="">Размер</option>
-            {filterData.sizes.map((size) => (
-              <option key={size} value={size}>
-                {size}
-              </option>
-            ))}
-          </select>
+          </div>
         </div>
         {loading ? (
           <p className={styles.loading}>Загрузка...</p>
+        ) : error ? (
+          <p className={styles.loading}>Не удалось загрузить каталог.</p>
         ) : (
           <div className={styles.grid}>
             {filteredProducts.map((product) => (
@@ -122,6 +91,19 @@ export const CatalogPage = () => {
           </div>
         )}
       </div>
+      <FilterModal
+        isOpen={isModalOpen}
+        filters={filters}
+        filterOptions={filterData}
+        onChange={(key, value) =>
+          setFilters((prev) => ({
+            ...prev,
+            [key]: value
+          }))
+        }
+        onApply={applyFilters}
+        onClose={() => setModalOpen(false)}
+      />
     </section>
   );
 };

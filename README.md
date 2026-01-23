@@ -90,6 +90,9 @@ VITE_API_URL=http://localhost:4000
 DATABASE_URL=postgresql://user:password@localhost:5432/printform
 JWT_SECRET=super-secret
 JWT_REFRESH_SECRET=super-refresh-secret
+GOOGLE_SHEETS_ID=your-sheet-id
+GOOGLE_SERVICE_ACCOUNT_EMAIL=service-account@project.iam.gserviceaccount.com
+GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
 FRONTEND_URL=http://localhost:5173
 PORT=4000
 ```

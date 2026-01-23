@@ -11,12 +11,53 @@ export interface Product {
   price: number;
   image: string;
   description: string;
+  descriptionShort?: string;
+  descriptionFull?: string;
+  sku?: string;
+  currency?: string;
+  ratingAvg?: number;
+  ratingCount?: number;
   material: MaterialType;
   size: string;
   technology: TechnologyType;
   printTime: string;
   color: string;
   sellerId: string | null;
+  images?: ProductImage[];
+  variants?: ProductVariant[];
+  specs?: ProductSpec[];
+  deliveryDateNearest?: string;
+}
+
+export interface ProductImage {
+  id: string;
+  url: string;
+  sortOrder: number;
+}
+
+export interface ProductVariant {
+  id: string;
+  name: string;
+  options: Record<string, string[]>;
+  priceDelta?: number;
+  sku?: string;
+  stock?: number;
+}
+
+export interface ProductSpec {
+  id: string;
+  key: string;
+  value: string;
+  sortOrder: number;
+}
+
+export interface Review {
+  id: string;
+  userId?: string | null;
+  rating: number;
+  text: string;
+  createdAt: string;
+  user?: { id: string; name: string } | null;
 }
 
 export interface CartItem {

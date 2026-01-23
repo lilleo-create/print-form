@@ -10,11 +10,11 @@ const orderSchema = z.object({
     .array(
       z.object({
         productId: z.string(),
+        variantId: z.string().optional(),
         quantity: z.number().min(1)
       })
     )
-    .min(1),
-  total: z.number().min(1)
+    .min(1)
 });
 
 orderRoutes.post('/', authenticate, async (req: AuthRequest, res, next) => {
@@ -22,7 +22,6 @@ orderRoutes.post('/', authenticate, async (req: AuthRequest, res, next) => {
     const payload = orderSchema.parse(req.body);
     const order = await orderUseCases.create({
       buyerId: req.user!.userId,
-      total: payload.total,
       items: payload.items
     });
     res.status(201).json({ data: order });
@@ -44,7 +43,7 @@ orderRoutes.get('/:id', authenticate, async (req, res, next) => {
   try {
     const order = await orderUseCases.get(req.params.id);
     if (!order) {
-      return res.status(404).json({ error: 'NOT_FOUND' });
+      return res.status(404).json({ error: { code: 'NOT_FOUND' } });
     }
     return res.json({ data: order });
   } catch (error) {

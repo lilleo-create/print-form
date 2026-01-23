@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { authService } from '../services/authService';
+import { authenticate, AuthRequest } from '../middleware/authMiddleware';
+import { userRepository } from '../repositories/userRepository';
 
 export const authRoutes = Router();
 
@@ -24,10 +26,10 @@ authRoutes.post('/register', async (req, res, next) => {
       payload.role
     );
     res.cookie('refreshToken', result.refreshToken, { httpOnly: true, sameSite: 'lax' });
-    res.json({
-      token: result.accessToken,
-      user: { id: result.user.id, name: result.user.name, role: result.user.role }
-    });
+  res.json({
+    token: result.accessToken,
+    user: { id: result.user.id, name: result.user.name, role: result.user.role, email: result.user.email }
+  });
   } catch (error) {
     next(error);
   }
@@ -38,10 +40,10 @@ authRoutes.post('/login', async (req, res, next) => {
     const payload = loginSchema.parse(req.body);
     const result = await authService.login(payload.email, payload.password);
     res.cookie('refreshToken', result.refreshToken, { httpOnly: true, sameSite: 'lax' });
-    res.json({
-      token: result.accessToken,
-      user: { id: result.user.id, name: result.user.name, role: result.user.role }
-    });
+  res.json({
+    token: result.accessToken,
+    user: { id: result.user.id, name: result.user.name, role: result.user.role, email: result.user.email }
+  });
   } catch (error) {
     next(error);
   }
@@ -70,5 +72,17 @@ authRoutes.post('/logout', async (req, res, next) => {
     res.json({ success: true });
   } catch (error) {
     next(error);
+  }
+});
+
+authRoutes.get('/me', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    const user = await userRepository.findById(req.user!.userId);
+    if (!user) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND' } });
+    }
+    return res.json({ data: { id: user.id, name: user.name, role: user.role, email: user.email } });
+  } catch (error) {
+    return next(error);
   }
 });

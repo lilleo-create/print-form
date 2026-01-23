@@ -9,7 +9,7 @@ export interface AuthRequest extends Request {
 export const authenticate = (req: AuthRequest, res: Response, next: NextFunction) => {
   const header = req.headers.authorization;
   if (!header) {
-    return res.status(401).json({ error: 'UNAUTHORIZED' });
+    return res.status(401).json({ error: { code: 'UNAUTHORIZED' } });
   }
   const token = header.replace('Bearer ', '');
   try {
@@ -17,14 +17,14 @@ export const authenticate = (req: AuthRequest, res: Response, next: NextFunction
     req.user = decoded;
     return next();
   } catch {
-    return res.status(401).json({ error: 'UNAUTHORIZED' });
+    return res.status(401).json({ error: { code: 'UNAUTHORIZED' } });
   }
 };
 
 export const authorize = (roles: string[]) => {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     if (!req.user || !roles.includes(req.user.role)) {
-      return res.status(403).json({ error: 'FORBIDDEN' });
+      return res.status(403).json({ error: { code: 'FORBIDDEN' } });
     }
     return next();
   };

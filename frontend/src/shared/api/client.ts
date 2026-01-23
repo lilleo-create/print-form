@@ -1,3 +1,6 @@
+import { loadFromStorage } from '../lib/storage';
+import { STORAGE_KEYS } from '../constants/storageKeys';
+
 export interface ApiResponse<T> {
   data: T;
 }
@@ -11,9 +14,15 @@ export interface ApiClient {
 export const createFetchClient = (baseUrl: string): ApiClient => {
   return {
     async request<T>(path: string, options: { method?: HttpMethod; body?: unknown } = {}) {
+      const session = loadFromStorage<{ token: string } | null>(STORAGE_KEYS.session, null);
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (session?.token) {
+        headers.Authorization = `Bearer ${session.token}`;
+      }
+
       const response = await fetch(`${baseUrl}${path}`, {
         method: options.method ?? 'GET',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: options.body ? JSON.stringify(options.body) : undefined
       });
 
@@ -22,4 +31,3 @@ export const createFetchClient = (baseUrl: string): ApiClient => {
     }
   };
 };
-

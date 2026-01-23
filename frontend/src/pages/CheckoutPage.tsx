@@ -29,6 +29,7 @@ export const CheckoutPage = () => {
   const addresses = useAddressStore((state) => state.addresses);
   const selectedAddressId = useAddressStore((state) => state.selectedAddressId);
   const openModal = useAddressStore((state) => state.openModal);
+  const loadAddresses = useAddressStore((state) => state.loadAddresses);
   const navigate = useNavigate();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const selectedAddress = addresses.find((address) => address.id === selectedAddressId);
@@ -46,6 +47,12 @@ export const CheckoutPage = () => {
       }
     });
   }, [contactForm, user]);
+
+  useEffect(() => {
+    if (user) {
+      loadAddresses(user.id);
+    }
+  }, [loadAddresses, user]);
 
   const total = useMemo(
     () => items.reduce((sum, item) => sum + item.product.price * item.quantity, 0),

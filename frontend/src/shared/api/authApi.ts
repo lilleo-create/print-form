@@ -1,6 +1,7 @@
 import { User, Role } from '../types';
 import { loadFromStorage, saveToStorage, removeFromStorage } from '../lib/storage';
 import { STORAGE_KEYS } from '../constants/storageKeys';
+import { api } from './index';
 
 interface UserRecord extends User {
   password: string;
@@ -13,6 +14,8 @@ interface StoredSession {
 }
 
 const now = () => new Date().toISOString();
+const useMock = import.meta.env.VITE_USE_MOCK !== 'false';
+const normalizeRole = (role: string): Role => (role.toLowerCase() === 'seller' ? 'seller' : 'buyer');
 
 const seedUsers = (): UserRecord[] => {
   const existing = loadFromStorage<UserRecord[]>(STORAGE_KEYS.users, []);
@@ -45,6 +48,15 @@ const getUsers = () => loadFromStorage<UserRecord[]>(STORAGE_KEYS.users, seedUse
 
 export const authApi = {
   login: async (email: string, password: string) => {
+    if (!useMock) {
+      const result = await api.login({ email, password });
+      const session: StoredSession = {
+        token: result.data.token,
+        user: { ...result.data.user, role: normalizeRole(result.data.user.role) }
+      };
+      saveToStorage(STORAGE_KEYS.session, session);
+      return session;
+    }
     const users = getUsers();
     const user = users.find((item) => item.email === email && item.password === password);
     if (!user) {
@@ -58,6 +70,19 @@ export const authApi = {
     return session;
   },
   register: async (payload: { name: string; email: string; password: string; role?: Role }) => {
+    if (!useMock) {
+      const result = await api.register({
+        name: payload.name,
+        email: payload.email,
+        password: payload.password
+      });
+      const session: StoredSession = {
+        token: result.data.token,
+        user: { ...result.data.user, role: normalizeRole(result.data.user.role) }
+      };
+      saveToStorage(STORAGE_KEYS.session, session);
+      return session;
+    }
     const users = getUsers();
     if (users.some((item) => item.email === payload.email)) {
       throw new Error('USER_EXISTS');
@@ -80,6 +105,9 @@ export const authApi = {
     return session;
   },
   logout: async () => {
+    if (!useMock) {
+      await api.logout();
+    }
     removeFromStorage(STORAGE_KEYS.session);
   },
   getSession: () => loadFromStorage<StoredSession | null>(STORAGE_KEYS.session, null)

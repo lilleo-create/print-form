@@ -57,6 +57,7 @@ describe('Checkout flow', () => {
       </MemoryRouter>
     );
 
+    await screen.findByText('Дом');
     fireEvent.click(screen.getByRole('button', { name: 'Подтвердить заказ' }));
 
     await waitFor(() => {

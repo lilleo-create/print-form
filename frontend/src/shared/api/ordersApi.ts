@@ -1,15 +1,25 @@
 import { Order, OrderItem } from '../types';
 import { loadFromStorage, saveToStorage } from '../lib/storage';
 import { STORAGE_KEYS } from '../constants/storageKeys';
+import { api } from './index';
 
 const getOrders = () => loadFromStorage<Order[]>(STORAGE_KEYS.orders, []);
+const useMock = import.meta.env.VITE_USE_MOCK !== 'false';
 
 export const ordersApi = {
   listByBuyer: async (buyerId: string) => {
+    if (!useMock) {
+      const result = await api.getOrders();
+      return result.data;
+    }
     const orders = getOrders();
     return orders.filter((order) => order.buyerId === buyerId);
   },
   listBySeller: async (sellerId: string) => {
+    if (!useMock) {
+      const result = await api.getSellerOrders();
+      return result.data;
+    }
     const orders = getOrders();
     return orders.filter((order) => order.items.some((item) => item.sellerId === sellerId));
   },
@@ -21,6 +31,15 @@ export const ordersApi = {
     items: OrderItem[];
     total: number;
   }) => {
+    if (!useMock) {
+      const result = await api.createOrder({
+        items: payload.items.map((item) => ({
+          productId: item.productId,
+          quantity: item.qty
+        }))
+      });
+      return result.data;
+    }
     const current = getOrders();
     const newOrder: Order = {
       id: `ord-${Date.now()}`,
