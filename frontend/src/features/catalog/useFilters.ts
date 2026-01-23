@@ -1,19 +1,28 @@
-import { useEffect, useMemo } from 'react';
-import { useProductsStore } from '../../app/store/productsStore';
+import { useEffect, useState } from 'react';
+import { api } from '../../shared/api';
 
 export const useFilters = () => {
-  const { allProducts, loadProducts } = useProductsStore();
+  const [filters, setFilters] = useState({ categories: [] as string[], materials: [] as string[], sizes: [] as string[] });
 
   useEffect(() => {
-    loadProducts();
-  }, [loadProducts]);
+    let isMounted = true;
+    api
+      .getFilters()
+      .then((response) => {
+        if (isMounted) {
+          setFilters(response.data);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setFilters({ categories: [], materials: [], sizes: [] });
+        }
+      });
 
-  const filters = useMemo(() => {
-    const categories = Array.from(new Set(allProducts.map((item) => item.category)));
-    const materials = Array.from(new Set(allProducts.map((item) => item.material)));
-    const sizes = Array.from(new Set(allProducts.map((item) => item.size)));
-    return { categories, materials, sizes };
-  }, [allProducts]);
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   return filters;
 };

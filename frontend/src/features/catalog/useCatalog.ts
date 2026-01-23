@@ -1,34 +1,58 @@
-import { useEffect, useMemo } from 'react';
-import { useProductsStore } from '../../app/store/productsStore';
+import { useEffect, useState } from 'react';
+import { api } from '../../shared/api';
+import { Product } from '../../shared/types';
 
 export interface CatalogFilters {
   category?: string;
   material?: string;
   price?: string;
   size?: string;
+  sort?: 'createdAt' | 'rating';
+  order?: 'asc' | 'desc';
+  page?: number;
+  limit?: number;
 }
 
 export const useCatalog = (filters: CatalogFilters) => {
-  const { allProducts, loadProducts } = useProductsStore();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadProducts();
-  }, [loadProducts]);
+    let isMounted = true;
+    setLoading(true);
+    api
+      .getProducts(filters)
+      .then((response) => {
+        if (isMounted) {
+          setProducts(response.data);
+          setError(null);
+        }
+      })
+      .catch((err) => {
+        if (isMounted) {
+          setError(err instanceof Error ? err.message : 'Ошибка загрузки');
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setLoading(false);
+        }
+      });
 
-  const products = useMemo(() => {
-    return allProducts.filter((item) => {
-      const matchCategory = filters.category ? item.category === filters.category : true;
-      const matchMaterial = filters.material ? item.material === filters.material : true;
-      const matchSize = filters.size ? item.size === filters.size : true;
-      const matchPrice = filters.price
-        ? (() => {
-            const [min, max] = filters.price.split('-').map(Number);
-            return item.price >= min && item.price <= max;
-          })()
-        : true;
-      return matchCategory && matchMaterial && matchSize && matchPrice;
-    });
-  }, [allProducts, filters.category, filters.material, filters.price, filters.size]);
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    filters.category,
+    filters.material,
+    filters.price,
+    filters.size,
+    filters.sort,
+    filters.order,
+    filters.page,
+    filters.limit
+  ]);
 
-  return { products, loading: allProducts.length === 0 };
+  return { products, loading, error };
 };

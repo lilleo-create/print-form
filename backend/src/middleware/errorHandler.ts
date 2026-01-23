@@ -14,5 +14,5 @@ export const errorHandler = (
     ? 409
     : 500;
 
-  res.status(status).json({ error: error.message || 'SERVER_ERROR' });
+  res.status(status).json({ error: { code: error.message || 'SERVER_ERROR' } });
 };

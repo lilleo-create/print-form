@@ -1,26 +1,36 @@
 .page {
-  padding: 64px 0;
+  padding: 64px 0 96px;
 }
 
 .header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-end;
+  align-items: center;
   margin-bottom: 24px;
 }
 
-.filters {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+.header h1 {
+  font-size: 32px;
+  margin-bottom: 8px;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 12px;
-  margin-bottom: 24px;
+  margin-bottom: 28px;
 }
 
-.filters select {
-  padding: 10px;
-  border-radius: 10px;
-  border: 1px solid #e5e7eb;
-  background: #ffffff;
+.controlsTitle {
+  font-size: 14px;
+  color: #64748b;
+}
+
+.sortButtons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .grid {
@@ -31,4 +41,5 @@
 
 .loading {
   padding: 20px 0;
+  color: #64748b;
 }

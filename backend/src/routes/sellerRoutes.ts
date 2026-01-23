@@ -21,8 +21,13 @@ sellerRoutes.get('/products', async (req: AuthRequest, res, next) => {
 sellerRoutes.post('/products', async (req: AuthRequest, res, next) => {
   try {
     const payload = sellerProductSchema.parse(req.body);
+    const skuFallback = payload.sku ?? `SKU-${Date.now()}`;
     const product = await productUseCases.create({
       ...payload,
+      descriptionShort: payload.descriptionShort ?? payload.description,
+      descriptionFull: payload.descriptionFull ?? payload.description,
+      sku: skuFallback,
+      currency: payload.currency ?? 'RUB',
       sellerId: req.user!.userId
     });
     res.status(201).json({ data: product });
@@ -36,6 +41,10 @@ sellerRoutes.put('/products/:id', async (req: AuthRequest, res, next) => {
     const payload = sellerProductSchema.partial().parse(req.body);
     const product = await productUseCases.update(req.params.id, {
       ...payload,
+      descriptionShort: payload.descriptionShort ?? payload.description,
+      descriptionFull: payload.descriptionFull ?? payload.description,
+      sku: payload.sku,
+      currency: payload.currency,
       sellerId: req.user!.userId
     });
     res.json({ data: product });

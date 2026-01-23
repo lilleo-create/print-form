@@ -20,7 +20,7 @@ describe('Route access control', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText('Личный кабинет')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Личный кабинет' })).toBeInTheDocument();
   });
 
   it('shows seller link only for seller', () => {
@@ -35,7 +35,7 @@ describe('Route access control', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText('Продавец')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Продавец' })).toBeInTheDocument();
 
     useAuthStore.setState({
       user: { id: 'buyer-1', name: 'Покупатель', email: 'buyer@test.com', role: 'buyer' },
@@ -48,6 +48,6 @@ describe('Route access control', () => {
       </MemoryRouter>
     );
 
-    expect(screen.queryByText('Продавец')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Продавец' })).not.toBeInTheDocument();
   });
 });
