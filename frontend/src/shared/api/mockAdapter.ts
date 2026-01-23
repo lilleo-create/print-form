@@ -1,9 +1,10 @@
-import { products, orders } from './mockData';
+import { products, orders, reviews } from './mockData';
 import { ApiClient } from './client';
 import { CustomPrintRequest, Product } from '../types';
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 type RequestOptions = { method?: string; body?: unknown };
+let mockReviews = [...reviews];
 export const createMockClient = (): ApiClient => {
   return {
     async request<T>(path: string, options: RequestOptions = {}) {
@@ -11,6 +12,66 @@ export const createMockClient = (): ApiClient => {
 
       if (path.startsWith('/products')) {
         const [pathname, queryString] = path.split('?');
+        if (pathname.endsWith('/reviews/summary')) {
+          const productId = pathname.split('/')[2];
+          const productReviews = mockReviews.filter((review) => review.productId === productId);
+          const total = productReviews.length;
+          const counts = [5, 4, 3, 2, 1].map((rating) => ({
+            rating,
+            count: productReviews.filter((review) => review.rating === rating).length
+          }));
+          const avg = total
+            ? productReviews.reduce((sum, review) => sum + review.rating, 0) / total
+            : 0;
+          const photos = productReviews.flatMap((review) => review.photos ?? []);
+          return { data: { total, avg, counts, photos } as T };
+        }
+        if (pathname.includes('/reviews')) {
+          const productId = pathname.split('/')[2];
+          if (options.method === 'POST') {
+            const payload = options.body as {
+              rating: number;
+              pros: string;
+              cons: string;
+              comment: string;
+              photos?: string[];
+            };
+            const newReview = {
+              id: `review-${Date.now()}`,
+              productId,
+              rating: payload.rating,
+              pros: payload.pros,
+              cons: payload.cons,
+              comment: payload.comment,
+              photos: payload.photos ?? [],
+              likesCount: 0,
+              dislikesCount: 0,
+              createdAt: new Date().toISOString(),
+              user: { id: 'mock', name: 'Гость' }
+            };
+            mockReviews = [newReview, ...mockReviews];
+            return { data: newReview as T };
+          }
+          const params = new URLSearchParams(queryString ?? '');
+          const page = params.get('page') ? Number(params.get('page')) : 1;
+          const limit = params.get('limit') ? Number(params.get('limit')) : 5;
+          const sort = params.get('sort') ?? 'new';
+          const productReviews = mockReviews.filter((review) => review.productId === productId);
+          const sorted = [...productReviews].sort((a, b) => {
+            if (sort === 'helpful') {
+              return (b.likesCount ?? 0) - (a.likesCount ?? 0);
+            }
+            if (sort === 'high') {
+              return b.rating - a.rating;
+            }
+            if (sort === 'low') {
+              return a.rating - b.rating;
+            }
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+          });
+          const data = sorted.slice((page - 1) * limit, page * limit);
+          return { data: { data, meta: { total: productReviews.length } } as T };
+        }
         if (pathname === '/products') {
           const params = new URLSearchParams(queryString ?? '');
           const filters = {
@@ -45,14 +106,27 @@ export const createMockClient = (): ApiClient => {
           if (filters.limit) {
             items = items.slice(0, filters.limit);
           }
-          return { data: items as T };
+          const withRatings = items.map((item) => {
+            const productReviews = mockReviews.filter((review) => review.productId === item.id);
+            const ratingCount = productReviews.length;
+            const ratingAvg = ratingCount
+              ? productReviews.reduce((sum, review) => sum + review.rating, 0) / ratingCount
+              : 0;
+            return { ...item, ratingAvg, ratingCount };
+          });
+          return { data: withRatings as T };
         }
         const id = pathname.split('/')[2];
         const product = products.find((item) => item.id === id);
         if (!product) {
           throw new Error('Product not found');
         }
-        return { data: product as T };
+        const productReviews = mockReviews.filter((review) => review.productId === id);
+        const ratingCount = productReviews.length;
+        const ratingAvg = ratingCount
+          ? productReviews.reduce((sum, review) => sum + review.rating, 0) / ratingCount
+          : 0;
+        return { data: { ...product, ratingAvg, ratingCount } as T };
       }
 
       if (path === '/custom-requests' && options.method === 'POST') {
@@ -73,7 +147,19 @@ export const createMockClient = (): ApiClient => {
       }
 
       if (path === '/auth/login' || path === '/auth/register') {
-        return { data: { token: 'mock-token', user: { name: 'Алина', role: 'buyer' } } as T };
+        return {
+          data: {
+            token: 'mock-token',
+            user: {
+              id: 'buyer-1',
+              name: 'Алина',
+              role: 'buyer',
+              email: 'buyer@test.com',
+              phone: '+7 (900) 123-45-67',
+              address: 'Москва, ул. Тверская, 12'
+            }
+          } as T
+        };
       }
 
       if (path === '/orders' && options.method === 'POST') {

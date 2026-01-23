@@ -27,6 +27,8 @@ const seedUsers = (): UserRecord[] => {
       id: 'buyer-1',
       name: 'Покупатель',
       email: 'buyer@test.com',
+      phone: '+7 (900) 123-45-67',
+      address: 'Москва, ул. Тверская, 12',
       role: 'buyer',
       password: 'buyer123',
       createdAt: now()
@@ -35,6 +37,8 @@ const seedUsers = (): UserRecord[] => {
       id: 'seller-1',
       name: 'Продавец',
       email: 'seller@test.com',
+      phone: '+7 (900) 555-11-22',
+      address: 'Санкт-Петербург, Невский пр., 78',
       role: 'seller',
       password: 'seller123',
       createdAt: now()
@@ -64,17 +68,33 @@ export const authApi = {
     }
     const session: StoredSession = {
       token: `token-${Date.now()}`,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role }
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        phone: user.phone,
+        address: user.address
+      }
     };
     saveToStorage(STORAGE_KEYS.session, session);
     return session;
   },
-  register: async (payload: { name: string; email: string; password: string; role?: Role }) => {
+  register: async (payload: {
+    name: string;
+    email: string;
+    password: string;
+    role?: Role;
+    phone?: string;
+    address?: string;
+  }) => {
     if (!useMock) {
       const result = await api.register({
         name: payload.name,
         email: payload.email,
-        password: payload.password
+        password: payload.password,
+        phone: payload.phone,
+        address: payload.address
       });
       const session: StoredSession = {
         token: result.data.token,
@@ -91,6 +111,8 @@ export const authApi = {
       id: `user-${Date.now()}`,
       name: payload.name,
       email: payload.email,
+      phone: payload.phone,
+      address: payload.address,
       role: payload.role ?? 'buyer',
       password: payload.password,
       createdAt: now()
@@ -99,10 +121,41 @@ export const authApi = {
     saveToStorage(STORAGE_KEYS.users, nextUsers);
     const session: StoredSession = {
       token: `token-${Date.now()}`,
-      user: { id: newUser.id, name: newUser.name, email: newUser.email, role: newUser.role }
+      user: {
+        id: newUser.id,
+        name: newUser.name,
+        email: newUser.email,
+        role: newUser.role,
+        phone: newUser.phone,
+        address: newUser.address
+      }
     };
     saveToStorage(STORAGE_KEYS.session, session);
     return session;
+  },
+  updateProfile: async (payload: { name?: string; phone?: string; address?: string }) => {
+    if (!useMock) {
+      const result = await api.updateProfile(payload);
+      const current = loadFromStorage<StoredSession | null>(STORAGE_KEYS.session, null);
+      if (current) {
+        const nextSession = { ...current, user: { ...current.user, ...result.data.data } };
+        saveToStorage(STORAGE_KEYS.session, nextSession);
+        return nextSession;
+      }
+      return null;
+    }
+    const session = loadFromStorage<StoredSession | null>(STORAGE_KEYS.session, null);
+    if (!session) {
+      return null;
+    }
+    const users = getUsers();
+    const nextUsers = users.map((item) =>
+      item.id === session.user.id ? { ...item, ...payload } : item
+    );
+    saveToStorage(STORAGE_KEYS.users, nextUsers);
+    const nextSession = { ...session, user: { ...session.user, ...payload } };
+    saveToStorage(STORAGE_KEYS.session, nextSession);
+    return nextSession;
   },
   logout: async () => {
     if (!useMock) {

@@ -6,7 +6,15 @@ interface AuthState {
   user: User | null;
   token: string | null;
   login: (email: string, password: string) => Promise<void>;
-  register: (payload: { name: string; email: string; password: string; role?: Role }) => Promise<void>;
+  register: (payload: {
+    name: string;
+    email: string;
+    password: string;
+    role?: Role;
+    phone?: string;
+    address?: string;
+  }) => Promise<void>;
+  updateProfile: (payload: { name?: string; phone?: string; address?: string }) => Promise<void>;
   logout: () => Promise<void>;
   hydrate: () => void;
 }
@@ -23,6 +31,12 @@ export const useAuthStore = create<AuthState>((set) => ({
   async register(payload) {
     const result = await authApi.register(payload);
     set({ user: result.user, token: result.token });
+  },
+  async updateProfile(payload) {
+    const result = await authApi.updateProfile(payload);
+    if (result?.user) {
+      set({ user: result.user });
+    }
   },
   async logout() {
     await authApi.logout();

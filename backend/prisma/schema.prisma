@@ -30,6 +30,8 @@ model User {
   email         String   @unique
   passwordHash  String
   name          String
+  phone         String?
+  address       String?
   role          Role     @default(BUYER)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -105,7 +107,12 @@ model Review {
   productId String
   userId    String?
   rating    Int
-  text      String
+  pros      String
+  cons      String
+  comment   String
+  photos    String[]     @default([])
+  likesCount    Int      @default(0)
+  dislikesCount Int      @default(0)
   status    ReviewStatus @default(PENDING)
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt

@@ -8,6 +8,7 @@ import { HeaderAddress } from '../../shared/ui/address/HeaderAddress';
 import { ProductModal } from '../shop/ProductModal';
 import { useFilters } from '../../features/catalog/useFilters';
 import { useCatalog } from '../../features/catalog/useCatalog';
+import { formatShortAddress } from '../../shared/lib/formatShortAddress';
 import styles from './Layout.module.css';
 
 interface LayoutProps {
@@ -54,6 +55,14 @@ export const Layout = ({ children }: LayoutProps) => {
     }
     return Array.from(new Set(products.map((product) => product.category))).filter(Boolean);
   }, [filterData.categories, products]);
+
+  const selectedAddress = useMemo(
+    () => addresses.find((address) => address.id === selectedAddressId),
+    [addresses, selectedAddressId]
+  );
+  const addressLabel = selectedAddress
+    ? formatShortAddress(selectedAddress.addressText)
+    : user?.address ?? 'Укажите адрес доставки';
 
   const handleSearchUpdate = (value: string) => {
     setSearchValue(value);
@@ -160,6 +169,13 @@ export const Layout = ({ children }: LayoutProps) => {
         </div>
         <div className={styles.categoriesBar}>
           <div className={styles.categoriesInner}>
+            <div className={styles.categoriesMeta}>
+              <div className={styles.categoriesTitle}>Категории</div>
+              <div className={styles.categoriesAddress}>
+                <span className={styles.categoriesMarker}>📍</span>
+                <span>{addressLabel}</span>
+              </div>
+            </div>
             <button
               type="button"
               className={!activeCategory ? styles.categoryActive : styles.categoryButton}
@@ -177,6 +193,9 @@ export const Layout = ({ children }: LayoutProps) => {
                 {category}
               </button>
             ))}
+            <Link to="/seller" className={styles.sellCta}>
+              Продавайте на PrintForm
+            </Link>
           </div>
         </div>
       </header>

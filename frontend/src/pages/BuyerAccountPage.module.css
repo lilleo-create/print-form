@@ -34,6 +34,22 @@
   gap: 6px;
 }
 
+.profileDetails {
+  display: grid;
+  gap: 12px;
+}
+
+.profileDetails div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.profileDetails span {
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
 .addressHeader {
   display: flex;
   align-items: center;

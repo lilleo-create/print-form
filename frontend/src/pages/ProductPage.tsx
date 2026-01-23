@@ -1,11 +1,10 @@
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../shared/api';
 import { Product, Review } from '../shared/types';
 import { Rating } from '../shared/ui/Rating';
 import { Button } from '../shared/ui/Button';
 import { useCartStore } from '../app/store/cartStore';
-import { useAuthStore } from '../app/store/authStore';
 import { ProductCard } from '../widgets/shop/ProductCard';
 import styles from './ProductPage.module.css';
 
@@ -16,20 +15,21 @@ const formatDeliveryDate = (date?: string) => {
   return next.toLocaleDateString('ru-RU', { day: '2-digit', month: 'long' });
 };
 
+const formatReviewDate = (value: string) =>
+  new Date(value).toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric' });
+
 export const ProductPage = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const addItem = useCartStore((state) => state.addItem);
-  const user = useAuthStore((state) => state.user);
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeImage, setActiveImage] = useState<string>('');
   const [selectedVariant, setSelectedVariant] = useState<string>('');
   const [reviews, setReviews] = useState<Review[]>([]);
-  const [reviewsPage, setReviewsPage] = useState(1);
-  const [hasMoreReviews, setHasMoreReviews] = useState(true);
-  const [rating, setRating] = useState(5);
-  const [reviewText, setReviewText] = useState('');
-  const [isSubmitting, setSubmitting] = useState(false);
+  const [summary, setSummary] = useState<{ total: number; avg: number; counts: { rating: number; count: number }[] } | null>(
+    null
+  );
   const [feedProducts, setFeedProducts] = useState<Product[]>([]);
   const [feedCursor, setFeedCursor] = useState<string | null>(null);
   const [feedLoading, setFeedLoading] = useState(false);
@@ -50,21 +50,13 @@ export const ProductPage = () => {
 
   useEffect(() => {
     if (!id) return;
-    api.getProductReviews(id, 1, 5).then((response) => {
-      setReviews(response.data);
-      setReviewsPage(1);
-      setHasMoreReviews(response.data.length >= 5);
+    api.getProductReviews(id, 1, 3, 'new').then((response) => {
+      setReviews(response.data.data);
+    });
+    api.getReviewSummary(id).then((response) => {
+      setSummary(response.data);
     });
   }, [id]);
-
-  const loadMoreReviews = useCallback(async () => {
-    if (!id || !hasMoreReviews) return;
-    const nextPage = reviewsPage + 1;
-    const response = await api.getProductReviews(id, nextPage, 5);
-    setReviews((prev) => [...prev, ...response.data]);
-    setReviewsPage(nextPage);
-    setHasMoreReviews(response.data.length >= 5);
-  }, [hasMoreReviews, id, reviewsPage]);
 
   const loadFeed = useCallback(async () => {
     if (feedLoading || !feedHasMore) return;
@@ -125,28 +117,15 @@ export const ProductPage = () => {
     ).sort((a, b) => a.sortOrder - b.sortOrder);
   }, [product]);
 
-  const handleReviewSubmit = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!id || !user) return;
-    setSubmitting(true);
-    try {
-      await api.createReview(id, { rating, text: reviewText });
-      const refreshed = await api.getProductReviews(id, 1, 5);
-      setReviews(refreshed.data);
-      setReviewsPage(1);
-      setHasMoreReviews(refreshed.data.length >= 5);
-      setReviewText('');
-      setProduct((prev) =>
-        prev
-          ? {
-              ...prev,
-              ratingCount: (prev.ratingCount ?? 0) + 1,
-              ratingAvg: ((prev.ratingAvg ?? 0) * (prev.ratingCount ?? 0) + rating) / ((prev.ratingCount ?? 0) + 1)
-            }
-          : prev
-      );
-    } finally {
-      setSubmitting(false);
+  const ratingCount = product?.ratingCount ?? summary?.total ?? 0;
+  const reviewsCount = summary?.total ?? 0;
+
+  const handleVariantChange = async (variantId: string) => {
+    setSelectedVariant(variantId);
+    const variant = product?.variants?.find((item) => item.id === variantId);
+    const nextProductId = variant?.productId ?? variantId;
+    if (product && nextProductId && nextProductId !== product.id) {
+      navigate(`/product/${nextProductId}`);
     }
   };
 
@@ -171,9 +150,7 @@ export const ProductPage = () => {
                 (image) => (
                   <button
                     key={image.id}
-                    className={
-                      activeImage === image.url ? `${styles.thumb} ${styles.thumbActive}` : styles.thumb
-                    }
+                    className={activeImage === image.url ? `${styles.thumb} ${styles.thumbActive}` : styles.thumb}
                     onClick={() => setActiveImage(image.url)}
                     aria-label={`Показать изображение ${product.title}`}
                   >
@@ -186,7 +163,12 @@ export const ProductPage = () => {
           <div className={styles.details}>
             <div className={styles.header}>
               <h1>{product.title}</h1>
-              <Rating value={product.ratingAvg} count={product.ratingCount} size="md" />
+              <div className={styles.ratingRow}>
+                <Rating value={product.ratingAvg} count={ratingCount} size="md" />
+                <Link to={`/product/${product.id}/reviews`} className={styles.reviewLink}>
+                  {ratingCount} оценки · {reviewsCount} отзывов
+                </Link>
+              </div>
             </div>
             <div className={styles.priceBlock}>
               <span className={styles.price}>{product.price.toLocaleString('ru-RU')} ₽</span>
@@ -196,27 +178,40 @@ export const ProductPage = () => {
             </div>
             <div className={styles.sku}>Артикул: {product.sku ?? '—'}</div>
             {product.variants && product.variants.length > 0 ? (
-              <label className={styles.variant}>
-                Варианты
-                <select value={selectedVariant} onChange={(event) => setSelectedVariant(event.target.value)}>
-                  <option value="">Выберите вариант</option>
+              <div className={styles.variantBlock}>
+                <span>Варианты</span>
+                <div className={styles.variantList}>
                   {product.variants.map((variant) => (
-                    <option key={variant.id} value={variant.id}>
+                    <button
+                      type="button"
+                      key={variant.id}
+                      className={selectedVariant === variant.id ? styles.variantActive : styles.variantButton}
+                      onClick={() => handleVariantChange(variant.id)}
+                    >
                       {variant.name}
-                    </option>
+                    </button>
                   ))}
-                </select>
-              </label>
+                </div>
+              </div>
             ) : null}
             <div className={styles.actions}>
               <Button
+                onClick={() => {
+                  addItem(product, 1);
+                  navigate('/checkout');
+                }}
+              >
+                Купить сейчас
+              </Button>
+              <Button
+                variant="secondary"
                 onClick={() => {
                   addItem(product, 1);
                 }}
               >
                 В корзину
               </Button>
-              <Button variant="secondary" onClick={() => {}}>
+              <Button variant="ghost" onClick={() => {}}>
                 В избранное
               </Button>
             </div>
@@ -224,6 +219,10 @@ export const ProductPage = () => {
           </div>
         </div>
         <div className={styles.sections}>
+          <div className={styles.description}>
+            <h2>Описание</h2>
+            <p>{product.descriptionFull ?? product.description}</p>
+          </div>
           <div className={styles.specs}>
             <h2>Характеристики</h2>
             <ul>
@@ -235,56 +234,75 @@ export const ProductPage = () => {
               ))}
             </ul>
           </div>
-          <div className={styles.reviews}>
-            <div className={styles.reviewsHeader}>
+        </div>
+        <div className={styles.reviewsPreview}>
+          <div className={styles.reviewsHeader}>
+            <div>
               <h2>Отзывы</h2>
-              <Rating value={product.ratingAvg} count={product.ratingCount} />
+              <p className={styles.reviewsHint}>Последние впечатления покупателей</p>
             </div>
-            {user ? (
-              <form className={styles.reviewForm} onSubmit={handleReviewSubmit}>
-                <label>
-                  Оценка
-                  <select value={rating} onChange={(event) => setRating(Number(event.target.value))}>
-                    {[5, 4, 3, 2, 1].map((value) => (
-                      <option value={value} key={value}>
-                        {value}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Отзыв
-                  <textarea
-                    value={reviewText}
-                    minLength={10}
-                    maxLength={1000}
-                    required
-                    onChange={(event) => setReviewText(event.target.value)}
-                  />
-                </label>
-                <Button type="submit" disabled={isSubmitting}>
-                  Отправить
-                </Button>
-              </form>
-            ) : (
-              <p className={styles.reviewHint}>Войдите, чтобы оставить отзыв.</p>
-            )}
+            <Link to={`/product/${product.id}/reviews`} className={styles.reviewLink}>
+              Смотреть все отзывы
+            </Link>
+          </div>
+          <div className={styles.reviewsContent}>
+            <div className={styles.reviewsSummary}>
+              <div className={styles.summaryTop}>
+                <span className={styles.summaryValue}>{summary?.avg?.toFixed(1) ?? '0.0'}</span>
+                <Rating value={summary?.avg ?? 0} count={reviewsCount} />
+              </div>
+              <ul>
+                {(summary?.counts ?? [5, 4, 3, 2, 1].map((rating) => ({ rating, count: 0 }))).map((item) => (
+                  <li key={item.rating}>
+                    <span>{item.rating}★</span>
+                    <div className={styles.bar}>
+                      <div
+                        className={styles.barFill}
+                        style={{
+                          width: reviewsCount ? `${(item.count / reviewsCount) * 100}%` : '0%'
+                        }}
+                      />
+                    </div>
+                    <span>{item.count}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
             <div className={styles.reviewList}>
-              {reviews.map((review) => (
-                <article key={review.id} className={styles.reviewCard}>
-                  <div className={styles.reviewTop}>
-                    <strong>{review.user?.name ?? 'Покупатель'}</strong>
-                    <Rating value={review.rating} count={0} />
-                  </div>
-                  <p>{review.text}</p>
-                </article>
-              ))}
+              {reviews.length === 0 ? (
+                <p className={styles.reviewsEmpty}>Пока нет отзывов.</p>
+              ) : (
+                reviews.map((review) => (
+                  <article key={review.id} className={styles.reviewCard}>
+                    <div className={styles.reviewTop}>
+                      <div>
+                        <strong>{review.user?.name ?? 'Имя скрыто'}</strong>
+                        <span className={styles.reviewDate}>{formatReviewDate(review.createdAt)}</span>
+                      </div>
+                      <Rating value={review.rating} count={0} />
+                    </div>
+                    <div className={styles.reviewBody}>
+                      <p>
+                        <strong>Достоинства:</strong> {review.pros}
+                      </p>
+                      <p>
+                        <strong>Недостатки:</strong> {review.cons}
+                      </p>
+                      <p>
+                        <strong>Комментарий:</strong> {review.comment}
+                      </p>
+                    </div>
+                    {review.photos && review.photos.length > 0 && (
+                      <div className={styles.reviewPhotos}>
+                        {review.photos.map((photo, index) => (
+                          <img src={photo} alt={`Фото отзыва ${index + 1}`} key={photo} />
+                        ))}
+                      </div>
+                    )}
+                  </article>
+                ))
+              )}
             </div>
-            {hasMoreReviews && (
-              <Button variant="secondary" onClick={loadMoreReviews}>
-                Показать ещё отзывы
-              </Button>
-            )}
           </div>
         </div>
         <div className={styles.feed}>

@@ -40,6 +40,19 @@
   font-size: 12px;
 }
 
+.saveProfile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.saveProfile input {
+  width: 18px;
+  height: 18px;
+}
+
 .addressSelector {
   border: 1px solid var(--color-border);
   background: #ffffff;

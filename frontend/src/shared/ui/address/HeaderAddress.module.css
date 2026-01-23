@@ -2,10 +2,10 @@
   border: 1px solid var(--color-border);
   background: #ffffff;
   border-radius: 999px;
-  padding: 8px 14px;
+  padding: 10px 18px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   font-weight: 500;
   cursor: pointer;
   color: var(--color-text);
@@ -17,5 +17,5 @@
 }
 
 .marker {
-  font-size: 16px;
+  font-size: 18px;
 }
