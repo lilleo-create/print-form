@@ -15,7 +15,6 @@ const registerSchema = loginSchema.extend({
   name: z.string().min(2),
   phone: z.string().min(5).optional(),
   address: z.string().min(3).optional(),
-  privacyAccepted: z.boolean().optional(),
   role: z.enum(['BUYER', 'SELLER']).optional()
 });
 

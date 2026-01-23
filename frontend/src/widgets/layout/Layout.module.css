@@ -15,11 +15,11 @@
 .headerInner {
   max-width: 1280px;
   margin: 0 auto;
-  padding: 28px 36px;
+  padding: 20px 32px;
   display: grid;
   grid-template-columns: auto minmax(200px, 1fr) auto;
   align-items: center;
-  gap: 32px;
+  gap: 28px;
 }
 
 .brand {
@@ -30,7 +30,7 @@
 
 .logo {
   font-weight: 700;
-  font-size: 28px;
+  font-size: 24px;
   color: var(--color-text);
   text-decoration: none;
 }
@@ -38,8 +38,8 @@
 .catalogButton {
   background: var(--color-primary);
   color: #ffffff;
-  padding: 12px 22px;
-  border-radius: 14px;
+  padding: 10px 18px;
+  border-radius: 12px;
   text-decoration: none;
   font-weight: 600;
 }
@@ -56,7 +56,7 @@
 .search input {
   flex: 1;
   border: none;
-  padding: 18px 20px;
+  padding: 14px 16px;
   background: transparent;
 }
 
@@ -67,9 +67,9 @@
 .search button {
   border: none;
   background: transparent;
-  padding: 0 18px;
+  padding: 0 16px;
   cursor: pointer;
-  font-size: 22px;
+  font-size: 20px;
 }
 
 .actions {
@@ -87,18 +87,17 @@
   text-decoration: none;
   color: var(--color-text);
   font-weight: 500;
-  padding: 10px 14px;
-  border-radius: 12px;
+  padding: 8px 12px;
+  border-radius: 10px;
   background: #f8fafc;
-  font-size: 16px;
 }
 
 .cartCount {
   background: var(--color-primary);
   color: #ffffff;
   border-radius: 999px;
-  padding: 3px 8px;
-  font-size: 14px;
+  padding: 2px 6px;
+  font-size: 13px;
 }
 
 .addressSlot {
@@ -127,10 +126,9 @@
 .categoriesInner {
   max-width: 1280px;
   margin: 0 auto;
-  width: 100%;
-  padding: 24px 36px 26px;
+  padding: 18px 32px 20px;
   display: flex;
-  gap: 14px;
+  gap: 12px;
   flex-wrap: wrap;
   align-items: center;
 }
@@ -145,7 +143,7 @@
 
 .categoriesTitle {
   font-weight: 700;
-  font-size: 20px;
+  font-size: 18px;
 }
 
 .categoriesAddress {
@@ -153,11 +151,11 @@
   align-items: center;
   gap: 8px;
   color: var(--color-text-muted);
-  font-size: 15px;
+  font-size: 14px;
 }
 
 .categoriesMarker {
-  font-size: 18px;
+  font-size: 16px;
 }
 
 .categoryButton {
@@ -165,9 +163,8 @@
   background: #f8fafc;
   color: #475569;
   border-radius: 999px;
-  padding: 10px 18px;
+  padding: 8px 16px;
   cursor: pointer;
-  font-size: 15px;
 }
 
 .categoryActive {
@@ -175,9 +172,8 @@
   background: rgba(59, 130, 246, 0.15);
   color: #1d4ed8;
   border-radius: 999px;
-  padding: 10px 18px;
+  padding: 8px 16px;
   cursor: pointer;
-  font-size: 15px;
 }
 
 .sellCta {
@@ -185,10 +181,9 @@
   background: #0f172a;
   color: #ffffff;
   text-decoration: none;
-  padding: 12px 22px;
+  padding: 10px 18px;
   border-radius: 999px;
   font-weight: 600;
-  font-size: 16px;
 }
 
 .main {

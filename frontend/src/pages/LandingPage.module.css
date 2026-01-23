@@ -1,8 +1,8 @@
 .page {
   display: flex;
   flex-direction: column;
-  gap: 72px;
-  padding-bottom: 72px;
+  gap: 64px;
+  padding-bottom: 64px;
 }
 
 .hero {
@@ -24,14 +24,14 @@
 .badge {
   background: #111827;
   color: #fff;
-  padding: 10px 20px;
+  padding: 8px 18px;
   border-radius: 999px;
   width: fit-content;
-  font-size: 15px;
+  font-size: 14px;
 }
 
 .heroContent h1 {
-  font-size: clamp(38px, 4vw, 60px);
+  font-size: clamp(36px, 4vw, 56px);
 }
 
 .heroActions {
@@ -43,7 +43,7 @@
 .primaryLink,
 .secondaryLink {
   text-decoration: none;
-  padding: 16px 32px;
+  padding: 14px 28px;
   border-radius: 999px;
   font-weight: 600;
 }
@@ -73,11 +73,11 @@
 .heroCard {
   background: #ffffff;
   border-radius: 24px;
-  padding: 32px;
+  padding: 28px;
   box-shadow: 0 16px 40px rgba(15, 23, 42, 0.1);
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 20px;
 }
 
 .heroStats {
@@ -87,13 +87,13 @@
 }
 
 .heroStats strong {
-  font-size: 26px;
+  font-size: 24px;
 }
 
 .sliderSection {
-  width: 100%;
+  max-width: 1280px;
   margin: 0 auto;
-  padding: 0 32px;
+  padding: 0 24px;
 }
 
 .slider {
@@ -101,8 +101,8 @@
   border-radius: 28px;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 28px;
-  padding: 36px;
+  gap: 24px;
+  padding: 32px;
   color: #ffffff;
   align-items: center;
 }
@@ -115,10 +115,10 @@
 
 .sliderBadge {
   background: rgba(255, 255, 255, 0.2);
-  padding: 8px 16px;
+  padding: 6px 14px;
   border-radius: 999px;
   width: fit-content;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .sliderActions {
@@ -131,7 +131,7 @@
   width: 100%;
   border-radius: 20px;
   object-fit: cover;
-  min-height: 240px;
+  min-height: 220px;
 }
 
 .sliderDots {
@@ -173,7 +173,7 @@
 .grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 32px;
+  gap: 28px;
 }
 
 .feedLoading {

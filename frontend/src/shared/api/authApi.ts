@@ -87,7 +87,6 @@ export const authApi = {
     role?: Role;
     phone?: string;
     address?: string;
-    privacyAccepted?: boolean;
   }) => {
     if (!useMock) {
       const result = await api.register({
@@ -95,8 +94,7 @@ export const authApi = {
         email: payload.email,
         password: payload.password,
         phone: payload.phone,
-        address: payload.address,
-        privacyAccepted: payload.privacyAccepted
+        address: payload.address
       });
       const session: StoredSession = {
         token: result.data.token,

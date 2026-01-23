@@ -28,7 +28,6 @@ export const AuthPage = () => {
   const isRegister = location.pathname.includes('/register');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const login = useAuthStore((state) => state.login);
   const register = useAuthStore((state) => state.register);
 
@@ -72,8 +71,7 @@ export const AuthPage = () => {
         email: values.email,
         password: values.password,
         phone: values.phone,
-        address: values.address,
-        privacyAccepted
+        address: values.address
       });
       const role = useAuthStore.getState().user?.role;
       setMessage('Регистрация завершена!');
@@ -109,23 +107,7 @@ export const AuthPage = () => {
             {registerForm.formState.errors.password && (
               <span>{registerForm.formState.errors.password.message}</span>
             )}
-            <label className={styles.consent}>
-              <input
-                type="checkbox"
-                checked={privacyAccepted}
-                onChange={(event) => setPrivacyAccepted(event.target.checked)}
-              />
-              <span>
-                Я соглашаюсь на{' '}
-                <Link to="/privacy-policy" className={styles.policyLink}>
-                  обработку персональных данных
-                </Link>{' '}
-                и подтверждаю, что ознакомился с Политикой обработки персональных данных
-              </span>
-            </label>
-            <Button type="submit" disabled={!privacyAccepted}>
-              Создать аккаунт
-            </Button>
+            <Button type="submit">Создать аккаунт</Button>
           </form>
         ) : (
           <form onSubmit={loginForm.handleSubmit(onLogin)} className={styles.form}>

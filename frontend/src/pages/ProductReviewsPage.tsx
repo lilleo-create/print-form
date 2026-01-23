@@ -50,25 +50,16 @@ export const ProductReviewsPage = () => {
     api.getProduct(id).then((response) => setProduct(response.data));
   }, [id]);
 
-  const scopedProductIds = useMemo(() => {
-    if (!product) return [];
-    const variantIds =
-      product.variants?.map((variant) => variant.productId).filter(Boolean) as string[] | undefined;
-    return Array.from(new Set([product.id, ...(variantIds ?? [])]));
-  }, [product]);
-
-  const reviewProductIds = scope === 'all' ? scopedProductIds : undefined;
-
   const loadSummary = async () => {
     if (!id) return;
-    const response = await api.getReviewSummary(id, reviewProductIds);
+    const response = await api.getReviewSummary(id);
     setSummary(response.data);
   };
 
   const loadReviews = async (nextPage = 1) => {
     if (!id) return;
     setLoading(true);
-    const response = await api.getProductReviews(id, nextPage, 6, filter, reviewProductIds);
+    const response = await api.getProductReviews(id, nextPage, 6, filter);
     setReviews((prev) => (nextPage === 1 ? response.data.data : [...prev, ...response.data.data]));
     setHasMore(response.data.data.length === 6);
     setLoading(false);
@@ -79,7 +70,7 @@ export const ProductReviewsPage = () => {
     loadReviews(1);
     loadSummary();
     setPage(1);
-  }, [filter, id, scope, scopedProductIds]);
+  }, [filter, id, scope]);
 
   const distribution = useMemo(() => summary?.counts ?? [], [summary]);
 

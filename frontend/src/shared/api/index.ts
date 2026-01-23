@@ -68,19 +68,10 @@ export const api = {
     id: string,
     page = 1,
     limit = 5,
-    sort: 'helpful' | 'high' | 'low' | 'new' = 'new',
-    productIds?: string[]
+    sort: 'helpful' | 'high' | 'low' | 'new' = 'new'
   ) {
-    const params = new URLSearchParams({
-      page: String(page),
-      limit: String(limit),
-      sort
-    });
-    if (productIds && productIds.length > 0) {
-      params.set('productIds', productIds.join(','));
-    }
     return client.request<{ data: Review[]; meta: { total: number } }>(
-      `/products/${id}/reviews?${params.toString()}`
+      `/products/${id}/reviews?page=${page}&limit=${limit}&sort=${sort}`
     );
   },
   async createReview(
@@ -89,14 +80,10 @@ export const api = {
   ) {
     return client.request<Review>(`/products/${id}/reviews`, { method: 'POST', body: payload });
   },
-  async getReviewSummary(id: string, productIds?: string[]) {
-    const params = new URLSearchParams();
-    if (productIds && productIds.length > 0) {
-      params.set('productIds', productIds.join(','));
-    }
+  async getReviewSummary(id: string) {
     return client.request<{
       data: { total: number; avg: number; counts: { rating: number; count: number }[]; photos: string[] };
-    }>(`/products/${id}/reviews/summary${params.toString() ? `?${params.toString()}` : ''}`);
+    }>(`/products/${id}/reviews/summary`);
   },
   async getFilters() {
     return client.request<{ categories: string[]; materials: string[]; sizes: string[]; colors: string[] }>('/filters');
@@ -143,7 +130,6 @@ export const api = {
     password: string;
     phone?: string;
     address?: string;
-    privacyAccepted?: boolean;
   }) {
     return client.request<{
       token: string;
