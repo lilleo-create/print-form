@@ -16,10 +16,16 @@
   max-width: 1200px;
   margin: 0 auto;
   padding: 16px 24px;
+  display: grid;
+  grid-template-columns: auto minmax(200px, 1fr) auto;
+  align-items: center;
+  gap: 24px;
+}
+
+.brand {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 24px;
+  gap: 16px;
 }
 
 .logo {
@@ -29,75 +35,119 @@
   text-decoration: none;
 }
 
-.nav {
-  display: flex;
-  gap: 20px;
-}
-
-.nav a {
+.catalogButton {
+  background: var(--color-primary);
+  color: #ffffff;
+  padding: 8px 16px;
+  border-radius: 12px;
   text-decoration: none;
-  color: var(--color-text-muted);
-  font-weight: 500;
-  padding: 6px 12px;
-  border-radius: 999px;
-  transition: all 0.2s ease;
+  font-weight: 600;
 }
 
-.nav a:hover {
-  color: var(--color-text);
-  background: var(--color-surface-muted);
+.search {
+  display: flex;
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  overflow: hidden;
 }
 
-.active {
-  color: var(--color-primary);
-  background: rgba(29, 78, 216, 0.1);
+.search input {
+  flex: 1;
+  border: none;
+  padding: 12px 14px;
+  background: transparent;
+}
+
+.search input:focus {
+  outline: none;
+}
+
+.search button {
+  border: none;
+  background: transparent;
+  padding: 0 14px;
+  cursor: pointer;
+  font-size: 18px;
 }
 
 .actions {
   display: flex;
   gap: 12px;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
-.addressSlot {
-  display: flex;
-}
-
-.userInfo {
-  display: flex;
-  gap: 12px;
+.actionLink {
+  display: inline-flex;
   align-items: center;
-  font-weight: 500;
-}
-
-.authLink {
+  gap: 6px;
   text-decoration: none;
   color: var(--color-text);
   font-weight: 500;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-}
-
-.cartButton {
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  padding: 8px 16px;
-  background: #ffffff;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  text-decoration: none;
-  color: var(--color-text);
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: #f8fafc;
 }
 
 .cartCount {
   background: var(--color-primary);
   color: #ffffff;
   border-radius: 999px;
-  padding: 2px 8px;
+  padding: 2px 6px;
   font-size: 12px;
+}
+
+.addressSlot {
+  display: flex;
+}
+
+.profileBox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.logoutButton {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.categoriesBar {
+  border-top: 1px solid var(--color-border);
+  background: #ffffff;
+}
+
+.categoriesInner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 10px 24px 14px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.categoryButton {
+  border: none;
+  background: #f8fafc;
+  color: #475569;
+  border-radius: 999px;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+
+.categoryActive {
+  border: none;
+  background: rgba(59, 130, 246, 0.15);
+  color: #1d4ed8;
+  border-radius: 999px;
+  padding: 6px 14px;
+  cursor: pointer;
 }
 
 .main {
@@ -113,13 +163,20 @@
   padding: 40px 24px;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   .headerInner {
-    flex-direction: column;
-    align-items: flex-start;
+    grid-template-columns: 1fr;
+    align-items: stretch;
   }
 
-  .nav {
-    flex-wrap: wrap;
+  .actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 768px) {
+  .categoriesInner {
+    overflow-x: auto;
+    flex-wrap: nowrap;
   }
 }

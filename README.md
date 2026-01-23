@@ -78,11 +78,19 @@ npm run prisma:migrate
 npm run dev
 ```
 
+### Google Sheets setup
+1. Создайте сервисный аккаунт в Google Cloud и выдайте доступ на таблицу.
+2. Укажите переменные окружения в `backend/.env`:
+   - `GOOGLE_SHEETS_SPREADSHEET_ID`
+   - `GOOGLE_SHEETS_CLIENT_EMAIL`
+   - `GOOGLE_SHEETS_PRIVATE_KEY`
+   - `GOOGLE_SHEETS_SHEET_NAME` (опционально, по умолчанию `Orders`)
+
 ## Environment examples
 **frontend/.env**
 ```
 VITE_USE_MOCK=true
-VITE_API_URL=http://localhost:4000
+VITE_API_BASE_URL=http://localhost:4000
 ```
 
 **backend/.env.example**
@@ -90,12 +98,23 @@ VITE_API_URL=http://localhost:4000
 DATABASE_URL=postgresql://user:password@localhost:5432/printform
 JWT_SECRET=super-secret
 JWT_REFRESH_SECRET=super-refresh-secret
-GOOGLE_SHEETS_ID=your-sheet-id
-GOOGLE_SERVICE_ACCOUNT_EMAIL=service-account@project.iam.gserviceaccount.com
-GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
-FRONTEND_URL=http://localhost:5173
+FRONTEND_ORIGIN=http://localhost:5173
+GOOGLE_SHEETS_SPREADSHEET_ID=your-sheet-id
+GOOGLE_SHEETS_CLIENT_EMAIL=service-account@project.iam.gserviceaccount.com
+GOOGLE_SHEETS_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+GOOGLE_SHEETS_SHEET_NAME=Orders
 PORT=4000
 ```
+
+## Deploy checklist
+- Проверьте переменные окружения (см. `.env.example` в `backend/` и `frontend/`).
+- Сборка:
+  - Backend: `npm run build` (в `backend/`)
+  - Frontend: `npm run build` (в `frontend/`)
+- Миграции базы данных: `npm run prisma:migrate:deploy` (в `backend/`)
+- Старт:
+  - Backend: `npm run start` (в `backend/`)
+  - Frontend: `npm run preview` (в `frontend/`)
 
 ## Architecture decisions
 - Chosen Express for backend to keep the stack lightweight while still enforcing layered architecture.

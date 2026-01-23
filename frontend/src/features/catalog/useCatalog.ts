@@ -5,12 +5,17 @@ import { Product } from '../../shared/types';
 export interface CatalogFilters {
   category?: string;
   material?: string;
-  price?: string;
   size?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  q?: string;
+  ratingMin?: number;
+  color?: string;
   sort?: 'createdAt' | 'rating';
   order?: 'asc' | 'desc';
   page?: number;
   limit?: number;
+  cursor?: string;
 }
 
 export const useCatalog = (filters: CatalogFilters) => {
@@ -46,12 +51,17 @@ export const useCatalog = (filters: CatalogFilters) => {
   }, [
     filters.category,
     filters.material,
-    filters.price,
     filters.size,
+    filters.minPrice,
+    filters.maxPrice,
+    filters.q,
+    filters.ratingMin,
+    filters.color,
     filters.sort,
     filters.order,
     filters.page,
-    filters.limit
+    filters.limit,
+    filters.cursor
   ]);
 
   return { products, loading, error };
