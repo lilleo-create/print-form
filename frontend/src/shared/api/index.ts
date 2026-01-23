@@ -64,25 +64,26 @@ export const api = {
   async getProduct(id: string) {
     return client.request<Product>(`/products/${id}`);
   },
-  async getProductReviews(id: string, page = 1, limit = 5) {
-    if (useMock) {
-      return { data: [] as Review[] };
-    }
-    return client.request<Review[]>(`/products/${id}/reviews?page=${page}&limit=${limit}`);
+  async getProductReviews(
+    id: string,
+    page = 1,
+    limit = 5,
+    sort: 'helpful' | 'high' | 'low' | 'new' = 'new'
+  ) {
+    return client.request<{ data: Review[]; meta: { total: number } }>(
+      `/products/${id}/reviews?page=${page}&limit=${limit}&sort=${sort}`
+    );
   },
-  async createReview(id: string, payload: { rating: number; text: string }) {
-    if (useMock) {
-      return {
-        data: {
-          id: `review-${Date.now()}`,
-          rating: payload.rating,
-          text: payload.text,
-          createdAt: new Date().toISOString(),
-          user: { id: 'mock', name: 'Гость' }
-        } as Review
-      };
-    }
+  async createReview(
+    id: string,
+    payload: { rating: number; pros: string; cons: string; comment: string; photos?: string[] }
+  ) {
     return client.request<Review>(`/products/${id}/reviews`, { method: 'POST', body: payload });
+  },
+  async getReviewSummary(id: string) {
+    return client.request<{
+      data: { total: number; avg: number; counts: { rating: number; count: number }[]; photos: string[] };
+    }>(`/products/${id}/reviews/summary`);
   },
   async getFilters() {
     return client.request<{ categories: string[]; materials: string[]; sizes: string[]; colors: string[] }>('/filters');
@@ -112,7 +113,10 @@ export const api = {
     return client.request<Order>('/orders', { method: 'POST', body: payload });
   },
   async login(payload: { email: string; password: string }) {
-    return client.request<{ token: string; user: { name: string; role: string; email: string; id: string } }>(
+    return client.request<{
+      token: string;
+      user: { name: string; role: string; email: string; id: string; phone?: string | null; address?: string | null };
+    }>(
       '/auth/login',
       {
         method: 'POST',
@@ -120,8 +124,17 @@ export const api = {
       }
     );
   },
-  async register(payload: { name: string; email: string; password: string }) {
-    return client.request<{ token: string; user: { name: string; role: string; email: string; id: string } }>(
+  async register(payload: {
+    name: string;
+    email: string;
+    password: string;
+    phone?: string;
+    address?: string;
+  }) {
+    return client.request<{
+      token: string;
+      user: { name: string; role: string; email: string; id: string; phone?: string | null; address?: string | null };
+    }>(
       '/auth/register',
       {
         method: 'POST',
@@ -133,6 +146,13 @@ export const api = {
     return client.request<{ success: boolean }>('/auth/logout', { method: 'POST' });
   },
   async me() {
-    return client.request<{ id: string; name: string; role: string; email: string }>('/auth/me');
+    return client.request<{ id: string; name: string; role: string; email: string; phone?: string | null; address?: string | null }>(
+      '/auth/me'
+    );
+  },
+  async updateProfile(payload: { name?: string; phone?: string; address?: string }) {
+    return client.request<{
+      data: { id: string; name: string; role: string; email: string; phone?: string | null; address?: string | null };
+    }>('/auth/me', { method: 'PATCH', body: payload });
   }
 };

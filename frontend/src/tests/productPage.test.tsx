@@ -23,7 +23,8 @@ vi.mock('../shared/api', () => ({
         ratingCount: 12
       }
     }),
-    getProductReviews: vi.fn().mockResolvedValue({ data: [] }),
+    getProductReviews: vi.fn().mockResolvedValue({ data: { data: [], meta: { total: 0 } } }),
+    getReviewSummary: vi.fn().mockResolvedValue({ data: { total: 0, avg: 0, counts: [], photos: [] } }),
     getProducts: vi.fn().mockResolvedValue({ data: [] }),
     createReview: vi.fn()
   }
@@ -52,6 +53,6 @@ describe('ProductPage', () => {
     );
 
     await waitFor(() => expect(screen.getByText('Тестовый продукт')).toBeInTheDocument());
-    expect(screen.getByText(/Ближайшая доставка/i)).toBeInTheDocument();
+    expect(screen.getByText(/Ближайшая дата доставки/i)).toBeInTheDocument();
   });
 });

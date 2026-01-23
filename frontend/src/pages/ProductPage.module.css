@@ -1,13 +1,13 @@
 .page {
-  padding: 56px 0 80px;
+  padding: 64px 0 96px;
 }
 
 .hero {
   display: grid;
   grid-template-columns: minmax(280px, 1fr) minmax(280px, 1fr);
-  gap: 32px;
+  gap: 36px;
   align-items: start;
-  margin-bottom: 40px;
+  margin-bottom: 48px;
 }
 
 .gallery {
@@ -17,9 +17,9 @@
 
 .mainImage {
   width: 100%;
-  border-radius: 20px;
+  border-radius: 24px;
   object-fit: cover;
-  max-height: 420px;
+  max-height: 480px;
 }
 
 .thumbs {
@@ -37,10 +37,10 @@
 }
 
 .thumb img {
-  width: 64px;
-  height: 64px;
+  width: 72px;
+  height: 72px;
   object-fit: cover;
-  border-radius: 8px;
+  border-radius: 10px;
 }
 
 .thumbActive {
@@ -49,13 +49,26 @@
 
 .details {
   display: grid;
-  gap: 16px;
+  gap: 18px;
 }
 
 .header {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
+}
+
+.ratingRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.reviewLink {
+  color: var(--color-primary);
+  font-weight: 600;
+  text-decoration: none;
 }
 
 .priceBlock {
@@ -64,13 +77,13 @@
 }
 
 .price {
-  font-size: 28px;
+  font-size: 32px;
   font-weight: 700;
 }
 
 .delivery {
   color: #64748b;
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .sku {
@@ -78,17 +91,36 @@
   font-size: 14px;
 }
 
-.variant {
+.variantBlock {
   display: grid;
-  gap: 8px;
-  font-size: 14px;
+  gap: 10px;
+  font-size: 15px;
   color: #334155;
 }
 
-.variant select {
-  padding: 10px 12px;
-  border-radius: 12px;
+.variantList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.variantButton {
   border: 1px solid #e2e8f0;
+  background: #ffffff;
+  border-radius: 999px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.variantActive {
+  border: 1px solid #1d4ed8;
+  background: rgba(29, 78, 216, 0.12);
+  color: #1d4ed8;
+  border-radius: 999px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-weight: 600;
 }
 
 .actions {
@@ -99,6 +131,7 @@
 
 .shortDescription {
   color: #475569;
+  font-size: 15px;
 }
 
 .sections {
@@ -106,6 +139,11 @@
   grid-template-columns: minmax(280px, 1fr) minmax(280px, 1fr);
   gap: 32px;
   margin-bottom: 48px;
+}
+
+.description {
+  display: grid;
+  gap: 12px;
 }
 
 .specs ul {
@@ -123,59 +161,122 @@
   border-bottom: 1px solid #e2e8f0;
 }
 
-.reviews {
+.reviewsPreview {
   display: grid;
-  gap: 16px;
+  gap: 24px;
+  margin-bottom: 48px;
 }
 
 .reviewsHeader {
   display: flex;
   justify-content: space-between;
   align-items: center;
-}
-
-.reviewForm {
-  display: grid;
+  flex-wrap: wrap;
   gap: 12px;
 }
 
-.reviewForm label {
-  display: grid;
-  gap: 6px;
+.reviewsHint {
+  color: var(--color-text-muted);
   font-size: 14px;
 }
 
-.reviewForm select,
-.reviewForm textarea {
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid #e2e8f0;
+.reviewsContent {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 24px;
 }
 
-.reviewForm textarea {
-  min-height: 120px;
-  resize: vertical;
+.reviewsSummary {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  gap: 16px;
 }
 
-.reviewHint {
-  color: #94a3b8;
+.summaryTop {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.summaryValue {
+  font-size: 32px;
+  font-weight: 700;
+}
+
+.reviewsSummary ul {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.reviewsSummary li {
+  display: grid;
+  grid-template-columns: 40px 1fr 32px;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+
+.bar {
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  background: #f59e0b;
 }
 
 .reviewList {
   display: grid;
-  gap: 12px;
+  gap: 16px;
 }
 
 .reviewCard {
-  padding: 14px;
-  border-radius: 14px;
+  padding: 18px;
+  border-radius: 18px;
   background: #f8fafc;
+  display: grid;
+  gap: 12px;
 }
 
 .reviewTop {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 8px;
+  gap: 12px;
+}
+
+.reviewDate {
+  color: var(--color-text-muted);
+  font-size: 13px;
+  display: block;
+}
+
+.reviewBody p {
+  margin-bottom: 6px;
+}
+
+.reviewPhotos {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.reviewPhotos img {
+  width: 88px;
+  height: 88px;
+  object-fit: cover;
+  border-radius: 12px;
+}
+
+.reviewsEmpty {
+  color: var(--color-text-muted);
 }
 
 .feed {
@@ -195,7 +296,8 @@
 
 @media (max-width: 960px) {
   .hero,
-  .sections {
+  .sections,
+  .reviewsContent {
     grid-template-columns: 1fr;
   }
 }

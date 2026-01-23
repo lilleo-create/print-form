@@ -13,7 +13,15 @@ const loginSchema = z.object({
 
 const registerSchema = loginSchema.extend({
   name: z.string().min(2),
+  phone: z.string().min(5).optional(),
+  address: z.string().min(3).optional(),
   role: z.enum(['BUYER', 'SELLER']).optional()
+});
+
+const updateProfileSchema = z.object({
+  name: z.string().min(2).optional(),
+  phone: z.string().min(5).optional(),
+  address: z.string().min(3).optional()
 });
 
 authRoutes.post('/register', async (req, res, next) => {
@@ -23,13 +31,22 @@ authRoutes.post('/register', async (req, res, next) => {
       payload.name,
       payload.email,
       payload.password,
-      payload.role
+      payload.role,
+      payload.phone,
+      payload.address
     );
     res.cookie('refreshToken', result.refreshToken, { httpOnly: true, sameSite: 'lax' });
-  res.json({
-    token: result.accessToken,
-    user: { id: result.user.id, name: result.user.name, role: result.user.role, email: result.user.email }
-  });
+    res.json({
+      token: result.accessToken,
+      user: {
+        id: result.user.id,
+        name: result.user.name,
+        role: result.user.role,
+        email: result.user.email,
+        phone: result.user.phone,
+        address: result.user.address
+      }
+    });
   } catch (error) {
     next(error);
   }
@@ -40,10 +57,17 @@ authRoutes.post('/login', async (req, res, next) => {
     const payload = loginSchema.parse(req.body);
     const result = await authService.login(payload.email, payload.password);
     res.cookie('refreshToken', result.refreshToken, { httpOnly: true, sameSite: 'lax' });
-  res.json({
-    token: result.accessToken,
-    user: { id: result.user.id, name: result.user.name, role: result.user.role, email: result.user.email }
-  });
+    res.json({
+      token: result.accessToken,
+      user: {
+        id: result.user.id,
+        name: result.user.name,
+        role: result.user.role,
+        email: result.user.email,
+        phone: result.user.phone,
+        address: result.user.address
+      }
+    });
   } catch (error) {
     next(error);
   }
@@ -81,7 +105,39 @@ authRoutes.get('/me', authenticate, async (req: AuthRequest, res, next) => {
     if (!user) {
       return res.status(404).json({ error: { code: 'NOT_FOUND' } });
     }
-    return res.json({ data: { id: user.id, name: user.name, role: user.role, email: user.email } });
+    return res.json({
+      data: {
+        id: user.id,
+        name: user.name,
+        role: user.role,
+        email: user.email,
+        phone: user.phone,
+        address: user.address
+      }
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+authRoutes.patch('/me', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    const payload = updateProfileSchema.parse(req.body);
+    const updated = await userRepository.updateProfile(req.user!.userId, {
+      name: payload.name,
+      phone: payload.phone ?? null,
+      address: payload.address ?? null
+    });
+    return res.json({
+      data: {
+        id: updated.id,
+        name: updated.name,
+        role: updated.role,
+        email: updated.email,
+        phone: updated.phone,
+        address: updated.address
+      }
+    });
   } catch (error) {
     return next(error);
   }

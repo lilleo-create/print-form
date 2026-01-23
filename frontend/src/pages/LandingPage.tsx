@@ -1,12 +1,87 @@
 import { Link } from 'react-router-dom';
-import { useCatalog } from '../features/catalog/useCatalog';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { api } from '../shared/api';
+import { Product } from '../shared/types';
 import { ProductCard } from '../widgets/shop/ProductCard';
 import { Button } from '../shared/ui/Button';
 import { CustomPrintForm } from '../widgets/shop/CustomPrintForm';
 import styles from './LandingPage.module.css';
 
 export const LandingPage = () => {
-  const { products } = useCatalog({});
+  const [activeSlide, setActiveSlide] = useState(0);
+  const [feedProducts, setFeedProducts] = useState<Product[]>([]);
+  const [feedCursor, setFeedCursor] = useState<string | null>(null);
+  const [feedLoading, setFeedLoading] = useState(false);
+  const [feedHasMore, setFeedHasMore] = useState(true);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  const slides = useMemo(
+    () => [
+      {
+        title: 'Скидки на быстрые прототипы',
+        description: 'Готовые решения для инженеров и дизайнеров со скидкой до 20%.',
+        cta: 'Смотреть предложения',
+        image:
+          'https://images.unsplash.com/photo-1484704849700-f032a568e944?auto=format&fit=crop&w=1200&q=80'
+      },
+      {
+        title: 'Популярные заказы недели',
+        description: 'Топ-модели по оценкам клиентов и скорости доставки.',
+        cta: 'В каталог',
+        image:
+          'https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=1200&q=80'
+      },
+      {
+        title: 'Промо для новых покупателей',
+        description: 'Первый заказ с бесплатной доставкой по городу.',
+        cta: 'Получить промо',
+        image:
+          'https://images.unsplash.com/photo-1503602642458-232111445657?auto=format&fit=crop&w=1200&q=80'
+      }
+    ],
+    []
+  );
+
+  const loadFeed = useCallback(async () => {
+    if (feedLoading || !feedHasMore) return;
+    setFeedLoading(true);
+    const response = await api.getProducts({ cursor: feedCursor ?? undefined, limit: 8, sort: 'createdAt' });
+    setFeedProducts((prev) => {
+      const ids = new Set(prev.map((item) => item.id));
+      const nextItems = response.data.filter((item) => !ids.has(item.id));
+      return [...prev, ...nextItems];
+    });
+    setFeedHasMore(response.data.length > 0);
+    setFeedCursor(response.data.at(-1)?.id ?? null);
+    setFeedLoading(false);
+  }, [feedCursor, feedHasMore, feedLoading]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setActiveSlide((prev) => (prev + 1) % slides.length);
+    }, 6000);
+    return () => clearInterval(timer);
+  }, [slides.length]);
+
+  useEffect(() => {
+    loadFeed();
+  }, [loadFeed]);
+
+  useEffect(() => {
+    if (!sentinelRef.current || !feedHasMore) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            loadFeed();
+          }
+        });
+      },
+      { rootMargin: '200px' }
+    );
+    observer.observe(sentinelRef.current);
+    return () => observer.disconnect();
+  }, [feedHasMore, loadFeed]);
 
   return (
     <div className={styles.page}>
@@ -48,6 +123,42 @@ export const LandingPage = () => {
         </div>
       </section>
 
+      <section className={styles.sliderSection}>
+        <div className={styles.slider}>
+          <div className={styles.sliderContent}>
+            <span className={styles.sliderBadge}>Промо</span>
+            <h2>{slides[activeSlide].title}</h2>
+            <p>{slides[activeSlide].description}</p>
+            <div className={styles.sliderActions}>
+              <Link to="/catalog" className={styles.primaryLink}>
+                {slides[activeSlide].cta}
+              </Link>
+              <button
+                type="button"
+                className={styles.secondaryLink}
+                onClick={() => setActiveSlide((prev) => (prev + 1) % slides.length)}
+              >
+                Следующий баннер
+              </button>
+            </div>
+          </div>
+          <div className={styles.sliderMedia}>
+            <img src={slides[activeSlide].image} alt={slides[activeSlide].title} />
+          </div>
+        </div>
+        <div className={styles.sliderDots}>
+          {slides.map((_, index) => (
+            <button
+              key={index}
+              type="button"
+              className={index === activeSlide ? styles.dotActive : styles.dot}
+              onClick={() => setActiveSlide(index)}
+              aria-label={`Показать слайд ${index + 1}`}
+            />
+          ))}
+        </div>
+      </section>
+
       <section className="container" id="catalog">
         <div className={styles.sectionHeader}>
           <div>
@@ -59,10 +170,12 @@ export const LandingPage = () => {
           </Link>
         </div>
         <div className={styles.grid}>
-          {products.slice(0, 4).map((product) => (
+          {feedProducts.map((product) => (
             <ProductCard product={product} key={product.id} />
           ))}
         </div>
+        {feedLoading && <p className={styles.feedLoading}>Загрузка...</p>}
+        <div ref={sentinelRef} />
       </section>
 
       <section className={styles.customSection} id="custom">

@@ -78,15 +78,20 @@ export const sellerProductSchema = z.object({
 
 const reviewSchema = z.object({
   rating: z.number().int().min(1).max(5),
-  text: z.string().min(10).max(1000)
+  pros: z.string().min(3).max(500),
+  cons: z.string().min(3).max(500),
+  comment: z.string().min(10).max(1000),
+  photos: z.array(z.string().url()).optional()
 });
 
 productRoutes.get('/:id/reviews', async (req, res, next) => {
   try {
     const page = req.query.page ? Number(req.query.page) : 1;
     const limit = req.query.limit ? Number(req.query.limit) : 5;
-    const reviews = await reviewService.listByProduct(req.params.id, page, limit);
-    res.json({ data: reviews });
+    const sort = req.query.sort ? String(req.query.sort) : 'new';
+    const reviews = await reviewService.listByProduct(req.params.id, page, limit, sort);
+    const total = await reviewService.countByProduct(req.params.id);
+    res.json({ data: reviews, meta: { total } });
   } catch (error) {
     next(error);
   }
@@ -99,9 +104,21 @@ productRoutes.post('/:id/reviews', authenticate, async (req: AuthRequest, res, n
       productId: req.params.id,
       userId: req.user!.userId,
       rating: payload.rating,
-      text: payload.text
+      pros: payload.pros,
+      cons: payload.cons,
+      comment: payload.comment,
+      photos: payload.photos ?? []
     });
     res.status(201).json({ data: review });
+  } catch (error) {
+    next(error);
+  }
+});
+
+productRoutes.get('/:id/reviews/summary', async (req, res, next) => {
+  try {
+    const summary = await reviewService.summaryByProduct(req.params.id);
+    res.json({ data: summary });
   } catch (error) {
     next(error);
   }
