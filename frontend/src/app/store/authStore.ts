@@ -13,6 +13,7 @@ interface AuthState {
     role?: Role;
     phone?: string;
     address?: string;
+    privacyAccepted?: boolean;
   }) => Promise<void>;
   updateProfile: (payload: { name?: string; phone?: string; address?: string }) => Promise<void>;
   logout: () => Promise<void>;

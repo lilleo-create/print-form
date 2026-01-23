@@ -10,6 +10,7 @@ import { CheckoutPage } from './pages/CheckoutPage';
 import { ProtectedRoute } from './app/routes/ProtectedRoute';
 import { ProductPage } from './pages/ProductPage';
 import { ProductReviewsPage } from './pages/ProductReviewsPage';
+import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
 
 const App = () => {
   return (
@@ -46,6 +47,7 @@ const App = () => {
         />
         <Route path="/auth/login" element={<AuthPage />} />
         <Route path="/auth/register" element={<AuthPage />} />
+        <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
       </Routes>
     </Layout>
   );

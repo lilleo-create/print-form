@@ -1,9 +1,9 @@
 .button {
   border: none;
   border-radius: 999px;
-  padding: 14px 28px;
+  padding: 16px 32px;
   font-weight: 600;
-  font-size: 0.95rem;
+  font-size: 1rem;
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -35,12 +35,12 @@
 }
 
 .sm {
-  padding: 10px 18px;
-  font-size: 0.85rem;
+  padding: 12px 20px;
+  font-size: 0.9rem;
 }
 
 .md {
-  padding: 14px 28px;
+  padding: 16px 32px;
 }
 
 .button:focus-visible {
