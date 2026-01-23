@@ -63,8 +63,10 @@ export interface Review {
   photos?: string[];
   likesCount?: number;
   dislikesCount?: number;
+  isPublic?: boolean;
   createdAt: string;
   user?: { id: string; name: string } | null;
+  product?: { id: string; title: string; image?: string };
 }
 
 export interface CartItem {

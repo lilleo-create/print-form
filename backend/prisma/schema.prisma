@@ -39,6 +39,20 @@ model User {
   orders        Order[]
   reviews       Review[]
   refreshTokens RefreshToken[]
+  sellerProfile SellerProfile?
+}
+
+model SellerProfile {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  status            String
+  storeName         String
+  city              String
+  referenceCategory String
+  catalogPosition   String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id])
 }
 
 model Product {
@@ -113,6 +127,7 @@ model Review {
   photos    String[]     @default([])
   likesCount    Int      @default(0)
   dislikesCount Int      @default(0)
+  isPublic      Boolean  @default(true)
   status    ReviewStatus @default(PENDING)
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt

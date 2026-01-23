@@ -11,6 +11,14 @@
   color: var(--color-text);
 }
 
+.compact {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
 .addressButton:disabled {
   cursor: not-allowed;
   opacity: 0.6;

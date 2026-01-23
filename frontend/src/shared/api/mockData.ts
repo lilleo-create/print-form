@@ -192,6 +192,7 @@ export const reviews: Review[] = [
     photos: ['https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=400&q=80'],
     likesCount: 12,
     dislikesCount: 1,
+    isPublic: true,
     createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
     user: { id: 'buyer-1', name: 'Ирина' }
   },
@@ -206,6 +207,7 @@ export const reviews: Review[] = [
     photos: [],
     likesCount: 5,
     dislikesCount: 0,
+    isPublic: true,
     createdAt: new Date(Date.now() - 86400000 * 5).toISOString(),
     user: { id: 'buyer-2', name: 'Андрей' }
   },
@@ -220,6 +222,7 @@ export const reviews: Review[] = [
     photos: ['https://images.unsplash.com/photo-1503602642458-232111445657?auto=format&fit=crop&w=400&q=80'],
     likesCount: 2,
     dislikesCount: 3,
+    isPublic: true,
     createdAt: new Date(Date.now() - 86400000 * 8).toISOString(),
     user: { id: 'buyer-3', name: 'Имя скрыто' }
   }

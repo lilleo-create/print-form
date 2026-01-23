@@ -15,11 +15,13 @@ const registerSchema = loginSchema.extend({
   name: z.string().min(2),
   phone: z.string().min(5).optional(),
   address: z.string().min(3).optional(),
+  privacyAccepted: z.boolean().optional(),
   role: z.enum(['BUYER', 'SELLER']).optional()
 });
 
 const updateProfileSchema = z.object({
   name: z.string().min(2).optional(),
+  email: z.string().email().optional(),
   phone: z.string().min(5).optional(),
   address: z.string().min(3).optional()
 });
@@ -123,8 +125,15 @@ authRoutes.get('/me', authenticate, async (req: AuthRequest, res, next) => {
 authRoutes.patch('/me', authenticate, async (req: AuthRequest, res, next) => {
   try {
     const payload = updateProfileSchema.parse(req.body);
+    if (payload.email) {
+      const existing = await userRepository.findByEmail(payload.email);
+      if (existing && existing.id !== req.user!.userId) {
+        return res.status(400).json({ error: { code: 'EMAIL_EXISTS' } });
+      }
+    }
     const updated = await userRepository.updateProfile(req.user!.userId, {
       name: payload.name,
+      email: payload.email,
       phone: payload.phone ?? null,
       address: payload.address ?? null
     });
