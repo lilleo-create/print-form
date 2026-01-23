@@ -31,7 +31,7 @@ export const ProductPage = () => {
   const [reviewText, setReviewText] = useState('');
   const [isSubmitting, setSubmitting] = useState(false);
   const [feedProducts, setFeedProducts] = useState<Product[]>([]);
-  const [feedPage, setFeedPage] = useState(1);
+  const [feedCursor, setFeedCursor] = useState<string | null>(null);
   const [feedLoading, setFeedLoading] = useState(false);
   const [feedHasMore, setFeedHasMore] = useState(true);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -69,16 +69,27 @@ export const ProductPage = () => {
   const loadFeed = useCallback(async () => {
     if (feedLoading || !feedHasMore) return;
     setFeedLoading(true);
-    const response = await api.getProducts({ page: feedPage, limit: 6, sort: 'createdAt', order: 'desc' });
+    const response = await api.getProducts({
+      cursor: feedCursor ?? undefined,
+      limit: 6,
+      sort: 'createdAt',
+      order: 'desc'
+    });
     setFeedProducts((prev) => {
       const ids = new Set(prev.map((item) => item.id));
-      const nextItems = response.data.filter((item) => !ids.has(item.id));
+      const nextItems = response.data.filter((item) => item.id !== id && !ids.has(item.id));
       return [...prev, ...nextItems];
     });
     setFeedHasMore(response.data.length > 0);
-    setFeedPage((prev) => prev + 1);
+    setFeedCursor(response.data.at(-1)?.id ?? null);
     setFeedLoading(false);
-  }, [feedHasMore, feedLoading, feedPage]);
+  }, [feedCursor, feedHasMore, feedLoading, id]);
+
+  useEffect(() => {
+    setFeedProducts([]);
+    setFeedCursor(null);
+    setFeedHasMore(true);
+  }, [id]);
 
   useEffect(() => {
     loadFeed();
@@ -119,8 +130,11 @@ export const ProductPage = () => {
     if (!id || !user) return;
     setSubmitting(true);
     try {
-      const response = await api.createReview(id, { rating, text: reviewText });
-      setReviews((prev) => [response.data, ...prev]);
+      await api.createReview(id, { rating, text: reviewText });
+      const refreshed = await api.getProductReviews(id, 1, 5);
+      setReviews(refreshed.data);
+      setReviewsPage(1);
+      setHasMoreReviews(refreshed.data.length >= 5);
       setReviewText('');
       setProduct((prev) =>
         prev
@@ -176,7 +190,9 @@ export const ProductPage = () => {
             </div>
             <div className={styles.priceBlock}>
               <span className={styles.price}>{product.price.toLocaleString('ru-RU')} ₽</span>
-              <span className={styles.delivery}>Ближайшая доставка: {formatDeliveryDate(product.deliveryDateNearest)}</span>
+              <span className={styles.delivery}>
+                Ближайшая дата доставки: {formatDeliveryDate(product.deliveryDateNearest)}
+              </span>
             </div>
             <div className={styles.sku}>Артикул: {product.sku ?? '—'}</div>
             {product.variants && product.variants.length > 0 ? (
@@ -192,13 +208,18 @@ export const ProductPage = () => {
                 </select>
               </label>
             ) : null}
-            <Button
-              onClick={() => {
-                addItem(product, 1);
-              }}
-            >
-              Добавить в корзину
-            </Button>
+            <div className={styles.actions}>
+              <Button
+                onClick={() => {
+                  addItem(product, 1);
+                }}
+              >
+                В корзину
+              </Button>
+              <Button variant="secondary" onClick={() => {}}>
+                В избранное
+              </Button>
+            </div>
             <p className={styles.shortDescription}>{product.descriptionShort ?? product.description}</p>
           </div>
         </div>
@@ -261,7 +282,7 @@ export const ProductPage = () => {
             </div>
             {hasMoreReviews && (
               <Button variant="secondary" onClick={loadMoreReviews}>
-                Показать еще
+                Показать ещё отзывы
               </Button>
             )}
           </div>

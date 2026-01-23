@@ -91,6 +91,12 @@
   border: 1px solid #e2e8f0;
 }
 
+.actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .shortDescription {
   color: #475569;
 }
