@@ -138,15 +138,12 @@ export const Layout = ({ children }: LayoutProps) => {
             )}
             <Link to="/account" className={styles.actionLink}>
               <span aria-hidden>🧾</span>
-              <span>Заказы</span>
             </Link>
             <Link to="/account" className={styles.actionLink}>
               <span aria-hidden>❤</span>
-              <span>Избранное</span>
             </Link>
             <Link to="/cart" className={styles.actionLink}>
               <span aria-hidden>🛒</span>
-              <span>Корзина</span>
               <span className={styles.cartCount}>{cartItems.length}</span>
             </Link>
             {user ? (
