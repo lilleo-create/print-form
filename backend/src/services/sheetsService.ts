@@ -8,7 +8,7 @@ const getSheetsClient = () => {
 
   const auth = new google.auth.JWT({
     email: env.googleServiceAccountEmail,
-    key: env.googlePrivateKey,
+    key: env.googlePrivateKey.replace(/\\n/g, '\n'),
     scopes: ['https://www.googleapis.com/auth/spreadsheets']
   });
 
@@ -33,11 +33,9 @@ export const sheetsService = {
       return;
     }
 
-    const sheetName = env.googleSheetsSheetName || 'Orders';
-
     await sheets.spreadsheets.values.append({
       spreadsheetId: env.googleSheetsId,
-      range: `${sheetName}!A1`,
+      range: 'Orders!A1',
       valueInputOption: 'RAW',
       requestBody: {
         values: [

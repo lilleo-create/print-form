@@ -123,12 +123,6 @@
   font-weight: 600;
 }
 
-.actions {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
 .shortDescription {
   color: #475569;
   font-size: 15px;

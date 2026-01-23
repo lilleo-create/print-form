@@ -12,14 +12,10 @@ const listSchema = z.object({
   size: z.string().optional(),
   minPrice: z.coerce.number().optional(),
   maxPrice: z.coerce.number().optional(),
-  q: z.string().optional(),
-  ratingMin: z.coerce.number().optional(),
-  color: z.string().optional(),
   sort: z.enum(['createdAt', 'rating']).optional(),
   order: z.enum(['asc', 'desc']).optional(),
   page: z.coerce.number().int().positive().optional(),
-  limit: z.coerce.number().int().positive().optional(),
-  cursor: z.string().optional()
+  limit: z.coerce.number().int().positive().optional()
 });
 
 productRoutes.get('/', async (req, res, next) => {
@@ -31,14 +27,10 @@ productRoutes.get('/', async (req, res, next) => {
       size: params.size,
       minPrice: params.minPrice,
       maxPrice: params.maxPrice,
-      q: params.q,
-      ratingMin: params.ratingMin,
-      color: params.color,
       sort: params.sort,
       order: params.order,
       page: params.page,
-      limit: params.limit,
-      cursor: params.cursor
+      limit: params.limit
     });
     res.json({ data: products });
   } catch (error) {

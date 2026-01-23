@@ -4,24 +4,19 @@ import { Product, CustomPrintRequest, Order, Review } from '../types';
 import { products as seedProducts } from './mockData';
 
 const useMock = import.meta.env.VITE_USE_MOCK !== 'false';
-const baseUrl = import.meta.env.VITE_API_BASE_URL ?? '/api';
+const baseUrl = import.meta.env.VITE_API_URL ?? '/api';
 const client = useMock ? createMockClient() : createFetchClient(baseUrl);
 
 export const api = {
   async getProducts(filters?: {
     category?: string;
     material?: string;
+    price?: string;
     size?: string;
-    minPrice?: number;
-    maxPrice?: number;
-    q?: string;
-    ratingMin?: number;
-    color?: string;
     sort?: 'createdAt' | 'rating';
     order?: 'asc' | 'desc';
     page?: number;
     limit?: number;
-    cursor?: string;
   }) {
     if (useMock) {
       let items = filterProducts(seedProducts, filters ?? {});
@@ -30,34 +25,21 @@ export const api = {
       } else if (filters?.sort === 'createdAt') {
         items = [...items].sort((a, b) => (b.id ?? '').localeCompare(a.id ?? ''));
       }
-      if (filters?.order === 'asc') {
-        items = [...items].reverse();
-      }
-      if (filters?.cursor) {
-        const cursorIndex = items.findIndex((item) => item.id === filters.cursor);
-        if (cursorIndex >= 0) {
-          items = items.slice(cursorIndex + 1);
-        }
-      }
-      if (filters?.limit) {
-        items = items.slice(0, filters.limit);
-      }
       return { data: items };
     }
     const params = new URLSearchParams();
     if (filters?.category) params.set('category', filters.category);
     if (filters?.material) params.set('material', filters.material);
     if (filters?.size) params.set('size', filters.size);
-    if (filters?.minPrice !== undefined) params.set('minPrice', String(filters.minPrice));
-    if (filters?.maxPrice !== undefined) params.set('maxPrice', String(filters.maxPrice));
-    if (filters?.q) params.set('q', filters.q);
-    if (filters?.ratingMin !== undefined) params.set('ratingMin', String(filters.ratingMin));
-    if (filters?.color) params.set('color', filters.color);
+    if (filters?.price) {
+      const [min, max] = filters.price.split('-');
+      params.set('minPrice', min);
+      params.set('maxPrice', max);
+    }
     if (filters?.sort) params.set('sort', filters.sort);
     if (filters?.order) params.set('order', filters.order);
     if (filters?.page) params.set('page', String(filters.page));
     if (filters?.limit) params.set('limit', String(filters.limit));
-    if (filters?.cursor) params.set('cursor', filters.cursor);
     const query = params.toString();
     return client.request<Product[]>(`/products${query ? `?${query}` : ''}`);
   },
@@ -86,7 +68,7 @@ export const api = {
     }>(`/products/${id}/reviews/summary`);
   },
   async getFilters() {
-    return client.request<{ categories: string[]; materials: string[]; sizes: string[]; colors: string[] }>('/filters');
+    return client.request<{ categories: string[]; materials: string[]; sizes: string[] }>('/filters');
   },
   async sendCustomRequest(payload: Omit<CustomPrintRequest, 'id' | 'status'>) {
     return client.request<CustomPrintRequest>('/custom-requests', { method: 'POST', body: payload });
