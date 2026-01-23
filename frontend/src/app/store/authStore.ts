@@ -13,8 +13,10 @@ interface AuthState {
     role?: Role;
     phone?: string;
     address?: string;
+    privacyAccepted?: boolean;
   }) => Promise<void>;
-  updateProfile: (payload: { name?: string; phone?: string; address?: string }) => Promise<void>;
+  updateProfile: (payload: { name?: string; email?: string; phone?: string; address?: string }) => Promise<void>;
+  setUser: (user: User) => void;
   logout: () => Promise<void>;
   hydrate: () => void;
 }
@@ -37,6 +39,10 @@ export const useAuthStore = create<AuthState>((set) => ({
     if (result?.user) {
       set({ user: result.user });
     }
+  },
+  setUser(user) {
+    authApi.setSessionUser(user);
+    set({ user });
   },
   async logout() {
     await authApi.logout();

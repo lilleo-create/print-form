@@ -68,10 +68,19 @@ export const api = {
     id: string,
     page = 1,
     limit = 5,
-    sort: 'helpful' | 'high' | 'low' | 'new' = 'new'
+    sort: 'helpful' | 'high' | 'low' | 'new' = 'new',
+    productIds?: string[]
   ) {
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: String(limit),
+      sort
+    });
+    if (productIds && productIds.length > 0) {
+      params.set('productIds', productIds.join(','));
+    }
     return client.request<{ data: Review[]; meta: { total: number } }>(
-      `/products/${id}/reviews?page=${page}&limit=${limit}&sort=${sort}`
+      `/products/${id}/reviews?${params.toString()}`
     );
   },
   async createReview(
@@ -80,10 +89,14 @@ export const api = {
   ) {
     return client.request<Review>(`/products/${id}/reviews`, { method: 'POST', body: payload });
   },
-  async getReviewSummary(id: string) {
+  async getReviewSummary(id: string, productIds?: string[]) {
+    const params = new URLSearchParams();
+    if (productIds && productIds.length > 0) {
+      params.set('productIds', productIds.join(','));
+    }
     return client.request<{
       data: { total: number; avg: number; counts: { rating: number; count: number }[]; photos: string[] };
-    }>(`/products/${id}/reviews/summary`);
+    }>(`/products/${id}/reviews/summary${params.toString() ? `?${params.toString()}` : ''}`);
   },
   async getFilters() {
     return client.request<{ categories: string[]; materials: string[]; sizes: string[]; colors: string[] }>('/filters');
@@ -130,6 +143,7 @@ export const api = {
     password: string;
     phone?: string;
     address?: string;
+    privacyAccepted?: boolean;
   }) {
     return client.request<{
       token: string;
@@ -150,9 +164,32 @@ export const api = {
       '/auth/me'
     );
   },
-  async updateProfile(payload: { name?: string; phone?: string; address?: string }) {
+  async updateProfile(payload: { name?: string; email?: string; phone?: string; address?: string }) {
     return client.request<{
       data: { id: string; name: string; role: string; email: string; phone?: string | null; address?: string | null };
     }>('/auth/me', { method: 'PATCH', body: payload });
+  },
+  async getMyReviews() {
+    return client.request<{ data: Review[] }>('/me/reviews');
+  },
+  async updateReviewVisibility(id: string, isPublic: boolean) {
+    return client.request<{ data: Review }>(`/me/reviews/${id}/visibility`, {
+      method: 'PATCH',
+      body: { isPublic }
+    });
+  },
+  async submitSellerOnboarding(payload: {
+    name: string;
+    phone: string;
+    status: 'ИП' | 'ООО' | 'Самозанятый';
+    storeName: string;
+    city: string;
+    referenceCategory: string;
+    catalogPosition: string;
+  }) {
+    return client.request<{ data: { id: string; name: string; email: string; phone?: string | null; role: string } }>(
+      '/seller/onboarding',
+      { method: 'POST', body: payload }
+    );
   }
 };

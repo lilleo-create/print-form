@@ -1,10 +1,65 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { authenticate, authorize, AuthRequest } from '../middleware/authMiddleware';
+import { prisma } from '../lib/prisma';
 import { productUseCases } from '../usecases/productUseCases';
 import { orderUseCases } from '../usecases/orderUseCases';
 import { sellerProductSchema } from './productRoutes';
 
 export const sellerRoutes = Router();
+
+const sellerOnboardingSchema = z.object({
+  name: z.string().min(2),
+  phone: z.string().min(5),
+  status: z.enum(['ИП', 'ООО', 'Самозанятый']),
+  storeName: z.string().min(2),
+  city: z.string().min(2),
+  referenceCategory: z.string().min(2),
+  catalogPosition: z.string().min(2)
+});
+
+sellerRoutes.post('/onboarding', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    const payload = sellerOnboardingSchema.parse(req.body);
+    const updated = await prisma.user.update({
+      where: { id: req.user!.userId },
+      data: {
+        name: payload.name,
+        phone: payload.phone,
+        role: 'SELLER',
+        sellerProfile: {
+          upsert: {
+            create: {
+              status: payload.status,
+              storeName: payload.storeName,
+              city: payload.city,
+              referenceCategory: payload.referenceCategory,
+              catalogPosition: payload.catalogPosition
+            },
+            update: {
+              status: payload.status,
+              storeName: payload.storeName,
+              city: payload.city,
+              referenceCategory: payload.referenceCategory,
+              catalogPosition: payload.catalogPosition
+            }
+          }
+        }
+      }
+    });
+    res.json({
+      data: {
+        id: updated.id,
+        name: updated.name,
+        email: updated.email,
+        phone: updated.phone,
+        role: updated.role
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 sellerRoutes.use(authenticate, authorize(['SELLER', 'ADMIN']));
 

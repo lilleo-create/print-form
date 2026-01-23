@@ -1,14 +1,16 @@
-import { FormEvent, ReactNode, useEffect, useMemo, useState } from 'react';
+import { FormEvent, ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useCartStore } from '../../app/store/cartStore';
 import { useAuthStore } from '../../app/store/authStore';
 import { useAddressStore } from '../../app/store/addressStore';
+import { useProductBoardStore } from '../../app/store/productBoardStore';
 import { AddressModal } from '../../shared/ui/address/AddressModal';
 import { HeaderAddress } from '../../shared/ui/address/HeaderAddress';
+import { Rating } from '../../shared/ui/Rating';
+import { Button } from '../../shared/ui/Button';
 import { ProductModal } from '../shop/ProductModal';
 import { useFilters } from '../../features/catalog/useFilters';
 import { useCatalog } from '../../features/catalog/useCatalog';
-import { formatShortAddress } from '../../shared/lib/formatShortAddress';
 import styles from './Layout.module.css';
 
 interface LayoutProps {
@@ -17,6 +19,7 @@ interface LayoutProps {
 
 export const Layout = ({ children }: LayoutProps) => {
   const cartItems = useCartStore((state) => state.items);
+  const addItem = useCartStore((state) => state.addItem);
   const { user, logout } = useAuthStore();
   const addresses = useAddressStore((state) => state.addresses);
   const selectedAddressId = useAddressStore((state) => state.selectedAddressId);
@@ -28,12 +31,16 @@ export const Layout = ({ children }: LayoutProps) => {
   const removeAddress = useAddressStore((state) => state.removeAddress);
   const closeModal = useAddressStore((state) => state.closeModal);
   const resetAddresses = useAddressStore((state) => state.reset);
+  const productBoard = useProductBoardStore((state) => state.product);
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
   const filterData = useFilters();
   const { products } = useCatalog({ limit: 12 });
   const [searchValue, setSearchValue] = useState(searchParams.get('q') ?? '');
+  const [isCategoriesHidden, setIsCategoriesHidden] = useState(false);
+  const [categoriesHeight, setCategoriesHeight] = useState(0);
+  const categoriesRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -56,13 +63,36 @@ export const Layout = ({ children }: LayoutProps) => {
     return Array.from(new Set(products.map((product) => product.category))).filter(Boolean);
   }, [filterData.categories, products]);
 
-  const selectedAddress = useMemo(
-    () => addresses.find((address) => address.id === selectedAddressId),
-    [addresses, selectedAddressId]
-  );
-  const addressLabel = selectedAddress
-    ? formatShortAddress(selectedAddress.addressText)
-    : user?.address ?? 'Укажите адрес доставки';
+  useLayoutEffect(() => {
+    if (!categoriesRef.current) return;
+    const updateHeight = () => {
+      if (categoriesRef.current) {
+        setCategoriesHeight(categoriesRef.current.offsetHeight);
+      }
+    };
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(categoriesRef.current);
+    return () => observer.disconnect();
+  }, [location.pathname]);
+
+  const isHome = location.pathname === '/';
+  const isProductPage = /^\/product\/[^/]+$/.test(location.pathname);
+  const isReviewPage = /^\/product\/[^/]+\/reviews$/.test(location.pathname);
+  const hideOnScroll = isHome || isProductPage || isReviewPage;
+
+  useEffect(() => {
+    if (!hideOnScroll) {
+      setIsCategoriesHidden(false);
+      return;
+    }
+    const handleScroll = () => {
+      setIsCategoriesHidden(window.scrollY > 24);
+    };
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [hideOnScroll]);
 
   const handleSearchUpdate = (value: string) => {
     setSearchValue(value);
@@ -106,6 +136,9 @@ export const Layout = ({ children }: LayoutProps) => {
   };
 
   const activeCategory = searchParams.get('category') ?? '';
+  const showProductBoard = isCategoriesHidden && (isProductPage || isReviewPage) && productBoard;
+  const ratingValue = productBoard?.ratingAvg ?? 0;
+  const ratingCount = productBoard?.ratingCount ?? 0;
 
   return (
     <div className={styles.app}>
@@ -131,11 +164,6 @@ export const Layout = ({ children }: LayoutProps) => {
             </button>
           </form>
           <div className={styles.actions}>
-            {user && (
-              <div className={styles.addressSlot}>
-                <HeaderAddress />
-              </div>
-            )}
             <Link to="/account" className={styles.actionLink}>
               <span aria-hidden>🧾</span>
               <span>Заказы</span>
@@ -167,13 +195,19 @@ export const Layout = ({ children }: LayoutProps) => {
             )}
           </div>
         </div>
-        <div className={styles.categoriesBar}>
-          <div className={styles.categoriesInner}>
+        <div
+          className={styles.categoriesBar}
+          style={categoriesHeight ? { height: `${categoriesHeight}px` } : undefined}
+        >
+          <div className={styles.categoriesSurface}>
+            <div
+              ref={categoriesRef}
+              className={`${styles.categoriesInner} ${isCategoriesHidden ? styles.categoriesInnerHidden : ''}`}
+            >
             <div className={styles.categoriesMeta}>
               <div className={styles.categoriesTitle}>Категории</div>
               <div className={styles.categoriesAddress}>
-                <span className={styles.categoriesMarker}>📍</span>
-                <span>{addressLabel}</span>
+                <HeaderAddress variant="compact" />
               </div>
             </div>
             <button
@@ -193,13 +227,77 @@ export const Layout = ({ children }: LayoutProps) => {
                 {category}
               </button>
             ))}
-            <Link to="/seller" className={styles.sellCta}>
+            <Link to="/seller/onboarding" className={styles.sellCta}>
               Продавайте на PrintForm
             </Link>
+            </div>
+            <div className={`${styles.productBoard} ${showProductBoard ? styles.productBoardVisible : ''}`}>
+              {productBoard && (
+                <>
+                  <div className={styles.productBoardInfo}>
+                    <img src={productBoard.image} alt={productBoard.title} />
+                    <div>
+                      <h4>{productBoard.title}</h4>
+                      <div className={styles.productBoardRating}>
+                        <Rating value={ratingValue} count={ratingCount} size="sm" />
+                        <span>{ratingValue.toFixed(1)}</span>
+                        <span>{ratingCount} оценок</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className={styles.productBoardActions}>
+                    <Button
+                      onClick={() => {
+                        if (!productBoard) return;
+                        addItem(productBoard, 1);
+                        navigate('/checkout');
+                      }}
+                    >
+                      Купить сейчас
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        if (!productBoard) return;
+                        addItem(productBoard, 1);
+                      }}
+                    >
+                      В корзину
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </header>
       <main className={styles.main}>{children}</main>
+      <nav className={styles.bottomNav} aria-label="Основная навигация">
+        <Link to="/" className={styles.bottomNavItem}>
+          <span aria-hidden>🏠</span>
+          <span>Главная</span>
+        </Link>
+        <Link to="/categories" className={styles.bottomNavItem}>
+          <span aria-hidden>📚</span>
+          <span>Категории</span>
+        </Link>
+        <Link to="/account" className={styles.bottomNavItem}>
+          <span aria-hidden>🧾</span>
+          <span>Заказы</span>
+        </Link>
+        <Link to="/account" className={styles.bottomNavItem}>
+          <span aria-hidden>❤</span>
+          <span>Избранное</span>
+        </Link>
+        <Link to="/cart" className={styles.bottomNavItem}>
+          <span aria-hidden>🛒</span>
+          <span>Корзина</span>
+        </Link>
+        <Link to="/account" className={styles.bottomNavItem}>
+          <span aria-hidden>👤</span>
+          <span>Профиль</span>
+        </Link>
+      </nav>
       <footer className={styles.footer}>
         <div>
           <h4>3D Печать маркетплейс</h4>
