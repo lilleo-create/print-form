@@ -14,7 +14,15 @@ export const createMockClient = (): ApiClient => {
         const [pathname, queryString] = path.split('?');
         if (pathname.endsWith('/reviews/summary')) {
           const productId = pathname.split('/')[2];
-          const productReviews = mockReviews.filter((review) => review.productId === productId);
+          const params = new URLSearchParams(queryString ?? '');
+          const scopedIds = params.get('productIds')
+            ? params
+                .get('productIds')!
+                .split(',')
+                .map((item) => item.trim())
+                .filter(Boolean)
+            : [productId];
+          const productReviews = mockReviews.filter((review) => scopedIds.includes(review.productId));
           const total = productReviews.length;
           const counts = [5, 4, 3, 2, 1].map((rating) => ({
             rating,
@@ -53,10 +61,17 @@ export const createMockClient = (): ApiClient => {
             return { data: newReview as T };
           }
           const params = new URLSearchParams(queryString ?? '');
+          const scopedIds = params.get('productIds')
+            ? params
+                .get('productIds')!
+                .split(',')
+                .map((item) => item.trim())
+                .filter(Boolean)
+            : [productId];
           const page = params.get('page') ? Number(params.get('page')) : 1;
           const limit = params.get('limit') ? Number(params.get('limit')) : 5;
           const sort = params.get('sort') ?? 'new';
-          const productReviews = mockReviews.filter((review) => review.productId === productId);
+          const productReviews = mockReviews.filter((review) => scopedIds.includes(review.productId));
           const sorted = [...productReviews].sort((a, b) => {
             if (sort === 'helpful') {
               return (b.likesCount ?? 0) - (a.likesCount ?? 0);
