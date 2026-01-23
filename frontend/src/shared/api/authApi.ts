@@ -87,6 +87,7 @@ export const authApi = {
     role?: Role;
     phone?: string;
     address?: string;
+    privacyAccepted?: boolean;
   }) => {
     if (!useMock) {
       const result = await api.register({
@@ -94,7 +95,8 @@ export const authApi = {
         email: payload.email,
         password: payload.password,
         phone: payload.phone,
-        address: payload.address
+        address: payload.address,
+        privacyAccepted: payload.privacyAccepted
       });
       const session: StoredSession = {
         token: result.data.token,
@@ -133,7 +135,7 @@ export const authApi = {
     saveToStorage(STORAGE_KEYS.session, session);
     return session;
   },
-  updateProfile: async (payload: { name?: string; phone?: string; address?: string }) => {
+  updateProfile: async (payload: { name?: string; email?: string; phone?: string; address?: string }) => {
     if (!useMock) {
       const result = await api.updateProfile(payload);
       const current = loadFromStorage<StoredSession | null>(STORAGE_KEYS.session, null);
@@ -163,5 +165,14 @@ export const authApi = {
     }
     removeFromStorage(STORAGE_KEYS.session);
   },
-  getSession: () => loadFromStorage<StoredSession | null>(STORAGE_KEYS.session, null)
+  getSession: () => loadFromStorage<StoredSession | null>(STORAGE_KEYS.session, null),
+  setSessionUser: (user: User) => {
+    const current = loadFromStorage<StoredSession | null>(STORAGE_KEYS.session, null);
+    if (!current) {
+      return null;
+    }
+    const nextSession = { ...current, user };
+    saveToStorage(STORAGE_KEYS.session, nextSession);
+    return nextSession;
+  }
 };

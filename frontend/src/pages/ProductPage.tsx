@@ -5,6 +5,7 @@ import { Product, Review } from '../shared/types';
 import { Rating } from '../shared/ui/Rating';
 import { Button } from '../shared/ui/Button';
 import { useCartStore } from '../app/store/cartStore';
+import { useProductBoardStore } from '../app/store/productBoardStore';
 import { ProductCard } from '../widgets/shop/ProductCard';
 import styles from './ProductPage.module.css';
 
@@ -22,6 +23,7 @@ export const ProductPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const addItem = useCartStore((state) => state.addItem);
+  const setProductBoard = useProductBoardStore((state) => state.setProduct);
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeImage, setActiveImage] = useState<string>('');
@@ -47,6 +49,14 @@ export const ProductPage = () => {
       })
       .finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    if (product) {
+      setProductBoard(product);
+    }
+  }, [product, setProductBoard]);
+
+  useEffect(() => () => setProductBoard(null), [setProductBoard]);
 
   useEffect(() => {
     if (!id) return;
