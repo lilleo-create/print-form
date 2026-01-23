@@ -6,6 +6,7 @@ import { Rating } from '../shared/ui/Rating';
 import { Button } from '../shared/ui/Button';
 import { useCartStore } from '../app/store/cartStore';
 import { useAuthStore } from '../app/store/authStore';
+import { useProductBoardStore } from '../app/store/productBoardStore';
 import styles from './ProductReviewsPage.module.css';
 
 const formatReviewDate = (value: string) =>
@@ -27,6 +28,7 @@ export const ProductReviewsPage = () => {
   const navigate = useNavigate();
   const addItem = useCartStore((state) => state.addItem);
   const user = useAuthStore((state) => state.user);
+  const setProductBoard = useProductBoardStore((state) => state.setProduct);
   const [product, setProduct] = useState<Product | null>(null);
   const [summary, setSummary] = useState<{ total: number; avg: number; counts: { rating: number; count: number }[]; photos: string[] } | null>(
     null
@@ -50,16 +52,33 @@ export const ProductReviewsPage = () => {
     api.getProduct(id).then((response) => setProduct(response.data));
   }, [id]);
 
+  useEffect(() => {
+    if (product) {
+      setProductBoard(product);
+    }
+  }, [product, setProductBoard]);
+
+  useEffect(() => () => setProductBoard(null), [setProductBoard]);
+
+  const scopedProductIds = useMemo(() => {
+    if (!product) return [];
+    const variantIds =
+      product.variants?.map((variant) => variant.productId).filter(Boolean) as string[] | undefined;
+    return Array.from(new Set([product.id, ...(variantIds ?? [])]));
+  }, [product]);
+
+  const reviewProductIds = scope === 'all' ? scopedProductIds : undefined;
+
   const loadSummary = async () => {
     if (!id) return;
-    const response = await api.getReviewSummary(id);
+    const response = await api.getReviewSummary(id, reviewProductIds);
     setSummary(response.data);
   };
 
   const loadReviews = async (nextPage = 1) => {
     if (!id) return;
     setLoading(true);
-    const response = await api.getProductReviews(id, nextPage, 6, filter);
+    const response = await api.getProductReviews(id, nextPage, 6, filter, reviewProductIds);
     setReviews((prev) => (nextPage === 1 ? response.data.data : [...prev, ...response.data.data]));
     setHasMore(response.data.data.length === 6);
     setLoading(false);
@@ -70,7 +89,7 @@ export const ProductReviewsPage = () => {
     loadReviews(1);
     loadSummary();
     setPage(1);
-  }, [filter, id, scope]);
+  }, [filter, id, scope, scopedProductIds]);
 
   const distribution = useMemo(() => summary?.counts ?? [], [summary]);
 

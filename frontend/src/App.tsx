@@ -10,6 +10,9 @@ import { CheckoutPage } from './pages/CheckoutPage';
 import { ProtectedRoute } from './app/routes/ProtectedRoute';
 import { ProductPage } from './pages/ProductPage';
 import { ProductReviewsPage } from './pages/ProductReviewsPage';
+import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
+import { CategoriesPage } from './pages/CategoriesPage';
+import { SellerOnboardingPage } from './pages/SellerOnboardingPage';
 
 const App = () => {
   return (
@@ -19,6 +22,7 @@ const App = () => {
         <Route path="/catalog" element={<CatalogPage />} />
         <Route path="/product/:id" element={<ProductPage />} />
         <Route path="/product/:id/reviews" element={<ProductReviewsPage />} />
+        <Route path="/categories" element={<CategoriesPage />} />
         <Route path="/cart" element={<CartPage />} />
         <Route
           path="/checkout"
@@ -44,8 +48,10 @@ const App = () => {
             </ProtectedRoute>
           }
         />
+        <Route path="/seller/onboarding" element={<SellerOnboardingPage />} />
         <Route path="/auth/login" element={<AuthPage />} />
         <Route path="/auth/register" element={<AuthPage />} />
+        <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
       </Routes>
     </Layout>
   );
