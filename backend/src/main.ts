@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import fs from 'fs';
+import path from 'path';
 import { env } from './config/env';
 import { authRoutes } from './routes/authRoutes';
 import { productRoutes } from './routes/productRoutes';
@@ -12,6 +14,11 @@ import { meRoutes } from './routes/meRoutes';
 import { errorHandler } from './middleware/errorHandler';
 
 const app = express();
+const uploadsDir = path.join(process.cwd(), 'uploads');
+
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
 
 app.use(
   cors({
@@ -21,6 +28,7 @@ app.use(
 );
 app.use(express.json());
 app.use(cookieParser());
+app.use('/uploads', express.static(uploadsDir));
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 app.use('/auth', authRoutes);

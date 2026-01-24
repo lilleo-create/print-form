@@ -1,11 +1,11 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Product } from '../../shared/types';
 import { Button } from '../../shared/ui/Button';
 import { useModalFocus } from '../../shared/lib/useModalFocus';
-import { useAuthStore } from '../../app/store/authStore';
+import { api } from '../../shared/api';
 import styles from './SellerProductModal.module.css';
 
 const productSchema = z.object({
@@ -14,20 +14,43 @@ const productSchema = z.object({
   material: z.string().min(2, 'Введите материал'),
   category: z.string().min(2, 'Введите категорию'),
   size: z.string().min(2, 'Введите размер'),
-  images: z.string().min(5, 'Добавьте ссылку на изображение')
+  technology: z.string().min(2, 'Введите технологию'),
+  printTime: z.string().min(2, 'Введите время печати'),
+  color: z.string().min(2, 'Введите цвет'),
+  description: z.string().min(10, 'Добавьте описание'),
+  deliveryDateEstimated: z.string().optional(),
+  deliveryDates: z.string().optional()
 });
 
 type ProductFormValues = z.infer<typeof productSchema>;
 
+export interface SellerProductPayload {
+  id?: string;
+  title: string;
+  price: number;
+  material: string;
+  category: string;
+  size: string;
+  technology: string;
+  printTime: string;
+  color: string;
+  description: string;
+  imageUrls: string[];
+  deliveryDateEstimated?: string;
+  deliveryDates?: string[];
+}
+
 interface SellerProductModalProps {
   product: Product | null;
   onClose: () => void;
-  onSubmit: (payload: Product) => Promise<void>;
+  onSubmit: (payload: SellerProductPayload) => Promise<void>;
 }
 
 export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProductModalProps) => {
   const modalRef = useRef<HTMLDivElement>(null);
-  const user = useAuthStore((state) => state.user);
+  const [files, setFiles] = useState<FileList | null>(null);
+  const [uploadError, setUploadError] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
   const {
     register,
     handleSubmit,
@@ -38,6 +61,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
   useModalFocus(true, onClose, modalRef);
 
   useEffect(() => {
+    setFiles(null);
     if (product) {
       reset({
         title: product.title,
@@ -45,7 +69,12 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
         material: product.material,
         category: product.category,
         size: product.size,
-        images: product.image
+        technology: product.technology,
+        printTime: product.printTime,
+        color: product.color,
+        description: product.description,
+        deliveryDateEstimated: product.deliveryDateEstimated?.slice(0, 10) ?? '',
+        deliveryDates: product.deliveryDates?.join(', ') ?? ''
       });
     } else {
       reset({
@@ -54,29 +83,65 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
         material: '',
         category: '',
         size: '',
-        images: ''
+        technology: '',
+        printTime: '',
+        color: '',
+        description: '',
+        deliveryDateEstimated: '',
+        deliveryDates: ''
       });
     }
   }, [product, reset]);
 
   const handleFormSubmit = async (values: ProductFormValues) => {
-    const imageUrl = values.images.split(',')[0].trim();
-    const nextProduct: Product = {
-      id: product?.id ?? `prod-${Date.now()}`,
+    setUploadError('');
+    const existingImageUrls =
+      product?.images?.map((image) => image.url) ?? (product?.image ? [product.image] : []);
+    let imageUrls = existingImageUrls;
+
+    if (files && files.length > 0) {
+      setIsUploading(true);
+      try {
+        const response = await api.uploadSellerImages(files);
+        imageUrls = response.data.urls;
+      } catch (error) {
+        setUploadError('Не удалось загрузить изображения. Попробуйте снова.');
+        setIsUploading(false);
+        return;
+      } finally {
+        setIsUploading(false);
+      }
+    }
+
+    if (imageUrls.length === 0) {
+      setUploadError('Добавьте хотя бы одно изображение.');
+      return;
+    }
+
+    const deliveryDates = values.deliveryDates
+      ? values.deliveryDates
+          .split(',')
+          .map((date) => date.trim())
+          .filter(Boolean)
+      : [];
+
+    const payload: SellerProductPayload = {
+      id: product?.id,
       title: values.title,
       price: values.price,
-      material: values.material as Product['material'],
+      material: values.material,
       category: values.category,
       size: values.size,
-      image: imageUrl,
-      description: product?.description ?? 'Кастомный товар от продавца.',
-      technology: product?.technology ?? 'FDM',
-      printTime: product?.printTime ?? '8 часов',
-      color: product?.color ?? 'Черный',
-      sellerId: product?.sellerId ?? user?.id ?? null
+      technology: values.technology,
+      printTime: values.printTime,
+      color: values.color,
+      description: values.description,
+      imageUrls,
+      deliveryDateEstimated: values.deliveryDateEstimated ? new Date(values.deliveryDateEstimated).toISOString() : undefined,
+      deliveryDates
     };
 
-    await onSubmit(nextProduct);
+    await onSubmit(payload);
     onClose();
   };
 
@@ -120,12 +185,47 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
             {errors.size && <span>{errors.size.message}</span>}
           </label>
           <label>
-            Изображения (URL через запятую)
-            <input {...register('images')} />
-            {errors.images && <span>{errors.images.message}</span>}
+            Технология
+            <input {...register('technology')} />
+            {errors.technology && <span>{errors.technology.message}</span>}
+          </label>
+          <label>
+            Время печати
+            <input {...register('printTime')} />
+            {errors.printTime && <span>{errors.printTime.message}</span>}
+          </label>
+          <label>
+            Цвет
+            <input {...register('color')} />
+            {errors.color && <span>{errors.color.message}</span>}
+          </label>
+          <label>
+            Описание
+            <textarea rows={4} {...register('description')} />
+            {errors.description && <span>{errors.description.message}</span>}
+          </label>
+          <label>
+            Фото товара (файлы)
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={(event) => setFiles(event.target.files)}
+            />
+            {uploadError && <span>{uploadError}</span>}
+          </label>
+          <label>
+            Ближайшая дата доставки
+            <input type="date" {...register('deliveryDateEstimated')} />
+          </label>
+          <label>
+            Даты доставки (через запятую)
+            <input {...register('deliveryDates')} placeholder="2024-10-01, 2024-10-03" />
           </label>
           <div className={styles.actions}>
-            <Button type="submit">Сохранить</Button>
+            <Button type="submit" disabled={isUploading}>
+              {isUploading ? 'Загрузка…' : 'Сохранить'}
+            </Button>
             <Button type="button" variant="secondary" onClick={onClose}>
               Отмена
             </Button>

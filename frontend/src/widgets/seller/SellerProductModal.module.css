@@ -51,6 +51,13 @@
   padding: 8px 10px;
 }
 
+.form textarea {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px 10px;
+  resize: vertical;
+}
+
 .form span {
   color: #ef4444;
   font-size: 12px;

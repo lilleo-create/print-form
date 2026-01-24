@@ -11,6 +11,7 @@ import { Button } from '../../shared/ui/Button';
 import { ProductModal } from '../shop/ProductModal';
 import { useFilters } from '../../features/catalog/useFilters';
 import { useCatalog } from '../../features/catalog/useCatalog';
+import { api } from '../../shared/api';
 import styles from './Layout.module.css';
 
 interface LayoutProps {
@@ -40,7 +41,21 @@ export const Layout = ({ children }: LayoutProps) => {
   const [searchValue, setSearchValue] = useState(searchParams.get('q') ?? '');
   const [isCategoriesHidden, setIsCategoriesHidden] = useState(false);
   const [categoriesHeight, setCategoriesHeight] = useState(0);
+  const [productBoardHeight, setProductBoardHeight] = useState(0);
+  const [sellerProfile, setSellerProfile] = useState<{
+    isSeller: boolean;
+    profile: {
+      id: string;
+      status: string;
+      storeName: string;
+      city: string;
+      referenceCategory: string;
+      catalogPosition: string;
+      phone: string;
+    } | null;
+  } | null>(null);
   const categoriesRef = useRef<HTMLDivElement | null>(null);
+  const productBoardRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -56,6 +71,29 @@ export const Layout = ({ children }: LayoutProps) => {
     }
   }, [location.pathname, searchParams]);
 
+  useEffect(() => {
+    if (!user) {
+      setSellerProfile(null);
+      return;
+    }
+    let isMounted = true;
+    api
+      .getSellerProfile()
+      .then((response) => {
+        if (isMounted) {
+          setSellerProfile(response.data);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setSellerProfile({ isSeller: false, profile: null });
+        }
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
+
   const categories = useMemo(() => {
     if (filterData.categories.length) {
       return filterData.categories;
@@ -69,10 +107,16 @@ export const Layout = ({ children }: LayoutProps) => {
       if (categoriesRef.current) {
         setCategoriesHeight(categoriesRef.current.offsetHeight);
       }
+      if (productBoardRef.current) {
+        setProductBoardHeight(productBoardRef.current.offsetHeight);
+      }
     };
     updateHeight();
     const observer = new ResizeObserver(updateHeight);
     observer.observe(categoriesRef.current);
+    if (productBoardRef.current) {
+      observer.observe(productBoardRef.current);
+    }
     return () => observer.disconnect();
   }, [location.pathname]);
 
@@ -139,11 +183,19 @@ export const Layout = ({ children }: LayoutProps) => {
   const showProductBoard = isCategoriesHidden && (isProductPage || isReviewPage) && productBoard;
   const ratingValue = productBoard?.ratingAvg ?? 0;
   const ratingCount = productBoard?.ratingCount ?? 0;
+  const categoriesBarHeight = isCategoriesHidden ? (showProductBoard ? productBoardHeight : 0) : categoriesHeight;
+  const isSeller = sellerProfile?.isSeller ?? false;
+  const showBottomNav =
+    !location.pathname.startsWith('/seller') &&
+    !location.pathname.startsWith('/auth') &&
+    !location.pathname.startsWith('/privacy-policy');
+  const isFavorites = location.pathname === '/account' && searchParams.get('tab') === 'favorites';
+  const isProfile = location.pathname === '/account' && (searchParams.get('tab') === 'profile' || !searchParams.get('tab'));
 
   return (
     <div className={styles.app}>
       <header className={styles.header}>
-        <div className={styles.headerInner}>
+        <div className={`${styles.headerInner} ${styles.desktopHeader}`}>
           <div className={styles.brand}>
             <Link to="/" className={styles.logo}>
               3D Market
@@ -192,43 +244,78 @@ export const Layout = ({ children }: LayoutProps) => {
             )}
           </div>
         </div>
+        <div className={styles.mobileHeader}>
+          <div className={styles.mobileTopRow}>
+            <button
+              type="button"
+              className={styles.mobileBurger}
+              onClick={() => navigate('/categories')}
+              aria-label="Открыть категории"
+            >
+              ☰
+            </button>
+            <div className={styles.mobileAddress}>
+              <HeaderAddress variant="compact" />
+            </div>
+          </div>
+          <form className={styles.mobileSearch} onSubmit={handleSearchSubmit}>
+            <input
+              type="search"
+              placeholder="Найти товары"
+              value={searchValue}
+              onChange={(event) => handleSearchUpdate(event.target.value)}
+            />
+            <button type="submit" aria-label="Найти">
+              🔍
+            </button>
+          </form>
+        </div>
         <div
-          className={styles.categoriesBar}
-          style={categoriesHeight ? { height: `${categoriesHeight}px` } : undefined}
+          className={`${styles.categoriesBar} ${categoriesBarHeight === 0 ? styles.categoriesBarCollapsed : ''}`}
+          style={{ height: `${categoriesBarHeight}px` }}
         >
           <div className={styles.categoriesSurface}>
             <div
               ref={categoriesRef}
               className={`${styles.categoriesInner} ${isCategoriesHidden ? styles.categoriesInnerHidden : ''}`}
             >
-            <div className={styles.categoriesMeta}>
-              <div className={styles.categoriesTitle}>Категории</div>
-              <div className={styles.categoriesAddress}>
-                <HeaderAddress variant="compact" />
+              <div className={styles.categoriesMeta}>
+                <div className={styles.categoriesTitle}>Категории</div>
+                <div className={styles.categoriesAddress}>
+                  <HeaderAddress variant="compact" />
+                </div>
               </div>
-            </div>
-            <button
-              type="button"
-              className={!activeCategory ? styles.categoryActive : styles.categoryButton}
-              onClick={() => handleCategorySelect('')}
-            >
-              Все категории
-            </button>
-            {categories.map((category) => (
               <button
                 type="button"
-                key={category}
-                className={activeCategory === category ? styles.categoryActive : styles.categoryButton}
-                onClick={() => handleCategorySelect(category)}
+                className={!activeCategory ? styles.categoryActive : styles.categoryButton}
+                onClick={() => handleCategorySelect('')}
               >
-                {category}
+                Все категории
               </button>
-            ))}
-            <Link to="/seller/onboarding" className={styles.sellCta}>
-              Продавайте на PrintForm
-            </Link>
+              {categories.map((category) => (
+                <button
+                  type="button"
+                  key={category}
+                  className={activeCategory === category ? styles.categoryActive : styles.categoryButton}
+                  onClick={() => handleCategorySelect(category)}
+                >
+                  {category}
+                </button>
+              ))}
+              {isSeller ? (
+                <Link to="/seller" className={styles.sellCta}>
+                  Кабинет продавца
+                </Link>
+              ) : (
+                <Link to="/seller/onboarding" className={styles.sellCta}>
+                  Продавайте на PrintForm
+                </Link>
+              )}
             </div>
-            <div className={`${styles.productBoard} ${showProductBoard ? styles.productBoardVisible : ''}`}>
+            <div
+              ref={productBoardRef}
+              className={`${styles.productBoard} ${showProductBoard ? styles.productBoardVisible : ''}`}
+            >
               {productBoard && (
                 <>
                   <div className={styles.productBoardInfo}>
@@ -269,32 +356,38 @@ export const Layout = ({ children }: LayoutProps) => {
         </div>
       </header>
       <main className={styles.main}>{children}</main>
-      <nav className={styles.bottomNav} aria-label="Основная навигация">
-        <Link to="/" className={styles.bottomNavItem}>
-          <span aria-hidden>🏠</span>
-          <span>Главная</span>
-        </Link>
-        <Link to="/categories" className={styles.bottomNavItem}>
-          <span aria-hidden>📚</span>
-          <span>Категории</span>
-        </Link>
-        <Link to="/account" className={styles.bottomNavItem}>
-          <span aria-hidden>🧾</span>
-          <span>Заказы</span>
-        </Link>
-        <Link to="/account" className={styles.bottomNavItem}>
-          <span aria-hidden>❤</span>
-          <span>Избранное</span>
-        </Link>
-        <Link to="/cart" className={styles.bottomNavItem}>
-          <span aria-hidden>🛒</span>
-          <span>Корзина</span>
-        </Link>
-        <Link to="/account" className={styles.bottomNavItem}>
-          <span aria-hidden>👤</span>
-          <span>Профиль</span>
-        </Link>
-      </nav>
+      {showBottomNav && (
+        <nav className={styles.bottomNav} aria-label="Основная навигация">
+          <Link
+            to="/"
+            className={`${styles.bottomNavItem} ${location.pathname === '/' ? styles.bottomNavItemActive : ''}`}
+          >
+            <span aria-hidden>🏠</span>
+            <span>Главная</span>
+          </Link>
+          <Link
+            to="/account?tab=favorites"
+            className={`${styles.bottomNavItem} ${isFavorites ? styles.bottomNavItemActive : ''}`}
+          >
+            <span aria-hidden>❤</span>
+            <span>Избранное</span>
+          </Link>
+          <Link
+            to="/cart"
+            className={`${styles.bottomNavItem} ${location.pathname === '/cart' ? styles.bottomNavItemActive : ''}`}
+          >
+            <span aria-hidden>🛒</span>
+            <span>Корзина</span>
+          </Link>
+          <Link
+            to="/account?tab=profile"
+            className={`${styles.bottomNavItem} ${isProfile ? styles.bottomNavItemActive : ''}`}
+          >
+            <span aria-hidden>👤</span>
+            <span>Профиль</span>
+          </Link>
+        </nav>
+      )}
       <footer className={styles.footer}>
         <div>
           <h4>3D Печать маркетплейс</h4>

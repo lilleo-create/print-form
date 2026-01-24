@@ -27,6 +27,9 @@ export interface Product {
   variants?: ProductVariant[];
   specs?: ProductSpec[];
   deliveryDateNearest?: string;
+  deliveryDateEstimated?: string;
+  deliveryDates?: string[];
+  imageUrls?: string[];
 }
 
 export interface ProductImage {
@@ -133,9 +136,12 @@ export interface Address {
 
 export interface SellerProfile {
   id: string;
-  shopName: string;
-  rating: number;
-  totalSales: number;
+  status: string;
+  storeName: string;
+  phone: string;
+  city: string;
+  referenceCategory: string;
+  catalogPosition: string;
 }
 
 export interface CustomPrintRequest {

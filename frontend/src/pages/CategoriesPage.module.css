@@ -4,13 +4,17 @@
 
 .header {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  align-items: center;
+  gap: 12px;
   margin-bottom: 32px;
 }
 
-.header p {
-  color: var(--color-text-muted);
+.backButton {
+  border: 1px solid var(--color-border);
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 8px 12px;
+  cursor: pointer;
 }
 
 .grid {
@@ -41,6 +45,17 @@
 .cardTitle {
   font-size: 18px;
   font-weight: 700;
+}
+
+.cardIcon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #f1f5f9;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
 }
 
 .cardMeta {

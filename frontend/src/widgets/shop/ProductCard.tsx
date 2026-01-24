@@ -39,7 +39,9 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           <span>{product.category}</span>
           <span>{product.material}</span>
         </div>
-        <h3>{product.title}</h3>
+        <h3 className={styles.title} title={product.title}>
+          {product.title}
+        </h3>
         <Rating value={product.ratingAvg} count={product.ratingCount} />
         <p className={styles.price}>{product.price.toLocaleString('ru-RU')} ₽</p>
         <div className={styles.actions}>

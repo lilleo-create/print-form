@@ -55,7 +55,8 @@ export const sellerProductSchema = z.object({
   title: z.string().min(2),
   category: z.string().min(2),
   price: z.number().min(1),
-  image: z.string().url(),
+  image: z.string().url().optional(),
+  imageUrls: z.array(z.string().url()).optional(),
   description: z.string().min(5),
   descriptionShort: z.string().min(5).optional(),
   descriptionFull: z.string().min(10).optional(),
@@ -65,7 +66,9 @@ export const sellerProductSchema = z.object({
   size: z.string().min(2),
   technology: z.string().min(2),
   printTime: z.string().min(2),
-  color: z.string().min(2)
+  color: z.string().min(2),
+  deliveryDateEstimated: z.string().datetime().optional(),
+  deliveryDates: z.array(z.string()).optional()
 });
 
 const reviewSchema = z.object({

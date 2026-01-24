@@ -5,6 +5,7 @@ export interface ProductInput {
   category: string;
   price: number;
   image: string;
+  imageUrls?: string[];
   description: string;
   descriptionShort: string;
   descriptionFull: string;
@@ -15,6 +16,8 @@ export interface ProductInput {
   technology: string;
   printTime: string;
   color: string;
+  deliveryDateEstimated?: Date | string | null;
+  deliveryDates?: string[];
   sellerId: string;
 }
 
@@ -59,8 +62,47 @@ export const productRepository = {
         specs: { orderBy: { sortOrder: 'asc' } }
       }
     }),
-  create: (data: ProductInput) => prisma.product.create({ data }),
-  update: (id: string, data: Partial<ProductInput>) =>
-    prisma.product.update({ where: { id }, data }),
+  create: (data: ProductInput) => {
+    const { imageUrls, ...rest } = data;
+    return prisma.product.create({
+      data: {
+        ...rest,
+        images: imageUrls?.length
+          ? {
+              create: imageUrls.map((url, index) => ({
+                url,
+                sortOrder: index
+              }))
+            }
+          : undefined
+      },
+      include: {
+        images: { orderBy: { sortOrder: 'asc' } }
+      }
+    });
+  },
+  update: async (id: string, data: Partial<ProductInput>) => {
+    const { imageUrls, ...rest } = data;
+    if (!imageUrls) {
+      return prisma.product.update({ where: { id }, data: rest });
+    }
+    return prisma.$transaction(async (tx) => {
+      await tx.product.update({ where: { id }, data: rest });
+      await tx.productImage.deleteMany({ where: { productId: id } });
+      if (imageUrls.length > 0) {
+        await tx.productImage.createMany({
+          data: imageUrls.map((url, index) => ({
+            productId: id,
+            url,
+            sortOrder: index
+          }))
+        });
+      }
+      return tx.product.findUnique({
+        where: { id },
+        include: { images: { orderBy: { sortOrder: 'asc' } } }
+      });
+    });
+  },
   remove: (id: string) => prisma.product.delete({ where: { id } })
 };

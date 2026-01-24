@@ -1,7 +1,9 @@
 import { createMockClient, filterProducts } from './mockAdapter';
 import { createFetchClient } from './client';
-import { Product, CustomPrintRequest, Order, Review } from '../types';
+import { Product, CustomPrintRequest, Order, Review, SellerProfile } from '../types';
 import { products as seedProducts } from './mockData';
+import { loadFromStorage } from '../lib/storage';
+import { STORAGE_KEYS } from '../constants/storageKeys';
 
 const useMock = import.meta.env.VITE_USE_MOCK !== 'false';
 const baseUrl = import.meta.env.VITE_API_URL ?? '/api';
@@ -92,10 +94,39 @@ export const api = {
   async getSellerProducts() {
     return client.request<Product[]>('/seller/products');
   },
-  async createSellerProduct(payload: Product) {
+  async createSellerProduct(payload: {
+    title: string;
+    price: number;
+    material: string;
+    category: string;
+    size: string;
+    technology: string;
+    printTime: string;
+    color: string;
+    description: string;
+    imageUrls: string[];
+    deliveryDateEstimated?: string;
+    deliveryDates?: string[];
+  }) {
     return client.request<Product>('/seller/products', { method: 'POST', body: payload });
   },
-  async updateSellerProduct(id: string, payload: Partial<Product>) {
+  async updateSellerProduct(
+    id: string,
+    payload: {
+      title?: string;
+      price?: number;
+      material?: string;
+      category?: string;
+      size?: string;
+      technology?: string;
+      printTime?: string;
+      color?: string;
+      description?: string;
+      imageUrls?: string[];
+      deliveryDateEstimated?: string;
+      deliveryDates?: string[];
+    }
+  ) {
     return client.request<Product>(`/seller/products/${id}`, { method: 'PUT', body: payload });
   },
   async removeSellerProduct(id: string) {
@@ -173,5 +204,36 @@ export const api = {
       '/seller/onboarding',
       { method: 'POST', body: payload }
     );
+  },
+  async getSellerProfile() {
+    return client.request<{ isSeller: boolean; profile: SellerProfile | null }>('/seller/me');
+  },
+  async getSellerStats() {
+    return client.request<{ totalOrders: number; totalRevenue: number; totalProducts: number; averageRating: number }>(
+      '/seller/stats'
+    );
+  },
+  async uploadSellerImages(files: FileList) {
+    if (useMock) {
+      return {
+        data: {
+          urls: Array.from(files).map(
+            (file) => `https://placehold.co/600x400?text=${encodeURIComponent(file.name)}`
+          )
+        }
+      };
+    }
+    const session = loadFromStorage<{ token: string } | null>(STORAGE_KEYS.session, null);
+    const formData = new FormData();
+    Array.from(files).forEach((file) => formData.append('files', file));
+    const response = await fetch(`${baseUrl}/seller/uploads`, {
+      method: 'POST',
+      headers: session?.token ? { Authorization: `Bearer ${session.token}` } : undefined,
+      body: formData
+    });
+    if (!response.ok) {
+      throw new Error('UPLOAD_FAILED');
+    }
+    return response.json() as Promise<{ data: { urls: string[] } }>;
   }
 };

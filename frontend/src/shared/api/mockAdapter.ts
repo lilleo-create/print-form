@@ -1,6 +1,8 @@
 import { products, orders, reviews } from './mockData';
 import { ApiClient } from './client';
 import { CustomPrintRequest, Product } from '../types';
+import { loadFromStorage } from '../lib/storage';
+import { STORAGE_KEYS } from '../constants/storageKeys';
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 type RequestOptions = { method?: string; body?: unknown };
@@ -162,11 +164,115 @@ export const createMockClient = (): ApiClient => {
       }
 
       if (path === '/seller/products') {
+        if (options.method === 'POST') {
+          const payload = options.body as {
+            title: string;
+            price: number;
+            material: string;
+            category: string;
+            size: string;
+            technology: string;
+            printTime: string;
+            color: string;
+            description: string;
+            imageUrls: string[];
+            deliveryDateEstimated?: string;
+            deliveryDates?: string[];
+          };
+          const created = {
+            id: `seller-${Date.now()}`,
+            title: payload.title,
+            category: payload.category,
+            price: payload.price,
+            image: payload.imageUrls[0],
+            description: payload.description,
+            material: payload.material,
+            size: payload.size,
+            technology: payload.technology,
+            printTime: payload.printTime,
+            color: payload.color,
+            sellerId: 'seller-1',
+            images: payload.imageUrls.map((url, index) => ({ id: `img-${index}`, url, sortOrder: index })),
+            deliveryDateEstimated: payload.deliveryDateEstimated,
+            deliveryDates: payload.deliveryDates ?? []
+          };
+          products.unshift(created);
+          return { data: created as T };
+        }
         return { data: products as T };
+      }
+
+      if (path.startsWith('/seller/products/') && options.method === 'PUT') {
+        const id = path.split('/')[3];
+        const payload = options.body as Partial<{
+          title: string;
+          price: number;
+          material: string;
+          category: string;
+          size: string;
+          technology: string;
+          printTime: string;
+          color: string;
+          description: string;
+          imageUrls: string[];
+          deliveryDateEstimated?: string;
+          deliveryDates?: string[];
+        }>;
+        const index = products.findIndex((product) => product.id === id);
+        if (index === -1) {
+          throw new Error('Product not found');
+        }
+        const nextImages = payload.imageUrls?.map((url, indexValue) => ({
+          id: `img-${indexValue}`,
+          url,
+          sortOrder: indexValue
+        }));
+        const updated = {
+          ...products[index],
+          ...payload,
+          image: payload.imageUrls?.[0] ?? products[index].image,
+          images: nextImages ?? products[index].images
+        };
+        products[index] = updated;
+        return { data: updated as T };
       }
 
       if (path === '/seller/orders') {
         return { data: orders as T };
+      }
+
+      if (path === '/seller/me') {
+        const session = loadFromStorage<{ user?: { role?: string } } | null>(STORAGE_KEYS.session, null);
+        const isSeller = session?.user?.role === 'seller';
+        return {
+          data: {
+            isSeller,
+            profile: isSeller
+              ? {
+                  id: 'seller-profile-1',
+                  status: 'ИП',
+                  storeName: 'PrintForm',
+                  phone: '+7 (900) 555-11-22',
+                  city: 'Москва',
+                  referenceCategory: 'Гаджеты',
+                  catalogPosition: 'Премиум'
+                }
+              : null
+          } as T
+        };
+      }
+
+      if (path === '/seller/stats') {
+        return {
+          data: {
+            totalOrders: orders.length,
+            totalRevenue: orders.reduce((sum, order) => sum + order.total, 0),
+            totalProducts: products.length,
+            averageRating:
+              products.reduce((sum, product) => sum + (product.ratingAvg ?? 0), 0) /
+              Math.max(products.length, 1)
+          } as T
+        };
       }
 
       if (path === '/seller/onboarding' && options.method === 'POST') {

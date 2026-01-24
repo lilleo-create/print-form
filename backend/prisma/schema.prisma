@@ -47,6 +47,7 @@ model SellerProfile {
   userId            String   @unique
   status            String
   storeName         String
+  phone             String
   city              String
   referenceCategory String
   catalogPosition   String
@@ -73,6 +74,8 @@ model Product {
   technology       String
   printTime        String
   color            String
+  deliveryDateEstimated DateTime?
+  deliveryDates    String[]       @default([])
   sellerId         String
   seller           User            @relation(fields: [sellerId], references: [id])
   createdAt        DateTime        @default(now())
