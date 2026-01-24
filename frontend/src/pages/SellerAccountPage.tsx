@@ -173,31 +173,34 @@ export const SellerAccountPage = () => {
                 <p>Этот модуль подключим в следующих итерациях.</p>
               </div>
             </div>
-          </div>
+          )}
 
           <div className={styles.blocks}>
             <div className={styles.block}>
               <h3>Статус раздела</h3>
               <p>Здесь появятся ключевые показатели и быстрые действия для раздела “{activeItem}”.</p>
             </div>
+
             <div className={styles.block}>
               <h3>Данные и задачи</h3>
               <p>Подготовьте нужные материалы — мы покажем их здесь после подключения модулей.</p>
             </div>
+
             <div className={styles.block}>
               <h3>Подсказки</h3>
               <p>Рекомендации по работе с каталогом и заказами появятся после запуска.</p>
             </div>
           </div>
+
+          {isModalOpen && (
+            <SellerProductModal
+              product={activeProduct}
+              onClose={() => setIsModalOpen(false)}
+              onSubmit={handleSaveProduct}
+            />
+          )}
         </div>
       </div>
-      {isModalOpen && (
-        <SellerProductModal
-          product={activeProduct}
-          onClose={() => setIsModalOpen(false)}
-          onSubmit={handleSaveProduct}
-        />
-      )}
     </section>
   );
 };

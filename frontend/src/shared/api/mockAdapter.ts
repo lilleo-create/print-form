@@ -3,6 +3,7 @@ import { ApiClient } from './client';
 import { CustomPrintRequest, Product } from '../types';
 import { loadFromStorage } from '../lib/storage';
 import { STORAGE_KEYS } from '../constants/storageKeys';
+import type { MaterialType, TechnologyType } from '@/shared/types'; // путь подстрой
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 type RequestOptions = { method?: string; body?: unknown };
@@ -19,13 +20,13 @@ export const createMockClient = (): ApiClient => {
           const params = new URLSearchParams(queryString ?? '');
           const scopedIds = params.get('productIds')
             ? params
-                .get('productIds')!
-                .split(',')
-                .map((item) => item.trim())
-                .filter(Boolean)
+              .get('productIds')!
+              .split(',')
+              .map((item) => item.trim())
+              .filter(Boolean)
             : [productId];
           const productReviews = mockReviews.filter(
-            (review) => scopedIds.includes(review.productId) && review.isPublic !== false
+            (review) => !!review.productId && scopedIds.includes(review.productId) && review.isPublic !== false
           );
           const total = productReviews.length;
           const counts = [5, 4, 3, 2, 1].map((rating) => ({
@@ -69,16 +70,19 @@ export const createMockClient = (): ApiClient => {
           const params = new URLSearchParams(queryString ?? '');
           const scopedIds = params.get('productIds')
             ? params
-                .get('productIds')!
-                .split(',')
-                .map((item) => item.trim())
-                .filter(Boolean)
+              .get('productIds')!
+              .split(',')
+              .map((item) => item.trim())
+              .filter(Boolean)
             : [productId];
           const page = params.get('page') ? Number(params.get('page')) : 1;
           const limit = params.get('limit') ? Number(params.get('limit')) : 5;
           const sort = params.get('sort') ?? 'new';
           const productReviews = mockReviews.filter(
-            (review) => scopedIds.includes(review.productId) && review.isPublic !== false
+            (review) => {
+              const pid = review.productId;
+              return typeof pid === 'string' && scopedIds.includes(pid) && review.isPublic !== false;
+            }
           );
           const sorted = [...productReviews].sort((a, b) => {
             if (sort === 'helpful') {
@@ -186,9 +190,9 @@ export const createMockClient = (): ApiClient => {
             price: payload.price,
             image: payload.imageUrls[0],
             description: payload.description,
-            material: payload.material,
+            material: payload.material as MaterialType,
             size: payload.size,
-            technology: payload.technology,
+            technology: payload.technology as TechnologyType,
             printTime: payload.printTime,
             color: payload.color,
             sellerId: 'seller-1',
@@ -218,21 +222,27 @@ export const createMockClient = (): ApiClient => {
           deliveryDateEstimated?: string;
           deliveryDates?: string[];
         }>;
+
         const index = products.findIndex((product) => product.id === id);
         if (index === -1) {
           throw new Error('Product not found');
         }
+
         const nextImages = payload.imageUrls?.map((url, indexValue) => ({
-          id: `img-${indexValue}`,
+          id: `${products[index].id}-img-${indexValue}`,
           url,
           sortOrder: indexValue
         }));
-        const updated = {
+
+        const updated: Product = {
           ...products[index],
           ...payload,
+          material: (payload.material ?? products[index].material) as MaterialType,
+          technology: (payload.technology ?? products[index].technology) as TechnologyType,
           image: payload.imageUrls?.[0] ?? products[index].image,
           images: nextImages ?? products[index].images
         };
+
         products[index] = updated;
         return { data: updated as T };
       }
@@ -249,14 +259,14 @@ export const createMockClient = (): ApiClient => {
             isSeller,
             profile: isSeller
               ? {
-                  id: 'seller-profile-1',
-                  status: 'ИП',
-                  storeName: 'PrintForm',
-                  phone: '+7 (900) 555-11-22',
-                  city: 'Москва',
-                  referenceCategory: 'Гаджеты',
-                  catalogPosition: 'Премиум'
-                }
+                id: 'seller-profile-1',
+                status: 'ИП',
+                storeName: 'PrintForm',
+                phone: '+7 (900) 555-11-22',
+                city: 'Москва',
+                referenceCategory: 'Гаджеты',
+                catalogPosition: 'Премиум'
+              }
               : null
           } as T
         };
@@ -374,7 +384,7 @@ export const filterProducts = (
         : true;
     const matchQuery = filters.q
       ? item.title.toLowerCase().includes(filters.q.toLowerCase()) ||
-        item.description.toLowerCase().includes(filters.q.toLowerCase())
+      item.description.toLowerCase().includes(filters.q.toLowerCase())
       : true;
     const matchRating = filters.ratingMin ? (item.ratingAvg ?? 0) >= filters.ratingMin : true;
     const matchColor = filters.color ? item.color.toLowerCase() === filters.color.toLowerCase() : true;

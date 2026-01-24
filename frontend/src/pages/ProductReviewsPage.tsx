@@ -72,7 +72,7 @@ export const ProductReviewsPage = () => {
   const loadSummary = async () => {
     if (!id) return;
     const response = await api.getReviewSummary(id, reviewProductIds);
-    setSummary(response.data);
+    setSummary(response.data.data);
   };
 
   const loadReviews = async (nextPage = 1) => {

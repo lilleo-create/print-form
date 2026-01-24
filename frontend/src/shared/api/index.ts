@@ -8,6 +8,7 @@ import { STORAGE_KEYS } from '../constants/storageKeys';
 const useMock = import.meta.env.VITE_USE_MOCK !== 'false';
 const baseUrl = import.meta.env.VITE_API_URL ?? '/api';
 const client = useMock ? createMockClient() : createFetchClient(baseUrl);
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 
 export const api = {
   async getProducts(filters?: {
@@ -19,6 +20,7 @@ export const api = {
     order?: 'asc' | 'desc';
     page?: number;
     limit?: number;
+    cursor?: string;
   }) {
     if (useMock) {
       let items = filterProducts(seedProducts, filters ?? {});

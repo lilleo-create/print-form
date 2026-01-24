@@ -52,7 +52,8 @@ export const LandingPage = () => {
       return [...prev, ...nextItems];
     });
     setFeedHasMore(response.data.length > 0);
-    setFeedCursor(response.data.at(-1)?.id ?? null);
+    const last = response.data[response.data.length - 1];
+    setFeedCursor(last?.id ?? null);
     setFeedLoading(false);
   }, [feedCursor, feedHasMore, feedLoading]);
 

@@ -26,7 +26,10 @@ export const sellerProductsApi = {
   },
   create: async (product: Product) => {
     if (!useMock) {
-      const result = await api.createSellerProduct(product);
+      const result = await api.createSellerProduct({
+        ...product,
+        imageUrls: product.imageUrls ?? [],
+      });
       return result.data;
     }
     const current = getSeededProducts();

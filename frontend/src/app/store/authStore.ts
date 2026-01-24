@@ -37,7 +37,12 @@ export const useAuthStore = create<AuthState>((set) => ({
   async updateProfile(payload) {
     const result = await authApi.updateProfile(payload);
     if (result?.user) {
-      set({ user: result.user });
+      const user: User = {
+        ...result.user,
+        role: result.user.role as Role,
+      };
+
+      set({ user });
     }
   },
   setUser(user) {

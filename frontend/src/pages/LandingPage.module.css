@@ -256,6 +256,8 @@
 
   .hero {
     padding: 48px 20px;
+    display: flex;
+    flex-direction: column;
   }
 
   .customSection {
