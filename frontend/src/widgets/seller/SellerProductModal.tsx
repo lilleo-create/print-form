@@ -159,69 +159,71 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
           </button>
         </div>
         <form className={styles.form} onSubmit={handleSubmit(handleFormSubmit)}>
-          <label>
-            Название
-            <input {...register('title')} />
-            {errors.title && <span>{errors.title.message}</span>}
-          </label>
-          <label>
-            Цена
-            <input type="number" {...register('price')} />
-            {errors.price && <span>{errors.price.message}</span>}
-          </label>
-          <label>
-            Материал
-            <input {...register('material')} />
-            {errors.material && <span>{errors.material.message}</span>}
-          </label>
-          <label>
-            Категория
-            <input {...register('category')} />
-            {errors.category && <span>{errors.category.message}</span>}
-          </label>
-          <label>
-            Размер
-            <input {...register('size')} />
-            {errors.size && <span>{errors.size.message}</span>}
-          </label>
-          <label>
-            Технология
-            <input {...register('technology')} />
-            {errors.technology && <span>{errors.technology.message}</span>}
-          </label>
-          <label>
-            Время печати
-            <input {...register('printTime')} />
-            {errors.printTime && <span>{errors.printTime.message}</span>}
-          </label>
-          <label>
-            Цвет
-            <input {...register('color')} />
-            {errors.color && <span>{errors.color.message}</span>}
-          </label>
-          <label>
-            Описание
-            <textarea rows={4} {...register('description')} />
-            {errors.description && <span>{errors.description.message}</span>}
-          </label>
-          <label>
-            Фото товара (файлы)
-            <input
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={(event) => setFiles(event.target.files)}
-            />
-            {uploadError && <span>{uploadError}</span>}
-          </label>
-          <label>
-            Ближайшая дата доставки
-            <input type="date" {...register('deliveryDateEstimated')} />
-          </label>
-          <label>
-            Даты доставки (через запятую)
-            <input {...register('deliveryDates')} placeholder="2024-10-01, 2024-10-03" />
-          </label>
+          <div className={styles.content}>
+            <label className={styles.field}>
+              Название
+              <input {...register('title')} />
+              {errors.title && <span>{errors.title.message}</span>}
+            </label>
+            <label className={styles.field}>
+              Цена
+              <input type="number" {...register('price')} />
+              {errors.price && <span>{errors.price.message}</span>}
+            </label>
+            <label className={styles.field}>
+              Материал
+              <input {...register('material')} />
+              {errors.material && <span>{errors.material.message}</span>}
+            </label>
+            <label className={styles.field}>
+              Категория
+              <input {...register('category')} />
+              {errors.category && <span>{errors.category.message}</span>}
+            </label>
+            <label className={styles.field}>
+              Размер
+              <input {...register('size')} />
+              {errors.size && <span>{errors.size.message}</span>}
+            </label>
+            <label className={styles.field}>
+              Технология
+              <input {...register('technology')} />
+              {errors.technology && <span>{errors.technology.message}</span>}
+            </label>
+            <label className={styles.field}>
+              Время печати
+              <input {...register('printTime')} />
+              {errors.printTime && <span>{errors.printTime.message}</span>}
+            </label>
+            <label className={styles.field}>
+              Цвет
+              <input {...register('color')} />
+              {errors.color && <span>{errors.color.message}</span>}
+            </label>
+            <label className={`${styles.field} ${styles.fieldFull}`}>
+              Описание
+              <textarea rows={4} {...register('description')} />
+              {errors.description && <span>{errors.description.message}</span>}
+            </label>
+            <label className={`${styles.field} ${styles.fieldFull}`}>
+              Фото товара (файлы)
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={(event) => setFiles(event.target.files)}
+              />
+              {uploadError && <span>{uploadError}</span>}
+            </label>
+            <label className={styles.field}>
+              Ближайшая дата доставки
+              <input type="date" {...register('deliveryDateEstimated')} />
+            </label>
+            <label className={`${styles.field} ${styles.fieldFull}`}>
+              Даты доставки (через запятую)
+              <input {...register('deliveryDates')} placeholder="2024-10-01, 2024-10-03" />
+            </label>
+          </div>
           <div className={styles.actions}>
             <Button type="submit" disabled={isUploading}>
               {isUploading ? 'Загрузка…' : 'Сохранить'}
