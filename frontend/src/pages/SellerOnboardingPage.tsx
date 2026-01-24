@@ -254,7 +254,7 @@ export const SellerOnboardingPage = () => {
                 <span className={styles.helper}>Позже вы сможете продавать и другие категории.</span>
               </label>
               <label>
-                Позиционирование в каталоге
+                Количество товаров в магазине (используется для позиционирования в каталоге)
                 <input
                   value={form.catalogPosition}
                   onChange={(event) =>

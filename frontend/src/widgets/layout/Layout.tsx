@@ -183,7 +183,7 @@ export const Layout = ({ children }: LayoutProps) => {
   const showProductBoard = isCategoriesHidden && (isProductPage || isReviewPage) && productBoard;
   const ratingValue = productBoard?.ratingAvg ?? 0;
   const ratingCount = productBoard?.ratingCount ?? 0;
-  const categoriesBarHeight = isCategoriesHidden ? (showProductBoard ? productBoardHeight : 0) : categoriesHeight;
+  const categoriesBarHeight = Math.max(categoriesHeight, productBoardHeight);
   const isSeller = sellerProfile?.isSeller ?? false;
   const showBottomNav =
     !location.pathname.startsWith('/seller') &&

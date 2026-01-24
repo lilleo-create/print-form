@@ -201,13 +201,14 @@
   padding: 24px 36px 26px;
   display: flex;
   gap: 14px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   position: absolute;
   left: 0;
   right: 0;
   top: 0;
   transition: opacity 0.25s ease, transform 0.25s ease;
+  overflow-x: auto;
 }
 
 .categoriesInnerHidden {
@@ -221,7 +222,9 @@
   flex-direction: column;
   gap: 4px;
   margin-right: 12px;
-  min-width: 200px;
+  min-width: 0;
+  max-width: 220px;
+  flex: 0 1 220px;
 }
 
 .categoriesTitle {
@@ -235,6 +238,10 @@
   gap: 8px;
   color: var(--color-text-muted);
   font-size: 15px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 
@@ -267,6 +274,8 @@
   border-radius: 999px;
   font-weight: 600;
   font-size: 16px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .productBoard {
