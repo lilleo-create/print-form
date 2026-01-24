@@ -1,6 +1,8 @@
 import { products, orders, reviews } from './mockData';
 import { ApiClient } from './client';
 import { CustomPrintRequest, Product } from '../types';
+import { loadFromStorage } from '../lib/storage';
+import { STORAGE_KEYS } from '../constants/storageKeys';
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 type RequestOptions = { method?: string; body?: unknown };
@@ -14,7 +16,17 @@ export const createMockClient = (): ApiClient => {
         const [pathname, queryString] = path.split('?');
         if (pathname.endsWith('/reviews/summary')) {
           const productId = pathname.split('/')[2];
-          const productReviews = mockReviews.filter((review) => review.productId === productId);
+          const params = new URLSearchParams(queryString ?? '');
+          const scopedIds = params.get('productIds')
+            ? params
+                .get('productIds')!
+                .split(',')
+                .map((item) => item.trim())
+                .filter(Boolean)
+            : [productId];
+          const productReviews = mockReviews.filter(
+            (review) => scopedIds.includes(review.productId) && review.isPublic !== false
+          );
           const total = productReviews.length;
           const counts = [5, 4, 3, 2, 1].map((rating) => ({
             rating,
@@ -39,6 +51,7 @@ export const createMockClient = (): ApiClient => {
             const newReview = {
               id: `review-${Date.now()}`,
               productId,
+              userId: 'buyer-1',
               rating: payload.rating,
               pros: payload.pros,
               cons: payload.cons,
@@ -46,17 +59,27 @@ export const createMockClient = (): ApiClient => {
               photos: payload.photos ?? [],
               likesCount: 0,
               dislikesCount: 0,
+              isPublic: true,
               createdAt: new Date().toISOString(),
-              user: { id: 'mock', name: 'Гость' }
+              user: { id: 'buyer-1', name: 'Гость' }
             };
             mockReviews = [newReview, ...mockReviews];
             return { data: newReview as T };
           }
           const params = new URLSearchParams(queryString ?? '');
+          const scopedIds = params.get('productIds')
+            ? params
+                .get('productIds')!
+                .split(',')
+                .map((item) => item.trim())
+                .filter(Boolean)
+            : [productId];
           const page = params.get('page') ? Number(params.get('page')) : 1;
           const limit = params.get('limit') ? Number(params.get('limit')) : 5;
           const sort = params.get('sort') ?? 'new';
-          const productReviews = mockReviews.filter((review) => review.productId === productId);
+          const productReviews = mockReviews.filter(
+            (review) => scopedIds.includes(review.productId) && review.isPublic !== false
+          );
           const sorted = [...productReviews].sort((a, b) => {
             if (sort === 'helpful') {
               return (b.likesCount ?? 0) - (a.likesCount ?? 0);
@@ -107,7 +130,9 @@ export const createMockClient = (): ApiClient => {
             items = items.slice(0, filters.limit);
           }
           const withRatings = items.map((item) => {
-            const productReviews = mockReviews.filter((review) => review.productId === item.id);
+            const productReviews = mockReviews.filter(
+              (review) => review.productId === item.id && review.isPublic !== false
+            );
             const ratingCount = productReviews.length;
             const ratingAvg = ratingCount
               ? productReviews.reduce((sum, review) => sum + review.rating, 0) / ratingCount
@@ -121,7 +146,7 @@ export const createMockClient = (): ApiClient => {
         if (!product) {
           throw new Error('Product not found');
         }
-        const productReviews = mockReviews.filter((review) => review.productId === id);
+        const productReviews = mockReviews.filter((review) => review.productId === id && review.isPublic !== false);
         const ratingCount = productReviews.length;
         const ratingAvg = ratingCount
           ? productReviews.reduce((sum, review) => sum + review.rating, 0) / ratingCount
@@ -139,11 +164,138 @@ export const createMockClient = (): ApiClient => {
       }
 
       if (path === '/seller/products') {
+        if (options.method === 'POST') {
+          const payload = options.body as {
+            title: string;
+            price: number;
+            material: string;
+            category: string;
+            size: string;
+            technology: string;
+            printTime: string;
+            color: string;
+            description: string;
+            imageUrls: string[];
+            deliveryDateEstimated?: string;
+            deliveryDates?: string[];
+          };
+          const created = {
+            id: `seller-${Date.now()}`,
+            title: payload.title,
+            category: payload.category,
+            price: payload.price,
+            image: payload.imageUrls[0],
+            description: payload.description,
+            material: payload.material,
+            size: payload.size,
+            technology: payload.technology,
+            printTime: payload.printTime,
+            color: payload.color,
+            sellerId: 'seller-1',
+            images: payload.imageUrls.map((url, index) => ({ id: `img-${index}`, url, sortOrder: index })),
+            deliveryDateEstimated: payload.deliveryDateEstimated,
+            deliveryDates: payload.deliveryDates ?? []
+          };
+          products.unshift(created);
+          return { data: created as T };
+        }
         return { data: products as T };
+      }
+
+      if (path.startsWith('/seller/products/') && options.method === 'PUT') {
+        const id = path.split('/')[3];
+        const payload = options.body as Partial<{
+          title: string;
+          price: number;
+          material: string;
+          category: string;
+          size: string;
+          technology: string;
+          printTime: string;
+          color: string;
+          description: string;
+          imageUrls: string[];
+          deliveryDateEstimated?: string;
+          deliveryDates?: string[];
+        }>;
+        const index = products.findIndex((product) => product.id === id);
+        if (index === -1) {
+          throw new Error('Product not found');
+        }
+        const nextImages = payload.imageUrls?.map((url, indexValue) => ({
+          id: `img-${indexValue}`,
+          url,
+          sortOrder: indexValue
+        }));
+        const updated = {
+          ...products[index],
+          ...payload,
+          image: payload.imageUrls?.[0] ?? products[index].image,
+          images: nextImages ?? products[index].images
+        };
+        products[index] = updated;
+        return { data: updated as T };
       }
 
       if (path === '/seller/orders') {
         return { data: orders as T };
+      }
+
+      if (path === '/seller/me') {
+        const session = loadFromStorage<{ user?: { role?: string } } | null>(STORAGE_KEYS.session, null);
+        const isSeller = session?.user?.role === 'seller';
+        return {
+          data: {
+            isSeller,
+            profile: isSeller
+              ? {
+                  id: 'seller-profile-1',
+                  status: 'ИП',
+                  storeName: 'PrintForm',
+                  phone: '+7 (900) 555-11-22',
+                  city: 'Москва',
+                  referenceCategory: 'Гаджеты',
+                  catalogPosition: 'Премиум'
+                }
+              : null
+          } as T
+        };
+      }
+
+      if (path === '/seller/stats') {
+        return {
+          data: {
+            totalOrders: orders.length,
+            totalRevenue: orders.reduce((sum, order) => sum + order.total, 0),
+            totalProducts: products.length,
+            averageRating:
+              products.reduce((sum, product) => sum + (product.ratingAvg ?? 0), 0) /
+              Math.max(products.length, 1)
+          } as T
+        };
+      }
+
+      if (path === '/seller/onboarding' && options.method === 'POST') {
+        const payload = options.body as {
+          name: string;
+          phone: string;
+          status: string;
+          storeName: string;
+          city: string;
+          referenceCategory: string;
+          catalogPosition: string;
+        };
+        return {
+          data: {
+            data: {
+              id: 'seller-1',
+              name: payload.name,
+              email: 'seller@test.com',
+              phone: payload.phone,
+              role: 'seller'
+            }
+          } as T
+        };
       }
 
       if (path === '/auth/login' || path === '/auth/register') {
@@ -160,6 +312,26 @@ export const createMockClient = (): ApiClient => {
             }
           } as T
         };
+      }
+
+      if (path === '/me/reviews') {
+        const reviewsByUser = mockReviews
+          .filter((review) => review.userId === 'buyer-1')
+          .map((review) => ({
+            ...review,
+            product: products.find((product) => product.id === review.productId)
+          }));
+        return { data: { data: reviewsByUser } as T };
+      }
+
+      if (path.startsWith('/me/reviews/') && path.endsWith('/visibility') && options.method === 'PATCH') {
+        const id = path.split('/')[3];
+        const payload = options.body as { isPublic: boolean };
+        mockReviews = mockReviews.map((review) =>
+          review.id === id ? { ...review, isPublic: payload.isPublic } : review
+        );
+        const updated = mockReviews.find((review) => review.id === id);
+        return { data: { data: updated } as T };
       }
 
       if (path === '/orders' && options.method === 'POST') {

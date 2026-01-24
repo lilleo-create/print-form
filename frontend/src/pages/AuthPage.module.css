@@ -21,6 +21,24 @@
   gap: 10px;
 }
 
+.consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--color-text);
+}
+
+.consent input {
+  margin-top: 4px;
+}
+
+.policyLink {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
 .form input {
   border: 1px solid #e5e7eb;
   border-radius: 10px;

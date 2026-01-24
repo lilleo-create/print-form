@@ -1,7 +1,9 @@
 import { createMockClient, filterProducts } from './mockAdapter';
 import { createFetchClient } from './client';
-import { Product, CustomPrintRequest, Order, Review } from '../types';
+import { Product, CustomPrintRequest, Order, Review, SellerProfile } from '../types';
 import { products as seedProducts } from './mockData';
+import { loadFromStorage } from '../lib/storage';
+import { STORAGE_KEYS } from '../constants/storageKeys';
 
 const useMock = import.meta.env.VITE_USE_MOCK !== 'false';
 const baseUrl = import.meta.env.VITE_API_BASE_URL ?? '/api';
@@ -68,10 +70,19 @@ export const api = {
     id: string,
     page = 1,
     limit = 5,
-    sort: 'helpful' | 'high' | 'low' | 'new' = 'new'
+    sort: 'helpful' | 'high' | 'low' | 'new' = 'new',
+    productIds?: string[]
   ) {
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: String(limit),
+      sort
+    });
+    if (productIds && productIds.length > 0) {
+      params.set('productIds', productIds.join(','));
+    }
     return client.request<{ data: Review[]; meta: { total: number } }>(
-      `/products/${id}/reviews?page=${page}&limit=${limit}&sort=${sort}`
+      `/products/${id}/reviews?${params.toString()}`
     );
   },
   async createReview(
@@ -80,10 +91,14 @@ export const api = {
   ) {
     return client.request<Review>(`/products/${id}/reviews`, { method: 'POST', body: payload });
   },
-  async getReviewSummary(id: string) {
+  async getReviewSummary(id: string, productIds?: string[]) {
+    const params = new URLSearchParams();
+    if (productIds && productIds.length > 0) {
+      params.set('productIds', productIds.join(','));
+    }
     return client.request<{
       data: { total: number; avg: number; counts: { rating: number; count: number }[]; photos: string[] };
-    }>(`/products/${id}/reviews/summary`);
+    }>(`/products/${id}/reviews/summary${params.toString() ? `?${params.toString()}` : ''}`);
   },
   async getFilters() {
     return client.request<{ categories: string[]; materials: string[]; sizes: string[]; colors: string[] }>('/filters');
@@ -97,10 +112,39 @@ export const api = {
   async getSellerProducts() {
     return client.request<Product[]>('/seller/products');
   },
-  async createSellerProduct(payload: Product) {
+  async createSellerProduct(payload: {
+    title: string;
+    price: number;
+    material: string;
+    category: string;
+    size: string;
+    technology: string;
+    printTime: string;
+    color: string;
+    description: string;
+    imageUrls: string[];
+    deliveryDateEstimated?: string;
+    deliveryDates?: string[];
+  }) {
     return client.request<Product>('/seller/products', { method: 'POST', body: payload });
   },
-  async updateSellerProduct(id: string, payload: Partial<Product>) {
+  async updateSellerProduct(
+    id: string,
+    payload: {
+      title?: string;
+      price?: number;
+      material?: string;
+      category?: string;
+      size?: string;
+      technology?: string;
+      printTime?: string;
+      color?: string;
+      description?: string;
+      imageUrls?: string[];
+      deliveryDateEstimated?: string;
+      deliveryDates?: string[];
+    }
+  ) {
     return client.request<Product>(`/seller/products/${id}`, { method: 'PUT', body: payload });
   },
   async removeSellerProduct(id: string) {
@@ -130,6 +174,7 @@ export const api = {
     password: string;
     phone?: string;
     address?: string;
+    privacyAccepted?: boolean;
   }) {
     return client.request<{
       token: string;
@@ -150,9 +195,63 @@ export const api = {
       '/auth/me'
     );
   },
-  async updateProfile(payload: { name?: string; phone?: string; address?: string }) {
+  async updateProfile(payload: { name?: string; email?: string; phone?: string; address?: string }) {
     return client.request<{
       data: { id: string; name: string; role: string; email: string; phone?: string | null; address?: string | null };
     }>('/auth/me', { method: 'PATCH', body: payload });
+  },
+  async getMyReviews() {
+    return client.request<{ data: Review[] }>('/me/reviews');
+  },
+  async updateReviewVisibility(id: string, isPublic: boolean) {
+    return client.request<{ data: Review }>(`/me/reviews/${id}/visibility`, {
+      method: 'PATCH',
+      body: { isPublic }
+    });
+  },
+  async submitSellerOnboarding(payload: {
+    name: string;
+    phone: string;
+    status: 'ИП' | 'ООО' | 'Самозанятый';
+    storeName: string;
+    city: string;
+    referenceCategory: string;
+    catalogPosition: string;
+  }) {
+    return client.request<{ data: { id: string; name: string; email: string; phone?: string | null; role: string } }>(
+      '/seller/onboarding',
+      { method: 'POST', body: payload }
+    );
+  },
+  async getSellerProfile() {
+    return client.request<{ isSeller: boolean; profile: SellerProfile | null }>('/seller/me');
+  },
+  async getSellerStats() {
+    return client.request<{ totalOrders: number; totalRevenue: number; totalProducts: number; averageRating: number }>(
+      '/seller/stats'
+    );
+  },
+  async uploadSellerImages(files: FileList) {
+    if (useMock) {
+      return {
+        data: {
+          urls: Array.from(files).map(
+            (file) => `https://placehold.co/600x400?text=${encodeURIComponent(file.name)}`
+          )
+        }
+      };
+    }
+    const session = loadFromStorage<{ token: string } | null>(STORAGE_KEYS.session, null);
+    const formData = new FormData();
+    Array.from(files).forEach((file) => formData.append('files', file));
+    const response = await fetch(`${baseUrl}/seller/uploads`, {
+      method: 'POST',
+      headers: session?.token ? { Authorization: `Bearer ${session.token}` } : undefined,
+      body: formData
+    });
+    if (!response.ok) {
+      throw new Error('UPLOAD_FAILED');
+    }
+    return response.json() as Promise<{ data: { urls: string[] } }>;
   }
 };

@@ -27,6 +27,9 @@ export interface Product {
   variants?: ProductVariant[];
   specs?: ProductSpec[];
   deliveryDateNearest?: string;
+  deliveryDateEstimated?: string;
+  deliveryDates?: string[];
+  imageUrls?: string[];
 }
 
 export interface ProductImage {
@@ -63,8 +66,10 @@ export interface Review {
   photos?: string[];
   likesCount?: number;
   dislikesCount?: number;
+  isPublic?: boolean;
   createdAt: string;
   user?: { id: string; name: string } | null;
+  product?: { id: string; title: string; image?: string };
 }
 
 export interface CartItem {
@@ -131,9 +136,12 @@ export interface Address {
 
 export interface SellerProfile {
   id: string;
-  shopName: string;
-  rating: number;
-  totalSales: number;
+  status: string;
+  storeName: string;
+  phone: string;
+  city: string;
+  referenceCategory: string;
+  catalogPosition: string;
 }
 
 export interface CustomPrintRequest {

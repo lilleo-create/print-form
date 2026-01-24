@@ -63,7 +63,8 @@ export const sellerProductSchema = z.object({
   title: z.string().min(2),
   category: z.string().min(2),
   price: z.number().min(1),
-  image: z.string().url(),
+  image: z.string().url().optional(),
+  imageUrls: z.array(z.string().url()).optional(),
   description: z.string().min(5),
   descriptionShort: z.string().min(5).optional(),
   descriptionFull: z.string().min(10).optional(),
@@ -73,7 +74,9 @@ export const sellerProductSchema = z.object({
   size: z.string().min(2),
   technology: z.string().min(2),
   printTime: z.string().min(2),
-  color: z.string().min(2)
+  color: z.string().min(2),
+  deliveryDateEstimated: z.string().datetime().optional(),
+  deliveryDates: z.array(z.string()).optional()
 });
 
 const reviewSchema = z.object({
@@ -89,8 +92,14 @@ productRoutes.get('/:id/reviews', async (req, res, next) => {
     const page = req.query.page ? Number(req.query.page) : 1;
     const limit = req.query.limit ? Number(req.query.limit) : 5;
     const sort = req.query.sort ? String(req.query.sort) : 'new';
-    const reviews = await reviewService.listByProduct(req.params.id, page, limit, sort);
-    const total = await reviewService.countByProduct(req.params.id);
+    const productIds = req.query.productIds
+      ? String(req.query.productIds)
+          .split(',')
+          .map((value) => value.trim())
+          .filter(Boolean)
+      : [req.params.id];
+    const reviews = await reviewService.listByProducts(productIds, page, limit, sort);
+    const total = await reviewService.countByProducts(productIds);
     res.json({ data: reviews, meta: { total } });
   } catch (error) {
     next(error);
@@ -117,7 +126,13 @@ productRoutes.post('/:id/reviews', authenticate, async (req: AuthRequest, res, n
 
 productRoutes.get('/:id/reviews/summary', async (req, res, next) => {
   try {
-    const summary = await reviewService.summaryByProduct(req.params.id);
+    const productIds = req.query.productIds
+      ? String(req.query.productIds)
+          .split(',')
+          .map((value) => value.trim())
+          .filter(Boolean)
+      : [req.params.id];
+    const summary = await reviewService.summaryByProducts(productIds);
     res.json({ data: summary });
   } catch (error) {
     next(error);
