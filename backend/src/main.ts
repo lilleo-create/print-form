@@ -22,7 +22,7 @@ if (!fs.existsSync(uploadsDir)) {
 
 app.use(
   cors({
-    origin: env.frontendOrigin,
+    origin: env.frontendUrl,
     credentials: true
   })
 );
