@@ -42,6 +42,14 @@ export const Layout = ({ children }: LayoutProps) => {
   const [isCategoriesHidden, setIsCategoriesHidden] = useState(false);
   const [categoriesHeight, setCategoriesHeight] = useState(0);
   const [productBoardHeight, setProductBoardHeight] = useState(0);
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    if (typeof window === 'undefined') {
+      return 'light';
+    }
+    const stored = window.localStorage.getItem('theme');
+    return stored === 'dark' ? 'dark' : 'light';
+  });
   const [sellerProfile, setSellerProfile] = useState<{
     isSeller: boolean;
     profile: {
@@ -56,6 +64,7 @@ export const Layout = ({ children }: LayoutProps) => {
   } | null>(null);
   const categoriesRef = useRef<HTMLDivElement | null>(null);
   const productBoardRef = useRef<HTMLDivElement | null>(null);
+  const scrollStateRef = useRef({ lastY: 0, acc: 0, ticking: false });
 
   useEffect(() => {
     if (user) {
@@ -101,6 +110,17 @@ export const Layout = ({ children }: LayoutProps) => {
     return Array.from(new Set(products.map((product) => product.category))).filter(Boolean);
   }, [filterData.categories, products]);
 
+  const avatarText = useMemo(() => {
+    const source = user?.name ?? user?.email ?? 'Пользователь';
+    return source
+      .split(' ')
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0])
+      .join('')
+      .toUpperCase();
+  }, [user?.email, user?.name]);
+
   useLayoutEffect(() => {
     if (!categoriesRef.current) return;
     const updateHeight = () => {
@@ -130,13 +150,56 @@ export const Layout = ({ children }: LayoutProps) => {
       setIsCategoriesHidden(false);
       return;
     }
+    const threshold = 12;
+    scrollStateRef.current.lastY = window.scrollY;
+    scrollStateRef.current.acc = 0;
     const handleScroll = () => {
-      setIsCategoriesHidden(window.scrollY > 24);
+      if (scrollStateRef.current.ticking) return;
+      scrollStateRef.current.ticking = true;
+      requestAnimationFrame(() => {
+        const currentY = window.scrollY;
+        const delta = currentY - scrollStateRef.current.lastY;
+        scrollStateRef.current.lastY = currentY;
+        scrollStateRef.current.ticking = false;
+        if (Math.abs(delta) < 2) return;
+        if (currentY <= 8) {
+          scrollStateRef.current.acc = 0;
+          setIsCategoriesHidden(false);
+          return;
+        }
+        scrollStateRef.current.acc += delta;
+        if (scrollStateRef.current.acc > threshold) {
+          setIsCategoriesHidden(true);
+          scrollStateRef.current.acc = 0;
+        } else if (scrollStateRef.current.acc < -threshold) {
+          setIsCategoriesHidden(false);
+          scrollStateRef.current.acc = 0;
+        }
+      });
     };
-    handleScroll();
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, [hideOnScroll]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    window.localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  useEffect(() => {
+    setIsProfileMenuOpen(false);
+  }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    if (!isProfileMenuOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsProfileMenuOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isProfileMenuOpen]);
 
   const handleSearchUpdate = (value: string) => {
     setSearchValue(value);
@@ -183,7 +246,7 @@ export const Layout = ({ children }: LayoutProps) => {
   const showProductBoard = isCategoriesHidden && (isProductPage || isReviewPage) && productBoard;
   const ratingValue = productBoard?.ratingAvg ?? 0;
   const ratingCount = productBoard?.ratingCount ?? 0;
-  const categoriesBarHeight = isCategoriesHidden ? (showProductBoard ? productBoardHeight : 0) : categoriesHeight;
+  const categoriesBarHeight = categoriesHeight || productBoardHeight;
   const isSeller = sellerProfile?.isSeller ?? false;
   const showBottomNav =
     !location.pathname.startsWith('/seller') &&
@@ -191,6 +254,8 @@ export const Layout = ({ children }: LayoutProps) => {
     !location.pathname.startsWith('/privacy-policy');
   const isFavorites = location.pathname === '/account' && searchParams.get('tab') === 'favorites';
   const isProfile = location.pathname === '/account' && (searchParams.get('tab') === 'profile' || !searchParams.get('tab'));
+  const sellLink = isSeller ? '/seller' : '/seller/onboarding';
+  const closeProfileMenu = () => setIsProfileMenuOpen(false);
 
   return (
     <div className={styles.app}>
@@ -227,15 +292,14 @@ export const Layout = ({ children }: LayoutProps) => {
               <span className={styles.cartCount}>{cartItems.length}</span>
             </Link>
             {user ? (
-              <div className={styles.profileBox}>
-                <Link to="/account" className={styles.actionLink}>
-                  <span aria-hidden>👤</span>
-                  <span>{user.name}</span>
-                </Link>
-                <button className={styles.logoutButton} onClick={() => logout()}>
-                  Выйти
-                </button>
-              </div>
+              <button
+                type="button"
+                className={styles.avatarButton}
+                onClick={() => setIsProfileMenuOpen(true)}
+                aria-label="Открыть меню профиля"
+              >
+                <span className={styles.avatarCircle}>{avatarText}</span>
+              </button>
             ) : (
               <Link to="/auth/login" className={styles.actionLink}>
                 <span aria-hidden>👤</span>
@@ -257,6 +321,16 @@ export const Layout = ({ children }: LayoutProps) => {
             <div className={styles.mobileAddress}>
               <HeaderAddress variant="compact" />
             </div>
+            {user && (
+              <button
+                type="button"
+                className={styles.mobileAvatarButton}
+                onClick={() => setIsProfileMenuOpen(true)}
+                aria-label="Открыть меню профиля"
+              >
+                <span className={styles.avatarCircle}>{avatarText}</span>
+              </button>
+            )}
           </div>
           <form className={styles.mobileSearch} onSubmit={handleSearchSubmit}>
             <input
@@ -271,7 +345,9 @@ export const Layout = ({ children }: LayoutProps) => {
           </form>
         </div>
         <div
-          className={`${styles.categoriesBar} ${categoriesBarHeight === 0 ? styles.categoriesBarCollapsed : ''}`}
+          className={`${styles.categoriesBar} ${isCategoriesHidden ? styles.categoriesBarHidden : ''} ${
+            categoriesBarHeight === 0 ? styles.categoriesBarCollapsed : ''
+          }`}
           style={{ height: `${categoriesBarHeight}px` }}
         >
           <div className={styles.categoriesSurface}>
@@ -406,6 +482,64 @@ export const Layout = ({ children }: LayoutProps) => {
         </div>
       </footer>
       <ProductModal />
+      {isProfileMenuOpen && (
+        <div
+          className={styles.profileMenuOverlay}
+          role="dialog"
+          aria-modal="true"
+          onClick={closeProfileMenu}
+        >
+          <div className={styles.profileMenuPage} onClick={(event) => event.stopPropagation()}>
+            <div className={styles.profileMenuHeader}>
+              <span>Меню</span>
+              <button type="button" className={styles.profileMenuClose} onClick={closeProfileMenu} aria-label="Закрыть меню">
+                ✕
+              </button>
+            </div>
+            <nav className={styles.profileMenuList}>
+              <Link to="/account?tab=orders" className={styles.profileMenuItem} onClick={closeProfileMenu}>
+                Заказы
+              </Link>
+              <Link to="/account?tab=purchases" className={styles.profileMenuItem} onClick={closeProfileMenu}>
+                Купленный товар
+              </Link>
+              <Link to="/account?tab=returns" className={styles.profileMenuItem} onClick={closeProfileMenu}>
+                Возвраты
+              </Link>
+              <Link to="/account?tab=favorites" className={styles.profileMenuItem} onClick={closeProfileMenu}>
+                Избранные
+              </Link>
+              <button
+                type="button"
+                className={`${styles.profileMenuItem} ${styles.profileMenuToggle}`}
+                onClick={() => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))}
+              >
+                <span>Тема оформления</span>
+                <span className={styles.profileMenuToggleValue}>{theme === 'light' ? 'Светлая' : 'Тёмная'}</span>
+              </button>
+              <Link to={sellLink} className={styles.profileMenuItem} onClick={closeProfileMenu}>
+                Продавайте на PrintForm
+              </Link>
+              <Link to="/account?tab=chats" className={styles.profileMenuItem} onClick={closeProfileMenu}>
+                Чаты (наше с поддержкой и продавцом)
+              </Link>
+              <Link to="/privacy-policy" className={styles.profileMenuItem} onClick={closeProfileMenu}>
+                О сервисе
+              </Link>
+              <button
+                type="button"
+                className={`${styles.profileMenuItem} ${styles.profileMenuLogout}`}
+                onClick={() => {
+                  logout();
+                  closeProfileMenu();
+                }}
+              >
+                Выйти
+              </button>
+            </nav>
+          </div>
+        </div>
+      )}
       {user && (
         <AddressModal
           isOpen={isModalOpen}

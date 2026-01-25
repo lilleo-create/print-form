@@ -1,13 +1,10 @@
-import { createMockClient, filterProducts } from './mockAdapter';
 import { createFetchClient } from './client';
 import { Product, CustomPrintRequest, Order, Review, SellerProfile } from '../types';
-import { products as seedProducts } from './mockData';
 import { loadFromStorage } from '../lib/storage';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 
-const useMock = import.meta.env.VITE_USE_MOCK !== 'false';
 const baseUrl = import.meta.env.VITE_API_URL ?? '/api';
-const client = useMock ? createMockClient() : createFetchClient(baseUrl);
+const client = createFetchClient(baseUrl);
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 
 export const api = {
@@ -22,15 +19,6 @@ export const api = {
     limit?: number;
     cursor?: string;
   }) {
-    if (useMock) {
-      let items = filterProducts(seedProducts, filters ?? {});
-      if (filters?.sort === 'rating') {
-        items = [...items].sort((a, b) => (b.ratingAvg ?? 0) - (a.ratingAvg ?? 0));
-      } else if (filters?.sort === 'createdAt') {
-        items = [...items].sort((a, b) => (b.id ?? '').localeCompare(a.id ?? ''));
-      }
-      return { data: items };
-    }
     const params = new URLSearchParams();
     if (filters?.category) params.set('category', filters.category);
     if (filters?.material) params.set('material', filters.material);
@@ -216,15 +204,6 @@ export const api = {
     );
   },
   async uploadSellerImages(files: FileList) {
-    if (useMock) {
-      return {
-        data: {
-          urls: Array.from(files).map(
-            (file) => `https://placehold.co/600x400?text=${encodeURIComponent(file.name)}`
-          )
-        }
-      };
-    }
     const session = loadFromStorage<{ token: string } | null>(STORAGE_KEYS.session, null);
     const formData = new FormData();
     Array.from(files).forEach((file) => formData.append('files', file));
