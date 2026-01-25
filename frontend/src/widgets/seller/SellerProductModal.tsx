@@ -104,7 +104,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
       try {
         const response = await api.uploadSellerImages(files);
         imageUrls = response.data.urls;
-      } catch (error) {
+      } catch {
         setUploadError('Не удалось загрузить изображения. Попробуйте снова.');
         setIsUploading(false);
         return;

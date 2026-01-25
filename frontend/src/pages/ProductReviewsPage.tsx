@@ -25,7 +25,11 @@ export const ProductReviewsPage = () => {
   const user = useAuthStore((state) => state.user);
   const [product, setProduct] = useState<Product | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
-  const [summary, setSummary] = useState({
+  const [summary, setSummary] = useState<{
+    avg: number;
+    total: number;
+    distribution: Record<string, number>;
+  }>({
     avg: 0,
     total: 0,
     distribution: { '5': 0, '4': 0, '3': 0, '2': 0, '1': 0 }

@@ -79,7 +79,7 @@ export const CatalogPage = () => {
         const option = deliveryOptions.find((item) => item.id === key);
         if (!option) return true;
         const meetsMin = option.min ? days >= option.min : true;
-        const meetsMax = option.max ? days <= option.max : true;
+        const meetsMax = 'max' in option ? days <= option.max : true;
         return meetsMin && meetsMax;
       });
     });

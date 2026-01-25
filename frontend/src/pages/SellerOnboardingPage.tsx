@@ -95,12 +95,12 @@ export const SellerOnboardingPage = () => {
         referenceCategory: form.referenceCategory,
         catalogPosition: form.catalogPosition
       });
-      const role = response.data.data.role.toLowerCase() === 'seller' ? 'seller' : 'buyer';
+      const role = response.data.data.role?.toLowerCase() === 'seller' ? 'seller' : 'buyer';
       setUser({
         id: response.data.data.id,
         name: response.data.data.name,
-        email: response.data.data.email,
-        phone: response.data.data.phone,
+        email: response.data.data.email ?? user?.email ?? '',
+        phone: response.data.data.phone ?? user?.phone ?? null,
         role: role as Role,
         address: user?.address ?? null
       });

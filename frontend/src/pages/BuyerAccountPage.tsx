@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuthStore } from '../app/store/authStore';
 import { api } from '../shared/api';
 import { Review } from '../shared/types';
 import { Rating } from '../shared/ui/Rating';
 import { Button } from '../shared/ui/Button';
+import { useForm } from 'react-hook-form';
 import styles from './BuyerAccountPage.module.css';
 
 const formatReviewDate = (value: string) =>
@@ -15,6 +16,13 @@ export const BuyerAccountPage = () => {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const contactForm = useForm<{ name: string; phone: string; email: string }>({
+    defaultValues: {
+      name: user?.name ?? '',
+      phone: user?.phone ?? '',
+      email: user?.email ?? ''
+    }
+  });
   const [formValues, setFormValues] = useState({
     name: user?.name ?? '',
     email: user?.email ?? '',
@@ -28,24 +36,18 @@ export const BuyerAccountPage = () => {
       email: user.email ?? '',
       phone: user.phone ?? ''
     });
-  }, [user]);
+    contactForm.reset({
+      name: user.name ?? '',
+      email: user.email ?? '',
+      phone: user.phone ?? ''
+    });
+  }, [contactForm, user]);
 
   useEffect(() => {
     api.getMyReviews().then((response) => {
       setReviews(response.data.data);
     });
   }, []);
-
-  const avatarText = useMemo(() => {
-    const source = user?.name ?? user?.email ?? 'Пользователь';
-    return source
-      .split(' ')
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0])
-      .join('')
-      .toUpperCase();
-  }, [user?.email, user?.name]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -67,6 +69,14 @@ export const BuyerAccountPage = () => {
     setReviews((prev) =>
       prev.map((review) => (review.id === reviewId ? { ...review, ...response.data.data } : review))
     );
+  };
+
+  const handleSaveContact = async (values: { name: string; phone: string; email: string }) => {
+    await updateProfile({
+      name: values.name,
+      email: values.email,
+      phone: values.phone
+    });
   };
 
   return (

@@ -5,6 +5,7 @@ import { Product, ProductVariant, Review } from '../shared/types';
 import { Rating } from '../shared/ui/Rating';
 import { Button } from '../shared/ui/Button';
 import { useCartStore } from '../app/store/cartStore';
+import { useProductBoardStore } from '../app/store/productBoardStore';
 import { ProductCard } from '../widgets/shop/ProductCard';
 import styles from './ProductPage.module.css';
 
@@ -15,20 +16,22 @@ const formatDeliveryDate = (date?: string) => {
   return next.toLocaleDateString('ru-RU', { day: '2-digit', month: 'long' });
 };
 
-const formatReviewDate = (value: string) =>
-  new Date(value).toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric' });
-
 export const ProductPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const addItem = useCartStore((state) => state.addItem);
+  const setProductBoard = useProductBoardStore((state) => state.setProduct);
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeImage, setActiveImage] = useState<string>('');
   const [selectedVariant, setSelectedVariant] = useState<string>('');
   const [selectedVariantProductId, setSelectedVariantProductId] = useState<string | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
-  const [reviewsSummary, setReviewsSummary] = useState({
+  const [reviewsSummary, setReviewsSummary] = useState<{
+    avg: number;
+    total: number;
+    distribution: Record<string, number>;
+  }>({
     avg: 0,
     total: 0,
     distribution: { '5': 0, '4': 0, '3': 0, '2': 0, '1': 0 }
@@ -89,7 +92,8 @@ export const ProductPage = () => {
         return [...prev, ...nextItems];
       });
       setFeedHasMore(response.data.length > 0);
-      setFeedCursor(response.data.at(-1)?.id ?? null);
+      const lastItem = response.data[response.data.length - 1];
+      setFeedCursor(lastItem?.id ?? null);
     } catch (error) {
       setFeedError(error instanceof Error ? error.message : 'Не удалось загрузить товары.');
       setFeedHasMore(false);
@@ -218,17 +222,12 @@ export const ProductPage = () => {
                 >
                   <option value="">Выберите вариант</option>
                   {product.variants.map((variant) => (
-                    <button
-                      type="button"
-                      key={variant.id}
-                      className={selectedVariant === variant.id ? styles.variantActive : styles.variantButton}
-                      onClick={() => handleVariantChange(variant.id)}
-                    >
+                    <option key={variant.id} value={variant.id}>
                       {variant.name}
-                    </button>
+                    </option>
                   ))}
-                </div>
-              </div>
+                </select>
+              </label>
             ) : null}
             <div className={styles.actions}>
               <Button

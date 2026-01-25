@@ -10,6 +10,8 @@ import { CheckoutPage } from './pages/CheckoutPage';
 import { ProtectedRoute } from './app/routes/ProtectedRoute';
 import { ProductPage } from './pages/ProductPage';
 import { ProductReviewsPage } from './pages/ProductReviewsPage';
+import { SellerOnboardingPage } from './pages/SellerOnboardingPage';
+import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
 
 const App = () => {
   return (

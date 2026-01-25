@@ -3,6 +3,27 @@ import { loadFromStorage, saveToStorage, removeFromStorage } from '../lib/storag
 import { STORAGE_KEYS } from '../constants/storageKeys';
 import { api } from './index';
 
+export interface LoginPayload {
+  email: string;
+  password: string;
+}
+
+export interface RegisterPayload {
+  name: string;
+  email: string;
+  password: string;
+  role?: Role;
+  phone: string;
+  address: string;
+}
+
+export interface UpdateProfilePayload {
+  name?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+}
+
 interface UserRecord extends User {
   password: string;
   createdAt: string;
@@ -30,8 +51,6 @@ const seedUsers = (): UserRecord[] => {
       phone: '+7 (900) 123-45-67',
       address: 'Москва, ул. Тверская, 12',
       role: 'buyer',
-      phone: '+7 (900) 000-00-00',
-      address: 'Москва, ул. Примерная, 1',
       password: 'buyer123',
       createdAt: now()
     },
@@ -42,8 +61,6 @@ const seedUsers = (): UserRecord[] => {
       phone: '+7 (900) 555-11-22',
       address: 'Санкт-Петербург, Невский пр., 78',
       role: 'seller',
-      phone: '+7 (900) 111-11-11',
-      address: 'Санкт-Петербург, Невский пр., 10',
       password: 'seller123',
       createdAt: now()
     }
@@ -55,7 +72,7 @@ const seedUsers = (): UserRecord[] => {
 const getUsers = () => loadFromStorage<UserRecord[]>(STORAGE_KEYS.users, seedUsers());
 
 export const authApi = {
-  login: async (email: string, password: string) => {
+  login: async ({ email, password }: LoginPayload) => {
     if (!useMock) {
       const result = await api.login({ email, password });
       const session: StoredSession = {
@@ -84,14 +101,7 @@ export const authApi = {
     saveToStorage(STORAGE_KEYS.session, session);
     return session;
   },
-  register: async (payload: {
-    name: string;
-    email: string;
-    password: string;
-    role?: Role;
-    phone: string;
-    address: string;
-  }) => {
+  register: async (payload: RegisterPayload) => {
     if (!useMock) {
       const result = await api.register({
         name: payload.name,
@@ -118,8 +128,6 @@ export const authApi = {
       phone: payload.phone,
       address: payload.address,
       role: payload.role ?? 'buyer',
-      phone: payload.phone,
-      address: payload.address,
       password: payload.password,
       createdAt: now()
     };
@@ -139,12 +147,12 @@ export const authApi = {
     saveToStorage(STORAGE_KEYS.session, session);
     return session;
   },
-  updateProfile: async (payload: { name?: string; email?: string; phone?: string; address?: string }) => {
+  updateProfile: async (payload: UpdateProfilePayload) => {
     if (!useMock) {
       const result = await api.updateProfile(payload);
       const current = loadFromStorage<StoredSession | null>(STORAGE_KEYS.session, null);
       if (current) {
-        const nextSession = { ...current, user: { ...current.user, ...result.data.data } };
+        const nextSession = { ...current, user: { ...current.user, ...result.data } };
         saveToStorage(STORAGE_KEYS.session, nextSession);
         return nextSession;
       }

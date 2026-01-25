@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../shared/api';
 import { Product } from '../../shared/types';
 
@@ -22,12 +22,46 @@ export const useCatalog = (filters: CatalogFilters) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const {
+    category,
+    material,
+    size,
+    minPrice,
+    maxPrice,
+    q,
+    ratingMin,
+    color,
+    sort,
+    order,
+    page,
+    limit,
+    cursor
+  } = filters;
+
+  const normalizedFilters = useMemo(
+    () => ({
+      category,
+      material,
+      size,
+      minPrice,
+      maxPrice,
+      q,
+      ratingMin,
+      color,
+      sort,
+      order,
+      page,
+      limit,
+      cursor
+    }),
+    [category, material, size, minPrice, maxPrice, q, ratingMin, color, sort, order, page, limit, cursor]
+  );
 
   useEffect(() => {
     let isMounted = true;
     setLoading(true);
     api
-      .getProducts(filters)
+      .getProducts(normalizedFilters)
       .then((response) => {
         if (isMounted) {
           setProducts(response.data);
@@ -48,21 +82,7 @@ export const useCatalog = (filters: CatalogFilters) => {
     return () => {
       isMounted = false;
     };
-  }, [
-    filters.category,
-    filters.material,
-    filters.size,
-    filters.minPrice,
-    filters.maxPrice,
-    filters.q,
-    filters.ratingMin,
-    filters.color,
-    filters.sort,
-    filters.order,
-    filters.page,
-    filters.limit,
-    filters.cursor
-  ]);
+  }, [normalizedFilters]);
 
   return { products, loading, error };
 };

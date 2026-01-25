@@ -55,7 +55,7 @@ export const AuthPage = () => {
   const onLogin = async (values: LoginValues) => {
     setError('');
     try {
-      await login(values.email, values.password);
+      await login({ email: values.email, password: values.password });
       const role = useAuthStore.getState().user?.role;
       setMessage('Добро пожаловать!');
       handleRedirect(role);

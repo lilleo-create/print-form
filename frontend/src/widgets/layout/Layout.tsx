@@ -3,11 +3,8 @@ import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-do
 import { useCartStore } from '../../app/store/cartStore';
 import { useAuthStore } from '../../app/store/authStore';
 import { useAddressStore } from '../../app/store/addressStore';
-import { useProductBoardStore } from '../../app/store/productBoardStore';
 import { AddressModal } from '../../shared/ui/address/AddressModal';
 import { HeaderAddress } from '../../shared/ui/address/HeaderAddress';
-import { Rating } from '../../shared/ui/Rating';
-import { Button } from '../../shared/ui/Button';
 import { ProductModal } from '../shop/ProductModal';
 import { useFilters } from '../../features/catalog/useFilters';
 import { useCatalog } from '../../features/catalog/useCatalog';
@@ -20,7 +17,6 @@ interface LayoutProps {
 
 export const Layout = ({ children }: LayoutProps) => {
   const cartItems = useCartStore((state) => state.items);
-  const addItem = useCartStore((state) => state.addItem);
   const { user, logout } = useAuthStore();
   const addresses = useAddressStore((state) => state.addresses);
   const selectedAddressId = useAddressStore((state) => state.selectedAddressId);
@@ -137,6 +133,10 @@ export const Layout = ({ children }: LayoutProps) => {
   };
 
   const activeCategory = searchParams.get('category') ?? '';
+  const accountTab = searchParams.get('tab') ?? '';
+  const isFavorites = location.pathname === '/account' && accountTab === 'favorites';
+  const isProfile = location.pathname === '/account' && accountTab === 'profile';
+  const showBottomNav = ['/', '/cart', '/account'].includes(location.pathname);
 
   return (
     <div className={styles.app}>

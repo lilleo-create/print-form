@@ -1,9 +1,7 @@
 import { createMockClient, filterProducts } from './mockAdapter';
 import { createFetchClient } from './client';
-import { Product, CustomPrintRequest, Order, Review, SellerProfile } from '../types';
+import { Product, CustomPrintRequest, Order, Review } from '../types';
 import { products as seedProducts } from './mockData';
-import { loadFromStorage } from '../lib/storage';
-import { STORAGE_KEYS } from '../constants/storageKeys';
 
 const useMock = import.meta.env.VITE_USE_MOCK !== 'false';
 const baseUrl = import.meta.env.VITE_API_BASE_URL ?? '/api';
@@ -114,6 +112,15 @@ export const api = {
       `/products/${id}/reviews/summary${query.toString() ? `?${query.toString()}` : ''}`
     );
   },
+  async getMyReviews() {
+    return client.request<{ data: Review[] }>('/me/reviews');
+  },
+  async updateReviewVisibility(id: string, isPublic: boolean) {
+    return client.request<{ data: Review | null }>(`/me/reviews/${id}/visibility`, {
+      method: 'PATCH',
+      body: { isPublic }
+    });
+  },
   async getFilters() {
     return client.request<{ categories: string[]; materials: string[]; sizes: string[]; colors: string[] }>('/filters');
   },
@@ -167,6 +174,38 @@ export const api = {
   async getSellerOrders() {
     return client.request<Order[]>('/seller/orders');
   },
+  async getSellerStats() {
+    return client.request<{ totalOrders: number; totalRevenue: number; totalProducts: number; averageRating: number }>(
+      '/seller/stats'
+    );
+  },
+  async submitSellerOnboarding(payload: {
+    name: string;
+    phone: string;
+    status: string;
+    storeName: string;
+    city: string;
+    referenceCategory: string;
+    catalogPosition: string;
+  }) {
+    return client.request<{ data: { id: string; name: string; email?: string; phone?: string; role?: string } }>(
+      '/seller/onboarding',
+      {
+        method: 'POST',
+        body: payload
+      }
+    );
+  },
+  async uploadSellerImages(files: FileList | File[]) {
+    const list = Array.from(files);
+    if (useMock) {
+      const urls = list.map((file) => URL.createObjectURL(file));
+      return { data: { urls } };
+    }
+    const body = new FormData();
+    list.forEach((file) => body.append('files', file));
+    return client.request<{ urls: string[] }>('/seller/images', { method: 'POST', body });
+  },
   async createOrder(payload: { items: { productId: string; variantId?: string; quantity: number }[] }) {
     return client.request<Order>('/orders', { method: 'POST', body: payload });
   },
@@ -200,6 +239,15 @@ export const api = {
   async me() {
     return client.request<{ id: string; name: string; role: string; email: string; phone?: string; address?: string }>(
       '/auth/me'
+    );
+  },
+  async updateProfile(payload: { name?: string; email?: string; phone?: string; address?: string }) {
+    return client.request<{ id?: string; name?: string; role?: string; email?: string; phone?: string; address?: string }>(
+      '/auth/profile',
+      {
+        method: 'PATCH',
+        body: payload
+      }
     );
   }
 };

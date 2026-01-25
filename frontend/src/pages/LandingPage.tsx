@@ -54,7 +54,8 @@ export const LandingPage = () => {
         return [...prev, ...nextItems];
       });
       setFeedHasMore(response.data.length > 0);
-      setFeedCursor(response.data.at(-1)?.id ?? null);
+      const lastItem = response.data[response.data.length - 1];
+      setFeedCursor(lastItem?.id ?? null);
     } catch (error) {
       setFeedError(error instanceof Error ? error.message : 'Не удалось загрузить товары.');
       setFeedHasMore(false);
