@@ -13,9 +13,8 @@ const loginSchema = z.object({
 
 const registerSchema = loginSchema.extend({
   name: z.string().min(2),
-  phone: z.string().min(5).optional(),
-  address: z.string().min(3).optional(),
-  privacyAccepted: z.boolean().optional(),
+  phone: z.string().min(5),
+  address: z.string().min(5),
   role: z.enum(['BUYER', 'SELLER']).optional()
 });
 
@@ -115,36 +114,6 @@ authRoutes.get('/me', authenticate, async (req: AuthRequest, res, next) => {
         email: user.email,
         phone: user.phone,
         address: user.address
-      }
-    });
-  } catch (error) {
-    return next(error);
-  }
-});
-
-authRoutes.patch('/me', authenticate, async (req: AuthRequest, res, next) => {
-  try {
-    const payload = updateProfileSchema.parse(req.body);
-    if (payload.email) {
-      const existing = await userRepository.findByEmail(payload.email);
-      if (existing && existing.id !== req.user!.userId) {
-        return res.status(400).json({ error: { code: 'EMAIL_EXISTS' } });
-      }
-    }
-    const updated = await userRepository.updateProfile(req.user!.userId, {
-      name: payload.name,
-      email: payload.email,
-      phone: payload.phone ?? null,
-      address: payload.address ?? null
-    });
-    return res.json({
-      data: {
-        id: updated.id,
-        name: updated.name,
-        role: updated.role,
-        email: updated.email,
-        phone: updated.phone,
-        address: updated.address
       }
     });
   } catch (error) {

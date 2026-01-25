@@ -26,14 +26,7 @@ export const authService = {
       throw new Error('USER_EXISTS');
     }
     const hashed = await bcrypt.hash(password, 10);
-    const user = await userRepository.create({
-      name,
-      email,
-      passwordHash: hashed,
-      role,
-      phone: phone ?? null,
-      address: address ?? null
-    });
+    const user = await userRepository.create({ name, email, passwordHash: hashed, role, phone, address });
     const accessToken = createAccessToken({ userId: user.id, role: user.role });
     const refreshToken = createRefreshToken({ userId: user.id, role: user.role });
     await prisma.refreshToken.create({

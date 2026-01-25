@@ -46,6 +46,8 @@ export interface ProductVariant {
   priceDelta?: number;
   sku?: string;
   stock?: number;
+  productId?: string;
+  linkedProductId?: string;
 }
 
 export interface ProductSpec {
@@ -66,7 +68,6 @@ export interface Review {
   photos?: string[];
   likesCount?: number;
   dislikesCount?: number;
-  isPublic?: boolean;
   createdAt: string;
   user?: { id: string; name: string } | null;
   product?: { id: string; title: string; image?: string };
@@ -107,6 +108,8 @@ export interface User {
   phone?: string | null;
   address?: string | null;
   role: Role;
+  phone?: string;
+  address?: string;
 }
 
 export interface Contact {

@@ -8,8 +8,8 @@ export const userRepository = {
     email: string;
     passwordHash: string;
     role?: 'BUYER' | 'SELLER';
-    phone?: string | null;
-    address?: string | null;
+    phone?: string;
+    address?: string;
   }) =>
     prisma.user.create({
       data: {

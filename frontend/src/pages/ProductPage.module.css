@@ -71,6 +71,22 @@
   text-decoration: none;
 }
 
+.ratingLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+}
+
+.ratingMeta {
+  color: #64748b;
+  font-size: 16px;
+}
+
 .priceBlock {
   display: grid;
   gap: 6px;
@@ -83,7 +99,7 @@
 
 .delivery {
   color: #64748b;
-  font-size: 15px;
+  font-size: 16px;
 }
 
 .sku {
@@ -123,6 +139,21 @@
   font-weight: 600;
 }
 
+.actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.description {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  gap: 12px;
+}
+
 .shortDescription {
   color: #475569;
   font-size: 15px;
@@ -155,76 +186,60 @@
   border-bottom: 1px solid #e2e8f0;
 }
 
-.reviewsPreview {
-  display: grid;
-  gap: 24px;
-  margin-bottom: 48px;
-}
-
 .reviewsHeader {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
 }
 
-.reviewsHint {
-  color: var(--color-text-muted);
-  font-size: 14px;
+.reviewHint {
+  color: #94a3b8;
 }
 
-.reviewsContent {
+.reviewsPreview {
   display: grid;
-  grid-template-columns: 280px 1fr;
-  gap: 24px;
-}
-
-.reviewsSummary {
+  gap: 16px;
   background: #ffffff;
-  border-radius: 20px;
+  border-radius: 16px;
   padding: 20px;
   box-shadow: var(--shadow-sm);
+}
+
+.reviewsLink {
+  color: var(--color-primary);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.ratingSummary {
   display: grid;
   gap: 16px;
 }
 
-.summaryTop {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.summaryValue {
-  font-size: 32px;
-  font-weight: 700;
-}
-
-.reviewsSummary ul {
-  list-style: none;
-  padding: 0;
+.ratingBars {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
-.reviewsSummary li {
+.ratingRow {
   display: grid;
-  grid-template-columns: 40px 1fr 32px;
+  grid-template-columns: 40px 1fr 40px;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   font-size: 14px;
+  color: #475569;
 }
 
-.bar {
-  height: 8px;
+.ratingTrack {
+  height: 6px;
   background: #e2e8f0;
   border-radius: 999px;
   overflow: hidden;
 }
 
-.barFill {
+.ratingFill {
   height: 100%;
-  background: #f59e0b;
+  background: #facc15;
 }
 
 .reviewList {
@@ -271,6 +286,19 @@
 
 .reviewsEmpty {
   color: var(--color-text-muted);
+}
+
+.reviewBlock {
+  display: grid;
+  gap: 4px;
+  font-size: 14px;
+  color: #475569;
+  margin-top: 8px;
+}
+
+.reviewBlock span {
+  font-weight: 600;
+  color: var(--color-text);
 }
 
 .feed {

@@ -1,4 +1,4 @@
-import { FormEvent, ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useCartStore } from '../../app/store/cartStore';
 import { useAuthStore } from '../../app/store/authStore';
@@ -11,7 +11,7 @@ import { Button } from '../../shared/ui/Button';
 import { ProductModal } from '../shop/ProductModal';
 import { useFilters } from '../../features/catalog/useFilters';
 import { useCatalog } from '../../features/catalog/useCatalog';
-import { api } from '../../shared/api';
+import { formatShortAddress } from '../../shared/lib/formatShortAddress';
 import styles from './Layout.module.css';
 
 interface LayoutProps {
@@ -32,30 +32,13 @@ export const Layout = ({ children }: LayoutProps) => {
   const removeAddress = useAddressStore((state) => state.removeAddress);
   const closeModal = useAddressStore((state) => state.closeModal);
   const resetAddresses = useAddressStore((state) => state.reset);
-  const productBoard = useProductBoardStore((state) => state.product);
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
   const filterData = useFilters();
   const { products } = useCatalog({ limit: 12 });
   const [searchValue, setSearchValue] = useState(searchParams.get('q') ?? '');
-  const [isCategoriesHidden, setIsCategoriesHidden] = useState(false);
-  const [categoriesHeight, setCategoriesHeight] = useState(0);
-  const [productBoardHeight, setProductBoardHeight] = useState(0);
-  const [sellerProfile, setSellerProfile] = useState<{
-    isSeller: boolean;
-    profile: {
-      id: string;
-      status: string;
-      storeName: string;
-      city: string;
-      referenceCategory: string;
-      catalogPosition: string;
-      phone: string;
-    } | null;
-  } | null>(null);
-  const categoriesRef = useRef<HTMLDivElement | null>(null);
-  const productBoardRef = useRef<HTMLDivElement | null>(null);
+  const [isCategoriesHidden, setCategoriesHidden] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -72,27 +55,27 @@ export const Layout = ({ children }: LayoutProps) => {
   }, [location.pathname, searchParams]);
 
   useEffect(() => {
-    if (!user) {
-      setSellerProfile(null);
-      return;
-    }
-    let isMounted = true;
-    api
-      .getSellerProfile()
-      .then((response) => {
-        if (isMounted) {
-          setSellerProfile(response.data);
-        }
-      })
-      .catch(() => {
-        if (isMounted) {
-          setSellerProfile({ isSeller: false, profile: null });
-        }
-      });
-    return () => {
-      isMounted = false;
+    let lastScrollY = window.scrollY;
+    let ticking = false;
+
+    const updateVisibility = () => {
+      const nextScrollY = window.scrollY;
+      const shouldHide = nextScrollY > lastScrollY && nextScrollY > 120;
+      setCategoriesHidden((prev) => (prev === shouldHide ? prev : shouldHide));
+      lastScrollY = nextScrollY;
+      ticking = false;
     };
-  }, [user]);
+
+    const handleScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(updateVisibility);
+        ticking = true;
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const categories = useMemo(() => {
     if (filterData.categories.length) {
@@ -101,42 +84,16 @@ export const Layout = ({ children }: LayoutProps) => {
     return Array.from(new Set(products.map((product) => product.category))).filter(Boolean);
   }, [filterData.categories, products]);
 
-  useLayoutEffect(() => {
-    if (!categoriesRef.current) return;
-    const updateHeight = () => {
-      if (categoriesRef.current) {
-        setCategoriesHeight(categoriesRef.current.offsetHeight);
-      }
-      if (productBoardRef.current) {
-        setProductBoardHeight(productBoardRef.current.offsetHeight);
-      }
-    };
-    updateHeight();
-    const observer = new ResizeObserver(updateHeight);
-    observer.observe(categoriesRef.current);
-    if (productBoardRef.current) {
-      observer.observe(productBoardRef.current);
-    }
-    return () => observer.disconnect();
-  }, [location.pathname]);
+  const selectedAddress = useMemo(
+    () => addresses.find((address) => address.id === selectedAddressId),
+    [addresses, selectedAddressId]
+  );
 
-  const isHome = location.pathname === '/';
-  const isProductPage = /^\/product\/[^/]+$/.test(location.pathname);
-  const isReviewPage = /^\/product\/[^/]+\/reviews$/.test(location.pathname);
-  const hideOnScroll = isHome || isProductPage || isReviewPage;
-
-  useEffect(() => {
-    if (!hideOnScroll) {
-      setIsCategoriesHidden(false);
-      return;
-    }
-    const handleScroll = () => {
-      setIsCategoriesHidden(window.scrollY > 24);
-    };
-    handleScroll();
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [hideOnScroll]);
+  const addressLabel = selectedAddress
+    ? selectedAddress.isFavorite && selectedAddress.label
+      ? selectedAddress.label
+      : formatShortAddress(selectedAddress.addressText)
+    : user?.address ?? 'Укажите адрес доставки';
 
   const handleSearchUpdate = (value: string) => {
     setSearchValue(value);
@@ -180,22 +137,11 @@ export const Layout = ({ children }: LayoutProps) => {
   };
 
   const activeCategory = searchParams.get('category') ?? '';
-  const showProductBoard = isCategoriesHidden && (isProductPage || isReviewPage) && productBoard;
-  const ratingValue = productBoard?.ratingAvg ?? 0;
-  const ratingCount = productBoard?.ratingCount ?? 0;
-  const categoriesBarHeight = Math.max(categoriesHeight, productBoardHeight);
-  const isSeller = sellerProfile?.isSeller ?? false;
-  const showBottomNav =
-    !location.pathname.startsWith('/seller') &&
-    !location.pathname.startsWith('/auth') &&
-    !location.pathname.startsWith('/privacy-policy');
-  const isFavorites = location.pathname === '/account' && searchParams.get('tab') === 'favorites';
-  const isProfile = location.pathname === '/account' && (searchParams.get('tab') === 'profile' || !searchParams.get('tab'));
 
   return (
     <div className={styles.app}>
       <header className={styles.header}>
-        <div className={`${styles.headerInner} ${styles.desktopHeader}`}>
+        <div className={styles.headerInner}>
           <div className={styles.brand}>
             <Link to="/" className={styles.logo}>
               3D Market
@@ -216,14 +162,22 @@ export const Layout = ({ children }: LayoutProps) => {
             </button>
           </form>
           <div className={styles.actions}>
+            {user && (
+              <div className={styles.addressSlot}>
+                <HeaderAddress />
+              </div>
+            )}
             <Link to="/account" className={styles.actionLink}>
               <span aria-hidden>🧾</span>
+              <span>Заказы</span>
             </Link>
             <Link to="/account" className={styles.actionLink}>
               <span aria-hidden>❤</span>
+              <span>Избранное</span>
             </Link>
             <Link to="/cart" className={styles.actionLink}>
               <span aria-hidden>🛒</span>
+              <span>Корзина</span>
               <span className={styles.cartCount}>{cartItems.length}</span>
             </Link>
             {user ? (
@@ -244,113 +198,44 @@ export const Layout = ({ children }: LayoutProps) => {
             )}
           </div>
         </div>
-        <div className={styles.mobileHeader}>
-          <div className={styles.mobileTopRow}>
-            <button
-              type="button"
-              className={styles.mobileBurger}
-              onClick={() => navigate('/categories')}
-              aria-label="Открыть категории"
-            >
-              ☰
-            </button>
-            <div className={styles.mobileAddress}>
-              <HeaderAddress variant="compact" />
-            </div>
-          </div>
-          <form className={styles.mobileSearch} onSubmit={handleSearchSubmit}>
-            <input
-              type="search"
-              placeholder="Найти товары"
-              value={searchValue}
-              onChange={(event) => handleSearchUpdate(event.target.value)}
-            />
-            <button type="submit" aria-label="Найти">
-              🔍
-            </button>
-          </form>
-        </div>
         <div
-          className={`${styles.categoriesBar} ${categoriesBarHeight === 0 ? styles.categoriesBarCollapsed : ''}`}
-          style={{ height: `${categoriesBarHeight}px` }}
+          className={`${styles.categoriesSurface} ${
+            isCategoriesHidden ? styles.categoriesSurfaceHidden : ''
+          }`}
         >
-          <div className={styles.categoriesSurface}>
-            <div
-              ref={categoriesRef}
-              className={`${styles.categoriesInner} ${isCategoriesHidden ? styles.categoriesInnerHidden : ''}`}
-            >
-              <div className={styles.categoriesMeta}>
-                <div className={styles.categoriesTitle}>Категории</div>
-                <div className={styles.categoriesAddress}>
-                  <HeaderAddress variant="compact" />
+          <div className={styles.categoriesBar}>
+            <div className={styles.categoriesInner}>
+              <div className={styles.categoriesGroup}>
+                <span className={styles.categoriesTitle}>Категории</span>
+                <div className={styles.categoriesList}>
+                  <button
+                    type="button"
+                    className={!activeCategory ? styles.categoryActive : styles.categoryButton}
+                    onClick={() => handleCategorySelect('')}
+                  >
+                    Все категории
+                  </button>
+                  {categories.map((category) => (
+                    <button
+                      type="button"
+                      key={category}
+                      className={activeCategory === category ? styles.categoryActive : styles.categoryButton}
+                      onClick={() => handleCategorySelect(category)}
+                    >
+                      {category}
+                    </button>
+                  ))}
                 </div>
               </div>
-              <button
-                type="button"
-                className={!activeCategory ? styles.categoryActive : styles.categoryButton}
-                onClick={() => handleCategorySelect('')}
-              >
-                Все категории
-              </button>
-              {categories.map((category) => (
-                <button
-                  type="button"
-                  key={category}
-                  className={activeCategory === category ? styles.categoryActive : styles.categoryButton}
-                  onClick={() => handleCategorySelect(category)}
-                >
-                  {category}
-                </button>
-              ))}
-              {isSeller ? (
-                <Link to="/seller" className={styles.sellCta}>
-                  Кабинет продавца
-                </Link>
-              ) : (
-                <Link to="/seller/onboarding" className={styles.sellCta}>
+              <div className={styles.categoriesMeta}>
+                <div className={styles.addressLine}>
+                  <span className={styles.marker}>📍</span>
+                  <span>{addressLabel}</span>
+                </div>
+                <Link to="/auth/register" className={styles.sellButton}>
                   Продавайте на PrintForm
                 </Link>
-              )}
-            </div>
-            <div
-              ref={productBoardRef}
-              className={`${styles.productBoard} ${showProductBoard ? styles.productBoardVisible : ''}`}
-            >
-              {productBoard && (
-                <>
-                  <div className={styles.productBoardInfo}>
-                    <img src={productBoard.image} alt={productBoard.title} />
-                    <div>
-                      <h4>{productBoard.title}</h4>
-                      <div className={styles.productBoardRating}>
-                        <Rating value={ratingValue} count={ratingCount} size="sm" />
-                        <span>{ratingValue.toFixed(1)}</span>
-                        <span>{ratingCount} оценок</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className={styles.productBoardActions}>
-                    <Button
-                      onClick={() => {
-                        if (!productBoard) return;
-                        addItem(productBoard, 1);
-                        navigate('/checkout');
-                      }}
-                    >
-                      Купить сейчас
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      onClick={() => {
-                        if (!productBoard) return;
-                        addItem(productBoard, 1);
-                      }}
-                    >
-                      В корзину
-                    </Button>
-                  </div>
-                </>
-              )}
+              </div>
             </div>
           </div>
         </div>

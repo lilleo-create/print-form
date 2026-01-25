@@ -72,8 +72,7 @@ export const AuthPage = () => {
         email: values.email,
         password: values.password,
         phone: values.phone,
-        address: values.address,
-        privacyAccepted
+        address: values.address
       });
       const role = useAuthStore.getState().user?.role;
       setMessage('Регистрация завершена!');
@@ -104,6 +103,14 @@ export const AuthPage = () => {
             <input placeholder="Email" {...registerForm.register('email')} />
             {registerForm.formState.errors.email && (
               <span>{registerForm.formState.errors.email.message}</span>
+            )}
+            <input placeholder="Телефон" {...registerForm.register('phone')} />
+            {registerForm.formState.errors.phone && (
+              <span>{registerForm.formState.errors.phone.message}</span>
+            )}
+            <input placeholder="Адрес доставки" {...registerForm.register('address')} />
+            {registerForm.formState.errors.address && (
+              <span>{registerForm.formState.errors.address.message}</span>
             )}
             <input type="password" placeholder="Пароль" {...registerForm.register('password')} />
             {registerForm.formState.errors.password && (

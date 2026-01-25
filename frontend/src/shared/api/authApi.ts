@@ -30,6 +30,8 @@ const seedUsers = (): UserRecord[] => {
       phone: '+7 (900) 123-45-67',
       address: 'Москва, ул. Тверская, 12',
       role: 'buyer',
+      phone: '+7 (900) 000-00-00',
+      address: 'Москва, ул. Примерная, 1',
       password: 'buyer123',
       createdAt: now()
     },
@@ -40,6 +42,8 @@ const seedUsers = (): UserRecord[] => {
       phone: '+7 (900) 555-11-22',
       address: 'Санкт-Петербург, Невский пр., 78',
       role: 'seller',
+      phone: '+7 (900) 111-11-11',
+      address: 'Санкт-Петербург, Невский пр., 10',
       password: 'seller123',
       createdAt: now()
     }
@@ -85,9 +89,8 @@ export const authApi = {
     email: string;
     password: string;
     role?: Role;
-    phone?: string;
-    address?: string;
-    privacyAccepted?: boolean;
+    phone: string;
+    address: string;
   }) => {
     if (!useMock) {
       const result = await api.register({
@@ -95,8 +98,7 @@ export const authApi = {
         email: payload.email,
         password: payload.password,
         phone: payload.phone,
-        address: payload.address,
-        privacyAccepted: payload.privacyAccepted
+        address: payload.address
       });
       const session: StoredSession = {
         token: result.data.token,
@@ -116,6 +118,8 @@ export const authApi = {
       phone: payload.phone,
       address: payload.address,
       role: payload.role ?? 'buyer',
+      phone: payload.phone,
+      address: payload.address,
       password: payload.password,
       createdAt: now()
     };

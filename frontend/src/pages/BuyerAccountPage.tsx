@@ -77,18 +77,57 @@ export const BuyerAccountPage = () => {
           <p>Управляйте личными данными и отзывами.</p>
         </div>
 
-        <div className={styles.profileCard}>
-          <div className={styles.avatar}>{avatarText}</div>
-          <div className={styles.profileInfo}>
-            <div className={styles.profileHeader}>
-              <h2>Персональные данные</h2>
-              <button
-                type="button"
-                className={styles.editButton}
-                onClick={() => setIsEditing((prev) => !prev)}
-              >
-                ✎
-              </button>
+        <div className={styles.profileGrid}>
+          <div className={styles.profileBox}>
+            <h3>Профиль</h3>
+            <div className={styles.profileList}>
+              <div>
+                <span>Имя</span>
+                <strong>{user?.name ?? '—'}</strong>
+              </div>
+              <div>
+                <span>Email</span>
+                <strong>{user?.email ?? '—'}</strong>
+              </div>
+              <div>
+                <span>Телефон</span>
+                <strong>{user?.phone ?? '—'}</strong>
+              </div>
+              <div>
+                <span>Адрес</span>
+                <strong>{user?.address ?? '—'}</strong>
+              </div>
+            </div>
+          </div>
+          <form className={styles.profileBox} onSubmit={contactForm.handleSubmit(handleSaveContact)}>
+            <h3>Личные данные</h3>
+            <label>
+              Имя
+              <input {...contactForm.register('name')} />
+              {contactForm.formState.errors.name && (
+                <span>{contactForm.formState.errors.name.message}</span>
+              )}
+            </label>
+            <label>
+              Телефон
+              <input {...contactForm.register('phone')} />
+              {contactForm.formState.errors.phone && (
+                <span>{contactForm.formState.errors.phone.message}</span>
+              )}
+            </label>
+            <label>
+              Email
+              <input {...contactForm.register('email')} />
+              {contactForm.formState.errors.email && (
+                <span>{contactForm.formState.errors.email.message}</span>
+              )}
+            </label>
+            <Button type="submit">Сохранить</Button>
+          </form>
+
+          <div className={styles.profileBox}>
+            <div className={styles.addressHeader}>
+              <h3>Адреса доставки</h3>
             </div>
             {isEditing ? (
               <div className={styles.editGrid}>

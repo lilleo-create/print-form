@@ -11,12 +11,9 @@ interface AuthState {
     email: string;
     password: string;
     role?: Role;
-    phone?: string;
-    address?: string;
-    privacyAccepted?: boolean;
+    phone: string;
+    address: string;
   }) => Promise<void>;
-  updateProfile: (payload: { name?: string; email?: string; phone?: string; address?: string }) => Promise<void>;
-  setUser: (user: User) => void;
   logout: () => Promise<void>;
   hydrate: () => void;
 }

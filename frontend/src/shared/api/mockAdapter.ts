@@ -15,90 +15,6 @@ export const createMockClient = (): ApiClient => {
 
       if (path.startsWith('/products')) {
         const [pathname, queryString] = path.split('?');
-        if (pathname.endsWith('/reviews/summary')) {
-          const productId = pathname.split('/')[2];
-          const params = new URLSearchParams(queryString ?? '');
-          const scopedIds = params.get('productIds')
-            ? params
-              .get('productIds')!
-              .split(',')
-              .map((item) => item.trim())
-              .filter(Boolean)
-            : [productId];
-          const productReviews = mockReviews.filter(
-            (review) => !!review.productId && scopedIds.includes(review.productId) && review.isPublic !== false
-          );
-          const total = productReviews.length;
-          const counts = [5, 4, 3, 2, 1].map((rating) => ({
-            rating,
-            count: productReviews.filter((review) => review.rating === rating).length
-          }));
-          const avg = total
-            ? productReviews.reduce((sum, review) => sum + review.rating, 0) / total
-            : 0;
-          const photos = productReviews.flatMap((review) => review.photos ?? []);
-          return { data: { total, avg, counts, photos } as T };
-        }
-        if (pathname.includes('/reviews')) {
-          const productId = pathname.split('/')[2];
-          if (options.method === 'POST') {
-            const payload = options.body as {
-              rating: number;
-              pros: string;
-              cons: string;
-              comment: string;
-              photos?: string[];
-            };
-            const newReview = {
-              id: `review-${Date.now()}`,
-              productId,
-              userId: 'buyer-1',
-              rating: payload.rating,
-              pros: payload.pros,
-              cons: payload.cons,
-              comment: payload.comment,
-              photos: payload.photos ?? [],
-              likesCount: 0,
-              dislikesCount: 0,
-              isPublic: true,
-              createdAt: new Date().toISOString(),
-              user: { id: 'buyer-1', name: 'Гость' }
-            };
-            mockReviews = [newReview, ...mockReviews];
-            return { data: newReview as T };
-          }
-          const params = new URLSearchParams(queryString ?? '');
-          const scopedIds = params.get('productIds')
-            ? params
-              .get('productIds')!
-              .split(',')
-              .map((item) => item.trim())
-              .filter(Boolean)
-            : [productId];
-          const page = params.get('page') ? Number(params.get('page')) : 1;
-          const limit = params.get('limit') ? Number(params.get('limit')) : 5;
-          const sort = params.get('sort') ?? 'new';
-          const productReviews = mockReviews.filter(
-            (review) => {
-              const pid = review.productId;
-              return typeof pid === 'string' && scopedIds.includes(pid) && review.isPublic !== false;
-            }
-          );
-          const sorted = [...productReviews].sort((a, b) => {
-            if (sort === 'helpful') {
-              return (b.likesCount ?? 0) - (a.likesCount ?? 0);
-            }
-            if (sort === 'high') {
-              return b.rating - a.rating;
-            }
-            if (sort === 'low') {
-              return a.rating - b.rating;
-            }
-            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-          });
-          const data = sorted.slice((page - 1) * limit, page * limit);
-          return { data: { data, meta: { total: productReviews.length } } as T };
-        }
         if (pathname === '/products') {
           const params = new URLSearchParams(queryString ?? '');
           const filters = {
@@ -133,17 +49,7 @@ export const createMockClient = (): ApiClient => {
           if (filters.limit) {
             items = items.slice(0, filters.limit);
           }
-          const withRatings = items.map((item) => {
-            const productReviews = mockReviews.filter(
-              (review) => review.productId === item.id && review.isPublic !== false
-            );
-            const ratingCount = productReviews.length;
-            const ratingAvg = ratingCount
-              ? productReviews.reduce((sum, review) => sum + review.rating, 0) / ratingCount
-              : 0;
-            return { ...item, ratingAvg, ratingCount };
-          });
-          return { data: withRatings as T };
+          return { data: items as T };
         }
         const id = pathname.split('/')[2];
         const product = products.find((item) => item.id === id);
@@ -384,7 +290,7 @@ export const filterProducts = (
         : true;
     const matchQuery = filters.q
       ? item.title.toLowerCase().includes(filters.q.toLowerCase()) ||
-      item.description.toLowerCase().includes(filters.q.toLowerCase())
+        item.description.toLowerCase().includes(filters.q.toLowerCase())
       : true;
     const matchRating = filters.ratingMin ? (item.ratingAvg ?? 0) >= filters.ratingMin : true;
     const matchColor = filters.color ? item.color.toLowerCase() === filters.color.toLowerCase() : true;

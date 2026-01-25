@@ -124,13 +124,13 @@ model Review {
   productId String
   userId    String?
   rating    Int
-  pros      String
-  cons      String
-  comment   String
+  text      String
+  pros      String       @default("")
+  cons      String       @default("")
+  comment   String       @default("")
   photos    String[]     @default([])
-  likesCount    Int      @default(0)
+  likesCount Int         @default(0)
   dislikesCount Int      @default(0)
-  isPublic      Boolean  @default(true)
   status    ReviewStatus @default(PENDING)
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt

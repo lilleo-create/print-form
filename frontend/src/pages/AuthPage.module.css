@@ -6,19 +6,19 @@
 
 .card {
   background: #ffffff;
-  padding: 32px;
+  padding: 36px;
   border-radius: 20px;
-  width: min(420px, 100%);
+  width: min(480px, 100%);
   box-shadow: 0 16px 40px rgba(15, 23, 42, 0.1);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 
 .form {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .consent {
@@ -42,11 +42,11 @@
 .form input {
   border: 1px solid #e5e7eb;
   border-radius: 10px;
-  padding: 10px 12px;
+  padding: 12px 14px;
 }
 
 .form span {
-  font-size: 12px;
+  font-size: 14px;
   color: #ef4444;
 }
 
@@ -71,8 +71,8 @@
 .hint {
   background: #f3f4f6;
   border-radius: 12px;
-  padding: 12px;
-  font-size: 13px;
+  padding: 14px;
+  font-size: 15px;
   display: flex;
   flex-direction: column;
   gap: 4px;

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { productUseCases } from '../usecases/productUseCases';
 import { reviewService } from '../services/reviewService';
 import { authenticate, AuthRequest } from '../middleware/authMiddleware';
+import { prisma } from '../lib/prisma';
 
 export const productRoutes = Router();
 
@@ -12,10 +13,14 @@ const listSchema = z.object({
   size: z.string().optional(),
   minPrice: z.coerce.number().optional(),
   maxPrice: z.coerce.number().optional(),
+  q: z.string().optional(),
+  ratingMin: z.coerce.number().optional(),
+  color: z.string().optional(),
   sort: z.enum(['createdAt', 'rating']).optional(),
   order: z.enum(['asc', 'desc']).optional(),
   page: z.coerce.number().int().positive().optional(),
-  limit: z.coerce.number().int().positive().optional()
+  limit: z.coerce.number().int().positive().optional(),
+  cursor: z.string().optional()
 });
 
 productRoutes.get('/', async (req, res, next) => {
@@ -27,10 +32,14 @@ productRoutes.get('/', async (req, res, next) => {
       size: params.size,
       minPrice: params.minPrice,
       maxPrice: params.maxPrice,
+      q: params.q,
+      ratingMin: params.ratingMin,
+      color: params.color,
       sort: params.sort,
       order: params.order,
       page: params.page,
-      limit: params.limit
+      limit: params.limit,
+      cursor: params.cursor
     });
     res.json({ data: products });
   } catch (error) {
@@ -73,8 +82,8 @@ export const sellerProductSchema = z.object({
 
 const reviewSchema = z.object({
   rating: z.number().int().min(1).max(5),
-  pros: z.string().min(3).max(500),
-  cons: z.string().min(3).max(500),
+  pros: z.string().min(2).max(500),
+  cons: z.string().min(2).max(500),
   comment: z.string().min(10).max(1000),
   photos: z.array(z.string().url()).optional()
 });
@@ -83,16 +92,43 @@ productRoutes.get('/:id/reviews', async (req, res, next) => {
   try {
     const page = req.query.page ? Number(req.query.page) : 1;
     const limit = req.query.limit ? Number(req.query.limit) : 5;
-    const sort = req.query.sort ? String(req.query.sort) : 'new';
-    const productIds = req.query.productIds
-      ? String(req.query.productIds)
-          .split(',')
-          .map((value) => value.trim())
-          .filter(Boolean)
+    const sort = (req.query.sort as 'helpful' | 'rating_desc' | 'rating_asc' | 'new') ?? 'new';
+    const productIdsParam = typeof req.query.productIds === 'string' ? req.query.productIds : '';
+    const productIds = productIdsParam
+      ? productIdsParam.split(',').map((value) => value.trim()).filter(Boolean)
       : [req.params.id];
-    const reviews = await reviewService.listByProducts(productIds, page, limit, sort);
-    const total = await reviewService.countByProducts(productIds);
-    res.json({ data: reviews, meta: { total } });
+    const reviews = await reviewService.listByProduct(productIds, page, limit, sort);
+    res.json({ data: reviews });
+  } catch (error) {
+    next(error);
+  }
+});
+
+productRoutes.get('/:id/reviews/summary', async (req, res, next) => {
+  try {
+    const productIdsParam = typeof req.query.productIds === 'string' ? req.query.productIds : '';
+    const productIds = productIdsParam
+      ? productIdsParam.split(',').map((value) => value.trim()).filter(Boolean)
+      : [req.params.id];
+    const [counts, total] = await Promise.all([
+      prisma.review.groupBy({
+        by: ['rating'],
+        where: { productId: { in: productIds }, status: 'APPROVED' },
+        _count: { rating: true }
+      }),
+      prisma.review.count({ where: { productId: { in: productIds }, status: 'APPROVED' } })
+    ]);
+
+    const distribution = [5, 4, 3, 2, 1].reduce<Record<string, number>>((acc, rating) => {
+      acc[rating] = counts.find((item) => item.rating === rating)?._count.rating ?? 0;
+      return acc;
+    }, {});
+
+    const avg = total
+      ? counts.reduce((sum, item) => sum + item.rating * item._count.rating, 0) / total
+      : 0;
+
+    res.json({ data: { avg, total, distribution } });
   } catch (error) {
     next(error);
   }
@@ -108,7 +144,7 @@ productRoutes.post('/:id/reviews', authenticate, async (req: AuthRequest, res, n
       pros: payload.pros,
       cons: payload.cons,
       comment: payload.comment,
-      photos: payload.photos ?? []
+      photos: payload.photos
     });
     res.status(201).json({ data: review });
   } catch (error) {
