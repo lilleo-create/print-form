@@ -27,6 +27,8 @@ const seedUsers = (): UserRecord[] => {
       id: 'buyer-1',
       name: 'Покупатель',
       email: 'buyer@test.com',
+      phone: '+7 (900) 123-45-67',
+      address: 'Москва, ул. Тверская, 12',
       role: 'buyer',
       phone: '+7 (900) 000-00-00',
       address: 'Москва, ул. Примерная, 1',
@@ -37,6 +39,8 @@ const seedUsers = (): UserRecord[] => {
       id: 'seller-1',
       name: 'Продавец',
       email: 'seller@test.com',
+      phone: '+7 (900) 555-11-22',
+      address: 'Санкт-Петербург, Невский пр., 78',
       role: 'seller',
       phone: '+7 (900) 111-11-11',
       address: 'Санкт-Петербург, Невский пр., 10',
@@ -111,6 +115,8 @@ export const authApi = {
       id: `user-${Date.now()}`,
       name: payload.name,
       email: payload.email,
+      phone: payload.phone,
+      address: payload.address,
       role: payload.role ?? 'buyer',
       phone: payload.phone,
       address: payload.address,
@@ -133,11 +139,44 @@ export const authApi = {
     saveToStorage(STORAGE_KEYS.session, session);
     return session;
   },
+  updateProfile: async (payload: { name?: string; email?: string; phone?: string; address?: string }) => {
+    if (!useMock) {
+      const result = await api.updateProfile(payload);
+      const current = loadFromStorage<StoredSession | null>(STORAGE_KEYS.session, null);
+      if (current) {
+        const nextSession = { ...current, user: { ...current.user, ...result.data.data } };
+        saveToStorage(STORAGE_KEYS.session, nextSession);
+        return nextSession;
+      }
+      return null;
+    }
+    const session = loadFromStorage<StoredSession | null>(STORAGE_KEYS.session, null);
+    if (!session) {
+      return null;
+    }
+    const users = getUsers();
+    const nextUsers = users.map((item) =>
+      item.id === session.user.id ? { ...item, ...payload } : item
+    );
+    saveToStorage(STORAGE_KEYS.users, nextUsers);
+    const nextSession = { ...session, user: { ...session.user, ...payload } };
+    saveToStorage(STORAGE_KEYS.session, nextSession);
+    return nextSession;
+  },
   logout: async () => {
     if (!useMock) {
       await api.logout();
     }
     removeFromStorage(STORAGE_KEYS.session);
   },
-  getSession: () => loadFromStorage<StoredSession | null>(STORAGE_KEYS.session, null)
+  getSession: () => loadFromStorage<StoredSession | null>(STORAGE_KEYS.session, null),
+  setSessionUser: (user: User) => {
+    const current = loadFromStorage<StoredSession | null>(STORAGE_KEYS.session, null);
+    if (!current) {
+      return null;
+    }
+    const nextSession = { ...current, user };
+    saveToStorage(STORAGE_KEYS.session, nextSession);
+    return nextSession;
+  }
 };

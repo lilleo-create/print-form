@@ -5,7 +5,7 @@ export interface ApiResponse<T> {
   data: T;
 }
 
-export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 
 export interface ApiClient {
   request<T>(path: string, options?: { method?: HttpMethod; body?: unknown }): Promise<ApiResponse<T>>;

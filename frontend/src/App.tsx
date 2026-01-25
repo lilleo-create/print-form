@@ -44,8 +44,10 @@ const App = () => {
             </ProtectedRoute>
           }
         />
+        <Route path="/seller/onboarding" element={<SellerOnboardingPage />} />
         <Route path="/auth/login" element={<AuthPage />} />
         <Route path="/auth/register" element={<AuthPage />} />
+        <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
       </Routes>
     </Layout>
   );

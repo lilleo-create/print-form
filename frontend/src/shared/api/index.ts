@@ -1,11 +1,14 @@
 import { createMockClient, filterProducts } from './mockAdapter';
 import { createFetchClient } from './client';
-import { Product, CustomPrintRequest, Order, Review } from '../types';
+import { Product, CustomPrintRequest, Order, Review, SellerProfile } from '../types';
 import { products as seedProducts } from './mockData';
+import { loadFromStorage } from '../lib/storage';
+import { STORAGE_KEYS } from '../constants/storageKeys';
 
 const useMock = import.meta.env.VITE_USE_MOCK !== 'false';
 const baseUrl = import.meta.env.VITE_API_BASE_URL ?? '/api';
 const client = useMock ? createMockClient() : createFetchClient(baseUrl);
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 
 export const api = {
   async getProducts(filters?: {
@@ -123,10 +126,39 @@ export const api = {
   async getSellerProducts() {
     return client.request<Product[]>('/seller/products');
   },
-  async createSellerProduct(payload: Product) {
+  async createSellerProduct(payload: {
+    title: string;
+    price: number;
+    material: string;
+    category: string;
+    size: string;
+    technology: string;
+    printTime: string;
+    color: string;
+    description: string;
+    imageUrls: string[];
+    deliveryDateEstimated?: string;
+    deliveryDates?: string[];
+  }) {
     return client.request<Product>('/seller/products', { method: 'POST', body: payload });
   },
-  async updateSellerProduct(id: string, payload: Partial<Product>) {
+  async updateSellerProduct(
+    id: string,
+    payload: {
+      title?: string;
+      price?: number;
+      material?: string;
+      category?: string;
+      size?: string;
+      technology?: string;
+      printTime?: string;
+      color?: string;
+      description?: string;
+      imageUrls?: string[];
+      deliveryDateEstimated?: string;
+      deliveryDates?: string[];
+    }
+  ) {
     return client.request<Product>(`/seller/products/${id}`, { method: 'PUT', body: payload });
   },
   async removeSellerProduct(id: string) {

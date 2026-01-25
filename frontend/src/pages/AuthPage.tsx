@@ -28,6 +28,7 @@ export const AuthPage = () => {
   const isRegister = location.pathname.includes('/register');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const login = useAuthStore((state) => state.login);
   const register = useAuthStore((state) => state.register);
 
@@ -91,6 +92,14 @@ export const AuthPage = () => {
             {registerForm.formState.errors.name && (
               <span>{registerForm.formState.errors.name.message}</span>
             )}
+            <input placeholder="Телефон" {...registerForm.register('phone')} />
+            {registerForm.formState.errors.phone && (
+              <span>{registerForm.formState.errors.phone.message}</span>
+            )}
+            <input placeholder="Адрес" {...registerForm.register('address')} />
+            {registerForm.formState.errors.address && (
+              <span>{registerForm.formState.errors.address.message}</span>
+            )}
             <input placeholder="Email" {...registerForm.register('email')} />
             {registerForm.formState.errors.email && (
               <span>{registerForm.formState.errors.email.message}</span>
@@ -107,7 +116,23 @@ export const AuthPage = () => {
             {registerForm.formState.errors.password && (
               <span>{registerForm.formState.errors.password.message}</span>
             )}
-            <Button type="submit">Создать аккаунт</Button>
+            <label className={styles.consent}>
+              <input
+                type="checkbox"
+                checked={privacyAccepted}
+                onChange={(event) => setPrivacyAccepted(event.target.checked)}
+              />
+              <span>
+                Я соглашаюсь на{' '}
+                <Link to="/privacy-policy" className={styles.policyLink}>
+                  обработку персональных данных
+                </Link>{' '}
+                и подтверждаю, что ознакомился с Политикой обработки персональных данных
+              </span>
+            </label>
+            <Button type="submit" disabled={!privacyAccepted}>
+              Создать аккаунт
+            </Button>
           </form>
         ) : (
           <form onSubmit={loginForm.handleSubmit(onLogin)} className={styles.form}>

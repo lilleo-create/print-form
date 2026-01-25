@@ -18,6 +18,13 @@ const registerSchema = loginSchema.extend({
   role: z.enum(['BUYER', 'SELLER']).optional()
 });
 
+const updateProfileSchema = z.object({
+  name: z.string().min(2).optional(),
+  email: z.string().email().optional(),
+  phone: z.string().min(5).optional(),
+  address: z.string().min(3).optional()
+});
+
 authRoutes.post('/register', async (req, res, next) => {
   try {
     const payload = registerSchema.parse(req.body);

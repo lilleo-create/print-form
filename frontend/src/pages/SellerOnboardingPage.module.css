@@ -1,0 +1,109 @@
+.page {
+  padding: 64px 24px 96px;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.header p {
+  color: var(--color-text-muted);
+}
+
+.stepper {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.step,
+.stepActive {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 14px 16px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  box-shadow: var(--shadow-sm);
+}
+
+.step span,
+.stepActive span {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.stepActive span {
+  background: var(--color-primary);
+  color: #ffffff;
+}
+
+.card {
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  gap: 20px;
+}
+
+.formGrid {
+  display: grid;
+  gap: 16px;
+}
+
+.formGrid label {
+  display: grid;
+  gap: 6px;
+  font-weight: 500;
+}
+
+.notice {
+  background: #f8fafc;
+  border-radius: 16px;
+  padding: 16px;
+  display: grid;
+  gap: 8px;
+  color: var(--color-text-muted);
+}
+
+.notice a {
+  color: var(--color-primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.helper {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.error {
+  font-size: 12px;
+  color: #ef4444;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.completeCard {
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 32px;
+  display: grid;
+  gap: 16px;
+  box-shadow: var(--shadow-sm);
+}

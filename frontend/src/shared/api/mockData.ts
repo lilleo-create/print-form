@@ -1,4 +1,4 @@
-import { Product } from '../types';
+import { Product, Review } from '../types';
 
 export const products: Product[] = [
   {
@@ -180,3 +180,50 @@ export const orders = [
   }
 ];
 
+export const reviews: Review[] = [
+  {
+    id: 'r1',
+    productId: 'p1',
+    userId: 'buyer-1',
+    rating: 5,
+    pros: 'Отличная детализация и приятный вес.',
+    cons: 'Коробка могла быть плотнее.',
+    comment: 'Очень доволен качеством печати, все детали совпали с описанием.',
+    photos: ['https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=400&q=80'],
+    likesCount: 12,
+    dislikesCount: 1,
+    isPublic: true,
+    createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+    user: { id: 'buyer-1', name: 'Ирина' }
+  },
+  {
+    id: 'r2',
+    productId: 'p1',
+    userId: 'buyer-2',
+    rating: 4,
+    pros: 'Материал приятный, запаха почти нет.',
+    cons: 'Цвет чуть темнее, чем ожидал.',
+    comment: 'Собрался быстро, в целом соответствует ожиданиям.',
+    photos: [],
+    likesCount: 5,
+    dislikesCount: 0,
+    isPublic: true,
+    createdAt: new Date(Date.now() - 86400000 * 5).toISOString(),
+    user: { id: 'buyer-2', name: 'Андрей' }
+  },
+  {
+    id: 'r3',
+    productId: 'p1',
+    userId: 'buyer-3',
+    rating: 3,
+    pros: 'Быстрая доставка.',
+    cons: 'Нужна дополнительная шлифовка.',
+    comment: 'В целом нормально, но пришлось дорабатывать поверхность.',
+    photos: ['https://images.unsplash.com/photo-1503602642458-232111445657?auto=format&fit=crop&w=400&q=80'],
+    likesCount: 2,
+    dislikesCount: 3,
+    isPublic: true,
+    createdAt: new Date(Date.now() - 86400000 * 8).toISOString(),
+    user: { id: 'buyer-3', name: 'Имя скрыто' }
+  }
+];

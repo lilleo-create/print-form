@@ -31,6 +31,21 @@ export const useAuthStore = create<AuthState>((set) => ({
     const result = await authApi.register(payload);
     set({ user: result.user, token: result.token });
   },
+  async updateProfile(payload) {
+    const result = await authApi.updateProfile(payload);
+    if (result?.user) {
+      const user: User = {
+        ...result.user,
+        role: result.user.role as Role,
+      };
+
+      set({ user });
+    }
+  },
+  setUser(user) {
+    authApi.setSessionUser(user);
+    set({ user });
+  },
   async logout() {
     await authApi.logout();
     set({ user: null, token: null });

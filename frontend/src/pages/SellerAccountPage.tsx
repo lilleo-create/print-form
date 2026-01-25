@@ -1,207 +1,206 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useOrdersStore } from '../app/store/ordersStore';
-import { useProductsStore } from '../app/store/productsStore';
-import { useAuthStore } from '../app/store/authStore';
-import { addressesApi } from '../shared/api/addressesApi';
-import { contactsApi } from '../shared/api/contactsApi';
-import { Address, Contact, Order, Product } from '../shared/types';
-import { formatShortAddress } from '../shared/lib/formatShortAddress';
-import { SellerProductModal } from '../widgets/seller/SellerProductModal';
+import { useEffect, useState } from 'react';
+import { api } from '../shared/api';
+import { Product } from '../shared/types';
+import { Button } from '../shared/ui/Button';
+import { SellerProductModal, SellerProductPayload } from '../widgets/seller/SellerProductModal';
 import styles from './SellerAccountPage.module.css';
 
-interface SellerOrderGroup {
-  order: Order;
-  items: Order['items'];
-  contact?: Contact;
-  address?: Address;
-}
+const menuItems = [
+  'Подключение',
+  'Сводка',
+  'Товары',
+  'Заказы',
+  'Логистика',
+  'Продвижение',
+  'Бухгалтерия',
+  'Отчеты',
+  'Поддержка',
+  'Настройки'
+] as const;
 
 export const SellerAccountPage = () => {
+  const [activeItem, setActiveItem] = useState<(typeof menuItems)[number]>('Сводка');
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [stats, setStats] = useState({ totalOrders: 0, totalRevenue: 0, totalProducts: 0, averageRating: 0 });
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeProduct, setActiveProduct] = useState<Product | null>(null);
-  const [isModalOpen, setModalOpen] = useState(false);
-  const sellerProducts = useProductsStore((state) => state.sellerProducts);
-  const loadProducts = useProductsStore((state) => state.loadProducts);
-  const addProduct = useProductsStore((state) => state.addProduct);
-  const updateProduct = useProductsStore((state) => state.updateProduct);
-  const removeProduct = useProductsStore((state) => state.removeProduct);
-  const orders = useOrdersStore((state) => state.orders);
-  const loadSellerOrders = useOrdersStore((state) => state.loadSellerOrders);
-  const user = useAuthStore((state) => state.user);
-  const [contacts, setContacts] = useState<Record<string, Contact[]>>({});
-  const [addresses, setAddresses] = useState<Record<string, Address[]>>({});
+  const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    loadProducts();
-    if (user) {
-      loadSellerOrders(user.id);
+  const loadDashboard = async () => {
+    try {
+      const [productsResponse, statsResponse] = await Promise.all([
+        api.getSellerProducts(),
+        api.getSellerStats()
+      ]);
+      setProducts(productsResponse.data);
+      setStats(statsResponse.data);
+    } finally {
+      setIsLoading(false);
     }
-  }, [loadProducts, loadSellerOrders, user]);
+  };
 
   useEffect(() => {
-    const buyerIds = Array.from(new Set(orders.map((order) => order.buyerId)));
-    if (buyerIds.length === 0) {
-      setContacts({});
-      setAddresses({});
+    loadDashboard();
+  }, []);
+
+  const handleSaveProduct = async (payload: SellerProductPayload) => {
+    if (payload.id) {
+      const response = await api.updateSellerProduct(payload.id, payload);
+      setProducts((prev) => prev.map((item) => (item.id === payload.id ? response.data : item)));
       return;
     }
-
-    Promise.all(buyerIds.map((buyerId) => contactsApi.listByUser(buyerId).then((list) => [buyerId, list])))
-      .then((entries) => {
-        setContacts(Object.fromEntries(entries));
-      });
-
-    Promise.all(buyerIds.map((buyerId) => addressesApi.listByUser(buyerId).then((list) => [buyerId, list])))
-      .then((entries) => {
-        setAddresses(Object.fromEntries(entries));
-      });
-  }, [orders]);
-
-  const orderGroups = useMemo<SellerOrderGroup[]>(() => {
-    if (!user) {
-      return [];
-    }
-    return orders
-      .map((order) => {
-        const items = order.items.filter((item) => item.sellerId === user.id);
-        const buyerContacts = contacts[order.buyerId] ?? [];
-        const buyerAddresses = addresses[order.buyerId] ?? [];
-        const contact = buyerContacts.find((entry) => entry.id === order.contactId);
-        const address = buyerAddresses.find((entry) => entry.id === order.shippingAddressId);
-        return { order, items, contact, address };
-      })
-      .filter((group) => group.items.length > 0);
-  }, [addresses, contacts, orders, user]);
-
-  const revenue = orderGroups.reduce((sum, group) => sum + group.items.reduce((itemSum, item) => itemSum + item.lineTotal, 0), 0);
-
-  const openCreate = () => {
-    setActiveProduct(null);
-    setModalOpen(true);
-  };
-
-  const openEdit = (product: Product) => {
-    setActiveProduct(product);
-    setModalOpen(true);
-  };
-
-  const handleDelete = async (productId: string) => {
-    if (window.confirm('Удалить товар?')) {
-      await removeProduct(productId);
-    }
-  };
-
-  const handleSubmit = async (product: Product) => {
-    if (sellerProducts.some((item) => item.id === product.id)) {
-      await updateProduct(product);
-    } else {
-      await addProduct(product);
-    }
+    const response = await api.createSellerProduct(payload);
+    setProducts((prev) => [response.data, ...prev]);
   };
 
   return (
     <section className={styles.page}>
-      <div className="container">
-        <div className={styles.header}>
-          <div>
-            <h1>Кабинет продавца</h1>
-            <p>Управляйте товарами, заказами и статистикой.</p>
-          </div>
-          <div className={styles.stats}>
-            <div>
-              <span>Выручка</span>
-              <strong>{revenue.toLocaleString('ru-RU')} ₽</strong>
-            </div>
-            <div>
-              <span>Заказы</span>
-              <strong>{orderGroups.length}</strong>
-            </div>
-            <div>
-              <span>Товары</span>
-              <strong>{sellerProducts.length}</strong>
-            </div>
-          </div>
-        </div>
-
-        <div className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <h2>Товары</h2>
-            <button className={styles.addButton} onClick={openCreate}>
-              + Добавить товар
+      <div className={styles.shell}>
+        <aside className={`${styles.sidebar} ${isMenuOpen ? styles.sidebarOpen : ''}`}>
+          <div className={styles.sidebarHeader}>
+            <h2>Кабинет продавца</h2>
+            <button type="button" className={styles.closeMenu} onClick={() => setIsMenuOpen(false)}>
+              ✕
             </button>
           </div>
-          {sellerProducts.length === 0 ? (
-            <p className={styles.empty}>Нет товаров. Добавьте первый товар.</p>
-          ) : (
-            <div className={styles.productGrid}>
-              {sellerProducts.map((product) => (
-                <div key={product.id} className={styles.productCard}>
-                  <img src={product.image} alt={product.title} />
-                  <div>
-                    <h4>{product.title}</h4>
-                    <p>{product.price.toLocaleString('ru-RU')} ₽</p>
-                  </div>
-                  <div className={styles.actions}>
-                    <button onClick={() => openEdit(product)}>Редактировать</button>
-                    <button onClick={() => handleDelete(product.id)}>Удалить</button>
-                  </div>
-                </div>
-              ))}
+          <nav className={styles.menu}>
+            {menuItems.map((item) => (
+              <button
+                key={item}
+                type="button"
+                className={item === activeItem ? styles.menuItemActive : styles.menuItem}
+                onClick={() => {
+                  setActiveItem(item);
+                  setIsMenuOpen(false);
+                }}
+              >
+                {item}
+              </button>
+            ))}
+          </nav>
+        </aside>
+
+        <div className={styles.content}>
+          <div className={styles.topBar}>
+            <button type="button" className={styles.menuToggle} onClick={() => setIsMenuOpen(true)}>
+              ☰
+            </button>
+            <div>
+              <h1>{activeItem}</h1>
+              <p>Раздел продавца PrintForm.</p>
+            </div>
+          </div>
+
+          {activeItem === 'Сводка' && (
+            <div className={styles.blocks}>
+              <div className={styles.block}>
+                <h3>Заказы</h3>
+                <p>{stats.totalOrders} всего</p>
+              </div>
+              <div className={styles.block}>
+                <h3>Выручка</h3>
+                <p>{stats.totalRevenue.toLocaleString('ru-RU')} ₽</p>
+              </div>
+              <div className={styles.block}>
+                <h3>Товары</h3>
+                <p>{stats.totalProducts} в каталоге</p>
+              </div>
+              <div className={styles.block}>
+                <h3>Средний рейтинг</h3>
+                <p>{stats.averageRating.toFixed(1)}</p>
+              </div>
             </div>
           )}
-        </div>
 
-        <div className={styles.section}>
-          <h2>Заказы</h2>
-          {orderGroups.length === 0 ? (
-            <p className={styles.empty}>Пока нет заказов.</p>
-          ) : (
-            <div className={styles.orderList}>
-              {orderGroups.map(({ order, items, contact, address }) => (
-                <div key={order.id} className={styles.orderCard}>
-                  <div>
-                    <h4>Заказ #{order.id}</h4>
-                    <span>{order.createdAt}</span>
-                    {contact && (
-                      <p>
-                        {contact.name} · {contact.phone}
-                      </p>
-                    )}
-                    {address && (
-                      <p>
-                        {address.addressText
-                          ? formatShortAddress(address.addressText)
-                          : 'Адрес не указан'}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <strong>
-                      {items
-                        .reduce((sum, item) => sum + item.lineTotal, 0)
-                        .toLocaleString('ru-RU')} ₽
-                    </strong>
-                    <p>Позиции: {items.length}</p>
-                  </div>
-                  <div className={styles.orderItems}>
-                    {items.map((item) => (
-                      <span key={item.productId}>
-                        {item.title} × {item.qty}
-                      </span>
-                    ))}
-                  </div>
+          {activeItem === 'Товары' && (
+            <div className={styles.section}>
+              <div className={styles.sectionHeader}>
+                <div>
+                  <h2>Товары продавца</h2>
+                  <p>Создавайте и редактируйте карточки с описанием и фото.</p>
                 </div>
-              ))}
+                <Button
+                  type="button"
+                  onClick={() => {
+                    setActiveProduct(null);
+                    setIsModalOpen(true);
+                  }}
+                >
+                  Добавить товар
+                </Button>
+              </div>
+              {isLoading ? (
+                <p className={styles.muted}>Загрузка данных...</p>
+              ) : (
+                <div className={styles.table}>
+                  <div className={styles.tableHeader}>
+                    <span>Название</span>
+                    <span>Цена</span>
+                    <span>Категория</span>
+                    <span>Действия</span>
+                  </div>
+                  {products.length === 0 ? (
+                    <p className={styles.muted}>Товаров пока нет.</p>
+                  ) : (
+                    products.map((product) => (
+                      <div key={product.id} className={styles.tableRow}>
+                        <span>{product.title}</span>
+                        <span>{product.price.toLocaleString('ru-RU')} ₽</span>
+                        <span>{product.category}</span>
+                        <button
+                          type="button"
+                          className={styles.linkButton}
+                          onClick={() => {
+                            setActiveProduct(product);
+                            setIsModalOpen(true);
+                          }}
+                        >
+                          Редактировать
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
             </div>
+          )}
+
+          {activeItem !== 'Сводка' && activeItem !== 'Товары' && (
+            <div className={styles.blocks}>
+              <div className={styles.block}>
+                <h3>Раздел “{activeItem}”</h3>
+                <p>Этот модуль подключим в следующих итерациях.</p>
+              </div>
+            </div>
+          )}
+
+          <div className={styles.blocks}>
+            <div className={styles.block}>
+              <h3>Статус раздела</h3>
+              <p>Здесь появятся ключевые показатели и быстрые действия для раздела “{activeItem}”.</p>
+            </div>
+
+            <div className={styles.block}>
+              <h3>Данные и задачи</h3>
+              <p>Подготовьте нужные материалы — мы покажем их здесь после подключения модулей.</p>
+            </div>
+
+            <div className={styles.block}>
+              <h3>Подсказки</h3>
+              <p>Рекомендации по работе с каталогом и заказами появятся после запуска.</p>
+            </div>
+          </div>
+
+          {isModalOpen && (
+            <SellerProductModal
+              product={activeProduct}
+              onClose={() => setIsModalOpen(false)}
+              onSubmit={handleSaveProduct}
+            />
           )}
         </div>
       </div>
-      {isModalOpen && (
-        <SellerProductModal
-          product={activeProduct}
-          onClose={() => setModalOpen(false)}
-          onSubmit={handleSubmit}
-        />
-      )}
     </section>
   );
 };

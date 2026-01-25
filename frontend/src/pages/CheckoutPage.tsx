@@ -25,13 +25,17 @@ export const CheckoutPage = () => {
   const items = useCartStore((state) => state.items);
   const clear = useCartStore((state) => state.clear);
   const user = useAuthStore((state) => state.user);
+  const updateProfile = useAuthStore((state) => state.updateProfile);
   const createOrder = useOrdersStore((state) => state.createOrder);
   const addresses = useAddressStore((state) => state.addresses);
   const selectedAddressId = useAddressStore((state) => state.selectedAddressId);
   const openModal = useAddressStore((state) => state.openModal);
   const loadAddresses = useAddressStore((state) => state.loadAddresses);
+  const addAddress = useAddressStore((state) => state.addAddress);
+  const selectAddress = useAddressStore((state) => state.selectAddress);
   const navigate = useNavigate();
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [saveToProfile, setSaveToProfile] = useState(false);
   const selectedAddress = addresses.find((address) => address.id === selectedAddressId);
 
   const contactForm = useForm<ContactFormValues>({ resolver: zodResolver(contactSchema) });
@@ -51,6 +55,11 @@ export const CheckoutPage = () => {
           email: user.email ?? ''
         });
       }
+      contactForm.reset({
+        name: user.name ?? '',
+        phone: user.phone ?? '',
+        email: user.email ?? ''
+      });
     });
   }, [contactForm, user]);
 
@@ -59,6 +68,22 @@ export const CheckoutPage = () => {
       loadAddresses(user.id);
     }
   }, [loadAddresses, user]);
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+    if (user.address && addresses.length === 0) {
+      void (async () => {
+        const created = await addAddress({
+          userId: user.id,
+          addressText: user.address ?? '',
+          coords: null
+        });
+        await selectAddress(user.id, created.id);
+      })();
+    }
+  }, [addAddress, addresses.length, selectAddress, user]);
 
   const total = useMemo(
     () => items.reduce((sum, item) => sum + item.product.price * item.quantity, 0),
@@ -138,6 +163,14 @@ export const CheckoutPage = () => {
       items: orderItems,
       total
     });
+    if (saveToProfile) {
+      const values = contactForm.getValues();
+      await updateProfile({
+        name: values.name,
+        phone: values.phone,
+        address: selectedAddress?.addressText ?? user.address ?? undefined
+      });
+    }
     clear();
     navigate('/account');
   };
@@ -175,6 +208,14 @@ export const CheckoutPage = () => {
                 )}
               </label>
               <Button type="submit">Сохранить контакт</Button>
+              <label className={styles.saveProfile}>
+                <input
+                  type="checkbox"
+                  checked={saveToProfile}
+                  onChange={(event) => setSaveToProfile(event.target.checked)}
+                />
+                Сохранить в профиль
+              </label>
             </form>
 
             <div className={styles.form}>

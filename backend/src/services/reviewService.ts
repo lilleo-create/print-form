@@ -1,5 +1,24 @@
 import { prisma } from '../lib/prisma';
 
+const sortMap = (sort: string) => {
+  switch (sort) {
+    case 'helpful':
+      return [{ likesCount: 'desc' }, { createdAt: 'desc' }];
+    case 'high':
+      return [{ rating: 'desc' }, { createdAt: 'desc' }];
+    case 'low':
+      return [{ rating: 'asc' }, { createdAt: 'desc' }];
+    default:
+      return [{ createdAt: 'desc' }];
+  }
+};
+
+const buildWhere = (productIds: string[]) => ({
+  productId: { in: productIds },
+  status: 'APPROVED' as const,
+  isPublic: true
+});
+
 export const reviewService = {
   async addReview(data: {
     productId: string;

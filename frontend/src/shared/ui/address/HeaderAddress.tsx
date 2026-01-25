@@ -5,9 +5,11 @@ import styles from './HeaderAddress.module.css';
 
 type HeaderAddressProps = {
   disabled?: boolean;
+  className?: string;
+  variant?: 'default' | 'compact';
 };
 
-export const HeaderAddress = ({ disabled }: HeaderAddressProps) => {
+export const HeaderAddress = ({ disabled, className, variant = 'default' }: HeaderAddressProps) => {
   const addresses = useAddressStore((state) => state.addresses);
   const selectedAddressId = useAddressStore((state) => state.selectedAddressId);
   const openModal = useAddressStore((state) => state.openModal);
@@ -21,12 +23,14 @@ export const HeaderAddress = ({ disabled }: HeaderAddressProps) => {
     ? selectedAddress.isFavorite && selectedAddress.label
       ? selectedAddress.label
       : formatShortAddress(selectedAddress.addressText)
-    : 'Выберите адрес';
+    : 'Укажите адрес доставки';
 
   return (
     <button
       type="button"
-      className={styles.addressButton}
+      className={[styles.addressButton, variant === 'compact' ? styles.compact : '', className]
+        .filter(Boolean)
+        .join(' ')}
       onClick={() => {
         if (!disabled) {
           openModal();

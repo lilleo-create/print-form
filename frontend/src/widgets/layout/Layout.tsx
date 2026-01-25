@@ -3,8 +3,11 @@ import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-do
 import { useCartStore } from '../../app/store/cartStore';
 import { useAuthStore } from '../../app/store/authStore';
 import { useAddressStore } from '../../app/store/addressStore';
+import { useProductBoardStore } from '../../app/store/productBoardStore';
 import { AddressModal } from '../../shared/ui/address/AddressModal';
 import { HeaderAddress } from '../../shared/ui/address/HeaderAddress';
+import { Rating } from '../../shared/ui/Rating';
+import { Button } from '../../shared/ui/Button';
 import { ProductModal } from '../shop/ProductModal';
 import { useFilters } from '../../features/catalog/useFilters';
 import { useCatalog } from '../../features/catalog/useCatalog';
@@ -17,6 +20,7 @@ interface LayoutProps {
 
 export const Layout = ({ children }: LayoutProps) => {
   const cartItems = useCartStore((state) => state.items);
+  const addItem = useCartStore((state) => state.addItem);
   const { user, logout } = useAuthStore();
   const addresses = useAddressStore((state) => state.addresses);
   const selectedAddressId = useAddressStore((state) => state.selectedAddressId);
@@ -237,6 +241,38 @@ export const Layout = ({ children }: LayoutProps) => {
         </div>
       </header>
       <main className={styles.main}>{children}</main>
+      {showBottomNav && (
+        <nav className={styles.bottomNav} aria-label="Основная навигация">
+          <Link
+            to="/"
+            className={`${styles.bottomNavItem} ${location.pathname === '/' ? styles.bottomNavItemActive : ''}`}
+          >
+            <span aria-hidden>🏠</span>
+            <span>Главная</span>
+          </Link>
+          <Link
+            to="/account?tab=favorites"
+            className={`${styles.bottomNavItem} ${isFavorites ? styles.bottomNavItemActive : ''}`}
+          >
+            <span aria-hidden>❤</span>
+            <span>Избранное</span>
+          </Link>
+          <Link
+            to="/cart"
+            className={`${styles.bottomNavItem} ${location.pathname === '/cart' ? styles.bottomNavItemActive : ''}`}
+          >
+            <span aria-hidden>🛒</span>
+            <span>Корзина</span>
+          </Link>
+          <Link
+            to="/account?tab=profile"
+            className={`${styles.bottomNavItem} ${isProfile ? styles.bottomNavItemActive : ''}`}
+          >
+            <span aria-hidden>👤</span>
+            <span>Профиль</span>
+          </Link>
+        </nav>
+      )}
       <footer className={styles.footer}>
         <div>
           <h4>3D Печать маркетплейс</h4>

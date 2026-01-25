@@ -5,10 +5,18 @@
   padding: 10px 16px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   font-weight: 500;
   cursor: pointer;
   color: var(--color-text);
+}
+
+.compact {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-weight: 500;
+  color: var(--color-text-muted);
 }
 
 .addressButton:disabled {

@@ -16,5 +16,13 @@ export const userRepository = {
         ...data,
         role: data.role ?? 'BUYER'
       }
+    }),
+  updateProfile: (
+    id: string,
+    payload: { name?: string; email?: string; phone?: string | null; address?: string | null }
+  ) =>
+    prisma.user.update({
+      where: { id },
+      data: payload
     })
 };

@@ -15,6 +15,9 @@ const formatDeliveryDate = (date?: string) => {
   return next.toLocaleDateString('ru-RU', { day: '2-digit', month: 'long' });
 };
 
+const formatReviewDate = (value: string) =>
+  new Date(value).toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric' });
+
 export const ProductPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -50,6 +53,14 @@ export const ProductPage = () => {
       })
       .finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    if (product) {
+      setProductBoard(product);
+    }
+  }, [product, setProductBoard]);
+
+  useEffect(() => () => setProductBoard(null), [setProductBoard]);
 
   useEffect(() => {
     if (!id) return;
@@ -158,9 +169,7 @@ export const ProductPage = () => {
                 (image) => (
                   <button
                     key={image.id}
-                    className={
-                      activeImage === image.url ? `${styles.thumb} ${styles.thumbActive}` : styles.thumb
-                    }
+                    className={activeImage === image.url ? `${styles.thumb} ${styles.thumbActive}` : styles.thumb}
                     onClick={() => setActiveImage(image.url)}
                     aria-label={`Показать изображение ${product.title}`}
                   >
@@ -209,12 +218,17 @@ export const ProductPage = () => {
                 >
                   <option value="">Выберите вариант</option>
                   {product.variants.map((variant) => (
-                    <option key={variant.id} value={variant.id}>
+                    <button
+                      type="button"
+                      key={variant.id}
+                      className={selectedVariant === variant.id ? styles.variantActive : styles.variantButton}
+                      onClick={() => handleVariantChange(variant.id)}
+                    >
                       {variant.name}
-                    </option>
+                    </button>
                   ))}
-                </select>
-              </label>
+                </div>
+              </div>
             ) : null}
             <div className={styles.actions}>
               <Button

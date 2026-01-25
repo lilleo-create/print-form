@@ -12,17 +12,19 @@
 .modal {
   background: #ffffff;
   border-radius: 20px;
-  width: min(520px, 100%);
-  padding: 24px;
+  width: min(760px, 100%);
+  max-height: 90vh;
+  padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex: 0 0 auto;
 }
 
 .close {
@@ -36,19 +38,42 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  flex: 1;
+  min-height: 0;
 }
 
-.form label {
+.content {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 16px;
+  overflow-y: auto;
+  padding-right: 4px;
+  flex: 1;
+  min-height: 0;
+}
+
+.field {
   display: flex;
   flex-direction: column;
   gap: 6px;
   font-weight: 500;
 }
 
+.fieldFull {
+  grid-column: 1 / -1;
+}
+
 .form input {
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   padding: 8px 10px;
+}
+
+.form textarea {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px 10px;
+  resize: vertical;
 }
 
 .form span {
@@ -60,4 +85,19 @@
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
+  flex: 0 0 auto;
+  justify-content: flex-end;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 12px;
+}
+
+@media (max-width: 768px) {
+  .modal {
+    width: min(100%, 520px);
+    padding: 16px;
+  }
+
+  .content {
+    grid-template-columns: 1fr;
+  }
 }
