@@ -21,26 +21,30 @@
 
 .image {
   width: 100%;
-  height: 180px;
+  height: 240px;
   object-fit: cover;
 }
 
 .body {
-  padding: 16px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
+}
+
+.body h3 {
+  font-size: 18px;
 }
 
 .meta {
   display: flex;
   gap: 12px;
   color: #6b7280;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .price {
-  font-size: 18px;
+  font-size: 22px;
   font-weight: 700;
 }
 

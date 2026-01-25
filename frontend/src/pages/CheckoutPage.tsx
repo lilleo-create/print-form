@@ -44,6 +44,12 @@ export const CheckoutPage = () => {
       setContacts(data);
       if (data[0]) {
         contactForm.reset({ name: data[0].name, phone: data[0].phone, email: data[0].email ?? '' });
+      } else {
+        contactForm.reset({
+          name: user.name ?? '',
+          phone: user.phone ?? '',
+          email: user.email ?? ''
+        });
       }
     });
   }, [contactForm, user]);
@@ -184,7 +190,7 @@ export const CheckoutPage = () => {
                     ? selectedAddress.isFavorite && selectedAddress.label
                       ? selectedAddress.label
                       : formatShortAddress(selectedAddress.addressText)
-                    : 'Выберите адрес'}
+                    : user?.address ?? 'Выберите адрес'}
                 </span>
               </button>
             </div>

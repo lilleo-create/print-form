@@ -101,6 +101,27 @@ export const BuyerAccountPage = () => {
         </div>
 
         <div className={styles.profileGrid}>
+          <div className={styles.profileBox}>
+            <h3>Профиль</h3>
+            <div className={styles.profileList}>
+              <div>
+                <span>Имя</span>
+                <strong>{user?.name ?? '—'}</strong>
+              </div>
+              <div>
+                <span>Email</span>
+                <strong>{user?.email ?? '—'}</strong>
+              </div>
+              <div>
+                <span>Телефон</span>
+                <strong>{user?.phone ?? '—'}</strong>
+              </div>
+              <div>
+                <span>Адрес</span>
+                <strong>{user?.address ?? '—'}</strong>
+              </div>
+            </div>
+          </div>
           <form className={styles.profileBox} onSubmit={contactForm.handleSubmit(handleSaveContact)}>
             <h3>Личные данные</h3>
             <label>

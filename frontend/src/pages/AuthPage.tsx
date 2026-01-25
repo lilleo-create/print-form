@@ -13,7 +13,9 @@ const loginSchema = z.object({
 });
 
 const registerSchema = loginSchema.extend({
-  name: z.string().min(2, 'Введите имя')
+  name: z.string().min(2, 'Введите имя'),
+  phone: z.string().min(5, 'Введите телефон'),
+  address: z.string().min(5, 'Введите адрес')
 });
 
 type LoginValues = z.infer<typeof loginSchema>;
@@ -64,7 +66,13 @@ export const AuthPage = () => {
   const onRegister = async (values: RegisterValues) => {
     setError('');
     try {
-      await register({ name: values.name, email: values.email, password: values.password });
+      await register({
+        name: values.name,
+        email: values.email,
+        password: values.password,
+        phone: values.phone,
+        address: values.address
+      });
       const role = useAuthStore.getState().user?.role;
       setMessage('Регистрация завершена!');
       handleRedirect(role);
@@ -86,6 +94,14 @@ export const AuthPage = () => {
             <input placeholder="Email" {...registerForm.register('email')} />
             {registerForm.formState.errors.email && (
               <span>{registerForm.formState.errors.email.message}</span>
+            )}
+            <input placeholder="Телефон" {...registerForm.register('phone')} />
+            {registerForm.formState.errors.phone && (
+              <span>{registerForm.formState.errors.phone.message}</span>
+            )}
+            <input placeholder="Адрес доставки" {...registerForm.register('address')} />
+            {registerForm.formState.errors.address && (
+              <span>{registerForm.formState.errors.address.message}</span>
             )}
             <input type="password" placeholder="Пароль" {...registerForm.register('password')} />
             {registerForm.formState.errors.password && (

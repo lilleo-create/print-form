@@ -28,6 +28,8 @@ const seedUsers = (): UserRecord[] => {
       name: 'Покупатель',
       email: 'buyer@test.com',
       role: 'buyer',
+      phone: '+7 (900) 000-00-00',
+      address: 'Москва, ул. Примерная, 1',
       password: 'buyer123',
       createdAt: now()
     },
@@ -36,6 +38,8 @@ const seedUsers = (): UserRecord[] => {
       name: 'Продавец',
       email: 'seller@test.com',
       role: 'seller',
+      phone: '+7 (900) 111-11-11',
+      address: 'Санкт-Петербург, Невский пр., 10',
       password: 'seller123',
       createdAt: now()
     }
@@ -64,17 +68,33 @@ export const authApi = {
     }
     const session: StoredSession = {
       token: `token-${Date.now()}`,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role }
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        phone: user.phone,
+        address: user.address
+      }
     };
     saveToStorage(STORAGE_KEYS.session, session);
     return session;
   },
-  register: async (payload: { name: string; email: string; password: string; role?: Role }) => {
+  register: async (payload: {
+    name: string;
+    email: string;
+    password: string;
+    role?: Role;
+    phone: string;
+    address: string;
+  }) => {
     if (!useMock) {
       const result = await api.register({
         name: payload.name,
         email: payload.email,
-        password: payload.password
+        password: payload.password,
+        phone: payload.phone,
+        address: payload.address
       });
       const session: StoredSession = {
         token: result.data.token,
@@ -92,6 +112,8 @@ export const authApi = {
       name: payload.name,
       email: payload.email,
       role: payload.role ?? 'buyer',
+      phone: payload.phone,
+      address: payload.address,
       password: payload.password,
       createdAt: now()
     };
@@ -99,7 +121,14 @@ export const authApi = {
     saveToStorage(STORAGE_KEYS.users, nextUsers);
     const session: StoredSession = {
       token: `token-${Date.now()}`,
-      user: { id: newUser.id, name: newUser.name, email: newUser.email, role: newUser.role }
+      user: {
+        id: newUser.id,
+        name: newUser.name,
+        email: newUser.email,
+        role: newUser.role,
+        phone: newUser.phone,
+        address: newUser.address
+      }
     };
     saveToStorage(STORAGE_KEYS.session, session);
     return session;

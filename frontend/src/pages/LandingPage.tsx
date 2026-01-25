@@ -1,12 +1,87 @@
 import { Link } from 'react-router-dom';
-import { useCatalog } from '../features/catalog/useCatalog';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { api } from '../shared/api';
+import { Product } from '../shared/types';
 import { ProductCard } from '../widgets/shop/ProductCard';
 import { Button } from '../shared/ui/Button';
 import { CustomPrintForm } from '../widgets/shop/CustomPrintForm';
 import styles from './LandingPage.module.css';
 
 export const LandingPage = () => {
-  const { products } = useCatalog({});
+  const [feedProducts, setFeedProducts] = useState<Product[]>([]);
+  const [feedCursor, setFeedCursor] = useState<string | null>(null);
+  const [feedLoading, setFeedLoading] = useState(false);
+  const [feedHasMore, setFeedHasMore] = useState(true);
+  const [feedError, setFeedError] = useState('');
+  const [activeSlide, setActiveSlide] = useState(0);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  const sliderItems = useMemo(() => {
+    const fromProducts = feedProducts.slice(0, 3).map((product) => ({
+      id: product.id,
+      title: product.title,
+      description: product.descriptionShort ?? 'Популярный товар из каталога',
+      image: product.image
+    }));
+    if (fromProducts.length >= 3) return fromProducts;
+    return [
+      { id: 'promo-1', title: 'Скидки на 3D-печать', description: 'Лучшие предложения недели', image: '' },
+      { id: 'promo-2', title: 'Новые коллекции', description: 'Популярные модели для дома и офиса', image: '' },
+      { id: 'promo-3', title: 'Экспресс-доставка', description: 'Доставим заказ за 1–3 дня', image: '' }
+    ];
+  }, [feedProducts]);
+
+  useEffect(() => {
+    if (activeSlide >= sliderItems.length) {
+      setActiveSlide(0);
+    }
+  }, [activeSlide, sliderItems.length]);
+
+  const loadMore = useCallback(async () => {
+    if (feedLoading || !feedHasMore) return;
+    setFeedLoading(true);
+    setFeedError('');
+    try {
+      const response = await api.getProducts({
+        cursor: feedCursor ?? undefined,
+        limit: 8,
+        sort: 'createdAt',
+        order: 'desc'
+      });
+      setFeedProducts((prev) => {
+        const ids = new Set(prev.map((item) => item.id));
+        const nextItems = response.data.filter((item) => !ids.has(item.id));
+        return [...prev, ...nextItems];
+      });
+      setFeedHasMore(response.data.length > 0);
+      setFeedCursor(response.data.at(-1)?.id ?? null);
+    } catch (error) {
+      setFeedError(error instanceof Error ? error.message : 'Не удалось загрузить товары.');
+      setFeedHasMore(false);
+    } finally {
+      setFeedLoading(false);
+    }
+  }, [feedCursor, feedHasMore, feedLoading]);
+
+  useEffect(() => {
+    loadMore();
+  }, [loadMore]);
+
+  useEffect(() => {
+    if (!sentinelRef.current || !feedHasMore) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            loadMore();
+          }
+        });
+      },
+      { rootMargin: '200px' }
+    );
+    observer.observe(sentinelRef.current);
+    return () => observer.disconnect();
+  }, [feedHasMore, loadMore]);
 
   return (
     <div className={styles.page}>
@@ -48,21 +123,64 @@ export const LandingPage = () => {
         </div>
       </section>
 
+      <section className={styles.sliderSection}>
+        <div className="container">
+          <div className={styles.sliderHeader}>
+            <h2>Акции и подборки</h2>
+            <div className={styles.sliderActions}>
+              <button
+                type="button"
+                onClick={() => setActiveSlide((prev) => (prev === 0 ? sliderItems.length - 1 : prev - 1))}
+              >
+                ←
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveSlide((prev) => (prev + 1) % sliderItems.length)}
+              >
+                →
+              </button>
+            </div>
+          </div>
+          <div className={styles.sliderTrack}>
+            {sliderItems.map((item, index) => (
+              <article
+                key={item.id}
+                className={styles.slide}
+                style={{ transform: `translateX(${(index - activeSlide) * 100}%)` }}
+              >
+                {item.image ? <img src={item.image} alt={item.title} /> : <div className={styles.slideMock} />}
+                <div className={styles.slideContent}>
+                  <h3>{item.title}</h3>
+                  <p>{item.description}</p>
+                  <Link to="/catalog" className={styles.slideLink}>
+                    Перейти в каталог
+                  </Link>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <section className="container" id="catalog">
         <div className={styles.sectionHeader}>
           <div>
-            <h2>Популярные модели</h2>
-            <p>Лучшие продукты от продавцов маркетплейса.</p>
+            <h2>Лента товаров</h2>
+            <p>Новые и популярные модели из каталога.</p>
           </div>
           <Link to="/catalog" className={styles.link}>
             Весь каталог →
           </Link>
         </div>
         <div className={styles.grid}>
-          {products.slice(0, 4).map((product) => (
+          {feedProducts.map((product) => (
             <ProductCard product={product} key={product.id} />
           ))}
         </div>
+        {feedError && <p className={styles.loading}>{feedError}</p>}
+        {feedLoading && <p className={styles.loading}>Загрузка...</p>}
+        <div ref={sentinelRef} />
       </section>
 
       <section className={styles.customSection} id="custom">

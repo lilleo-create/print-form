@@ -1,0 +1,326 @@
+.page {
+  padding: 48px 0 96px;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 32px;
+}
+
+.back {
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-weight: 600;
+  width: fit-content;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 260px 1fr 240px;
+  gap: 24px;
+}
+
+.summary {
+  position: sticky;
+  top: 120px;
+  height: fit-content;
+}
+
+.summaryCard {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  gap: 16px;
+}
+
+.summaryStats {
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+
+.ratingBars {
+  display: grid;
+  gap: 8px;
+}
+
+.ratingRow {
+  display: grid;
+  grid-template-columns: 40px 1fr 40px;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.ratingTrack {
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.ratingFill {
+  height: 100%;
+  background: #facc15;
+}
+
+.content {
+  display: grid;
+  gap: 24px;
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.toggle {
+  display: inline-flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.toggleButton {
+  border: 1px solid var(--color-border);
+  background: #ffffff;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.toggleButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.toggleActive {
+  border: none;
+  background: var(--color-primary);
+  color: #ffffff;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.filterButton {
+  border: 1px solid var(--color-border);
+  background: #ffffff;
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.filterActive {
+  border: none;
+  background: rgba(59, 130, 246, 0.15);
+  color: #1d4ed8;
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.mediaStrip {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.mediaStrip button {
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
+.mediaStrip img {
+  width: 96px;
+  height: 96px;
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+.reviewForm {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  gap: 12px;
+}
+
+.reviewForm label {
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.reviewForm textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+
+.authHint {
+  color: var(--color-text-muted);
+}
+
+.list {
+  display: grid;
+  gap: 16px;
+}
+
+.card {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  gap: 12px;
+}
+
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.cardMeta {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.cardActions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.cardActions button {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--color-primary);
+  font-weight: 600;
+  padding: 0;
+}
+
+.cardActions div {
+  display: flex;
+  gap: 10px;
+}
+
+.block {
+  display: grid;
+  gap: 4px;
+  font-size: 14px;
+  color: #475569;
+}
+
+.block span {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.cardPhotos {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.cardPhotos img {
+  width: 96px;
+  height: 96px;
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+.empty,
+.error {
+  color: var(--color-text-muted);
+}
+
+.purchase {
+  position: sticky;
+  top: 120px;
+  height: fit-content;
+}
+
+.purchaseCard {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  gap: 12px;
+}
+
+.price {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 50;
+}
+
+.modalContent {
+  background: #ffffff;
+  padding: 16px;
+  border-radius: 16px;
+  display: grid;
+  gap: 12px;
+  max-width: 90vw;
+}
+
+.modalContent img {
+  max-height: 70vh;
+  border-radius: 12px;
+}
+
+.modalContent button {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 20px;
+  align-self: end;
+}
+
+@media (max-width: 1200px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .summary,
+  .purchase {
+    position: static;
+  }
+}

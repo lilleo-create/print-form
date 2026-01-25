@@ -6,7 +6,14 @@ interface AuthState {
   user: User | null;
   token: string | null;
   login: (email: string, password: string) => Promise<void>;
-  register: (payload: { name: string; email: string; password: string; role?: Role }) => Promise<void>;
+  register: (payload: {
+    name: string;
+    email: string;
+    password: string;
+    role?: Role;
+    phone: string;
+    address: string;
+  }) => Promise<void>;
   logout: () => Promise<void>;
   hydrate: () => void;
 }

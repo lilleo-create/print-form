@@ -58,19 +58,35 @@
   gap: 8px;
 }
 
+.ratingLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+}
+
+.ratingMeta {
+  color: #64748b;
+  font-size: 16px;
+}
+
 .priceBlock {
   display: grid;
   gap: 6px;
 }
 
 .price {
-  font-size: 28px;
+  font-size: 32px;
   font-weight: 700;
 }
 
 .delivery {
   color: #64748b;
-  font-size: 14px;
+  font-size: 16px;
 }
 
 .sku {
@@ -89,6 +105,21 @@
   padding: 10px 12px;
   border-radius: 12px;
   border: 1px solid #e2e8f0;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.description {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  gap: 12px;
 }
 
 .shortDescription {
@@ -117,42 +148,60 @@
   border-bottom: 1px solid #e2e8f0;
 }
 
-.reviews {
-  display: grid;
-  gap: 16px;
-}
-
 .reviewsHeader {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
-.reviewForm {
-  display: grid;
-  gap: 12px;
-}
-
-.reviewForm label {
-  display: grid;
-  gap: 6px;
-  font-size: 14px;
-}
-
-.reviewForm select,
-.reviewForm textarea {
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid #e2e8f0;
-}
-
-.reviewForm textarea {
-  min-height: 120px;
-  resize: vertical;
-}
-
 .reviewHint {
   color: #94a3b8;
+}
+
+.reviewsPreview {
+  display: grid;
+  gap: 16px;
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+}
+
+.reviewsLink {
+  color: var(--color-primary);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.ratingSummary {
+  display: grid;
+  gap: 16px;
+}
+
+.ratingBars {
+  display: grid;
+  gap: 8px;
+}
+
+.ratingRow {
+  display: grid;
+  grid-template-columns: 40px 1fr 40px;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #475569;
+}
+
+.ratingTrack {
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.ratingFill {
+  height: 100%;
+  background: #facc15;
 }
 
 .reviewList {
@@ -170,6 +219,19 @@
   display: flex;
   justify-content: space-between;
   margin-bottom: 8px;
+}
+
+.reviewBlock {
+  display: grid;
+  gap: 4px;
+  font-size: 14px;
+  color: #475569;
+  margin-top: 8px;
+}
+
+.reviewBlock span {
+  font-weight: 600;
+  color: var(--color-text);
 }
 
 .feed {

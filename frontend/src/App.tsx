@@ -9,6 +9,7 @@ import { CartPage } from './pages/CartPage';
 import { CheckoutPage } from './pages/CheckoutPage';
 import { ProtectedRoute } from './app/routes/ProtectedRoute';
 import { ProductPage } from './pages/ProductPage';
+import { ProductReviewsPage } from './pages/ProductReviewsPage';
 
 const App = () => {
   return (
@@ -17,6 +18,7 @@ const App = () => {
         <Route path="/" element={<LandingPage />} />
         <Route path="/catalog" element={<CatalogPage />} />
         <Route path="/product/:id" element={<ProductPage />} />
+        <Route path="/product/:id/reviews" element={<ProductReviewsPage />} />
         <Route path="/cart" element={<CartPage />} />
         <Route
           path="/checkout"

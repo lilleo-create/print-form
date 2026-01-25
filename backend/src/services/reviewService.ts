@@ -1,7 +1,15 @@
 import { prisma } from '../lib/prisma';
 
 export const reviewService = {
-  async addReview(data: { productId: string; userId: string; rating: number; text: string }) {
+  async addReview(data: {
+    productId: string;
+    userId: string;
+    rating: number;
+    pros: string;
+    cons: string;
+    comment: string;
+    photos?: string[];
+  }) {
     return prisma.$transaction(async (tx) => {
       const product = await tx.product.findUnique({
         where: { id: data.productId },
@@ -20,7 +28,11 @@ export const reviewService = {
           productId: data.productId,
           userId: data.userId,
           rating: data.rating,
-          text: data.text,
+          text: data.comment,
+          pros: data.pros,
+          cons: data.cons,
+          comment: data.comment,
+          photos: data.photos ?? [],
           status: 'APPROVED'
         }
       });
@@ -33,12 +45,26 @@ export const reviewService = {
       return review;
     });
   },
-  listByProduct: (productId: string, page = 1, limit = 5) =>
-    prisma.review.findMany({
-      where: { productId, status: 'APPROVED' },
-      orderBy: { createdAt: 'desc' },
+  listByProduct: (
+    productIds: string[],
+    page = 1,
+    limit = 5,
+    sort: 'helpful' | 'rating_desc' | 'rating_asc' | 'new' = 'new'
+  ) => {
+    const orderBy =
+      sort === 'helpful'
+        ? { likesCount: 'desc' }
+        : sort === 'rating_desc'
+          ? { rating: 'desc' }
+          : sort === 'rating_asc'
+            ? { rating: 'asc' }
+            : { createdAt: 'desc' };
+    return prisma.review.findMany({
+      where: { productId: { in: productIds }, status: 'APPROVED' },
+      orderBy,
       take: limit,
       skip: (page - 1) * limit,
       include: { user: { select: { id: true, name: true } } }
-    })
+    });
+  }
 };

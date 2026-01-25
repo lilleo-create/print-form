@@ -28,6 +28,24 @@
   gap: 12px;
 }
 
+.profileList {
+  display: grid;
+  gap: 10px;
+}
+
+.profileList div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--color-text-muted);
+  font-size: 16px;
+}
+
+.profileList strong {
+  color: var(--color-text);
+  font-size: 18px;
+}
+
 .profileBox label {
   display: flex;
   flex-direction: column;
