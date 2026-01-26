@@ -1,5 +1,7 @@
 .page {
   padding: 64px 24px 96px;
+  max-width: 1280px;
+  width: 100%;
 }
 
 .header {
@@ -7,6 +9,7 @@
   flex-direction: column;
   gap: 8px;
   margin-bottom: 24px;
+  width: 100%
 }
 
 .header p {
@@ -55,6 +58,9 @@
   box-shadow: var(--shadow-sm);
   display: grid;
   gap: 20px;
+  width: 100%;
+  max-width: 1000px;
+  margin: 0 auto;
 }
 
 .formGrid {

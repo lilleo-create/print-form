@@ -263,12 +263,11 @@
   align-items: center;
   gap: 8px;
   color: var(--color-text-muted);
-  font-size: 15px;
   line-height: 18px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 260px;
+  max-width: 360px;
   min-width: 0;
   margin-left: auto;
   order: 99;

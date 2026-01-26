@@ -1,9 +1,11 @@
 .page {
   padding: 64px 0;
+  width: 1280px;
 }
 
 .header {
   margin-bottom: 24px;
+  width: 1280px;
 }
 
 .empty {
@@ -14,6 +16,7 @@
   display: grid;
   grid-template-columns: 2fr 1fr;
   gap: 24px;
+  width: 1280px;
 }
 
 .list {
