@@ -14,8 +14,7 @@
 
 .headerInner {
   max-width: 1360px;
-  margin: 0 auto;
-  padding: 28px 36px;
+  padding-block: 28px;
   display: grid;
   grid-template-columns: auto minmax(200px, 1fr) auto;
   align-items: center;
@@ -29,7 +28,6 @@
 .mobileHeader {
   display: none;
   max-width: 1360px;
-  margin: 0 auto;
   padding: calc(16px + env(safe-area-inset-top)) 20px 14px;
   flex-direction: column;
   gap: 10px;
@@ -228,9 +226,8 @@
 
 .categoriesInner {
   max-width: 1360px;
-  margin: 0 auto;
   width: 100%;
-  padding: 24px 36px 26px;
+  padding-block: 24px;
   display: flex;
   gap: 14px;
   flex-wrap: nowrap;
