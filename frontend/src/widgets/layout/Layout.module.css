@@ -60,6 +60,13 @@
   min-width: 0;
 }
 
+.mobileSearchRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
 .mobileBurger {
   border: none;
   background: #0f172a;
