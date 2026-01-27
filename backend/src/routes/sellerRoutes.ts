@@ -7,6 +7,7 @@ import { prisma } from '../lib/prisma';
 import { productUseCases } from '../usecases/productUseCases';
 import { orderUseCases } from '../usecases/orderUseCases';
 import { sellerProductSchema } from './productRoutes';
+import { writeLimiter } from '../middleware/rateLimiters';
 
 export const sellerRoutes = Router();
 
@@ -20,7 +21,12 @@ const storage = multer.diskStorage({
     cb(null, `${unique}-${file.originalname}`);
   }
 });
-const upload = multer({ storage });
+const upload = multer({
+  storage,
+  limits: {
+    fileSize: 2 * 1024 * 1024
+  }
+});
 
 const sellerOnboardingSchema = z.object({
   name: z.string().min(2),
@@ -32,21 +38,29 @@ const sellerOnboardingSchema = z.object({
   catalogPosition: z.string().min(2)
 });
 
-sellerRoutes.post('/onboarding', authenticate, async (req: AuthRequest, res, next) => {
+sellerRoutes.post('/onboarding', authenticate, writeLimiter, async (req: AuthRequest, res, next) => {
   try {
     const payload = sellerOnboardingSchema.parse(req.body);
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.userId },
+      select: { phoneVerifiedAt: true, phone: true }
+    });
+    if (!user?.phoneVerifiedAt) {
+      return res.status(403).json({ error: { code: 'PHONE_NOT_VERIFIED' } });
+    }
+    const phone = user.phone ?? payload.phone;
     const updated = await prisma.user.update({
       where: { id: req.user!.userId },
       data: {
         name: payload.name,
-        phone: payload.phone,
+        phone,
         role: 'SELLER',
         sellerProfile: {
           upsert: {
             create: {
               status: payload.status,
               storeName: payload.storeName,
-              phone: payload.phone,
+              phone,
               city: payload.city,
               referenceCategory: payload.referenceCategory,
               catalogPosition: payload.catalogPosition
@@ -54,7 +68,7 @@ sellerRoutes.post('/onboarding', authenticate, async (req: AuthRequest, res, nex
             update: {
               status: payload.status,
               storeName: payload.storeName,
-              phone: payload.phone,
+              phone,
               city: payload.city,
               referenceCategory: payload.referenceCategory,
               catalogPosition: payload.catalogPosition
@@ -108,7 +122,7 @@ sellerRoutes.get('/products', async (req: AuthRequest, res, next) => {
   }
 });
 
-sellerRoutes.post('/products', async (req: AuthRequest, res, next) => {
+sellerRoutes.post('/products', writeLimiter, async (req: AuthRequest, res, next) => {
   try {
     const payload = sellerProductSchema.parse(req.body);
     const skuFallback = payload.sku ?? `SKU-${Date.now()}`;
@@ -134,7 +148,7 @@ sellerRoutes.post('/products', async (req: AuthRequest, res, next) => {
   }
 });
 
-sellerRoutes.put('/products/:id', async (req: AuthRequest, res, next) => {
+sellerRoutes.put('/products/:id', writeLimiter, async (req: AuthRequest, res, next) => {
   try {
     const payload = sellerProductSchema.partial().parse(req.body);
     const imageUrls = payload.imageUrls ?? (payload.image ? [payload.image] : undefined);
@@ -156,13 +170,13 @@ sellerRoutes.put('/products/:id', async (req: AuthRequest, res, next) => {
   }
 });
 
-sellerRoutes.post('/uploads', upload.array('files', 10), async (req, res) => {
+sellerRoutes.post('/uploads', writeLimiter, upload.array('files', 10), async (req, res) => {
   const files = (req.files as Express.Multer.File[]) ?? [];
   const urls = files.map((file) => `/uploads/${file.filename}`);
   res.json({ data: { urls } });
 });
 
-sellerRoutes.delete('/products/:id', async (req: AuthRequest, res, next) => {
+sellerRoutes.delete('/products/:id', writeLimiter, async (req: AuthRequest, res, next) => {
   try {
     await productUseCases.remove(req.params.id);
     res.json({ success: true });

@@ -14,7 +14,7 @@ const getSeededProducts = () => {
   return initial;
 };
 
-const useMock = import.meta.env.VITE_USE_MOCK !== 'false';
+const useMock = import.meta.env.VITE_USE_MOCK === 'true';
 
 export const sellerProductsApi = {
   list: async () => {

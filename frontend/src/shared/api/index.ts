@@ -130,7 +130,9 @@ export const api = {
   },
   async login(payload: { email: string; password: string }) {
     return client.request<{
-      token: string;
+      token?: string;
+      requiresOtp?: boolean;
+      tempToken?: string;
       user: { name: string; role: string; email: string; id: string; phone?: string | null; address?: string | null };
     }>(
       '/auth/login',
@@ -144,12 +146,14 @@ export const api = {
     name: string;
     email: string;
     password: string;
-    phone?: string;
+    phone: string;
     address?: string;
     privacyAccepted?: boolean;
   }) {
     return client.request<{
-      token: string;
+      token?: string;
+      requiresOtp?: boolean;
+      tempToken?: string;
       user: { name: string; role: string; email: string; id: string; phone?: string | null; address?: string | null };
     }>(
       '/auth/register',
@@ -158,6 +162,30 @@ export const api = {
         body: payload
       }
     );
+  },
+  async requestOtp(
+    payload: { phone: string; purpose?: 'login' | 'register' | 'seller_verify'; turnstileToken?: string },
+    token?: string | null
+  ) {
+    return client.request<{ ok: boolean; devOtp?: string }>('/auth/otp/request', {
+      method: 'POST',
+      body: payload,
+      token
+    });
+  },
+  async verifyOtp(payload: {
+    phone: string;
+    code: string;
+    purpose?: 'login' | 'register' | 'seller_verify';
+  }, token?: string | null) {
+    return client.request<{
+      token: string;
+      user: { name: string; role: string; email: string; id: string; phone?: string | null; address?: string | null };
+    }>('/auth/otp/verify', {
+      method: 'POST',
+      body: payload,
+      token
+    });
   },
   async logout() {
     return client.request<{ success: boolean }>('/auth/logout', { method: 'POST' });

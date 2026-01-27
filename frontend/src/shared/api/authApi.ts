@@ -13,8 +13,12 @@ interface StoredSession {
   user: User;
 }
 
+type AuthResult =
+  | { requiresOtp: true; tempToken: string; user: User }
+  | { requiresOtp?: false; token: string; user: User };
+
 const now = () => new Date().toISOString();
-const useMock = import.meta.env.VITE_USE_MOCK !== 'false';
+const useMock = import.meta.env.VITE_USE_MOCK === 'true';
 const normalizeRole = (role: string): Role => (role.toLowerCase() === 'seller' ? 'seller' : 'buyer');
 
 const seedUsers = (): UserRecord[] => {
@@ -54,20 +58,28 @@ export const authApi = {
   login: async (email: string, password: string) => {
     if (!useMock) {
       const result = await api.login({ email, password });
+      if (result.data.requiresOtp) {
+        return {
+          requiresOtp: true,
+          tempToken: result.data.tempToken ?? '',
+          user: { ...result.data.user, role: normalizeRole(result.data.user.role) }
+        } as AuthResult;
+      }
       const session: StoredSession = {
-        token: result.data.token,
+        token: result.data.token ?? '',
         user: { ...result.data.user, role: normalizeRole(result.data.user.role) }
       };
       saveToStorage(STORAGE_KEYS.session, session);
-      return session;
+      return session as AuthResult;
     }
     const users = getUsers();
     const user = users.find((item) => item.email === email && item.password === password);
     if (!user) {
       throw new Error('INVALID_CREDENTIALS');
     }
-    const session: StoredSession = {
-      token: `token-${Date.now()}`,
+    return {
+      requiresOtp: true,
+      tempToken: `otp-${Date.now()}`,
       user: {
         id: user.id,
         name: user.name,
@@ -77,15 +89,13 @@ export const authApi = {
         address: user.address
       }
     };
-    saveToStorage(STORAGE_KEYS.session, session);
-    return session;
   },
   register: async (payload: {
     name: string;
     email: string;
     password: string;
     role?: Role;
-    phone?: string;
+    phone: string;
     address?: string;
     privacyAccepted?: boolean;
   }) => {
@@ -98,12 +108,19 @@ export const authApi = {
         address: payload.address,
         privacyAccepted: payload.privacyAccepted
       });
+      if (result.data.requiresOtp) {
+        return {
+          requiresOtp: true,
+          tempToken: result.data.tempToken ?? '',
+          user: { ...result.data.user, role: normalizeRole(result.data.user.role) }
+        } as AuthResult;
+      }
       const session: StoredSession = {
-        token: result.data.token,
+        token: result.data.token ?? '',
         user: { ...result.data.user, role: normalizeRole(result.data.user.role) }
       };
       saveToStorage(STORAGE_KEYS.session, session);
-      return session;
+      return session as AuthResult;
     }
     const users = getUsers();
     if (users.some((item) => item.email === payload.email)) {
@@ -121,8 +138,9 @@ export const authApi = {
     };
     const nextUsers = [...users, newUser];
     saveToStorage(STORAGE_KEYS.users, nextUsers);
-    const session: StoredSession = {
-      token: `token-${Date.now()}`,
+    return {
+      requiresOtp: true,
+      tempToken: `otp-${Date.now()}`,
       user: {
         id: newUser.id,
         name: newUser.name,
@@ -130,6 +148,55 @@ export const authApi = {
         role: newUser.role,
         phone: newUser.phone,
         address: newUser.address
+      }
+    };
+  },
+  requestOtp: async (
+    payload: { phone: string; purpose?: 'login' | 'register' | 'seller_verify' },
+    token?: string | null
+  ) => {
+    if (!useMock) {
+      return api.requestOtp(payload, token);
+    }
+    const code = '000000';
+    saveToStorage(STORAGE_KEYS.otpCode, code);
+    return { data: { ok: true, devOtp: code } };
+  },
+  verifyOtp: async (
+    payload: {
+    phone: string;
+    code: string;
+    purpose?: 'login' | 'register' | 'seller_verify';
+    },
+    token?: string | null
+  ) => {
+    if (!useMock) {
+      const result = await api.verifyOtp(payload, token);
+      const session: StoredSession = {
+        token: result.data.token,
+        user: { ...result.data.user, role: normalizeRole(result.data.user.role) }
+      };
+      saveToStorage(STORAGE_KEYS.session, session);
+      return session;
+    }
+    const storedCode = loadFromStorage<string | null>(STORAGE_KEYS.otpCode, null);
+    if (!storedCode || storedCode !== payload.code) {
+      throw new Error('OTP_INVALID');
+    }
+    const users = getUsers();
+    const user = users.find((item) => item.phone === payload.phone);
+    if (!user) {
+      throw new Error('OTP_USER_NOT_FOUND');
+    }
+    const session: StoredSession = {
+      token: `token-${Date.now()}`,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        phone: user.phone,
+        address: user.address
       }
     };
     saveToStorage(STORAGE_KEYS.session, session);

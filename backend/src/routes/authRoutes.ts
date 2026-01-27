@@ -3,6 +3,11 @@ import { z } from 'zod';
 import { authService } from '../services/authService';
 import { authenticate, AuthRequest } from '../middleware/authMiddleware';
 import { userRepository } from '../repositories/userRepository';
+import { env } from '../config/env';
+import { otpService, OtpPurpose } from '../services/otpService';
+import { normalizePhone } from '../utils/phone';
+import { authLimiter, otpRequestLimiter, otpVerifyLimiter } from '../middleware/rateLimiters';
+import jwt from 'jsonwebtoken';
 
 export const authRoutes = Router();
 
@@ -13,7 +18,7 @@ const loginSchema = z.object({
 
 const registerSchema = loginSchema.extend({
   name: z.string().min(2),
-  phone: z.string().min(5).optional(),
+  phone: z.string().min(5),
   address: z.string().min(3).optional(),
   privacyAccepted: z.boolean().optional(),
   role: z.enum(['BUYER', 'SELLER']).optional()
@@ -26,20 +31,71 @@ const updateProfileSchema = z.object({
   address: z.string().min(3).optional()
 });
 
-authRoutes.post('/register', async (req, res, next) => {
+const otpRequestSchema = z.object({
+  phone: z.string().min(5),
+  purpose: z.enum(['login', 'register', 'seller_verify']).optional(),
+  turnstileToken: z.string().optional()
+});
+
+const otpVerifySchema = z.object({
+  phone: z.string().min(5),
+  code: z.string().min(4),
+  purpose: z.enum(['login', 'register', 'seller_verify']).optional()
+});
+
+const cookieOptions = {
+  httpOnly: true,
+  sameSite: env.isProduction ? 'strict' : 'lax',
+  secure: env.isProduction
+} as const;
+
+const verifyTurnstile = async (token: string) => {
+  if (!env.turnstileSecretKey) {
+    return true;
+  }
+  const response = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      secret: env.turnstileSecretKey,
+      response: token
+    })
+  });
+  if (!response.ok) {
+    return false;
+  }
+  const result = (await response.json()) as { success: boolean };
+  return Boolean(result.success);
+};
+
+const parseAuthToken = (req: AuthRequest) => {
+  const header = req.headers.authorization;
+  if (!header) {
+    return null;
+  }
+  return header.replace('Bearer ', '');
+};
+
+const decodeAuthToken = (token: string) => {
+  return jwt.verify(token, env.jwtSecret) as { userId: string; role?: string; scope?: string };
+};
+
+authRoutes.post('/register', authLimiter, async (req, res, next) => {
   try {
     const payload = registerSchema.parse(req.body);
+    const phone = normalizePhone(payload.phone);
     const result = await authService.register(
       payload.name,
       payload.email,
       payload.password,
       payload.role,
-      payload.phone,
+      phone,
       payload.address
     );
-    res.cookie('refreshToken', result.refreshToken, { httpOnly: true, sameSite: 'lax' });
+    const tempToken = authService.issueOtpToken(result.user);
     res.json({
-      token: result.accessToken,
+      requiresOtp: true,
+      tempToken,
       user: {
         id: result.user.id,
         name: result.user.name,
@@ -54,13 +110,29 @@ authRoutes.post('/register', async (req, res, next) => {
   }
 });
 
-authRoutes.post('/login', async (req, res, next) => {
+authRoutes.post('/login', authLimiter, async (req, res, next) => {
   try {
     const payload = loginSchema.parse(req.body);
     const result = await authService.login(payload.email, payload.password);
-    res.cookie('refreshToken', result.refreshToken, { httpOnly: true, sameSite: 'lax' });
-    res.json({
-      token: result.accessToken,
+    if (!result.user.phoneVerifiedAt) {
+      const tempToken = authService.issueOtpToken(result.user);
+      return res.json({
+        requiresOtp: true,
+        tempToken,
+        user: {
+          id: result.user.id,
+          name: result.user.name,
+          role: result.user.role,
+          email: result.user.email,
+          phone: result.user.phone,
+          address: result.user.address
+        }
+      });
+    }
+    const tokens = await authService.issueTokens(result.user);
+    res.cookie('refreshToken', tokens.refreshToken, cookieOptions);
+    return res.json({
+      token: tokens.accessToken,
       user: {
         id: result.user.id,
         name: result.user.name,
@@ -94,10 +166,121 @@ authRoutes.post('/logout', async (req, res, next) => {
     if (token) {
       await authService.logout(token);
     }
-    res.clearCookie('refreshToken');
+    res.clearCookie('refreshToken', cookieOptions);
     res.json({ success: true });
   } catch (error) {
     next(error);
+  }
+});
+
+authRoutes.post('/otp/request', otpRequestLimiter, async (req, res, next) => {
+  try {
+    const payload = otpRequestSchema.parse(req.body);
+    if (env.turnstileSecretKey) {
+      if (!payload.turnstileToken) {
+        return res.status(400).json({ error: { code: 'TURNSTILE_REQUIRED' } });
+      }
+      const verified = await verifyTurnstile(payload.turnstileToken);
+      if (!verified) {
+        return res.status(400).json({ error: { code: 'TURNSTILE_FAILED' } });
+      }
+    }
+    const purpose = (payload.purpose ?? 'login') as OtpPurpose;
+    const token = parseAuthToken(req);
+    let decoded: { userId: string; role?: string; scope?: string } | null = null;
+    if (token) {
+      try {
+        decoded = decodeAuthToken(token);
+      } catch {
+        return res.status(401).json({ error: { code: 'UNAUTHORIZED' } });
+      }
+    }
+    if (purpose === 'login' || purpose === 'register') {
+      if (!decoded || decoded.scope !== 'otp') {
+        return res.status(401).json({ error: { code: 'OTP_TOKEN_REQUIRED' } });
+      }
+      const user = await userRepository.findById(decoded.userId);
+      if (!user) {
+        return res.status(401).json({ error: { code: 'UNAUTHORIZED' } });
+      }
+      if (user.phone && normalizePhone(payload.phone) !== user.phone) {
+        return res.status(400).json({ error: { code: 'PHONE_MISMATCH' } });
+      }
+    } else if (!decoded || (decoded.scope && decoded.scope !== 'access')) {
+      return res.status(401).json({ error: { code: 'UNAUTHORIZED' } });
+    }
+    const result = await otpService.requestOtp({
+      phone: payload.phone,
+      purpose,
+      ip: req.ip,
+      userAgent: req.get('user-agent')
+    });
+    return res.json({ ok: true, devOtp: result.devOtp });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+authRoutes.post('/otp/verify', otpVerifyLimiter, async (req, res, next) => {
+  try {
+    const payload = otpVerifySchema.parse(req.body);
+    const purpose = (payload.purpose ?? 'login') as OtpPurpose;
+    const token = parseAuthToken(req);
+    let decoded: { userId: string; role?: string; scope?: string } | null = null;
+    if (token) {
+      try {
+        decoded = decodeAuthToken(token);
+      } catch {
+        return res.status(401).json({ error: { code: 'UNAUTHORIZED' } });
+      }
+    }
+    const needsOtpToken = purpose === 'login' || purpose === 'register';
+    if (needsOtpToken && (!decoded || decoded.scope !== 'otp')) {
+      return res.status(401).json({ error: { code: 'OTP_TOKEN_REQUIRED' } });
+    }
+    if (!needsOtpToken && (!decoded || (decoded.scope && decoded.scope !== 'access'))) {
+      return res.status(401).json({ error: { code: 'UNAUTHORIZED' } });
+    }
+    const { phone } = await otpService.verifyOtp({
+      phone: payload.phone,
+      code: payload.code,
+      purpose
+    });
+    const userId = decoded?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: { code: 'UNAUTHORIZED' } });
+    }
+    let user = await userRepository.findById(userId);
+    if (!user) {
+      return res.status(401).json({ error: { code: 'UNAUTHORIZED' } });
+    }
+    if (user.phone && user.phone !== phone) {
+      return res.status(400).json({ error: { code: 'PHONE_MISMATCH' } });
+    }
+    if (!user.phone) {
+      const existingPhone = await userRepository.findByPhone(phone);
+      if (existingPhone && existingPhone.id !== user.id) {
+        return res.status(409).json({ error: { code: 'PHONE_EXISTS' } });
+      }
+    }
+    if (!user.phoneVerifiedAt || user.phone !== phone) {
+      user = await userRepository.updateProfile(user.id, { phone, phoneVerifiedAt: new Date() });
+    }
+    const tokens = await authService.issueTokens(user);
+    res.cookie('refreshToken', tokens.refreshToken, cookieOptions);
+    return res.json({
+      token: tokens.accessToken,
+      user: {
+        id: user.id,
+        name: user.name,
+        role: user.role,
+        email: user.email,
+        phone: user.phone,
+        address: user.address
+      }
+    });
+  } catch (error) {
+    return next(error);
   }
 });
 
@@ -125,16 +308,35 @@ authRoutes.get('/me', authenticate, async (req: AuthRequest, res, next) => {
 authRoutes.patch('/me', authenticate, async (req: AuthRequest, res, next) => {
   try {
     const payload = updateProfileSchema.parse(req.body);
+    const existingUser = await userRepository.findById(req.user!.userId);
+    if (!existingUser) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND' } });
+    }
     if (payload.email) {
       const existing = await userRepository.findByEmail(payload.email);
       if (existing && existing.id !== req.user!.userId) {
         return res.status(400).json({ error: { code: 'EMAIL_EXISTS' } });
       }
     }
+    let phone = payload.phone;
+    let phoneVerifiedAt = existingUser.phoneVerifiedAt;
+    if (payload.phone) {
+      phone = normalizePhone(payload.phone);
+      const existingPhone = await userRepository.findByPhone(phone);
+      if (existingPhone && existingPhone.id !== req.user!.userId) {
+        return res.status(400).json({ error: { code: 'PHONE_EXISTS' } });
+      }
+      if (existingUser.phone !== phone) {
+        phoneVerifiedAt = null;
+      }
+    }
+    const phoneToUpdate = payload.phone ? phone ?? null : existingUser.phone;
+    const phoneVerifiedAtToUpdate = payload.phone ? phoneVerifiedAt : existingUser.phoneVerifiedAt;
     const updated = await userRepository.updateProfile(req.user!.userId, {
       name: payload.name,
       email: payload.email,
-      phone: payload.phone ?? null,
+      phone: phoneToUpdate ?? null,
+      phoneVerifiedAt: phoneVerifiedAtToUpdate ?? null,
       address: payload.address ?? null
     });
     return res.json({

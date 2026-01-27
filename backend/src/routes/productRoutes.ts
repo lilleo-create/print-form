@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { productUseCases } from '../usecases/productUseCases';
 import { reviewService } from '../services/reviewService';
 import { authenticate, AuthRequest } from '../middleware/authMiddleware';
+import { writeLimiter } from '../middleware/rateLimiters';
 
 export const productRoutes = Router();
 
@@ -79,18 +80,27 @@ const reviewSchema = z.object({
   photos: z.array(z.string().url()).optional()
 });
 
+const reviewListSchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(50).default(5),
+  sort: z.enum(['helpful', 'high', 'low', 'new']).default('new'),
+  productIds: z.string().optional()
+});
+
+const summaryQuerySchema = z.object({
+  productIds: z.string().optional()
+});
+
 productRoutes.get('/:id/reviews', async (req, res, next) => {
   try {
-    const page = req.query.page ? Number(req.query.page) : 1;
-    const limit = req.query.limit ? Number(req.query.limit) : 5;
-    const sort = req.query.sort ? String(req.query.sort) : 'new';
-    const productIds = req.query.productIds
-      ? String(req.query.productIds)
+    const params = reviewListSchema.parse(req.query);
+    const productIds = params.productIds
+      ? params.productIds
           .split(',')
           .map((value) => value.trim())
           .filter(Boolean)
       : [req.params.id];
-    const reviews = await reviewService.listByProducts(productIds, page, limit, sort);
+    const reviews = await reviewService.listByProducts(productIds, params.page, params.limit, params.sort);
     const total = await reviewService.countByProducts(productIds);
     res.json({ data: reviews, meta: { total } });
   } catch (error) {
@@ -98,7 +108,7 @@ productRoutes.get('/:id/reviews', async (req, res, next) => {
   }
 });
 
-productRoutes.post('/:id/reviews', authenticate, async (req: AuthRequest, res, next) => {
+productRoutes.post('/:id/reviews', authenticate, writeLimiter, async (req: AuthRequest, res, next) => {
   try {
     const payload = reviewSchema.parse(req.body);
     const review = await reviewService.addReview({
@@ -118,8 +128,9 @@ productRoutes.post('/:id/reviews', authenticate, async (req: AuthRequest, res, n
 
 productRoutes.get('/:id/reviews/summary', async (req, res, next) => {
   try {
-    const productIds = req.query.productIds
-      ? String(req.query.productIds)
+    const params = summaryQuerySchema.parse(req.query);
+    const productIds = params.productIds
+      ? params.productIds
           .split(',')
           .map((value) => value.trim())
           .filter(Boolean)

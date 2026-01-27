@@ -88,35 +88,47 @@ export const reviewService = {
       where: buildWhere(productIds)
     }),
   async summaryByProduct(productId: string) {
-    const reviews = await prisma.review.findMany({
+    const grouped = await prisma.review.groupBy({
+      by: ['rating'],
       where: buildWhere([productId]),
-      select: { rating: true, photos: true }
+      _count: { _all: true }
     });
-    const total = reviews.length;
+    const total = grouped.reduce((sum, item) => sum + item._count._all, 0);
+    const avg = total
+      ? grouped.reduce((sum, item) => sum + item.rating * item._count._all, 0) / total
+      : 0;
     const counts = [5, 4, 3, 2, 1].map((value) => ({
       rating: value,
-      count: reviews.filter((review) => review.rating === value).length
+      count: grouped.find((item) => item.rating === value)?._count._all ?? 0
     }));
-    const avg = total
-      ? reviews.reduce((sum, review) => sum + review.rating, 0) / total
-      : 0;
-    const photos = reviews.flatMap((review) => review.photos ?? []);
+    const photos = (
+      await prisma.review.findMany({
+        where: buildWhere([productId]),
+        select: { photos: true }
+      })
+    ).flatMap((review) => review.photos ?? []);
     return { total, avg, counts, photos };
   },
   async summaryByProducts(productIds: string[]) {
-    const reviews = await prisma.review.findMany({
+    const grouped = await prisma.review.groupBy({
+      by: ['rating'],
       where: buildWhere(productIds),
-      select: { rating: true, photos: true }
+      _count: { _all: true }
     });
-    const total = reviews.length;
+    const total = grouped.reduce((sum, item) => sum + item._count._all, 0);
+    const avg = total
+      ? grouped.reduce((sum, item) => sum + item.rating * item._count._all, 0) / total
+      : 0;
     const counts = [5, 4, 3, 2, 1].map((value) => ({
       rating: value,
-      count: reviews.filter((review) => review.rating === value).length
+      count: grouped.find((item) => item.rating === value)?._count._all ?? 0
     }));
-    const avg = total
-      ? reviews.reduce((sum, review) => sum + review.rating, 0) / total
-      : 0;
-    const photos = reviews.flatMap((review) => review.photos ?? []);
+    const photos = (
+      await prisma.review.findMany({
+        where: buildWhere(productIds),
+        select: { photos: true }
+      })
+    ).flatMap((review) => review.photos ?? []);
     return { total, avg, counts, photos };
   },
   listByUser: (userId: string) =>
