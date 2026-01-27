@@ -13,6 +13,7 @@ import { ProductReviewsPage } from './pages/ProductReviewsPage';
 import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
 import { CategoriesPage } from './pages/CategoriesPage';
 import { SellerOnboardingPage } from './pages/SellerOnboardingPage';
+import { OrdersPage } from './pages/OrdersPage';
 
 const App = () => {
   return (
@@ -24,6 +25,14 @@ const App = () => {
         <Route path="/product/:id/reviews" element={<ProductReviewsPage />} />
         <Route path="/categories" element={<CategoriesPage />} />
         <Route path="/cart" element={<CartPage />} />
+        <Route
+          path="/orders"
+          element={
+            <ProtectedRoute>
+              <OrdersPage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/checkout"
           element={

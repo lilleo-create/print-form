@@ -2,6 +2,8 @@
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  width: 100%;
+  align-self: stretch;
 }
 
 .header {
@@ -13,8 +15,10 @@
 }
 
 .headerInner {
-  max-width: 1360px;
-  padding-block: 28px;
+  max-width: 1280px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 28px 24px;
   display: grid;
   grid-template-columns: auto minmax(200px, 1fr) auto;
   align-items: center;
@@ -27,17 +31,25 @@
 
 .mobileHeader {
   display: none;
-  max-width: 1360px;
+  max-width: 1280px;
+  width: 100%;
+  margin: 0 auto;
   padding: calc(16px + env(safe-area-inset-top)) 20px 14px;
   flex-direction: column;
   gap: 10px;
 }
 
 .mobileTopRow {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
+  display: flex;
+  justify-content: space-between;
   align-items: center;
   gap: 12px;
+}
+
+.mobileSearchRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .mobileBurger {
@@ -71,6 +83,8 @@
   border: 1px solid #e2e8f0;
   border-radius: 14px;
   padding: 8px 12px;
+  width: 100%;
+  flex: 1;
 }
 
 .mobileSearch input {
@@ -157,6 +171,11 @@
   font-size: 16px;
 }
 
+.actionButton {
+  border: none;
+  cursor: pointer;
+}
+
 .cartCount {
   background: var(--color-primary);
   color: #ffffff;
@@ -208,6 +227,7 @@
   background: #ffffff;
   position: relative;
   overflow: visible;
+  transition: opacity 0.25s ease, transform 0.25s ease;
 }
 
 .categoriesBarCollapsed {
@@ -217,6 +237,9 @@
 .categoriesBarHidden {
   background: transparent;
   border-top-color: transparent;
+  opacity: 0;
+  transform: translateY(-12px);
+  pointer-events: none;
 }
 
 .categoriesSurface {
@@ -225,9 +248,9 @@
 }
 
 .categoriesInner {
-  max-width: 1360px;
+  max-width: 1280px;
   width: 100%;
-  padding-block: 24px;
+  padding: 24px 24px;
   display: flex;
   gap: 14px;
   flex-wrap: nowrap;
@@ -236,6 +259,7 @@
   left: 0;
   right: 0;
   top: 0;
+  margin: 0 auto;
   transition: opacity 0.25s ease, transform 0.25s ease;
   will-change: transform, opacity;
   overflow-x: auto;
@@ -317,10 +341,10 @@
 }
 
 .productBoard {
-  max-width: 1360px;
+  max-width: 1280px;
   margin: 0 auto;
   width: 100%;
-  padding: 16px 36px;
+  padding: 16px 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -410,6 +434,12 @@
   font-size: 12px;
 }
 
+.bottomNavButton {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
 .bottomNavItemActive {
   color: var(--color-primary);
 }
@@ -468,6 +498,48 @@
   border: 1px solid var(--color-border);
   background: #f8fafc;
   font-size: 16px;
+}
+
+.profileMenuButton {
+  border: 1px solid var(--color-border);
+  background: #f8fafc;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+}
+
+.actionMenuOverlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+  padding: 96px 24px 24px;
+  background: transparent;
+  z-index: 40;
+}
+
+.actionMenuPanel {
+  width: 320px;
+  max-width: 100%;
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid var(--color-border);
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  gap: 12px;
+}
+
+.actionMenuHeader {
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.actionMenuBody {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .profileMenuToggle {
@@ -547,5 +619,15 @@
 
   .footer {
     padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 640px) {
+  .actionMenuOverlay {
+    padding: calc(16px + env(safe-area-inset-top)) 16px 24px;
+  }
+
+  .actionMenuPanel {
+    width: 100%;
   }
 }
