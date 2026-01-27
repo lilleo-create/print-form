@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { authenticate, AuthRequest } from '../middleware/authMiddleware';
 import { orderUseCases } from '../usecases/orderUseCases';
+import { writeLimiter } from '../middleware/rateLimiters';
 
 export const orderRoutes = Router();
 
@@ -17,7 +18,7 @@ const orderSchema = z.object({
     .min(1)
 });
 
-orderRoutes.post('/', authenticate, async (req: AuthRequest, res, next) => {
+orderRoutes.post('/', authenticate, writeLimiter, async (req: AuthRequest, res, next) => {
   try {
     const payload = orderSchema.parse(req.body);
     const order = await orderUseCases.create({

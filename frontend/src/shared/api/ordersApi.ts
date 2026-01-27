@@ -4,7 +4,7 @@ import { STORAGE_KEYS } from '../constants/storageKeys';
 import { api } from './index';
 
 const getOrders = () => loadFromStorage<Order[]>(STORAGE_KEYS.orders, []);
-const useMock = import.meta.env.VITE_USE_MOCK !== 'false';
+const useMock = import.meta.env.VITE_USE_MOCK === 'true';
 
 export const ordersApi = {
   listByBuyer: async (buyerId: string) => {

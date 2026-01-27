@@ -19,6 +19,7 @@ export const SellerOnboardingPage = () => {
   const [step, setStep] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [phoneVerificationRequired, setPhoneVerificationRequired] = useState(false);
   const [form, setForm] = useState({
     name: '',
     phone: '',
@@ -86,6 +87,7 @@ export const SellerOnboardingPage = () => {
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
+      setPhoneVerificationRequired(false);
       const response = await api.submitSellerOnboarding({
         name: form.name,
         phone: form.phone,
@@ -105,6 +107,10 @@ export const SellerOnboardingPage = () => {
         address: user?.address ?? null
       });
       setIsComplete(true);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'PHONE_NOT_VERIFIED') {
+        setPhoneVerificationRequired(true);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -144,6 +150,12 @@ export const SellerOnboardingPage = () => {
         </div>
 
         <div className={styles.card}>
+          {phoneVerificationRequired && (
+            <div className={styles.notice}>
+              <p>Подтвердите номер телефона, чтобы продолжить.</p>
+              <Link to="/auth/login?redirectTo=/seller/onboarding">Войти и подтвердить телефон</Link>
+            </div>
+          )}
           {step === 0 && (
             <div className={styles.formGrid}>
               {!isLoggedIn && (

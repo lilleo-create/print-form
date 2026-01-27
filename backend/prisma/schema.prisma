@@ -25,12 +25,20 @@ enum ReviewStatus {
   APPROVED
 }
 
+enum OtpPurpose {
+  LOGIN
+  REGISTER
+  SELLER_VERIFY
+}
+
 model User {
   id            String   @id @default(cuid())
   email         String   @unique
   passwordHash  String
   name          String
-  phone         String?
+  phone         String?  @unique
+  phoneVerifiedAt DateTime?
+  emailVerifiedAt DateTime?
   address       String?
   role          Role     @default(BUYER)
   createdAt     DateTime @default(now())
@@ -136,6 +144,10 @@ model Review {
   updatedAt DateTime     @updatedAt
   product   Product      @relation(fields: [productId], references: [id])
   user      User?        @relation(fields: [userId], references: [id])
+
+  @@index([productId])
+  @@index([createdAt])
+  @@index([productId, status, isPublic])
 }
 
 model Order {
@@ -178,4 +190,21 @@ model RefreshToken {
   userId    String
   user      User     @relation(fields: [userId], references: [id])
   expiresAt DateTime
+}
+
+model PhoneOtp {
+  id         String     @id @default(cuid())
+  phone      String
+  codeHash   String
+  purpose    OtpPurpose
+  attempts   Int        @default(0)
+  maxAttempts Int       @default(5)
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime   @default(now())
+  expiresAt  DateTime
+  consumedAt DateTime?
+
+  @@index([phone, purpose, createdAt])
+  @@index([expiresAt])
 }

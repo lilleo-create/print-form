@@ -57,7 +57,7 @@
 ```bash
 cd frontend
 npm install
-# VITE_USE_MOCK=true (по умолчанию)
+# VITE_USE_MOCK=true (опционально, включает локальные моки)
 npm run dev
 ```
 
@@ -81,20 +81,22 @@ npm run dev
 ## Environment examples
 **frontend/.env**
 ```
-VITE_USE_MOCK=true
+VITE_USE_MOCK=false
 VITE_API_URL=http://localhost:4000
 ```
 
 **backend/.env.example**
 ```
 DATABASE_URL=postgresql://user:password@localhost:5432/printform
-JWT_SECRET=super-secret
-JWT_REFRESH_SECRET=super-refresh-secret
+JWT_SECRET=replace-with-strong-32-char-secret
+JWT_REFRESH_SECRET=replace-with-strong-32-char-refresh-secret
+OTP_HASH_PEPPER=replace-with-strong-32-char-pepper
 GOOGLE_SHEETS_ID=your-sheet-id
 GOOGLE_SERVICE_ACCOUNT_EMAIL=service-account@project.iam.gserviceaccount.com
 GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
 FRONTEND_URL=http://localhost:5173
 PORT=4000
+SMS_PROVIDER=mock
 ```
 
 ## Architecture decisions

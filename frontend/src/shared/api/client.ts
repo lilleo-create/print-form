@@ -8,16 +8,23 @@ export interface ApiResponse<T> {
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 
 export interface ApiClient {
-  request<T>(path: string, options?: { method?: HttpMethod; body?: unknown }): Promise<ApiResponse<T>>;
+  request<T>(
+    path: string,
+    options?: { method?: HttpMethod; body?: unknown; token?: string | null }
+  ): Promise<ApiResponse<T>>;
 }
 
 export const createFetchClient = (baseUrl: string): ApiClient => {
   return {
-    async request<T>(path: string, options: { method?: HttpMethod; body?: unknown } = {}) {
+    async request<T>(
+      path: string,
+      options: { method?: HttpMethod; body?: unknown; token?: string | null } = {}
+    ) {
       const session = loadFromStorage<{ token: string } | null>(STORAGE_KEYS.session, null);
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (session?.token) {
-        headers.Authorization = `Bearer ${session.token}`;
+      const authToken = options.token ?? session?.token;
+      if (authToken) {
+        headers.Authorization = `Bearer ${authToken}`;
       }
 
       const response = await fetch(`${baseUrl}${path}`, {
@@ -26,8 +33,12 @@ export const createFetchClient = (baseUrl: string): ApiClient => {
         body: options.body ? JSON.stringify(options.body) : undefined
       });
 
-      if (!response.ok) throw new Error('API error');
-      return response.json() as Promise<ApiResponse<T>>;
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        const code = (payload as { error?: { code?: string } } | null)?.error?.code ?? 'API_ERROR';
+        throw new Error(code);
+      }
+      return payload as ApiResponse<T>;
     }
   };
 };

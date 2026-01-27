@@ -2,6 +2,7 @@ import { prisma } from '../lib/prisma';
 
 export const userRepository = {
   findByEmail: (email: string) => prisma.user.findUnique({ where: { email } }),
+  findByPhone: (phone: string) => prisma.user.findUnique({ where: { phone } }),
   findById: (id: string) => prisma.user.findUnique({ where: { id } }),
   create: (data: {
     name: string;
@@ -19,7 +20,13 @@ export const userRepository = {
     }),
   updateProfile: (
     id: string,
-    payload: { name?: string; email?: string; phone?: string | null; address?: string | null }
+    payload: {
+      name?: string;
+      email?: string;
+      phone?: string | null;
+      phoneVerifiedAt?: Date | null;
+      address?: string | null;
+    }
   ) =>
     prisma.user.update({
       where: { id },
