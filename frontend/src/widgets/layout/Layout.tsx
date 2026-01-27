@@ -393,16 +393,15 @@ export const Layout = ({ children }: LayoutProps) => {
           </div>
         </div>
         <div
-          className={`${styles.categoriesBar} ${isCategoriesHidden ? styles.categoriesBarHidden : ''} ${
-            categoriesBarHeight === 0 ? styles.categoriesBarCollapsed : ''
-          }`}
-          style={{ height: `${categoriesBarHeight}px` }}
+          className={`${styles.categoriesWrap} ${isCategoriesHidden ? styles.categoriesWrapHidden : ''}`}
+          style={{ maxHeight: `${isCategoriesHidden ? 0 : categoriesBarHeight}px` }}
         >
-          <div className={styles.categoriesSurface}>
-            <div
-              ref={categoriesRef}
-              className={`${styles.categoriesInner} ${isCategoriesHidden ? styles.categoriesInnerHidden : ''}`}
-            >
+          <div className={styles.categoriesBar}>
+            <div className={styles.categoriesSurface}>
+              <div
+                ref={categoriesRef}
+                className={`${styles.categoriesInner} ${isCategoriesHidden ? styles.categoriesInnerHidden : ''}`}
+              >
               <div className={styles.categoriesMeta}>
                 <div className={styles.categoriesTitle}>Категории</div>
                 <div className={styles.categoriesAddress}>
@@ -436,45 +435,46 @@ export const Layout = ({ children }: LayoutProps) => {
                 </Link>
               )}
             </div>
-            <div
-              ref={productBoardRef}
-              className={`${styles.productBoard} ${showProductBoard ? styles.productBoardVisible : ''}`}
-            >
-              {productBoard && (
-                <>
-                  <div className={styles.productBoardInfo}>
-                    <img src={productBoard.image} alt={productBoard.title} />
-                    <div>
-                      <h4>{productBoard.title}</h4>
-                      <div className={styles.productBoardRating}>
-                        <Rating value={ratingValue} count={ratingCount} size="sm" />
-                        <span>{ratingValue.toFixed(1)}</span>
-                        <span>{ratingCount} оценок</span>
+              <div
+                ref={productBoardRef}
+                className={`${styles.productBoard} ${showProductBoard ? styles.productBoardVisible : ''}`}
+              >
+                {productBoard && (
+                  <>
+                    <div className={styles.productBoardInfo}>
+                      <img src={productBoard.image} alt={productBoard.title} />
+                      <div>
+                        <h4>{productBoard.title}</h4>
+                        <div className={styles.productBoardRating}>
+                          <Rating value={ratingValue} count={ratingCount} size="sm" />
+                          <span>{ratingValue.toFixed(1)}</span>
+                          <span>{ratingCount} оценок</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className={styles.productBoardActions}>
-                    <Button
-                      onClick={() => {
-                        if (!productBoard) return;
-                        addItem(productBoard, 1);
-                        navigate('/checkout');
-                      }}
-                    >
-                      Купить сейчас
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      onClick={() => {
-                        if (!productBoard) return;
-                        addItem(productBoard, 1);
-                      }}
-                    >
-                      В корзину
-                    </Button>
-                  </div>
-                </>
-              )}
+                    <div className={styles.productBoardActions}>
+                      <Button
+                        onClick={() => {
+                          if (!productBoard) return;
+                          addItem(productBoard, 1);
+                          navigate('/checkout');
+                        }}
+                      >
+                        Купить сейчас
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          if (!productBoard) return;
+                          addItem(productBoard, 1);
+                        }}
+                      >
+                        В корзину
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -501,6 +501,13 @@ export const Layout = ({ children }: LayoutProps) => {
             <span aria-hidden>❤</span>
             <span>Избранное</span>
           </button>
+          <Link
+            to="/orders"
+            className={`${styles.bottomNavItem} ${location.pathname === '/orders' ? styles.bottomNavItemActive : ''}`}
+          >
+            <span aria-hidden>🧾</span>
+            <span>Заказы</span>
+          </Link>
           <Link
             to="/cart"
             className={`${styles.bottomNavItem} ${location.pathname === '/cart' ? styles.bottomNavItemActive : ''}`}

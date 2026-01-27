@@ -86,7 +86,7 @@ export const LandingPage = () => {
 
   return (
     <div className={styles.page}>
-      <section className={styles.hero}>
+      <section className={`${styles.hero} container`}>
         <div className={styles.heroContent}>
           <span className={styles.badge}>Маркетплейс 3D-печати</span>
           <h1>Покупайте и печатайте 3D-модели в одном месте</h1>
@@ -124,7 +124,7 @@ export const LandingPage = () => {
         </div>
       </section>
 
-      <section className={styles.sliderSection}>
+      <section className={`${styles.sliderSection} container`}>
         <div className={styles.slider}>
           <div className={styles.sliderContent}>
             <span className={styles.sliderBadge}>Промо</span>
@@ -179,7 +179,7 @@ export const LandingPage = () => {
         <div ref={sentinelRef} />
       </section>
 
-      <section className={styles.customSection} id="custom">
+      <section className={`${styles.customSection} container`} id="custom">
         <div className={styles.customContent}>
           <h2>Напечатать свою модель</h2>
           <p>
