@@ -14,7 +14,9 @@
   --shadow-md: 0 12px 30px rgba(15, 23, 42, 0.12);
 }
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
@@ -22,6 +24,8 @@
 
 html {
   font-size: 22px;
+  width: 100%;
+  max-width: 100%;
 }
 
 body {
@@ -32,6 +36,13 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
+  width: 100%;
+  max-width: 100%;
+}
+
+#root {
+  width: 100%;
+  max-width: 100%;
 }
 
 img {
@@ -94,7 +105,18 @@ button {
 }
 
 @media (max-width: 768px) {
+  html,
+  body,
+  #root {
+    min-width: 0;
+  }
+
   .container {
     padding: 0 16px;
   }
+}
+
+html,
+body {
+  overflow-x: hidden;
 }
