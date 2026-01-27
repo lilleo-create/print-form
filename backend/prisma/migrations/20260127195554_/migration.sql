@@ -7,16 +7,40 @@ CREATE TYPE "OrderStatus" AS ENUM ('PROCESSING', 'PRINTING', 'SHIPPED', 'DELIVER
 -- CreateEnum
 CREATE TYPE "ReviewStatus" AS ENUM ('PENDING', 'APPROVED');
 
+-- CreateEnum
+CREATE TYPE "OtpPurpose" AS ENUM ('LOGIN', 'REGISTER', 'SELLER_VERIFY');
+
 -- CreateTable
 CREATE TABLE "User" (
     "id" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "passwordHash" TEXT NOT NULL,
     "name" TEXT NOT NULL,
+    "phone" TEXT,
+    "phoneVerifiedAt" TIMESTAMP(3),
+    "emailVerifiedAt" TIMESTAMP(3),
+    "address" TEXT,
     "role" "Role" NOT NULL DEFAULT 'BUYER',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+
     CONSTRAINT "User_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "SellerProfile" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "status" TEXT NOT NULL,
+    "storeName" TEXT NOT NULL,
+    "phone" TEXT NOT NULL,
+    "city" TEXT NOT NULL,
+    "referenceCategory" TEXT NOT NULL,
+    "catalogPosition" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "SellerProfile_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -38,9 +62,12 @@ CREATE TABLE "Product" (
     "technology" TEXT NOT NULL,
     "printTime" TEXT NOT NULL,
     "color" TEXT NOT NULL,
+    "deliveryDateEstimated" TIMESTAMP(3),
+    "deliveryDates" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "sellerId" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+
     CONSTRAINT "Product_pkey" PRIMARY KEY ("id")
 );
 
@@ -51,6 +78,7 @@ CREATE TABLE "ProductImage" (
     "url" TEXT NOT NULL,
     "sortOrder" INTEGER NOT NULL DEFAULT 0,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
     CONSTRAINT "ProductImage_pkey" PRIMARY KEY ("id")
 );
 
@@ -65,6 +93,7 @@ CREATE TABLE "ProductVariant" (
     "stock" INTEGER,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+
     CONSTRAINT "ProductVariant_pkey" PRIMARY KEY ("id")
 );
 
@@ -75,6 +104,7 @@ CREATE TABLE "ProductSpec" (
     "key" TEXT NOT NULL,
     "value" TEXT NOT NULL,
     "sortOrder" INTEGER NOT NULL DEFAULT 0,
+
     CONSTRAINT "ProductSpec_pkey" PRIMARY KEY ("id")
 );
 
@@ -84,10 +114,17 @@ CREATE TABLE "Review" (
     "productId" TEXT NOT NULL,
     "userId" TEXT,
     "rating" INTEGER NOT NULL,
-    "text" TEXT NOT NULL,
+    "pros" TEXT NOT NULL,
+    "cons" TEXT NOT NULL,
+    "comment" TEXT NOT NULL,
+    "photos" TEXT[] DEFAULT ARRAY[]::TEXT[],
+    "likesCount" INTEGER NOT NULL DEFAULT 0,
+    "dislikesCount" INTEGER NOT NULL DEFAULT 0,
+    "isPublic" BOOLEAN NOT NULL DEFAULT true,
     "status" "ReviewStatus" NOT NULL DEFAULT 'PENDING',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+
     CONSTRAINT "Review_pkey" PRIMARY KEY ("id")
 );
 
@@ -100,6 +137,7 @@ CREATE TABLE "Order" (
     "currency" TEXT NOT NULL DEFAULT 'RUB',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+
     CONSTRAINT "Order_pkey" PRIMARY KEY ("id")
 );
 
@@ -112,6 +150,7 @@ CREATE TABLE "OrderItem" (
     "quantity" INTEGER NOT NULL,
     "priceAtPurchase" INTEGER NOT NULL,
     "currency" TEXT NOT NULL DEFAULT 'RUB',
+
     CONSTRAINT "OrderItem_pkey" PRIMARY KEY ("id")
 );
 
@@ -123,6 +162,7 @@ CREATE TABLE "CustomRequest" (
     "comment" TEXT NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'new',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
     CONSTRAINT "CustomRequest_pkey" PRIMARY KEY ("id")
 );
 
@@ -132,17 +172,59 @@ CREATE TABLE "RefreshToken" (
     "token" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "expiresAt" TIMESTAMP(3) NOT NULL,
+
     CONSTRAINT "RefreshToken_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "PhoneOtp" (
+    "id" TEXT NOT NULL,
+    "phone" TEXT NOT NULL,
+    "codeHash" TEXT NOT NULL,
+    "purpose" "OtpPurpose" NOT NULL,
+    "attempts" INTEGER NOT NULL DEFAULT 0,
+    "maxAttempts" INTEGER NOT NULL DEFAULT 5,
+    "ip" TEXT,
+    "userAgent" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "expiresAt" TIMESTAMP(3) NOT NULL,
+    "consumedAt" TIMESTAMP(3),
+
+    CONSTRAINT "PhoneOtp_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "User_phone_key" ON "User"("phone");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "SellerProfile_userId_key" ON "SellerProfile"("userId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Product_sku_key" ON "Product"("sku");
 
 -- CreateIndex
+CREATE INDEX "Review_productId_idx" ON "Review"("productId");
+
+-- CreateIndex
+CREATE INDEX "Review_createdAt_idx" ON "Review"("createdAt");
+
+-- CreateIndex
+CREATE INDEX "Review_productId_status_isPublic_idx" ON "Review"("productId", "status", "isPublic");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "RefreshToken_token_key" ON "RefreshToken"("token");
+
+-- CreateIndex
+CREATE INDEX "PhoneOtp_phone_purpose_createdAt_idx" ON "PhoneOtp"("phone", "purpose", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "PhoneOtp_expiresAt_idx" ON "PhoneOtp"("expiresAt");
+
+-- AddForeignKey
+ALTER TABLE "SellerProfile" ADD CONSTRAINT "SellerProfile_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Product" ADD CONSTRAINT "Product_sellerId_fkey" FOREIGN KEY ("sellerId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
