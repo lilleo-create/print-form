@@ -1,6 +1,7 @@
 .page {
-  padding: 64px 24px 96px;
-  width: 1280px;
+  padding: 64px 0 96px;
+  width: 100%;
+  align-self: stretch;
 }
 
 .header {
@@ -8,7 +9,7 @@
   flex-direction: column;
   gap: 8px;
   margin-bottom: 32px;
-  width: 1280px;
+  width: 100%;
 }
 
 .header p {
