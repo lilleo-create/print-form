@@ -1,5 +1,7 @@
 .page {
   padding: 64px 0 96px;
+  width: 100%;
+  align-self: stretch;
 }
 
 .header {
@@ -7,7 +9,7 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
-  width: 1280px;
+  width: 100%;
 }
 
 .header h1 {
@@ -43,4 +45,17 @@
 .loading {
   padding: 20px 0;
   color: #64748b;
+}
+
+@media (max-width: 768px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+}
+
+@media (max-width: 640px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
 }
