@@ -246,6 +246,7 @@
   background: #ffffff;
   position: relative;
   overflow: visible;
+  transition: opacity 0.25s ease, transform 0.25s ease;
 }
 
 .categoriesSurface {
