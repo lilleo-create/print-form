@@ -1,11 +1,14 @@
 .page {
-  padding: 64px 0;
-  width: 1280px;
+  padding: 64px 24px;
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  align-self: stretch;
 }
 
 .header {
   margin-bottom: 24px;
-  width: 1280px;
+  width: 100%;
 }
 
 .empty {
@@ -16,7 +19,7 @@
   display: grid;
   grid-template-columns: 2fr 1fr;
   gap: 24px;
-  width: 1280px;
+  width: 100%;
 }
 
 .list {

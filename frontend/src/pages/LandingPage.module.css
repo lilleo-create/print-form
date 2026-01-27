@@ -4,6 +4,8 @@
   gap: 72px;
   padding-bottom: 72px;
   align-items: center;
+  width: 100%;
+  align-self: stretch;
 }
 
 .hero {
@@ -106,7 +108,9 @@
 }
 
 .sliderSection {
-  width: min(1280px, 100%); /* подбери 980–1200 по вкусу */
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
 }
 
 .slider {
@@ -223,6 +227,7 @@
   align-items: center;
   gap: 24px;
   max-width: 1280px;
+  width: 100%;
   border-radius: 24px;
   color: #ffffff;
   background: #111827;
@@ -308,10 +313,15 @@
     padding: 24px;
   }
 
+  .sliderContent {
+    padding-left: 0;
+  }
+
   .sliderMedia {
     height: 180px;
     max-height: 200px;
     overflow: hidden;
+    width: 100%;
   }
 
   .sliderMedia img {
@@ -319,5 +329,8 @@
     height: 100%;
     min-height: 0;
     object-fit: cover;
+  }
+  .customContent {
+    padding-left: 0;
   }
 }

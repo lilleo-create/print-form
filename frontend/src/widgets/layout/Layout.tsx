@@ -43,6 +43,8 @@ export const Layout = ({ children }: LayoutProps) => {
   const [categoriesHeight, setCategoriesHeight] = useState(0);
   const [productBoardHeight, setProductBoardHeight] = useState(0);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isFavoritesMenuOpen, setIsFavoritesMenuOpen] = useState(false);
+  const [isReturnsMenuOpen, setIsReturnsMenuOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window === 'undefined') {
       return 'light';
@@ -188,6 +190,8 @@ export const Layout = ({ children }: LayoutProps) => {
 
   useEffect(() => {
     setIsProfileMenuOpen(false);
+    setIsFavoritesMenuOpen(false);
+    setIsReturnsMenuOpen(false);
   }, [location.pathname, location.search]);
 
   useEffect(() => {
@@ -200,6 +204,18 @@ export const Layout = ({ children }: LayoutProps) => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isProfileMenuOpen]);
+
+  useEffect(() => {
+    if (!isFavoritesMenuOpen && !isReturnsMenuOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsFavoritesMenuOpen(false);
+        setIsReturnsMenuOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFavoritesMenuOpen, isReturnsMenuOpen]);
 
   const handleSearchUpdate = (value: string) => {
     setSearchValue(value);
@@ -253,9 +269,24 @@ export const Layout = ({ children }: LayoutProps) => {
     !location.pathname.startsWith('/auth') &&
     !location.pathname.startsWith('/privacy-policy');
   const isFavorites = location.pathname === '/account' && searchParams.get('tab') === 'favorites';
+  const isFavoritesActive = isFavorites || isFavoritesMenuOpen;
   const isProfile = location.pathname === '/account' && (searchParams.get('tab') === 'profile' || !searchParams.get('tab'));
   const sellLink = isSeller ? '/seller' : '/seller/onboarding';
   const closeProfileMenu = () => setIsProfileMenuOpen(false);
+  const closeActionMenus = () => {
+    setIsFavoritesMenuOpen(false);
+    setIsReturnsMenuOpen(false);
+  };
+  const handleFavoritesToggle = () => {
+    setIsReturnsMenuOpen(false);
+    setIsFavoritesMenuOpen((prev) => !prev);
+    setIsProfileMenuOpen(false);
+  };
+  const handleReturnsToggle = () => {
+    setIsFavoritesMenuOpen(false);
+    setIsReturnsMenuOpen((prev) => !prev);
+    setIsProfileMenuOpen(false);
+  };
 
   return (
     <div className={styles.app}>
@@ -281,12 +312,27 @@ export const Layout = ({ children }: LayoutProps) => {
             </button>
           </form>
           <div className={styles.actions}>
-            <Link to="/account" className={styles.actionLink}>
+            <Link to="/orders" className={styles.actionLink} aria-label="Заказы">
               <span aria-hidden>🧾</span>
             </Link>
-            <Link to="/account" className={styles.actionLink}>
+            <button
+              type="button"
+              className={`${styles.actionLink} ${styles.actionButton}`}
+              onClick={handleReturnsToggle}
+              aria-label="Возвраты"
+              aria-expanded={isReturnsMenuOpen}
+            >
+              <span aria-hidden>↩️</span>
+            </button>
+            <button
+              type="button"
+              className={`${styles.actionLink} ${styles.actionButton}`}
+              onClick={handleFavoritesToggle}
+              aria-label="Избранное"
+              aria-expanded={isFavoritesMenuOpen}
+            >
               <span aria-hidden>❤</span>
-            </Link>
+            </button>
             <Link to="/cart" className={styles.actionLink}>
               <span aria-hidden>🛒</span>
               <span className={styles.cartCount}>{cartItems.length}</span>
@@ -310,14 +356,6 @@ export const Layout = ({ children }: LayoutProps) => {
         </div>
         <div className={styles.mobileHeader}>
           <div className={styles.mobileTopRow}>
-            <button
-              type="button"
-              className={styles.mobileBurger}
-              onClick={() => navigate('/categories')}
-              aria-label="Открыть категории"
-            >
-              ☰
-            </button>
             <div className={styles.mobileAddress}>
               <HeaderAddress variant="compact" />
             </div>
@@ -332,17 +370,27 @@ export const Layout = ({ children }: LayoutProps) => {
               </button>
             )}
           </div>
-          <form className={styles.mobileSearch} onSubmit={handleSearchSubmit}>
-            <input
-              type="search"
-              placeholder="Найти товары"
-              value={searchValue}
-              onChange={(event) => handleSearchUpdate(event.target.value)}
-            />
-            <button type="submit" aria-label="Найти">
-              🔍
+          <div className={styles.mobileSearchRow}>
+            <button
+              type="button"
+              className={styles.mobileBurger}
+              onClick={() => navigate('/categories')}
+              aria-label="Открыть категории"
+            >
+              ☰
             </button>
-          </form>
+            <form className={styles.mobileSearch} onSubmit={handleSearchSubmit}>
+              <input
+                type="search"
+                placeholder="Найти товары"
+                value={searchValue}
+                onChange={(event) => handleSearchUpdate(event.target.value)}
+              />
+              <button type="submit" aria-label="Найти">
+                🔍
+              </button>
+            </form>
+          </div>
         </div>
         <div
           className={`${styles.categoriesBar} ${isCategoriesHidden ? styles.categoriesBarHidden : ''} ${
@@ -441,13 +489,18 @@ export const Layout = ({ children }: LayoutProps) => {
             <span aria-hidden>🏠</span>
             <span>Главная</span>
           </Link>
-          <Link
-            to="/account?tab=favorites"
-            className={`${styles.bottomNavItem} ${isFavorites ? styles.bottomNavItemActive : ''}`}
+          <button
+            type="button"
+            className={`${styles.bottomNavItem} ${styles.bottomNavButton} ${
+              isFavoritesActive ? styles.bottomNavItemActive : ''
+            }`}
+            onClick={handleFavoritesToggle}
+            aria-label="Избранное"
+            aria-expanded={isFavoritesMenuOpen}
           >
             <span aria-hidden>❤</span>
             <span>Избранное</span>
-          </Link>
+          </button>
           <Link
             to="/cart"
             className={`${styles.bottomNavItem} ${location.pathname === '/cart' ? styles.bottomNavItemActive : ''}`}
@@ -497,18 +550,26 @@ export const Layout = ({ children }: LayoutProps) => {
               </button>
             </div>
             <nav className={styles.profileMenuList}>
-              <Link to="/account?tab=orders" className={styles.profileMenuItem} onClick={closeProfileMenu}>
+              <Link to="/orders" className={styles.profileMenuItem} onClick={closeProfileMenu}>
                 Заказы
               </Link>
               <Link to="/account?tab=purchases" className={styles.profileMenuItem} onClick={closeProfileMenu}>
                 Купленный товар
               </Link>
-              <Link to="/account?tab=returns" className={styles.profileMenuItem} onClick={closeProfileMenu}>
+              <button
+                type="button"
+                className={`${styles.profileMenuItem} ${styles.profileMenuButton}`}
+                onClick={handleReturnsToggle}
+              >
                 Возвраты
-              </Link>
-              <Link to="/account?tab=favorites" className={styles.profileMenuItem} onClick={closeProfileMenu}>
+              </button>
+              <button
+                type="button"
+                className={`${styles.profileMenuItem} ${styles.profileMenuButton}`}
+                onClick={handleFavoritesToggle}
+              >
                 Избранные
-              </Link>
+              </button>
               <button
                 type="button"
                 className={`${styles.profileMenuItem} ${styles.profileMenuToggle}`}
@@ -537,6 +598,20 @@ export const Layout = ({ children }: LayoutProps) => {
                 Выйти
               </button>
             </nav>
+          </div>
+        </div>
+      )}
+      {(isFavoritesMenuOpen || isReturnsMenuOpen) && (
+        <div className={styles.actionMenuOverlay} role="dialog" aria-modal="false" onClick={closeActionMenus}>
+          <div className={styles.actionMenuPanel} onClick={(event) => event.stopPropagation()}>
+            <div className={styles.actionMenuHeader}>{isFavoritesMenuOpen ? 'Избранное' : 'Возвраты'}</div>
+            <div className={styles.actionMenuBody}>
+              {isFavoritesMenuOpen ? (
+                <p className="empty-state">В избранном пока нет товаров.</p>
+              ) : (
+                <p className="empty-state">У вас пока нет возвратов.</p>
+              )}
+            </div>
           </div>
         </div>
       )}
