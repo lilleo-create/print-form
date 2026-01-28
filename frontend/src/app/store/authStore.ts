@@ -24,6 +24,17 @@ interface AuthState {
   user: User | null;
   token: string | null;
 
+  otp: {
+    required: boolean;
+    purpose: Purpose | null;
+    tempToken: string | null;
+    phone: string | null;
+    user: User | null;
+  };
+
+  setOtpState: (v: Partial<AuthState['otp']>) => void;
+  clearOtp: () => void;
+
   login: (email: string, password: string) => Promise<{
     requiresOtp: boolean;
     tempToken?: string;
@@ -66,6 +77,14 @@ const safeGetSession = () => {
   }
 };
 
+const emptyOtp: AuthState['otp'] = {
+  required: false,
+  purpose: null,
+  tempToken: null,
+  phone: null,
+  user: null,
+};
+
 export const useAuthStore = create<AuthState>((set, get) => {
   const session = safeGetSession();
 
@@ -73,16 +92,35 @@ export const useAuthStore = create<AuthState>((set, get) => {
     user: session?.user ?? null,
     token: session?.token ?? null,
 
-    async login(email, password) {
-      const raw = await authApi.login(email, password);
+    otp: { ...emptyOtp },
 
-      if (!raw) {
-        throw new Error('Login failed: empty response');
-      }
+    setOtpState(v) {
+      set({ otp: { ...get().otp, ...v } });
+    },
+
+    clearOtp() {
+      set({ otp: { ...emptyOtp } });
+    },
+
+    async login(email, password) {
+      // сбрасываем предыдущие OTP попытки
+      get().clearOtp();
+
+      const raw = await authApi.login(email, password);
+      if (!raw) throw new Error('Login failed: empty response');
 
       const result = raw as AuthResult;
 
       if (isOtpRequired(result)) {
+        set({
+          otp: {
+            required: true,
+            purpose: 'login',
+            tempToken: result.tempToken,
+            phone: result.user.phone ?? null,
+            user: result.user,
+          },
+        });
         return { requiresOtp: true, tempToken: result.tempToken, user: result.user };
       }
 
@@ -92,15 +130,24 @@ export const useAuthStore = create<AuthState>((set, get) => {
     },
 
     async register(payload) {
-      const raw = await authApi.register(payload);
+      // сбрасываем предыдущие OTP попытки
+      get().clearOtp();
 
-      if (!raw) {
-        throw new Error('Register failed: empty response');
-      }
+      const raw = await authApi.register(payload);
+      if (!raw) throw new Error('Register failed: empty response');
 
       const result = raw as AuthResult;
 
       if (isOtpRequired(result)) {
+        set({
+          otp: {
+            required: true,
+            purpose: 'register',
+            tempToken: result.tempToken,
+            phone: payload.phone ?? result.user.phone ?? null,
+            user: result.user,
+          },
+        });
         return { requiresOtp: true, tempToken: result.tempToken, user: result.user };
       }
 
@@ -109,21 +156,29 @@ export const useAuthStore = create<AuthState>((set, get) => {
     },
 
     async requestOtp(payload, token) {
-      // purpose по умолчанию лучше явно проставлять на уровне UI,
-      // но на всякий случай:
-      const finalPayload = { purpose: 'login' as Purpose, ...payload };
-      await authApi.requestOtp(finalPayload, token ?? get().token);
+      // purpose лучше задавать явно из UI, но подстрахуем:
+      const purpose = (payload.purpose ?? get().otp.purpose ?? 'login') as Purpose;
+      const finalPayload = { ...payload, purpose };
+
+      await authApi.requestOtp(finalPayload, token ?? get().otp.tempToken ?? get().token);
     },
 
     async verifyOtp(payload, token) {
-      const finalPayload = { purpose: 'login' as Purpose, ...payload };
-      const result = await authApi.verifyOtp(finalPayload, token ?? get().token);
+      const otp = get().otp;
+      const purpose = (payload.purpose ?? otp.purpose ?? 'login') as Purpose;
+
+      const finalPayload = { ...payload, purpose };
+      const result = await authApi.verifyOtp(finalPayload, token ?? otp.tempToken ?? get().token);
 
       if (!result?.user || !result?.token) {
         throw new Error('OTP verify failed: invalid response');
       }
 
-      set({ user: result.user, token: result.token });
+      set({
+        user: result.user,
+        token: result.token,
+        otp: { ...emptyOtp },
+      });
     },
 
     async updateProfile(payload) {
@@ -139,7 +194,6 @@ export const useAuthStore = create<AuthState>((set, get) => {
     },
 
     setUser(user) {
-      // обновляем user в session если метод существует
       authApi.setSessionUser?.(user);
       set({ user });
     },
@@ -151,7 +205,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
       } catch {
         // намеренно игнорим, чтобы не ломать UI
       } finally {
-        set({ user: null, token: null });
+        set({ user: null, token: null, otp: { ...emptyOtp } });
       }
     },
 

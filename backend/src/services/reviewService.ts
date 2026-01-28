@@ -1,8 +1,12 @@
 import { prisma } from '../lib/prisma';
+import { Prisma, ReviewStatus } from '@prisma/client';
 
-const sortMap = (sort: string) => {
+type ReviewOrderBy = Prisma.ReviewOrderByWithRelationInput[];
+
+const sortMap = (sort: string): ReviewOrderBy => {
   switch (sort) {
     case 'helpful':
+      // ВАЖНО: likesCount должен существовать в schema.prisma
       return [{ likesCount: 'desc' }, { createdAt: 'desc' }];
     case 'high':
       return [{ rating: 'desc' }, { createdAt: 'desc' }];
@@ -13,9 +17,9 @@ const sortMap = (sort: string) => {
   }
 };
 
-const buildWhere = (productIds: string[]) => ({
+const buildWhere = (productIds: string[]): Prisma.ReviewWhereInput => ({
   productId: { in: productIds },
-  status: 'APPROVED' as const,
+  status: ReviewStatus.APPROVED,
   isPublic: true
 });
 
@@ -35,9 +39,7 @@ export const reviewService = {
         select: { ratingAvg: true, ratingCount: true }
       });
 
-      if (!product) {
-        throw new Error('NOT_FOUND');
-      }
+      if (!product) throw new Error('NOT_FOUND');
 
       const nextCount = product.ratingCount + 1;
       const nextAvg = (product.ratingAvg * product.ratingCount + data.rating) / nextCount;
@@ -51,7 +53,7 @@ export const reviewService = {
           cons: data.cons,
           comment: data.comment,
           photos: data.photos,
-          status: 'APPROVED'
+          status: ReviewStatus.APPROVED
         }
       });
 
@@ -63,6 +65,7 @@ export const reviewService = {
       return review;
     });
   },
+
   listByProduct: (productId: string, page = 1, limit = 5, sort = 'new') =>
     prisma.review.findMany({
       where: buildWhere([productId]),
@@ -71,6 +74,7 @@ export const reviewService = {
       skip: (page - 1) * limit,
       include: { user: { select: { id: true, name: true } } }
     }),
+
   listByProducts: (productIds: string[], page = 1, limit = 5, sort = 'new') =>
     prisma.review.findMany({
       where: buildWhere(productIds),
@@ -79,69 +83,76 @@ export const reviewService = {
       skip: (page - 1) * limit,
       include: { user: { select: { id: true, name: true } } }
     }),
-  countByProduct: (productId: string) =>
-    prisma.review.count({
-      where: buildWhere([productId])
-    }),
-  countByProducts: (productIds: string[]) =>
-    prisma.review.count({
-      where: buildWhere(productIds)
-    }),
+
+  countByProduct: (productId: string) => prisma.review.count({ where: buildWhere([productId]) }),
+
+  countByProducts: (productIds: string[]) => prisma.review.count({ where: buildWhere(productIds) }),
+
   async summaryByProduct(productId: string) {
     const grouped = await prisma.review.groupBy({
       by: ['rating'],
       where: buildWhere([productId]),
       _count: { _all: true }
     });
+
     const total = grouped.reduce((sum, item) => sum + item._count._all, 0);
     const avg = total
       ? grouped.reduce((sum, item) => sum + item.rating * item._count._all, 0) / total
       : 0;
+
     const counts = [5, 4, 3, 2, 1].map((value) => ({
       rating: value,
       count: grouped.find((item) => item.rating === value)?._count._all ?? 0
     }));
+
     const photos = (
       await prisma.review.findMany({
         where: buildWhere([productId]),
         select: { photos: true }
       })
     ).flatMap((review) => review.photos ?? []);
+
     return { total, avg, counts, photos };
   },
+
   async summaryByProducts(productIds: string[]) {
     const grouped = await prisma.review.groupBy({
       by: ['rating'],
       where: buildWhere(productIds),
       _count: { _all: true }
     });
+
     const total = grouped.reduce((sum, item) => sum + item._count._all, 0);
     const avg = total
       ? grouped.reduce((sum, item) => sum + item.rating * item._count._all, 0) / total
       : 0;
+
     const counts = [5, 4, 3, 2, 1].map((value) => ({
       rating: value,
       count: grouped.find((item) => item.rating === value)?._count._all ?? 0
     }));
+
     const photos = (
       await prisma.review.findMany({
         where: buildWhere(productIds),
         select: { photos: true }
       })
     ).flatMap((review) => review.photos ?? []);
+
     return { total, avg, counts, photos };
   },
+
   listByUser: (userId: string) =>
     prisma.review.findMany({
       where: { userId },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }],
       include: { product: { select: { id: true, title: true, image: true } } }
     }),
+
   async updateVisibility(id: string, userId: string, isPublic: boolean) {
     const review = await prisma.review.findFirst({ where: { id, userId } });
-    if (!review) {
-      throw new Error('NOT_FOUND');
-    }
+    if (!review) throw new Error('NOT_FOUND');
+
     return prisma.review.update({
       where: { id },
       data: { isPublic }

@@ -149,6 +149,7 @@ model Review {
   @@index([productId])
   @@index([createdAt])
   @@index([productId, status, isPublic])
+  @@index([isActive, sortOrder])
 }
 
 model Order {
@@ -175,6 +176,18 @@ model OrderItem {
   priceAtPurchase Int
   currency        String         @default("RUB")
 }
+model ReferenceCategory {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  title     String
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
+}
+
 
 model CustomRequest {
   id        String   @id @default(cuid())
