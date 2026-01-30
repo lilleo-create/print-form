@@ -21,13 +21,17 @@ export const useAddressStore = create<AddressState>((set) => ({
   selectedAddressId: '',
   isModalOpen: false,
   async loadAddresses(userId) {
-    const data = await addressesApi.listByUser(userId);
-    const defaultId = await addressesApi.getDefault(userId);
-    const nextSelected = defaultId ?? data[0]?.id ?? '';
-    if (nextSelected && nextSelected !== defaultId) {
-      await addressesApi.setDefault(userId, nextSelected);
+    try {
+      const data = await addressesApi.listByUser(userId);
+      const defaultId = await addressesApi.getDefault(userId);
+      const nextSelected = defaultId ?? data[0]?.id ?? '';
+      if (nextSelected && nextSelected !== defaultId) {
+        await addressesApi.setDefault(userId, nextSelected);
+      }
+      set({ addresses: data, selectedAddressId: nextSelected });
+    } catch {
+      set({ addresses: [], selectedAddressId: '' });
     }
-    set({ addresses: data, selectedAddressId: nextSelected });
   },
   async selectAddress(userId, addressId) {
     await addressesApi.setDefault(userId, addressId);

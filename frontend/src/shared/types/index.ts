@@ -1,6 +1,6 @@
 export type MaterialType = 'PLA' | 'ABS' | 'PETG' | 'RESIN';
 export type TechnologyType = 'FDM' | 'SLA';
-export type Role = 'buyer' | 'seller';
+export type Role = 'buyer' | 'seller' | 'admin';
 export type OrderStatus = 'processing' | 'printing' | 'shipped' | 'delivered';
 export type OrderItemStatus = 'new' | OrderStatus;
 
@@ -142,6 +142,42 @@ export interface SellerProfile {
   city: string;
   referenceCategory: string;
   catalogPosition: string;
+}
+
+export type KycStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface SellerDocument {
+  id: string;
+  submissionId: string;
+  type: string;
+  url: string;
+  originalName: string;
+  mime: string;
+  size: number;
+  createdAt: string;
+}
+
+export interface SellerKycSubmission {
+  id: string;
+  userId: string;
+  status: KycStatus;
+  submittedAt?: string | null;
+  reviewedAt?: string | null;
+  reviewerId?: string | null;
+  notes?: string | null;
+  documents: SellerDocument[];
+  user?: { id: string; name: string; email: string; phone?: string | null };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaymentIntent {
+  id: string;
+  status: string;
+  provider: string;
+  amount: number;
+  currency: string;
+  clientSecret?: string;
 }
 
 export interface CustomPrintRequest {

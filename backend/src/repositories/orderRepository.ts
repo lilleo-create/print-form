@@ -3,6 +3,8 @@ import { prisma } from '../lib/prisma';
 export const orderRepository = {
   create: (data: {
     buyerId: string;
+    contactId?: string;
+    shippingAddressId?: string;
     items: { productId: string; variantId?: string; quantity: number }[];
   }) =>
     prisma.$transaction(async (tx) => {
@@ -39,29 +41,35 @@ export const orderRepository = {
       return tx.order.create({
         data: {
           buyerId: data.buyerId,
+          contactId: data.contactId,
+          shippingAddressId: data.shippingAddressId,
           total,
           items: {
             create: itemsWithPrice
           }
         },
-        include: { items: { include: { product: true, variant: true } } }
+        include: {
+          items: { include: { product: true, variant: true } },
+          contact: true,
+          shippingAddress: true
+        }
       });
     }),
   findByBuyer: (buyerId: string) =>
     prisma.order.findMany({
       where: { buyerId },
-      include: { items: { include: { product: true } } },
+      include: { items: { include: { product: true } }, contact: true, shippingAddress: true },
       orderBy: { createdAt: 'desc' }
     }),
   findById: (id: string) =>
     prisma.order.findUnique({
       where: { id },
-      include: { items: { include: { product: true } } }
+      include: { items: { include: { product: true } }, contact: true, shippingAddress: true }
     }),
   findSellerOrders: (sellerId: string) =>
     prisma.order.findMany({
       where: { items: { some: { product: { sellerId } } } },
-      include: { items: { include: { product: true } } },
+      include: { items: { include: { product: true } }, contact: true, shippingAddress: true },
       orderBy: { createdAt: 'desc' }
     })
 };

@@ -1,9 +1,9 @@
 import { createFetchClient } from './client';
-import { Product, CustomPrintRequest, Order, Review, SellerProfile } from '../types';
+import { Product, CustomPrintRequest, Order, Review, SellerProfile, SellerKycSubmission, PaymentIntent } from '../types';
 import { loadFromStorage } from '../lib/storage';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 
-const baseUrl = import.meta.env.VITE_API_URL ?? '/api';
+const baseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
 const client = createFetchClient(baseUrl);
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 
@@ -125,7 +125,11 @@ export const api = {
   async getSellerOrders() {
     return client.request<Order[]>('/seller/orders');
   },
-  async createOrder(payload: { items: { productId: string; variantId?: string; quantity: number }[] }) {
+  async createOrder(payload: {
+    contactId?: string;
+    shippingAddressId?: string;
+    items: { productId: string; variantId?: string; quantity: number }[];
+  }) {
     return client.request<Order>('/orders', { method: 'POST', body: payload });
   },
   async login(payload: { email: string; password: string }) {
@@ -224,7 +228,7 @@ export const api = {
     );
   },
   async getSellerProfile() {
-    return client.request<{ isSeller: boolean; profile: SellerProfile | null }>('/seller/me');
+    return client.request<{ isSeller: boolean; profile: SellerProfile | null; kyc?: SellerKycSubmission | null; canSell?: boolean }>('/seller/me');
   },
   async getSellerStats() {
     return client.request<{ totalOrders: number; totalRevenue: number; totalProducts: number; averageRating: number }>(
@@ -238,11 +242,42 @@ export const api = {
     const response = await fetch(`${baseUrl}/seller/uploads`, {
       method: 'POST',
       headers: session?.token ? { Authorization: `Bearer ${session.token}` } : undefined,
-      body: formData
+      body: formData,
+      credentials: 'include'
     });
     if (!response.ok) {
       throw new Error('UPLOAD_FAILED');
     }
     return response.json() as Promise<{ data: { urls: string[] } }>;
+  },
+  async getSellerKyc() {
+    return client.request<SellerKycSubmission | null>('/seller/kyc/me');
+  },
+  async submitSellerKyc() {
+    return client.request<SellerKycSubmission>('/seller/kyc/submit', { method: 'POST' });
+  },
+  async uploadSellerKycDocuments(files: FileList) {
+    const session = loadFromStorage<{ token: string } | null>(STORAGE_KEYS.session, null);
+    const formData = new FormData();
+    Array.from(files).forEach((file) => formData.append('files', file));
+    const response = await fetch(`${baseUrl}/seller/kyc/documents`, {
+      method: 'POST',
+      headers: session?.token ? { Authorization: `Bearer ${session.token}` } : undefined,
+      body: formData,
+      credentials: 'include'
+    });
+    if (!response.ok) {
+      throw new Error('UPLOAD_FAILED');
+    }
+    return response.json() as Promise<{ data: { submissionId: string; documents: SellerKycSubmission['documents'] } }>;
+  },
+  async getAdminKyc() {
+    return client.request<SellerKycSubmission[]>('/admin/kyc');
+  },
+  async reviewAdminKyc(id: string, payload: { status: 'APPROVED' | 'REJECTED'; notes?: string }) {
+    return client.request<SellerKycSubmission>(`/admin/kyc/${id}`, { method: 'PATCH', body: payload });
+  },
+  async createPaymentIntent(payload: { orderId: string; amount: number; currency?: string; provider?: string }) {
+    return client.request<PaymentIntent>('/payments/intent', { method: 'POST', body: payload });
   }
 };

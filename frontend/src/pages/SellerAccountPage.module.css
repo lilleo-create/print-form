@@ -152,6 +152,59 @@
   color: var(--color-text-muted);
 }
 
+.kycPanel {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  gap: 12px;
+}
+
+.kycRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.kycLabel {
+  color: var(--color-text-muted);
+}
+
+.kycDocs {
+  display: grid;
+  gap: 6px;
+  padding-left: 18px;
+}
+
+.kycActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.uploadButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #f1f5f9;
+  border: 1px dashed var(--color-border);
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.uploadButton input {
+  display: none;
+}
+
+.kycNotes,
+.kycMessage {
+  color: var(--color-text-muted);
+}
+
 @media (max-width: 960px) {
   .shell {
     grid-template-columns: 1fr;

@@ -22,7 +22,9 @@ export const errorHandler = (
       error.message === 'OTP_TOO_MANY' ||
       error.message === 'INVALID_PHONE' ||
       error.message === 'CORS_NOT_ALLOWED' ||
-      error.message === 'PHONE_MISMATCH'
+      error.message === 'PHONE_MISMATCH' ||
+      error.message === 'KYC_FILE_TYPE_INVALID' ||
+      error.message === 'AMOUNT_MISMATCH'
     ? 400
     : 500;
 

@@ -14,6 +14,7 @@ import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
 import { CategoriesPage } from './pages/CategoriesPage';
 import { SellerOnboardingPage } from './pages/SellerOnboardingPage';
 import { OrdersPage } from './pages/OrdersPage';
+import { AdminKycPage } from './pages/AdminKycPage';
 
 const App = () => {
   return (
@@ -58,6 +59,14 @@ const App = () => {
           }
         />
         <Route path="/seller/onboarding" element={<SellerOnboardingPage />} />
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute requiredRole="admin">
+              <AdminKycPage />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/auth/login" element={<AuthPage />} />
         <Route path="/auth/register" element={<AuthPage />} />
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />

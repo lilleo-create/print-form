@@ -3,10 +3,13 @@ import { z } from 'zod';
 import { authenticate, AuthRequest } from '../middleware/authMiddleware';
 import { orderUseCases } from '../usecases/orderUseCases';
 import { writeLimiter } from '../middleware/rateLimiters';
+import { prisma } from '../lib/prisma';
 
 export const orderRoutes = Router();
 
 const orderSchema = z.object({
+  contactId: z.string().optional(),
+  shippingAddressId: z.string().optional(),
   items: z
     .array(
       z.object({
@@ -21,8 +24,26 @@ const orderSchema = z.object({
 orderRoutes.post('/', authenticate, writeLimiter, async (req: AuthRequest, res, next) => {
   try {
     const payload = orderSchema.parse(req.body);
+    if (payload.contactId) {
+      const contact = await prisma.contact.findFirst({
+        where: { id: payload.contactId, userId: req.user!.userId }
+      });
+      if (!contact) {
+        return res.status(404).json({ error: { code: 'CONTACT_NOT_FOUND' } });
+      }
+    }
+    if (payload.shippingAddressId) {
+      const address = await prisma.address.findFirst({
+        where: { id: payload.shippingAddressId, userId: req.user!.userId }
+      });
+      if (!address) {
+        return res.status(404).json({ error: { code: 'ADDRESS_NOT_FOUND' } });
+      }
+    }
     const order = await orderUseCases.create({
       buyerId: req.user!.userId,
+      contactId: payload.contactId,
+      shippingAddressId: payload.shippingAddressId,
       items: payload.items
     });
     res.status(201).json({ data: order });
