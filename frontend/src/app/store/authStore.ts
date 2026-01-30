@@ -215,3 +215,9 @@ export const useAuthStore = create<AuthState>((set, get) => {
     },
   };
 });
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('auth:logout', () => {
+    useAuthStore.setState({ user: null, token: null, otp: { ...emptyOtp } });
+  });
+}

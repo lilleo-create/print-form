@@ -6,6 +6,10 @@ import { useCartStore } from '../../app/store/cartStore';
 import { useUiStore } from '../../app/store/uiStore';
 import { useOrdersStore } from '../../app/store/ordersStore';
 import { useAuthStore } from '../../app/store/authStore';
+import { contactsApi } from '../../shared/api/contactsApi';
+import { addressesApi } from '../../shared/api/addressesApi';
+import { api } from '../../shared/api';
+import { PaymentIntent } from '../../shared/types';
 import { Button } from '../../shared/ui/Button';
 import { useModalFocus } from '../../shared/lib/useModalFocus';
 import styles from './CartDrawer.module.css';
@@ -25,6 +29,7 @@ export const CartDrawer = () => {
   const createOrder = useOrdersStore((state) => state.createOrder);
   const user = useAuthStore((state) => state.user);
   const [submitted, setSubmitted] = useState(false);
+  const [paymentIntent, setPaymentIntent] = useState<PaymentIntent | null>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
   const {
     register,
@@ -50,6 +55,7 @@ export const CartDrawer = () => {
   useEffect(() => {
     if (!isCartOpen) {
       setSubmitted(false);
+      setPaymentIntent(null);
     }
   }, [isCartOpen]);
 
@@ -57,10 +63,21 @@ export const CartDrawer = () => {
     return null;
   }
 
-  const onSubmit = async () => {
+  const onSubmit = async (values: CheckoutFormValues) => {
     if (!user || items.length === 0) {
       return;
     }
+    const contact = await contactsApi.create({
+      userId: user.id,
+      name: values.name,
+      phone: values.phone
+    });
+    const address = await addressesApi.create({
+      userId: user.id,
+      addressText: values.address,
+      coords: null
+    });
+    await addressesApi.setDefault(user.id, address.id);
     const orderItems = items.map((item) => ({
       productId: item.product.id,
       title: item.product.title,
@@ -70,13 +87,23 @@ export const CartDrawer = () => {
       lineTotal: item.product.price * item.quantity,
       image: item.product.image,
     }));
-    await createOrder({
+    const order = await createOrder({
       user,
-      contactId: user.id,
-      shippingAddressId: 'mock-address',
+      contactId: contact.id,
+      shippingAddressId: address.id,
       items: orderItems,
       total
     });
+    try {
+      const paymentResponse = await api.createPaymentIntent({
+        orderId: order.id,
+        amount: order.total,
+        currency: 'RUB'
+      });
+      setPaymentIntent(paymentResponse.data);
+    } catch {
+      setPaymentIntent(null);
+    }
 
 
     setSubmitted(true);
@@ -140,6 +167,11 @@ export const CartDrawer = () => {
             {errors.delivery && <span>{errors.delivery.message}</span>}
             <Button type="submit">Оформить заказ</Button>
             {submitted && <p className={styles.success}>Заказ отправлен!</p>}
+            {submitted && paymentIntent && (
+              <p className={styles.success}>
+                Секрет платежа: {paymentIntent.clientSecret ?? paymentIntent.id}
+              </p>
+            )}
           </form>
         </div>
       </div>

@@ -63,6 +63,9 @@ export const Layout = ({ children }: LayoutProps) => {
       catalogPosition: string;
       phone: string;
     } | null;
+    kyc?: {
+      status: string;
+    } | null;
   } | null>(null);
   const categoriesRef = useRef<HTMLDivElement | null>(null);
   const productBoardRef = useRef<HTMLDivElement | null>(null);

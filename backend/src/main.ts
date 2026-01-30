@@ -13,6 +13,8 @@ import { customRequestRoutes } from "./routes/customRequestRoutes";
 import { sellerRoutes } from "./routes/sellerRoutes";
 import { filterRoutes } from "./routes/filterRoutes";
 import { meRoutes } from "./routes/meRoutes";
+import { adminRoutes } from "./routes/adminRoutes";
+import { paymentRoutes } from "./routes/paymentRoutes";
 import { errorHandler } from "./middleware/errorHandler";
 import { globalLimiter } from "./middleware/rateLimiters";
 
@@ -55,6 +57,8 @@ app.use("/custom-requests", customRequestRoutes);
 app.use("/seller", sellerRoutes);
 app.use("/filters", filterRoutes);
 app.use("/me", meRoutes);
+app.use("/admin", adminRoutes);
+app.use("/payments", paymentRoutes);
 
 app.use(errorHandler);
 

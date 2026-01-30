@@ -1,27 +1,50 @@
-import { Order, OrderItem } from '../types';
-import { loadFromStorage, saveToStorage } from '../lib/storage';
-import { STORAGE_KEYS } from '../constants/storageKeys';
+import { Order, OrderItem, OrderStatus } from '../types';
 import { api } from './index';
 
-const getOrders = () => loadFromStorage<Order[]>(STORAGE_KEYS.orders, []);
-const useMock = import.meta.env.VITE_USE_MOCK === 'true';
+const mapStatus = (status?: string): OrderStatus => {
+  switch (status) {
+    case 'PRINTING':
+      return 'printing';
+    case 'SHIPPED':
+      return 'shipped';
+    case 'DELIVERED':
+      return 'delivered';
+    default:
+      return 'processing';
+  }
+};
+
+const mapOrder = (order: any): Order => ({
+  id: order.id,
+  buyerId: order.buyerId,
+  buyerEmail: order.buyer?.email ?? '',
+  contactId: order.contactId ?? '',
+  shippingAddressId: order.shippingAddressId ?? '',
+  status: mapStatus(order.status),
+  total: order.total,
+  createdAt: order.createdAt,
+  items: (order.items ?? []).map((item: any) => ({
+    productId: item.productId,
+    title: item.product?.title ?? '',
+    price: item.priceAtPurchase,
+    qty: item.quantity,
+    sellerId: item.product?.sellerId ?? '',
+    lineTotal: item.priceAtPurchase * item.quantity,
+    image: item.product?.image,
+    status: 'new'
+  }))
+});
 
 export const ordersApi = {
   listByBuyer: async (buyerId: string) => {
-    if (!useMock) {
-      const result = await api.getOrders();
-      return result.data;
-    }
-    const orders = getOrders();
-    return orders.filter((order) => order.buyerId === buyerId);
+    const result = await api.getOrders();
+    return (result.data ?? []).map(mapOrder).filter((order) => order.buyerId === buyerId);
   },
   listBySeller: async (sellerId: string) => {
-    if (!useMock) {
-      const result = await api.getSellerOrders();
-      return result.data;
-    }
-    const orders = getOrders();
-    return orders.filter((order) => order.items.some((item) => item.sellerId === sellerId));
+    const result = await api.getSellerOrders();
+    return (result.data ?? []).map(mapOrder).filter((order) =>
+      order.items.some((item) => item.sellerId === sellerId)
+    );
   },
   create: async (payload: {
     buyerId: string;
@@ -31,29 +54,14 @@ export const ordersApi = {
     items: OrderItem[];
     total: number;
   }) => {
-    if (!useMock) {
-      const result = await api.createOrder({
-        items: payload.items.map((item) => ({
-          productId: item.productId,
-          quantity: item.qty
-        }))
-      });
-      return result.data;
-    }
-    const current = getOrders();
-    const newOrder: Order = {
-      id: `ord-${Date.now()}`,
-      buyerId: payload.buyerId,
-      buyerEmail: payload.buyerEmail,
+    const result = await api.createOrder({
       contactId: payload.contactId,
       shippingAddressId: payload.shippingAddressId,
-      status: 'processing',
-      total: payload.total,
-      createdAt: new Date().toISOString().split('T')[0],
-      items: payload.items
-    };
-    const next = [newOrder, ...current];
-    saveToStorage(STORAGE_KEYS.orders, next);
-    return newOrder;
+      items: payload.items.map((item) => ({
+        productId: item.productId,
+        quantity: item.qty
+      }))
+    });
+    return mapOrder(result.data);
   }
 };

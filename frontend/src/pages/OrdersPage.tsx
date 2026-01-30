@@ -1,12 +1,16 @@
 import { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuthStore } from '../app/store/authStore';
 import { useOrdersStore } from '../app/store/ordersStore';
+import { PaymentIntent } from '../shared/types';
 import styles from './OrdersPage.module.css';
 
 export const OrdersPage = () => {
   const user = useAuthStore((state) => state.user);
   const orders = useOrdersStore((state) => state.orders);
   const loadBuyerOrders = useOrdersStore((state) => state.loadBuyerOrders);
+  const location = useLocation();
+  const paymentIntent = (location.state as { paymentIntent?: PaymentIntent | null } | null)?.paymentIntent ?? null;
 
   useEffect(() => {
     if (user) {
@@ -21,6 +25,14 @@ export const OrdersPage = () => {
           <h1>Заказы</h1>
           <p>История ваших покупок.</p>
         </header>
+        {paymentIntent && (
+          <div className={styles.paymentBanner}>
+            <strong>Оплата заказа</strong>
+            <span>
+              Секрет платежа: {paymentIntent.clientSecret ?? paymentIntent.id}
+            </span>
+          </div>
+        )}
         {orders.length === 0 ? (
           <p className={styles.empty}>У вас пока нет заказов.</p>
         ) : (

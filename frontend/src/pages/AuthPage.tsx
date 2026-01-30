@@ -98,7 +98,11 @@ export const AuthPage = () => {
       navigate(redirectTo);
       return;
     }
-    navigate(role === 'seller' ? '/seller' : '/account');
+    if (role === 'admin') {
+      navigate('/admin');
+    } else {
+      navigate(role === 'seller' ? '/seller' : '/account');
+    }
   };
 
   const resetOtpUi = () => {

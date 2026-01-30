@@ -3,7 +3,12 @@ import { userRepository } from '../repositories/userRepository';
 import { sheetsService } from '../services/sheetsService';
 
 export const orderUseCases = {
-  create: async (data: { buyerId: string; items: { productId: string; variantId?: string; quantity: number }[] }) => {
+  create: async (data: {
+    buyerId: string;
+    contactId?: string;
+    shippingAddressId?: string;
+    items: { productId: string; variantId?: string; quantity: number }[];
+  }) => {
     const order = await orderRepository.create(data);
     const buyer = await userRepository.findById(data.buyerId);
 

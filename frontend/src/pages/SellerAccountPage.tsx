@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { ChangeEvent, useEffect, useState } from 'react';
 import { api } from '../shared/api';
-import { Product } from '../shared/types';
+import { Product, SellerKycSubmission } from '../shared/types';
 import { Button } from '../shared/ui/Button';
 import { SellerProductModal, SellerProductPayload } from '../widgets/seller/SellerProductModal';
 import styles from './SellerAccountPage.module.css';
@@ -26,6 +26,11 @@ export const SellerAccountPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeProduct, setActiveProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [kycSubmission, setKycSubmission] = useState<SellerKycSubmission | null>(null);
+  const [kycLoading, setKycLoading] = useState(true);
+  const [isKycUploading, setIsKycUploading] = useState(false);
+  const [kycMessage, setKycMessage] = useState<string | null>(null);
+  const canSell = kycSubmission?.status === 'APPROVED';
 
   const loadDashboard = async () => {
     try {
@@ -35,23 +40,67 @@ export const SellerAccountPage = () => {
       ]);
       setProducts(productsResponse.data);
       setStats(statsResponse.data);
+    } catch {
+      setProducts([]);
+      setStats({ totalOrders: 0, totalRevenue: 0, totalProducts: 0, averageRating: 0 });
     } finally {
       setIsLoading(false);
     }
   };
 
+  const loadKyc = async () => {
+    try {
+      const response = await api.getSellerKyc();
+      setKycSubmission(response.data);
+    } catch {
+      setKycSubmission(null);
+    } finally {
+      setKycLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadDashboard();
+    loadKyc();
   }, []);
 
-  const handleSaveProduct = async (payload: SellerProductPayload) => {
-    if (payload.id) {
-      const response = await api.updateSellerProduct(payload.id, payload);
-      setProducts((prev) => prev.map((item) => (item.id === payload.id ? response.data : item)));
+  const handleKycUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) {
       return;
     }
-    const response = await api.createSellerProduct(payload);
-    setProducts((prev) => [response.data, ...prev]);
+    setIsKycUploading(true);
+    setKycMessage(null);
+    try {
+      await api.uploadSellerKycDocuments(files);
+      const response = await api.getSellerKyc();
+      setKycSubmission(response.data);
+      setKycMessage('Документы загружены.');
+    } finally {
+      setIsKycUploading(false);
+      event.target.value = '';
+    }
+  };
+
+  const handleKycSubmit = async () => {
+    setKycMessage(null);
+    const response = await api.submitSellerKyc();
+    setKycSubmission(response.data);
+    setKycMessage('Заявка отправлена на проверку.');
+  };
+
+  const handleSaveProduct = async (payload: SellerProductPayload) => {
+    try {
+      if (payload.id) {
+        const response = await api.updateSellerProduct(payload.id, payload);
+        setProducts((prev) => prev.map((item) => (item.id === payload.id ? response.data : item)));
+        return;
+      }
+      const response = await api.createSellerProduct(payload);
+      setProducts((prev) => [response.data, ...prev]);
+    } catch {
+      setKycMessage('Загрузка товаров доступна после одобрения KYC.');
+    }
   };
 
   return (
@@ -113,6 +162,59 @@ export const SellerAccountPage = () => {
             </div>
           )}
 
+          {(activeItem === 'Подключение' || activeItem === 'Сводка') && (
+            <div className={styles.section}>
+              <div className={styles.sectionHeader}>
+                <div>
+                  <h2>KYC документы</h2>
+                  <p>Загрузите документы для верификации продавца.</p>
+                </div>
+              </div>
+              {kycLoading ? (
+                <p className={styles.muted}>Загрузка статуса...</p>
+              ) : (
+                <div className={styles.kycPanel}>
+                  <div className={styles.kycRow}>
+                    <span className={styles.kycLabel}>Статус:</span>
+                    <strong>{kycSubmission?.status ?? 'Не отправлено'}</strong>
+                  </div>
+                  {kycSubmission?.notes && (
+                    <p className={styles.kycNotes}>Комментарий: {kycSubmission.notes}</p>
+                  )}
+                  {kycSubmission?.documents?.length ? (
+                    <ul className={styles.kycDocs}>
+                      {kycSubmission.documents.map((doc) => (
+                        <li key={doc.id}>
+                          <a href={doc.url} target="_blank" rel="noreferrer">
+                            {doc.originalName}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className={styles.muted}>Документы не загружены.</p>
+                  )}
+                  <div className={styles.kycActions}>
+                    <label className={styles.uploadButton}>
+                      <input
+                        type="file"
+                        multiple
+                        accept=".pdf,image/png,image/jpeg"
+                        onChange={handleKycUpload}
+                        disabled={isKycUploading}
+                      />
+                      {isKycUploading ? 'Загрузка...' : 'Загрузить документы'}
+                    </label>
+                    <Button type="button" onClick={handleKycSubmit} disabled={!kycSubmission?.documents?.length}>
+                      Отправить на проверку
+                    </Button>
+                  </div>
+                  {kycMessage && <p className={styles.kycMessage}>{kycMessage}</p>}
+                </div>
+              )}
+            </div>
+          )}
+
           {activeItem === 'Товары' && (
             <div className={styles.section}>
               <div className={styles.sectionHeader}>
@@ -126,6 +228,7 @@ export const SellerAccountPage = () => {
                     setActiveProduct(null);
                     setIsModalOpen(true);
                   }}
+                  disabled={!canSell}
                 >
                   Добавить товар
                 </Button>

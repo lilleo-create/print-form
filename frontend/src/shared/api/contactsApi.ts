@@ -1,27 +1,23 @@
 import { Contact } from '../types';
-import { loadFromStorage, saveToStorage } from '../lib/storage';
-import { STORAGE_KEYS } from '../constants/storageKeys';
+import { createFetchClient } from './client';
 
-const contactsKey = (userId: string) => `${STORAGE_KEYS.contacts}_${userId}`;
+const baseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
+const client = createFetchClient(baseUrl);
 
 export const contactsApi = {
-  listByUser: async (userId: string) => {
-    return loadFromStorage<Contact[]>(contactsKey(userId), []);
+  listByUser: async (_userId: string) => {
+    const response = await client.request<Contact[]>('/me/contacts');
+    return response.data ?? [];
   },
   create: async (payload: Omit<Contact, 'id' | 'createdAt'>) => {
-    const existing = loadFromStorage<Contact[]>(contactsKey(payload.userId), []);
-    const newContact: Contact = {
-      ...payload,
-      id: `contact-${Date.now()}`,
-      createdAt: new Date().toISOString()
-    };
-    saveToStorage(contactsKey(payload.userId), [newContact, ...existing]);
-    return newContact;
+    const response = await client.request<Contact>('/me/contacts', { method: 'POST', body: payload });
+    return response.data;
   },
   update: async (payload: Contact) => {
-    const existing = loadFromStorage<Contact[]>(contactsKey(payload.userId), []);
-    const next = existing.map((contact) => (contact.id === payload.id ? payload : contact));
-    saveToStorage(contactsKey(payload.userId), next);
-    return payload;
+    const response = await client.request<Contact>(`/me/contacts/${payload.id}`, {
+      method: 'PATCH',
+      body: payload
+    });
+    return response.data;
   }
 };

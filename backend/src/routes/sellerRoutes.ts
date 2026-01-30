@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import multer from 'multer';
 import path from 'path';
+import fs from 'fs';
 import { authenticate, authorize, AuthRequest } from '../middleware/authMiddleware';
 import { prisma } from '../lib/prisma';
 import { productUseCases } from '../usecases/productUseCases';
@@ -12,6 +13,10 @@ import { writeLimiter } from '../middleware/rateLimiters';
 export const sellerRoutes = Router();
 
 const uploadDir = path.join(process.cwd(), 'uploads');
+const kycUploadDir = path.join(uploadDir, 'kyc');
+if (!fs.existsSync(kycUploadDir)) {
+  fs.mkdirSync(kycUploadDir, { recursive: true });
+}
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => {
     cb(null, uploadDir);
@@ -25,6 +30,26 @@ const upload = multer({
   storage,
   limits: {
     fileSize: 2 * 1024 * 1024
+  }
+});
+const kycStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    cb(null, kycUploadDir);
+  },
+  filename: (_req, file, cb) => {
+    const unique = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
+    cb(null, `${unique}-${file.originalname}`);
+  }
+});
+const kycUpload = multer({
+  storage: kycStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['application/pdf', 'image/jpeg', 'image/png'];
+    if (!allowed.includes(file.mimetype)) {
+      return cb(new Error('KYC_FILE_TYPE_INVALID'));
+    }
+    return cb(null, true);
   }
 });
 
@@ -93,6 +118,15 @@ sellerRoutes.post('/onboarding', authenticate, writeLimiter, async (req: AuthReq
 
 sellerRoutes.get('/me', authenticate, async (req: AuthRequest, res, next) => {
   try {
+    const latestSubmission = await prisma.sellerKycSubmission.findFirst({
+      where: { userId: req.user!.userId },
+      orderBy: { createdAt: 'desc' },
+      include: { documents: true }
+    });
+    const approvedSubmission = await prisma.sellerKycSubmission.findFirst({
+      where: { userId: req.user!.userId, status: 'APPROVED' },
+      orderBy: { reviewedAt: 'desc' }
+    });
     const user = await prisma.user.findUnique({
       where: { id: req.user!.userId },
       include: { sellerProfile: true }
@@ -100,7 +134,9 @@ sellerRoutes.get('/me', authenticate, async (req: AuthRequest, res, next) => {
     res.json({
       data: {
         isSeller: user?.role === 'SELLER' && Boolean(user.sellerProfile),
-        profile: user?.sellerProfile ?? null
+        profile: user?.sellerProfile ?? null,
+        kyc: latestSubmission,
+        canSell: Boolean(approvedSubmission)
       }
     });
   } catch (error) {
@@ -110,8 +146,95 @@ sellerRoutes.get('/me', authenticate, async (req: AuthRequest, res, next) => {
 
 sellerRoutes.use(authenticate, authorize(['SELLER', 'ADMIN']));
 
+const ensureKycApproved = async (userId: string) => {
+  const approved = await prisma.sellerKycSubmission.findFirst({
+    where: { userId, status: 'APPROVED' },
+    orderBy: { reviewedAt: 'desc' }
+  });
+  return Boolean(approved);
+};
+
+sellerRoutes.get('/kyc/me', async (req: AuthRequest, res, next) => {
+  try {
+    const submission = await prisma.sellerKycSubmission.findFirst({
+      where: { userId: req.user!.userId },
+      orderBy: { createdAt: 'desc' },
+      include: { documents: true }
+    });
+    res.json({ data: submission ?? null });
+  } catch (error) {
+    next(error);
+  }
+});
+
+sellerRoutes.post('/kyc/submit', writeLimiter, async (req: AuthRequest, res, next) => {
+  try {
+    const latest = await prisma.sellerKycSubmission.findFirst({
+      where: { userId: req.user!.userId },
+      orderBy: { createdAt: 'desc' }
+    });
+    if (latest && latest.status === 'PENDING') {
+      return res.json({ data: latest });
+    }
+    const created = await prisma.sellerKycSubmission.create({
+      data: {
+        userId: req.user!.userId,
+        status: 'PENDING',
+        submittedAt: new Date()
+      },
+      include: { documents: true }
+    });
+    res.status(201).json({ data: created });
+  } catch (error) {
+    next(error);
+  }
+});
+
+sellerRoutes.post('/kyc/documents', writeLimiter, kycUpload.array('files', 5), async (req: AuthRequest, res, next) => {
+  try {
+    const files = (req.files as Express.Multer.File[]) ?? [];
+    if (!files.length) {
+      return res.status(400).json({ error: { code: 'KYC_FILES_REQUIRED' } });
+    }
+    let submission = await prisma.sellerKycSubmission.findFirst({
+      where: { userId: req.user!.userId },
+      orderBy: { createdAt: 'desc' }
+    });
+    if (!submission || submission.status === 'REJECTED') {
+      submission = await prisma.sellerKycSubmission.create({
+        data: {
+          userId: req.user!.userId,
+          status: 'PENDING',
+          submittedAt: new Date()
+        }
+      });
+    }
+    const createdDocs = await prisma.$transaction(
+      files.map((file) =>
+        prisma.sellerDocument.create({
+          data: {
+            submissionId: submission!.id,
+            type: 'document',
+            url: `/uploads/kyc/${file.filename}`,
+            originalName: file.originalname,
+            mime: file.mimetype,
+            size: file.size
+          }
+        })
+      )
+    );
+    res.status(201).json({ data: { submissionId: submission.id, documents: createdDocs } });
+  } catch (error) {
+    next(error);
+  }
+});
+
 sellerRoutes.get('/products', async (req: AuthRequest, res, next) => {
   try {
+    const approved = await ensureKycApproved(req.user!.userId);
+    if (!approved && req.user!.role !== 'ADMIN') {
+      return res.status(403).json({ error: { code: 'KYC_NOT_APPROVED' } });
+    }
     const sellerProducts = await prisma.product.findMany({
       where: { sellerId: req.user!.userId },
       include: { images: { orderBy: { sortOrder: 'asc' } } }
@@ -124,6 +247,10 @@ sellerRoutes.get('/products', async (req: AuthRequest, res, next) => {
 
 sellerRoutes.post('/products', writeLimiter, async (req: AuthRequest, res, next) => {
   try {
+    const approved = await ensureKycApproved(req.user!.userId);
+    if (!approved && req.user!.role !== 'ADMIN') {
+      return res.status(403).json({ error: { code: 'KYC_NOT_APPROVED' } });
+    }
     const payload = sellerProductSchema.parse(req.body);
     const skuFallback = payload.sku ?? `SKU-${Date.now()}`;
     if (!payload.imageUrls?.length && !payload.image) {
@@ -150,6 +277,10 @@ sellerRoutes.post('/products', writeLimiter, async (req: AuthRequest, res, next)
 
 sellerRoutes.put('/products/:id', writeLimiter, async (req: AuthRequest, res, next) => {
   try {
+    const approved = await ensureKycApproved(req.user!.userId);
+    if (!approved && req.user!.role !== 'ADMIN') {
+      return res.status(403).json({ error: { code: 'KYC_NOT_APPROVED' } });
+    }
     const payload = sellerProductSchema.partial().parse(req.body);
     const imageUrls = payload.imageUrls ?? (payload.image ? [payload.image] : undefined);
     const product = await productUseCases.update(req.params.id, {
@@ -178,6 +309,10 @@ sellerRoutes.post('/uploads', writeLimiter, upload.array('files', 10), async (re
 
 sellerRoutes.delete('/products/:id', writeLimiter, async (req: AuthRequest, res, next) => {
   try {
+    const approved = await ensureKycApproved(req.user!.userId);
+    if (!approved && req.user!.role !== 'ADMIN') {
+      return res.status(403).json({ error: { code: 'KYC_NOT_APPROVED' } });
+    }
     await productUseCases.remove(req.params.id);
     res.json({ success: true });
   } catch (error) {

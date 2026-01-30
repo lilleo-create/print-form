@@ -8,7 +8,7 @@ import { useOrdersStore } from '../app/store/ordersStore';
 import { useAuthStore } from '../app/store/authStore';
 import { useAddressStore } from '../app/store/addressStore';
 import { contactsApi } from '../shared/api/contactsApi';
-import { Contact } from '../shared/types';
+import { Contact, PaymentIntent } from '../shared/types';
 import { formatShortAddress } from '../shared/lib/formatShortAddress';
 import { Button } from '../shared/ui/Button';
 import styles from './CheckoutPage.module.css';
@@ -151,13 +151,24 @@ export const CheckoutPage = () => {
       image: item.product.image,
       status: 'new' as const
     }));
-    await createOrder({
+    const order = await createOrder({
       user,
       contactId: contact.id,
       shippingAddressId: selectedAddressId,
       items: orderItems,
       total
     });
+    let createdPaymentIntent: PaymentIntent | null = null;
+    try {
+      const paymentResponse = await api.createPaymentIntent({
+        orderId: order.id,
+        amount: order.total,
+        currency: 'RUB'
+      });
+      createdPaymentIntent = paymentResponse.data;
+    } catch {
+      createdPaymentIntent = null;
+    }
     if (saveToProfile) {
       const values = contactForm.getValues();
       await updateProfile({
@@ -167,7 +178,7 @@ export const CheckoutPage = () => {
       });
     }
     clear();
-    navigate('/account');
+    navigate('/orders', { state: { paymentIntent: createdPaymentIntent } });
   };
 
   return (

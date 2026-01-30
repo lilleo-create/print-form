@@ -57,7 +57,6 @@
 ```bash
 cd frontend
 npm install
-# VITE_USE_MOCK=true (опционально, включает локальные моки)
 npm run dev
 ```
 
@@ -96,10 +95,10 @@ GOOGLE_SERVICE_ACCOUNT_EMAIL=service-account@project.iam.gserviceaccount.com
 GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
 FRONTEND_URL=http://localhost:5173
 PORT=4000
-SMS_PROVIDER=mock
+SMS_PROVIDER=console
 ```
 
 ## Architecture decisions
 - Chosen Express for backend to keep the stack lightweight while still enforcing layered architecture.
 - Frontend uses feature-based layering (ui/features/entities/shared) and keeps business logic in hooks/services.
-- Mock API adapter for fast UI iteration; ready to switch to real API endpoints.
+- Frontend data flows through the backend API with token-based authentication and refresh handling.

@@ -1,88 +1,33 @@
 import { Address } from '../types';
-import { loadFromStorage, saveToStorage } from '../lib/storage';
-import { STORAGE_KEYS } from '../constants/storageKeys';
+import { createFetchClient } from './client';
 
-const addressesKey = (userId: string) => `${STORAGE_KEYS.addresses}_${userId}`;
-const defaultKey = (userId: string) => `${STORAGE_KEYS.defaultAddressPrefix}${userId}`;
-
-type LegacyAddress = {
-  id: string;
-  userId: string;
-  label?: string;
-  city?: string;
-  street?: string;
-  house?: string;
-  apt?: string;
-  comment?: string;
-  coords?: {
-    lat: number;
-    lon: number;
-  };
-  createdAt: string;
-};
-
-const normalizeAddress = (address: Address | LegacyAddress): Address => {
-  if ('addressText' in address) {
-    return {
-      ...address,
-      coords: address.coords ?? null
-    };
-  }
-
-  const city = address.city ?? '';
-  const street = address.street ?? '';
-  const house = address.house ?? '';
-  const apt = address.apt ?? '';
-  const addressParts = [city, street, house].filter(Boolean).join(', ');
-  const addressText = addressParts || 'Адрес не указан';
-
-  return {
-    id: address.id,
-    userId: address.userId,
-    coords: address.coords ?? null,
-    addressText,
-    apartment: apt || undefined,
-    floor: undefined,
-    label: address.label,
-    isFavorite: Boolean(address.label),
-    courierComment: address.comment,
-    createdAt: address.createdAt
-  };
-};
+const baseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
+const client = createFetchClient(baseUrl);
 
 export const addressesApi = {
-  listByUser: async (userId: string) => {
-    const stored = loadFromStorage<Array<Address | LegacyAddress>>(addressesKey(userId), []);
-    const normalized = stored.map(normalizeAddress);
-    const shouldPersist = stored.some((item) => !('addressText' in item));
-    if (shouldPersist) {
-      saveToStorage(addressesKey(userId), normalized);
-    }
-    return normalized;
+  listByUser: async (_userId: string) => {
+    const response = await client.request<Address[]>('/me/addresses');
+    return response.data ?? [];
   },
   create: async (payload: Omit<Address, 'id' | 'createdAt'>) => {
-    const existing = loadFromStorage<Address[]>(addressesKey(payload.userId), []);
-    const newAddress: Address = {
-      ...payload,
-      id: `address-${Date.now()}`,
-      createdAt: new Date().toISOString()
-    };
-    saveToStorage(addressesKey(payload.userId), [newAddress, ...existing]);
-    return newAddress;
+    const response = await client.request<Address>('/me/addresses', { method: 'POST', body: payload });
+    return response.data;
   },
   update: async (payload: Address) => {
-    const existing = loadFromStorage<Address[]>(addressesKey(payload.userId), []);
-    const next = existing.map((address) => (address.id === payload.id ? payload : address));
-    saveToStorage(addressesKey(payload.userId), next);
-    return payload;
+    const response = await client.request<Address>(`/me/addresses/${payload.id}`, {
+      method: 'PATCH',
+      body: payload
+    });
+    return response.data;
   },
-  remove: async (userId: string, addressId: string) => {
-    const existing = loadFromStorage<Address[]>(addressesKey(userId), []);
-    const next = existing.filter((address) => address.id !== addressId);
-    saveToStorage(addressesKey(userId), next);
+  remove: async (_userId: string, addressId: string) => {
+    await client.request<{ success: boolean }>(`/me/addresses/${addressId}`, { method: 'DELETE' });
   },
-  setDefault: async (userId: string, addressId: string) => {
-    saveToStorage(defaultKey(userId), addressId);
+  setDefault: async (_userId: string, addressId: string) => {
+    await client.request<Address>(`/me/addresses/${addressId}/default`, { method: 'POST' });
   },
-  getDefault: async (userId: string) => loadFromStorage<string | null>(defaultKey(userId), null)
+  getDefault: async (_userId: string) => {
+    const response = await client.request<Address | null>('/me/addresses/default');
+    return response.data?.id ?? null;
+  }
 };
