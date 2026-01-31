@@ -113,10 +113,6 @@ export const api = {
     return apiClient.request<{ id: string; name: string }[]>('/filters/cities');
   },
 
-  async getReferenceCategories() {
-    return apiClient.request<{ id: string; slug: string; title: string }[]>('/filters/reference-categories');
-  },
-
   async sendCustomRequest(payload: Omit<CustomPrintRequest, 'id' | 'status'>) {
     return apiClient.request<CustomPrintRequest>('/custom-requests', { method: 'POST', body: payload });
   },

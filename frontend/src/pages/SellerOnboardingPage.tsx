@@ -139,7 +139,7 @@ export const SellerOnboardingPage = () => {
   if (isComplete) {
     return (
       <section className={styles.page}>
-        <div className="container">
+        <div className={styles.onboardingContainer}>
           <div className={styles.completeCard}>
             <h1>Кабинет готов</h1>
             <p>Ваш профиль продавца создан. Можно переходить к настройке кабинета.</p>
@@ -154,7 +154,7 @@ export const SellerOnboardingPage = () => {
 
   return (
     <section className={styles.page}>
-      <div className="container">
+      <div className={styles.onboardingContainer}>
         <div className={styles.header}>
           <h1>Подключение продавца</h1>
           <p>Заполните короткую анкету — это займет несколько минут.</p>
