@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import { Layout } from './widgets/layout/Layout';
 import { LandingPage } from './pages/LandingPage';
 import { CatalogPage } from './pages/CatalogPage';
@@ -25,8 +25,14 @@ import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 
 const App = () => {
   return (
-    <Layout>
-      <Routes>
+    <Routes>
+      <Route
+        element={
+          <Layout>
+            <Outlet />
+          </Layout>
+        }
+      >
         <Route path="/" element={<LandingPage />} />
         <Route path="/catalog" element={<CatalogPage />} />
         <Route path="/product/:id" element={<ProductPage />} />
@@ -68,25 +74,25 @@ const App = () => {
           }
         />
         <Route path="/seller/onboarding" element={<SellerOnboardingPage />} />
-        <Route
-          path="/admin"
-          element={
-            <AdminRoute>
-              <AdminLayout />
-            </AdminRoute>
-          }
-        >
-          <Route index element={<Navigate to="/admin/kyc" replace />} />
-          <Route path="kyc" element={<AdminKycPage />} />
-          <Route path="products" element={<AdminProductsPage />} />
-          <Route path="reviews" element={<AdminReviewsPage />} />
-        </Route>
         <Route path="/auth/login" element={<AuthPage />} />
         <Route path="/auth/register" element={<AuthPage />} />
         <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
-      </Routes>
-    </Layout>
+      </Route>
+      <Route
+        path="/admin"
+        element={
+          <AdminRoute>
+            <AdminLayout />
+          </AdminRoute>
+        }
+      >
+        <Route index element={<Navigate to="/admin/kyc" replace />} />
+        <Route path="kyc" element={<AdminKycPage />} />
+        <Route path="products" element={<AdminProductsPage />} />
+        <Route path="reviews" element={<AdminReviewsPage />} />
+      </Route>
+    </Routes>
   );
 };
 
