@@ -26,7 +26,7 @@ type RawAuthData = {
   requires_otp?: boolean;
   tempToken?: string;
   temp_token?: string;
-  token?: string;
+  accessToken?: string;
   user?: RawUser;
 };
 
@@ -69,11 +69,12 @@ export const authApi = {
       };
     }
 
-    const token = data.token ?? '';
+    const token = data.accessToken ?? '';
     const user = requireUser(data, 'Login');
 
     const session: StoredSession = { token, user };
     saveToStorage(STORAGE_KEYS.session, session);
+    saveToStorage(STORAGE_KEYS.accessToken, token);
 
     return { requiresOtp: false, token, user };
   },
@@ -109,11 +110,12 @@ export const authApi = {
       };
     }
 
-    const token = data.token ?? '';
+    const token = data.accessToken ?? '';
     const user = requireUser(data, 'Register');
 
     const session: StoredSession = { token, user };
     saveToStorage(STORAGE_KEYS.session, session);
+    saveToStorage(STORAGE_KEYS.accessToken, token);
 
     return { requiresOtp: false, token, user };
   },
@@ -131,11 +133,10 @@ export const authApi = {
   ) => {
     const result = await api.verifyOtp(payload, token);
 
-    // verifyOtp на бэке обычно возвращает {token, user}
-    const data = result.data as { token?: string; user?: RawUser };
+    const data = result.data as { accessToken?: string; user?: RawUser };
 
     const session: StoredSession = {
-      token: data.token ?? '',
+      token: data.accessToken ?? '',
       user: normalizeUser(data.user)
     };
 
@@ -144,6 +145,7 @@ export const authApi = {
     }
 
     saveToStorage(STORAGE_KEYS.session, session);
+    saveToStorage(STORAGE_KEYS.accessToken, session.token);
     return session;
   },
 
@@ -170,6 +172,7 @@ export const authApi = {
   logout: async () => {
     await api.logout();
     removeFromStorage(STORAGE_KEYS.session);
+    removeFromStorage(STORAGE_KEYS.accessToken);
   },
 
   getSession: () => loadFromStorage<StoredSession | null>(STORAGE_KEYS.session, null),

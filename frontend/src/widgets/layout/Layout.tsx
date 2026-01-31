@@ -90,6 +90,10 @@ export const Layout = ({ children }: LayoutProps) => {
       setSellerProfile(null);
       return;
     }
+    if (user.role !== 'seller') {
+      setSellerProfile({ isSeller: false, profile: null });
+      return;
+    }
     let isMounted = true;
     api
       .getSellerProfile()

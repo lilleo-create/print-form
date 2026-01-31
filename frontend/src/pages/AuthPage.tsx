@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '../shared/ui/Button';
 import { useAuthStore } from '../app/store/authStore';
+import { api } from '../shared/api';
 import styles from './AuthPage.module.css';
 import { OtpStep } from './OtpStep';
 
@@ -59,6 +60,28 @@ const registerSchema = loginSchema.extend({
 type LoginValues = z.infer<typeof loginSchema>;
 type RegisterValues = z.infer<typeof registerSchema>;
 
+const getRedirectPath = ({
+  role,
+  redirectTo,
+  sellerOnboarded
+}: {
+  role?: string;
+  redirectTo?: string | null;
+  sellerOnboarded?: boolean;
+}) => {
+  if (redirectTo) {
+    return redirectTo;
+  }
+  const normalizedRole = (role ?? '').toLowerCase();
+  if (normalizedRole === 'seller') {
+    return sellerOnboarded ? '/seller' : '/seller/onboarding';
+  }
+  if (normalizedRole === 'admin') {
+    return '/admin';
+  }
+  return '/account';
+};
+
 export const AuthPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -78,6 +101,7 @@ export const AuthPage = () => {
   const register = useAuthStore((s) => s.register);
   const requestOtp = useAuthStore((s) => s.requestOtp);
   const verifyOtp = useAuthStore((s) => s.verifyOtp);
+  const setUser = useAuthStore((s) => s.setUser);
 
   const redirectTo = useMemo(() => {
     const params = new URLSearchParams(location.search);
@@ -87,13 +111,30 @@ export const AuthPage = () => {
   const loginForm = useForm<LoginValues>({ resolver: zodResolver(loginSchema) });
   const registerForm = useForm<RegisterValues>({ resolver: zodResolver(registerSchema) });
 
-  const handleRedirect = (role?: string) => {
+  const resolveRedirectPath = async (role?: string) => {
     if (redirectTo) {
-      navigate(redirectTo);
-      return;
+      return redirectTo;
     }
-    if (role === 'admin') navigate('/admin');
-    else navigate(role === 'seller' ? '/seller' : '/account');
+    const normalizedRole = (role ?? '').toLowerCase();
+    if (normalizedRole !== 'seller') {
+      return getRedirectPath({ role, redirectTo });
+    }
+    try {
+      const response = await api.getSellerProfile();
+      return getRedirectPath({
+        role,
+        redirectTo,
+        sellerOnboarded: Boolean(response.data?.profile)
+      });
+    } catch {
+      return getRedirectPath({ role, redirectTo, sellerOnboarded: false });
+    }
+  };
+
+  const handleRedirect = async () => {
+    const currentUser = useAuthStore.getState().user;
+    const path = await resolveRedirectPath(currentUser?.role);
+    queueMicrotask(() => navigate(path, { replace: true }));
   };
 
   const resetOtp = () => {
@@ -130,7 +171,12 @@ export const AuthPage = () => {
         return;
       }
 
-      handleRedirect(useAuthStore.getState().user?.role);
+      const nextUser = result.user;
+      if (nextUser) {
+        setUser(nextUser);
+      }
+      const path = await resolveRedirectPath(nextUser?.role);
+      queueMicrotask(() => navigate(path, { replace: true }));
     } catch {
       setError('Неверный email или пароль.');
     }
@@ -159,7 +205,16 @@ export const AuthPage = () => {
         return;
       }
 
-      handleRedirect(useAuthStore.getState().user?.role);
+      const nextUser = result.user;
+      if (nextUser) {
+        setUser(nextUser);
+      }
+      const path = await resolveRedirectPath(nextUser?.role);
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.log('[auth] register ok', nextUser, 'redirect', path);
+      }
+      queueMicrotask(() => navigate(path, { replace: true }));
     } catch {
       setError('Не удалось зарегистрироваться.');
     }
@@ -179,7 +234,9 @@ export const AuthPage = () => {
             onPrivacyAcceptedChange={setPrivacyAccepted}
             onRequestOtp={requestOtp}
             onVerifyOtp={verifyOtp}
-            onSuccess={() => handleRedirect(useAuthStore.getState().user?.role)}
+            onSuccess={() => {
+              void handleRedirect();
+            }}
             setMessage={setMessage}
             setError={setError}
           />

@@ -31,9 +31,14 @@ export const BuyerAccountPage = () => {
   }, [user]);
 
   useEffect(() => {
-    api.getMyReviews().then((response) => {
-      setReviews(response.data.data);
-    });
+    api
+      .getMyReviews()
+      .then((response) => {
+        setReviews(response.data?.data ?? []);
+      })
+      .catch(() => {
+        setReviews([]);
+      });
   }, []);
 
   const avatarText = useMemo(() => {

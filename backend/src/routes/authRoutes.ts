@@ -132,14 +132,16 @@ authRoutes.post('/login', authLimiter, async (req, res, next) => {
     const tokens = await authService.issueTokens(result.user);
     res.cookie('refreshToken', tokens.refreshToken, cookieOptions);
     return res.json({
-      token: tokens.accessToken,
-      user: {
-        id: result.user.id,
-        name: result.user.name,
-        role: result.user.role,
-        email: result.user.email,
-        phone: result.user.phone,
-        address: result.user.address
+      data: {
+        accessToken: tokens.accessToken,
+        user: {
+          id: result.user.id,
+          name: result.user.name,
+          role: result.user.role,
+          email: result.user.email,
+          phone: result.user.phone,
+          address: result.user.address
+        }
       }
     });
   } catch (error) {
@@ -269,14 +271,16 @@ authRoutes.post('/otp/verify', otpVerifyLimiter, async (req, res, next) => {
     const tokens = await authService.issueTokens(user);
     res.cookie('refreshToken', tokens.refreshToken, cookieOptions);
     return res.json({
-      token: tokens.accessToken,
-      user: {
-        id: user.id,
-        name: user.name,
-        role: user.role,
-        email: user.email,
-        phone: user.phone,
-        address: user.address
+      data: {
+        accessToken: tokens.accessToken,
+        user: {
+          id: user.id,
+          name: user.name,
+          role: user.role,
+          email: user.email,
+          phone: user.phone,
+          address: user.address
+        }
       }
     });
   } catch (error) {
