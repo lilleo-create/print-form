@@ -1,3 +1,6 @@
+import { loadFromStorage } from '../lib/storage';
+import { STORAGE_KEYS } from '../constants/storageKeys';
+
 export type ApiResponse<T> = { data: T };
 
 export function createFetchClient(baseUrl: string) {
@@ -20,8 +23,10 @@ export function createFetchClient(baseUrl: string) {
       headers['Content-Type'] = 'application/json';
     }
 
-    if (opts?.token) {
-      headers.Authorization = `Bearer ${opts.token}`;
+    const sessionToken = loadFromStorage<{ token?: string } | null>(STORAGE_KEYS.session, null)?.token ?? null;
+    const authToken = opts?.token ?? sessionToken;
+    if (authToken) {
+      headers.Authorization = `Bearer ${authToken}`;
     }
 
     const res = await fetch(url, {
