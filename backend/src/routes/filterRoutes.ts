@@ -9,6 +9,7 @@ router.get('/reference-categories', async (_req, res) => {
   const categories = await prisma.referenceCategory.findMany({
     where: { isActive: true },
     orderBy: { sortOrder: 'asc' },
+    select: { id: true, slug: true, title: true },
   });
 
   res.json(categories);
