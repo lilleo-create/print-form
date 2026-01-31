@@ -172,7 +172,7 @@ authRoutes.post('/refresh', async (req, res, next) => {
   try {
     const token = req.cookies.refreshToken as string | undefined;
     if (!token) {
-      return res.status(401).json({ error: 'UNAUTHORIZED' });
+      return res.status(401).json({ error: { code: 'UNAUTHORIZED' } });
     }
     const result = await authService.refresh(token);
     return res.json({ token: result.accessToken });
