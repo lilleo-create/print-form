@@ -1,8 +1,7 @@
 export type MaterialType = 'PLA' | 'ABS' | 'PETG' | 'RESIN';
 export type TechnologyType = 'FDM' | 'SLA';
 export type Role = 'buyer' | 'seller' | 'admin';
-export type OrderStatus = 'processing' | 'printing' | 'shipped' | 'delivered';
-export type OrderItemStatus = 'new' | OrderStatus;
+export type OrderStatus = 'CREATED' | 'PRINTING' | 'HANDED_TO_DELIVERY' | 'IN_TRANSIT' | 'DELIVERED';
 
 export interface Product {
   id: string;
@@ -85,7 +84,6 @@ export interface OrderItem {
   sellerId: string;
   lineTotal: number;
   image?: string;
-  status?: OrderItemStatus;
 }
 
 export interface Order {
@@ -95,8 +93,14 @@ export interface Order {
   contactId: string;
   shippingAddressId: string;
   status: OrderStatus;
+  statusUpdatedAt?: string;
   total: number;
   createdAt: string;
+  trackingNumber?: string | null;
+  carrier?: string | null;
+  contact?: Contact | null;
+  shippingAddress?: Address | null;
+  buyer?: { id: string; name: string; email: string; phone?: string | null } | null;
   items: OrderItem[];
 }
 
@@ -178,6 +182,15 @@ export interface PaymentIntent {
   amount: number;
   currency: string;
   clientSecret?: string;
+}
+
+export interface Payment {
+  id: string;
+  orderId: string;
+  status: string;
+  amount: number;
+  currency: string;
+  createdAt: string;
 }
 
 export interface CustomPrintRequest {

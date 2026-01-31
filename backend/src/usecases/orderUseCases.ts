@@ -1,3 +1,4 @@
+import { OrderStatus } from '@prisma/client';
 import { orderRepository } from '../repositories/orderRepository';
 import { userRepository } from '../repositories/userRepository';
 import { sheetsService } from '../services/sheetsService';
@@ -39,5 +40,6 @@ export const orderUseCases = {
   },
   listByBuyer: orderRepository.findByBuyer,
   get: orderRepository.findById,
-  listBySeller: orderRepository.findSellerOrders
+  listBySeller: (sellerId: string, options?: { status?: OrderStatus; offset?: number; limit?: number }) =>
+    orderRepository.findSellerOrders(sellerId, options)
 };

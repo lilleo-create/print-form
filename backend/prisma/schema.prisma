@@ -144,13 +144,16 @@ model Review {
 model Order {
   id                String      @id @default(cuid())
   buyerId           String
-  status            OrderStatus @default(PROCESSING)
+  status            OrderStatus @default(CREATED)
+  statusUpdatedAt   DateTime    @default(now())
   total             Int
   currency          String      @default("RUB")
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
   contactId         String?
   shippingAddressId String?
+  trackingNumber    String?
+  carrier           String?
   buyer             User        @relation(fields: [buyerId], references: [id])
   contact           Contact?    @relation("OrderContact", fields: [contactId], references: [id])
   shippingAddress   Address?    @relation("OrderShippingAddress", fields: [shippingAddressId], references: [id])
@@ -300,9 +303,10 @@ enum Role {
 }
 
 enum OrderStatus {
-  PROCESSING
+  CREATED
   PRINTING
-  SHIPPED
+  HANDED_TO_DELIVERY
+  IN_TRANSIT
   DELIVERED
 }
 
@@ -315,6 +319,7 @@ enum OtpPurpose {
   LOGIN
   REGISTER
   SELLER_VERIFY
+  PASSWORD_RESET
 }
 
 enum KycStatus {

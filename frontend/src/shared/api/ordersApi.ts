@@ -3,14 +3,18 @@ import { api } from './index';
 
 const mapStatus = (status?: string): OrderStatus => {
   switch (status) {
+    case 'CREATED':
+      return 'CREATED';
     case 'PRINTING':
-      return 'printing';
-    case 'SHIPPED':
-      return 'shipped';
+      return 'PRINTING';
+    case 'HANDED_TO_DELIVERY':
+      return 'HANDED_TO_DELIVERY';
+    case 'IN_TRANSIT':
+      return 'IN_TRANSIT';
     case 'DELIVERED':
-      return 'delivered';
+      return 'DELIVERED';
     default:
-      return 'processing';
+      return 'CREATED';
   }
 };
 
@@ -21,8 +25,14 @@ const mapOrder = (order: any): Order => ({
   contactId: order.contactId ?? '',
   shippingAddressId: order.shippingAddressId ?? '',
   status: mapStatus(order.status),
+  statusUpdatedAt: order.statusUpdatedAt,
   total: order.total,
   createdAt: order.createdAt,
+  trackingNumber: order.trackingNumber ?? null,
+  carrier: order.carrier ?? null,
+  contact: order.contact ?? null,
+  shippingAddress: order.shippingAddress ?? null,
+  buyer: order.buyer ?? null,
   items: (order.items ?? []).map((item: any) => ({
     productId: item.productId,
     title: item.product?.title ?? '',
@@ -30,8 +40,7 @@ const mapOrder = (order: any): Order => ({
     qty: item.quantity,
     sellerId: item.product?.sellerId ?? '',
     lineTotal: item.priceAtPurchase * item.quantity,
-    image: item.product?.image,
-    status: 'new'
+    image: item.product?.image
   }))
 });
 
@@ -40,11 +49,11 @@ export const ordersApi = {
     const result = await api.getOrders();
     return (result.data ?? []).map(mapOrder).filter((order) => order.buyerId === buyerId);
   },
-  listBySeller: async (sellerId: string) => {
-    const result = await api.getSellerOrders();
-    return (result.data ?? []).map(mapOrder).filter((order) =>
-      order.items.some((item) => item.sellerId === sellerId)
-    );
+  listBySeller: async (sellerId: string, status?: OrderStatus) => {
+    const result = await api.getSellerOrders(status ? { status } : undefined);
+    return (result.data ?? [])
+      .map(mapOrder)
+      .filter((order) => order.items.some((item) => item.sellerId === sellerId));
   },
   create: async (payload: {
     buyerId: string;

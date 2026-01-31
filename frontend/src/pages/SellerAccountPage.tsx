@@ -1,6 +1,8 @@
-import { ChangeEvent, useEffect, useState } from 'react';
+import { ChangeEvent, useEffect, useMemo, useState } from 'react';
+import { useAuthStore } from '../app/store/authStore';
 import { api } from '../shared/api';
-import { Product, SellerKycSubmission } from '../shared/types';
+import { ordersApi } from '../shared/api/ordersApi';
+import { Order, OrderStatus, Payment, Product, SellerKycSubmission, SellerProfile } from '../shared/types';
 import { Button } from '../shared/ui/Button';
 import { SellerProductModal, SellerProductPayload } from '../widgets/seller/SellerProductModal';
 import styles from './SellerAccountPage.module.css';
@@ -18,33 +20,117 @@ const menuItems = [
   'Настройки'
 ] as const;
 
+const statusFlow: OrderStatus[] = ['CREATED', 'PRINTING', 'HANDED_TO_DELIVERY', 'IN_TRANSIT', 'DELIVERED'];
+const statusLabels: Record<OrderStatus, string> = {
+  CREATED: 'Создается',
+  PRINTING: 'Модель печатается',
+  HANDED_TO_DELIVERY: 'Передано в доставку',
+  IN_TRANSIT: 'В пути',
+  DELIVERED: 'Доставлено'
+};
+
+const formatCurrency = (value: number) => value.toLocaleString('ru-RU');
+const formatDate = (value: string) =>
+  new Date(value).toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric' });
+
 export const SellerAccountPage = () => {
   const [activeItem, setActiveItem] = useState<(typeof menuItems)[number]>('Сводка');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
-  const [stats, setStats] = useState({ totalOrders: 0, totalRevenue: 0, totalProducts: 0, averageRating: 0 });
+  const [isProductsLoading, setIsProductsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeProduct, setActiveProduct] = useState<Product | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [ordersView, setOrdersView] = useState<Order[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(true);
+  const [ordersError, setOrdersError] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<OrderStatus | 'ALL'>('ALL');
+  const [orderUpdateId, setOrderUpdateId] = useState<string | null>(null);
+  const [orderUpdateError, setOrderUpdateError] = useState<string | null>(null);
+  const [trackingDrafts, setTrackingDrafts] = useState<Record<string, { trackingNumber: string; carrier: string }>>({});
   const [kycSubmission, setKycSubmission] = useState<SellerKycSubmission | null>(null);
   const [kycLoading, setKycLoading] = useState(true);
   const [isKycUploading, setIsKycUploading] = useState(false);
   const [kycMessage, setKycMessage] = useState<string | null>(null);
+  const [sellerProfile, setSellerProfile] = useState<SellerProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [paymentsLoading, setPaymentsLoading] = useState(true);
   const canSell = kycSubmission?.status === 'APPROVED';
+  const userId = useAuthStore((state) => state.user?.id);
 
-  const loadDashboard = async () => {
+  const loadProducts = async () => {
+    setIsProductsLoading(true);
     try {
-      const [productsResponse, statsResponse] = await Promise.all([
-        api.getSellerProducts(),
-        api.getSellerStats()
-      ]);
+      const productsResponse = await api.getSellerProducts();
       setProducts(productsResponse.data);
-      setStats(statsResponse.data);
     } catch {
       setProducts([]);
-      setStats({ totalOrders: 0, totalRevenue: 0, totalProducts: 0, averageRating: 0 });
     } finally {
-      setIsLoading(false);
+      setIsProductsLoading(false);
+    }
+  };
+
+  const loadOrders = async () => {
+    setOrdersLoading(true);
+    setOrdersError(null);
+    try {
+      if (!userId) {
+        setOrders([]);
+        setOrdersView([]);
+        return;
+      }
+      const data = await ordersApi.listBySeller(userId);
+      setOrders(data);
+      setOrdersView(statusFilter === 'ALL' ? data : data.filter((order) => order.status === statusFilter));
+      setTrackingDrafts((prev) => {
+        const next = { ...prev };
+        data.forEach((order) => {
+          next[order.id] = {
+            trackingNumber: order.trackingNumber ?? next[order.id]?.trackingNumber ?? '',
+            carrier: order.carrier ?? next[order.id]?.carrier ?? ''
+          };
+        });
+        return next;
+      });
+    } catch {
+      setOrders([]);
+      setOrdersView([]);
+      setOrdersError('Не удалось загрузить заказы.');
+    } finally {
+      setOrdersLoading(false);
+    }
+  };
+
+  const loadOrdersByStatus = async (status: OrderStatus | 'ALL') => {
+    if (status === 'ALL') {
+      setOrdersView(orders);
+      return;
+    }
+    setOrdersLoading(true);
+    setOrdersError(null);
+    try {
+      if (!userId) {
+        setOrdersView([]);
+        return;
+      }
+      const data = await ordersApi.listBySeller(userId, status);
+      setOrdersView(data);
+      setTrackingDrafts((prev) => {
+        const next = { ...prev };
+        data.forEach((order) => {
+          next[order.id] = {
+            trackingNumber: order.trackingNumber ?? next[order.id]?.trackingNumber ?? '',
+            carrier: order.carrier ?? next[order.id]?.carrier ?? ''
+          };
+        });
+        return next;
+      });
+    } catch {
+      setOrdersView([]);
+      setOrdersError('Не удалось загрузить заказы.');
+    } finally {
+      setOrdersLoading(false);
     }
   };
 
@@ -59,10 +145,47 @@ export const SellerAccountPage = () => {
     }
   };
 
+  const loadProfile = async () => {
+    try {
+      const response = await api.getSellerProfile();
+      setSellerProfile(response.data.profile ?? null);
+    } catch {
+      setSellerProfile(null);
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  const loadPayments = async () => {
+    setPaymentsLoading(true);
+    try {
+      const response = await api.getSellerPayments();
+      setPayments(response.data ?? []);
+    } catch {
+      setPayments([]);
+    } finally {
+      setPaymentsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    loadDashboard();
+    loadProducts();
     loadKyc();
+    loadProfile();
+    loadPayments();
   }, []);
+
+  useEffect(() => {
+    loadOrders();
+  }, [userId]);
+
+  useEffect(() => {
+    if (statusFilter === 'ALL') {
+      setOrdersView(orders);
+      return;
+    }
+    loadOrdersByStatus(statusFilter);
+  }, [orders, statusFilter]);
 
   const handleKycUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -90,18 +213,96 @@ export const SellerAccountPage = () => {
   };
 
   const handleSaveProduct = async (payload: SellerProductPayload) => {
+    setKycMessage(null);
     try {
       if (payload.id) {
-        const response = await api.updateSellerProduct(payload.id, payload);
-        setProducts((prev) => prev.map((item) => (item.id === payload.id ? response.data : item)));
-        return;
+        await api.updateSellerProduct(payload.id, payload);
+      } else {
+        await api.createSellerProduct(payload);
       }
-      const response = await api.createSellerProduct(payload);
-      setProducts((prev) => [response.data, ...prev]);
+      setIsModalOpen(false);
+      setActiveProduct(null);
+      await loadProducts();
     } catch {
       setKycMessage('Загрузка товаров доступна после одобрения KYC.');
     }
   };
+
+  const handleStatusChange = async (order: Order, status: OrderStatus) => {
+    setOrderUpdateError(null);
+    const draft = trackingDrafts[order.id] ?? { trackingNumber: '', carrier: '' };
+    const trackingNumber = draft.trackingNumber || order.trackingNumber || '';
+    const carrier = draft.carrier || order.carrier || '';
+    if (['HANDED_TO_DELIVERY', 'IN_TRANSIT', 'DELIVERED'].includes(status)) {
+      if (!trackingNumber || !carrier) {
+        setOrderUpdateError('Для доставки укажите номер отправления и службу доставки.');
+        return;
+      }
+    }
+    setOrderUpdateId(order.id);
+    try {
+      const response = await api.updateSellerOrderStatus(order.id, {
+        status,
+        trackingNumber: trackingNumber || undefined,
+        carrier: carrier || undefined
+      });
+      const updated = response.data;
+      setOrders((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+      setOrdersView((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+      setTrackingDrafts((prev) => ({
+        ...prev,
+        [updated.id]: {
+          trackingNumber: updated.trackingNumber ?? prev[updated.id]?.trackingNumber ?? '',
+          carrier: updated.carrier ?? prev[updated.id]?.carrier ?? ''
+        }
+      }));
+    } catch {
+      setOrderUpdateError('Не удалось обновить статус заказа.');
+    } finally {
+      setOrderUpdateId(null);
+    }
+  };
+
+  const summary = useMemo(() => {
+    const totalProducts = products.length;
+    const totalOrders = orders.length;
+    const revenue = orders.reduce(
+      (sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + item.lineTotal, 0),
+      0
+    );
+    const statusCounts = statusFlow.reduce<Record<OrderStatus, number>>((acc, status) => {
+      acc[status] = orders.filter((order) => order.status === status).length;
+      return acc;
+    }, {} as Record<OrderStatus, number>);
+
+    return { totalProducts, totalOrders, revenue, statusCounts };
+  }, [orders, products.length]);
+
+  const reportRows = useMemo(() => {
+    const days = 14;
+    const now = new Date();
+    return Array.from({ length: days }, (_, index) => {
+      const date = new Date(now);
+      date.setDate(now.getDate() - (days - 1 - index));
+      const dateKey = date.toISOString().split('T')[0];
+      const ordersForDay = orders.filter((order) => order.createdAt.startsWith(dateKey));
+      const revenue = ordersForDay.reduce(
+        (sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + item.lineTotal, 0),
+        0
+      );
+      return {
+        date: date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }),
+        orders: ordersForDay.length,
+        revenue
+      };
+    });
+  }, [orders]);
+
+  const hasSummaryData = summary.totalOrders > 0 || summary.totalProducts > 0;
+
+  const logisticsOrders = orders.filter(
+    (order) => order.trackingNumber || order.carrier || order.shippingAddress
+  );
 
   return (
     <section className={styles.page}>
@@ -142,22 +343,29 @@ export const SellerAccountPage = () => {
           </div>
 
           {activeItem === 'Сводка' && (
-            <div className={styles.blocks}>
-              <div className={styles.block}>
-                <h3>Заказы</h3>
-                <p>{stats.totalOrders} всего</p>
+            <div className={styles.section}>
+              <div className={styles.statsGrid}>
+                <div className={styles.statCard}>
+                  <h3>Заказы</h3>
+                  <p>{summary.totalOrders} всего</p>
+                </div>
+                <div className={styles.statCard}>
+                  <h3>Выручка</h3>
+                  <p>{formatCurrency(summary.revenue)} ₽</p>
+                </div>
+                <div className={styles.statCard}>
+                  <h3>Товары</h3>
+                  <p>{summary.totalProducts} в каталоге</p>
+                </div>
               </div>
-              <div className={styles.block}>
-                <h3>Выручка</h3>
-                <p>{stats.totalRevenue.toLocaleString('ru-RU')} ₽</p>
-              </div>
-              <div className={styles.block}>
-                <h3>Товары</h3>
-                <p>{stats.totalProducts} в каталоге</p>
-              </div>
-              <div className={styles.block}>
-                <h3>Средний рейтинг</h3>
-                <p>{stats.averageRating.toFixed(1)}</p>
+              {!hasSummaryData && <p className={styles.muted}>Данных пока нет.</p>}
+              <div className={styles.statusList}>
+                {statusFlow.map((status) => (
+                  <div key={status} className={styles.statusRow}>
+                    <span>{statusLabels[status]}</span>
+                    <strong>{summary.statusCounts[status]}</strong>
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -233,7 +441,7 @@ export const SellerAccountPage = () => {
                   Добавить товар
                 </Button>
               </div>
-              {isLoading ? (
+              {isProductsLoading ? (
                 <p className={styles.muted}>Загрузка данных...</p>
               ) : (
                 <div className={styles.table}>
@@ -249,7 +457,7 @@ export const SellerAccountPage = () => {
                     products.map((product) => (
                       <div key={product.id} className={styles.tableRow}>
                         <span>{product.title}</span>
-                        <span>{product.price.toLocaleString('ru-RU')} ₽</span>
+                        <span>{formatCurrency(product.price)} ₽</span>
                         <span>{product.category}</span>
                         <button
                           type="button"
@@ -269,31 +477,265 @@ export const SellerAccountPage = () => {
             </div>
           )}
 
-          {activeItem !== 'Сводка' && activeItem !== 'Товары' && (
-            <div className={styles.blocks}>
-              <div className={styles.block}>
-                <h3>Раздел “{activeItem}”</h3>
-                <p>Этот модуль подключим в следующих итерациях.</p>
+          {activeItem === 'Заказы' && (
+            <div className={styles.section}>
+              <div className={styles.sectionHeader}>
+                <div>
+                  <h2>Заказы</h2>
+                  <p>Управляйте статусами и отслеживайте выполнение.</p>
+                </div>
+                <div className={styles.filterRow}>
+                  <label>
+                    Статус:
+                    <select
+                      className={styles.select}
+                      value={statusFilter}
+                      onChange={(event) => setStatusFilter(event.target.value as OrderStatus | 'ALL')}
+                    >
+                      <option value="ALL">Все</option>
+                      {statusFlow.map((status) => (
+                        <option key={status} value={status}>
+                          {statusLabels[status]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
               </div>
+
+              {ordersLoading ? (
+                <p className={styles.muted}>Загрузка заказов...</p>
+              ) : ordersError ? (
+                <p className={styles.error}>{ordersError}</p>
+              ) : ordersView.length === 0 ? (
+                <p className={styles.muted}>Заказов пока нет.</p>
+              ) : (
+                <div className={styles.ordersTable}>
+                  <div className={styles.ordersHeader}>
+                    <span>Заказ</span>
+                    <span>Покупатель</span>
+                    <span>Сумма</span>
+                    <span>Статус</span>
+                    <span>Доставка</span>
+                  </div>
+                  {ordersView.map((order) => {
+                    const currentIndex = statusFlow.indexOf(order.status);
+                    const nextStatus = statusFlow[currentIndex + 1];
+                    const draft = trackingDrafts[order.id] ?? { trackingNumber: '', carrier: '' };
+                    const total = order.items.reduce((sum, item) => sum + item.lineTotal, 0);
+                    return (
+                      <div key={order.id} className={styles.ordersRow}>
+                        <div>
+                          <strong>№{order.id}</strong>
+                          <p className={styles.muted}>{formatDate(order.createdAt)}</p>
+                        </div>
+                        <div>
+                          <p>{order.contact?.name ?? order.buyer?.name ?? '—'}</p>
+                          <p className={styles.muted}>{order.contact?.phone ?? order.buyer?.email ?? ''}</p>
+                        </div>
+                        <div>{formatCurrency(total)} ₽</div>
+                        <div>
+                          <select
+                            className={styles.select}
+                            value={order.status}
+                            disabled={!nextStatus || orderUpdateId === order.id}
+                            onChange={(event) => handleStatusChange(order, event.target.value as OrderStatus)}
+                          >
+                            <option value={order.status}>{statusLabels[order.status]}</option>
+                            {nextStatus && <option value={nextStatus}>{statusLabels[nextStatus]}</option>}
+                          </select>
+                          {orderUpdateId === order.id && <p className={styles.muted}>Обновляем...</p>}
+                        </div>
+                        <div className={styles.deliveryInputs}>
+                          <input
+                            className={styles.input}
+                            placeholder="Трек-номер"
+                            value={draft.trackingNumber}
+                            onChange={(event) =>
+                              setTrackingDrafts((prev) => ({
+                                ...prev,
+                                [order.id]: {
+                                  trackingNumber: event.target.value,
+                                  carrier: prev[order.id]?.carrier ?? ''
+                                }
+                              }))
+                            }
+                          />
+                          <input
+                            className={styles.input}
+                            placeholder="Служба доставки"
+                            value={draft.carrier}
+                            onChange={(event) =>
+                              setTrackingDrafts((prev) => ({
+                                ...prev,
+                                [order.id]: {
+                                  trackingNumber: prev[order.id]?.trackingNumber ?? '',
+                                  carrier: event.target.value
+                                }
+                              }))
+                            }
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {orderUpdateError && <p className={styles.error}>{orderUpdateError}</p>}
             </div>
           )}
 
-          <div className={styles.blocks}>
-            <div className={styles.block}>
-              <h3>Статус раздела</h3>
-              <p>Здесь появятся ключевые показатели и быстрые действия для раздела “{activeItem}”.</p>
+          {activeItem === 'Логистика' && (
+            <div className={styles.section}>
+              <div className={styles.sectionHeader}>
+                <div>
+                  <h2>Логистика</h2>
+                  <p>Данные по доставке ваших заказов.</p>
+                </div>
+              </div>
+              {logisticsOrders.length === 0 ? (
+                <p className={styles.muted}>Нет данных по доставкам.</p>
+              ) : (
+                <div className={styles.ordersTable}>
+                  <div className={styles.ordersHeader}>
+                    <span>Заказ</span>
+                    <span>Адрес</span>
+                    <span>Статус</span>
+                    <span>Доставка</span>
+                  </div>
+                  {logisticsOrders.map((order) => (
+                    <div key={order.id} className={styles.ordersRow}>
+                      <div>
+                        <strong>№{order.id}</strong>
+                        <p className={styles.muted}>{formatDate(order.createdAt)}</p>
+                      </div>
+                      <div>{order.shippingAddress?.addressText ?? '—'}</div>
+                      <div>{statusLabels[order.status]}</div>
+                      <div>
+                        <p>{order.trackingNumber ?? '—'}</p>
+                        <p className={styles.muted}>{order.carrier ?? '—'}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
+          )}
 
-            <div className={styles.block}>
-              <h3>Данные и задачи</h3>
-              <p>Подготовьте нужные материалы — мы покажем их здесь после подключения модулей.</p>
+          {activeItem === 'Продвижение' && (
+            <div className={styles.section}>
+              <h2>Продвижение</h2>
+              <p className={styles.muted}>Пока нет кампаний.</p>
             </div>
+          )}
 
-            <div className={styles.block}>
-              <h3>Подсказки</h3>
-              <p>Рекомендации по работе с каталогом и заказами появятся после запуска.</p>
+          {activeItem === 'Бухгалтерия' && (
+            <div className={styles.section}>
+              <h2>Бухгалтерия</h2>
+              {paymentsLoading ? (
+                <p className={styles.muted}>Загрузка платежей...</p>
+              ) : payments.length === 0 ? (
+                <p className={styles.muted}>Данные о выплатах пока отсутствуют.</p>
+              ) : (
+                <div className={styles.ordersTable}>
+                  <div className={styles.ordersHeader}>
+                    <span>Дата</span>
+                    <span>Заказ</span>
+                    <span>Сумма</span>
+                    <span>Статус</span>
+                  </div>
+                  {payments.map((payment) => (
+                    <div key={payment.id} className={styles.ordersRow}>
+                      <span>{formatDate(payment.createdAt)}</span>
+                      <span>№{payment.orderId}</span>
+                      <span>{formatCurrency(payment.amount)} {payment.currency}</span>
+                      <span>{payment.status}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
+          )}
+
+          {activeItem === 'Отчеты' && (
+            <div className={styles.section}>
+              <div className={styles.sectionHeader}>
+                <div>
+                  <h2>Отчеты</h2>
+                  <p>Заказы за последние 14 дней.</p>
+                </div>
+              </div>
+              {orders.length === 0 ? (
+                <p className={styles.muted}>Данных пока нет.</p>
+              ) : (
+                <div className={styles.reportTable}>
+                  <div className={styles.reportHeader}>
+                    <span>Дата</span>
+                    <span>Заказы</span>
+                    <span>Выручка</span>
+                  </div>
+                  {reportRows.map((row) => (
+                    <div key={row.date} className={styles.reportRow}>
+                      <span>{row.date}</span>
+                      <span>{row.orders}</span>
+                      <span>{formatCurrency(row.revenue)} ₽</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeItem === 'Поддержка' && (
+            <div className={styles.section}>
+              <h2>Поддержка</h2>
+              <p className={styles.muted}>Пока нет обращений.</p>
+            </div>
+          )}
+
+          {activeItem === 'Настройки' && (
+            <div className={styles.section}>
+              <div className={styles.sectionHeader}>
+                <div>
+                  <h2>Настройки профиля</h2>
+                  <p>Актуальные данные магазина.</p>
+                </div>
+              </div>
+              {profileLoading ? (
+                <p className={styles.muted}>Загрузка профиля...</p>
+              ) : sellerProfile ? (
+                <div className={styles.settingsGrid}>
+                  <div>
+                    <span className={styles.muted}>Название магазина</span>
+                    <p>{sellerProfile.storeName}</p>
+                  </div>
+                  <div>
+                    <span className={styles.muted}>Статус</span>
+                    <p>{sellerProfile.status}</p>
+                  </div>
+                  <div>
+                    <span className={styles.muted}>Телефон</span>
+                    <p>{sellerProfile.phone}</p>
+                  </div>
+                  <div>
+                    <span className={styles.muted}>Город</span>
+                    <p>{sellerProfile.city}</p>
+                  </div>
+                  <div>
+                    <span className={styles.muted}>Категория</span>
+                    <p>{sellerProfile.referenceCategory}</p>
+                  </div>
+                  <div>
+                    <span className={styles.muted}>Позиция в каталоге</span>
+                    <p>{sellerProfile.catalogPosition}</p>
+                  </div>
+                </div>
+              ) : (
+                <p className={styles.muted}>Профиль продавца не найден.</p>
+              )}
+              <p className={styles.muted}>Редактирование профиля доступно через форму подключения продавца.</p>
+            </div>
+          )}
 
           {isModalOpen && (
             <SellerProductModal
