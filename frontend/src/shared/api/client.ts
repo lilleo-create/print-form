@@ -1,91 +1,72 @@
-import { loadFromStorage, removeFromStorage, saveToStorage } from '../lib/storage';
-import { STORAGE_KEYS } from '../constants/storageKeys';
+export type ApiResponse<T> = { data: T };
 
-export interface ApiResponse<T> {
-  data: T;
-}
-
-type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
-
-export interface ApiClient {
-  request<T>(
+export function createFetchClient(baseUrl: string) {
+  const request = async <T>(
     path: string,
-    options?: { method?: HttpMethod; body?: unknown; token?: string | null }
-  ): Promise<ApiResponse<T>>;
+    opts?: {
+      method?: string;
+      body?: unknown;
+      token?: string | null;
+      headers?: Record<string, string>;
+    }
+  ): Promise<ApiResponse<T>> => {
+    const url = `${baseUrl}${path}`;
+
+    const headers: Record<string, string> = {
+      ...(opts?.headers ?? {})
+    };
+
+    if (!headers['Content-Type'] && opts?.body !== undefined && !(opts.body instanceof FormData)) {
+      headers['Content-Type'] = 'application/json';
+    }
+
+    if (opts?.token) {
+      headers.Authorization = `Bearer ${opts.token}`;
+    }
+
+    const res = await fetch(url, {
+      method: opts?.method ?? 'GET',
+      headers,
+      body:
+        opts?.body === undefined
+          ? undefined
+          : opts.body instanceof FormData
+            ? opts.body
+            : JSON.stringify(opts.body),
+      credentials: 'include'
+    });
+
+    // 204 No Content
+    if (res.status === 204) {
+      return { data: undefined as unknown as T };
+    }
+
+    let payload: unknown;
+    const ct = res.headers.get('content-type') ?? '';
+    if (ct.includes('application/json')) {
+      payload = await res.json();
+    } else {
+      payload = await res.text();
+    }
+
+    if (!res.ok) {
+      // попытка вытащить норм message
+      const msg =
+        typeof payload === 'object' && payload !== null && 'message' in payload
+          ? String((payload as { message?: unknown }).message ?? 'Request failed')
+          : 'Request failed';
+
+      throw new Error(msg);
+    }
+
+    // ✅ Нормализация: всегда возвращаем { data: ... }
+    // Если бэк уже вернул {data: ...}, не трогаем.
+    if (typeof payload === 'object' && payload !== null && 'data' in payload) {
+      return payload as ApiResponse<T>;
+    }
+
+    return { data: payload as T };
+  };
+
+  return { request };
 }
-
-export const createFetchClient = (baseUrl: string): ApiClient => {
-  let refreshPromise: Promise<string | null> | null = null;
-
-  const refreshToken = async () => {
-    if (!refreshPromise) {
-      refreshPromise = fetch(`${baseUrl}/auth/refresh`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' }
-      })
-        .then(async (response) => {
-          if (!response.ok) {
-            throw new Error('UNAUTHORIZED');
-          }
-          const payload = (await response.json()) as { token?: string };
-          return payload.token ?? null;
-        })
-        .finally(() => {
-          refreshPromise = null;
-        });
-    }
-    return refreshPromise;
-  };
-
-  return {
-    async request<T>(
-      path: string,
-      options: { method?: HttpMethod; body?: unknown; token?: string | null } = {}
-    ) {
-      const session = loadFromStorage<{ token: string } | null>(STORAGE_KEYS.session, null);
-
-      const doRequest = async (token: string | null, retry = false): Promise<ApiResponse<T>> => {
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (token) {
-          headers.Authorization = `Bearer ${token}`;
-        }
-
-        const response = await fetch(`${baseUrl}${path}`, {
-          method: options.method ?? 'GET',
-          headers,
-          credentials: 'include',
-          body: options.body ? JSON.stringify(options.body) : undefined
-        });
-
-        if (response.status === 401 && !retry && token) {
-          try {
-            const newToken = await refreshToken();
-            if (newToken) {
-              const current = loadFromStorage<{ token: string; user?: unknown } | null>(STORAGE_KEYS.session, null);
-              if (current) {
-                saveToStorage(STORAGE_KEYS.session, { ...current, token: newToken });
-              }
-              return doRequest(newToken, true);
-            }
-          } catch {
-            removeFromStorage(STORAGE_KEYS.session);
-            if (typeof window !== 'undefined') {
-              window.dispatchEvent(new Event('auth:logout'));
-            }
-          }
-        }
-
-        const payload = await response.json().catch(() => null);
-        if (!response.ok) {
-          const code = (payload as { error?: { code?: string } } | null)?.error?.code ?? response.status.toString();
-          throw new Error(code);
-        }
-        return payload as ApiResponse<T>;
-      };
-
-      const authToken = options.token ?? session?.token ?? null;
-      return doRequest(authToken, false);
-    }
-  };
-};

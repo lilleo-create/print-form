@@ -6,8 +6,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '../shared/ui/Button';
 import { useAuthStore } from '../app/store/authStore';
 import styles from './AuthPage.module.css';
-
-const RESEND_SECONDS = 30;
+import { OtpStep } from './OtpStep';
 
 type Purpose = 'login' | 'register' | 'seller_verify';
 
@@ -17,12 +16,10 @@ const normalizePhone = (v: string) => (v ?? '').replace(/\D/g, '');
 const formatRuPhone = (value: string) => {
   const digits = normalizePhone(value);
 
-  // ввод "с 9": убираем ведущие 7/8
   let d = digits;
   if (d.startsWith('7')) d = d.slice(1);
   if (d.startsWith('8')) d = d.slice(1);
 
-  // максимум 10 цифр
   d = d.slice(0, 10);
 
   const p1 = d.slice(0, 3);
@@ -40,7 +37,7 @@ const formatRuPhone = (value: string) => {
   return out;
 };
 
-// На бэк отдаём единый формат: 7XXXXXXXXXX (11 цифр)
+// На бэк: 7XXXXXXXXXX (11)
 const toE164Ru = (value: string) => {
   const digits = normalizePhone(value);
   const last10 = digits.length >= 10 ? digits.slice(-10) : digits;
@@ -50,13 +47,13 @@ const toE164Ru = (value: string) => {
 
 const loginSchema = z.object({
   email: z.string().email('Введите email'),
-  password: z.string().min(6, 'Минимум 6 символов'),
+  password: z.string().min(6, 'Минимум 6 символов')
 });
 
 const registerSchema = loginSchema.extend({
   name: z.string().min(2, 'Введите имя'),
   phone: z.string().min(5, 'Введите телефон'),
-  address: z.string().min(5, 'Введите адрес'),
+  address: z.string().min(5, 'Введите адрес')
 });
 
 type LoginValues = z.infer<typeof loginSchema>;
@@ -71,14 +68,11 @@ export const AuthPage = () => {
   const [error, setError] = useState('');
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
 
-  // OTP
+  // OTP state (минимально)
   const [otpRequired, setOtpRequired] = useState(false);
-  const [otpSent, setOtpSent] = useState(false);
-  const [otpLoading, setOtpLoading] = useState(false);
   const [otpToken, setOtpToken] = useState<string | null>(null);
   const [otpPurpose, setOtpPurpose] = useState<Purpose>(isRegister ? 'register' : 'login');
-  const [otpForm, setOtpForm] = useState({ phone: '', code: '' });
-  const [resendLeft, setResendLeft] = useState(0);
+  const [otpPhone, setOtpPhone] = useState<string>('');
 
   const login = useAuthStore((s) => s.login);
   const register = useAuthStore((s) => s.register);
@@ -98,20 +92,15 @@ export const AuthPage = () => {
       navigate(redirectTo);
       return;
     }
-    if (role === 'admin') {
-      navigate('/admin');
-    } else {
-      navigate(role === 'seller' ? '/seller' : '/account');
-    }
+    if (role === 'admin') navigate('/admin');
+    else navigate(role === 'seller' ? '/seller' : '/account');
   };
 
-  const resetOtpUi = () => {
+  const resetOtp = () => {
     setOtpRequired(false);
-    setOtpSent(false);
     setOtpToken(null);
-    setOtpForm({ phone: '', code: '' });
-    setOtpLoading(false);
-    setResendLeft(0);
+    setOtpPhone('');
+    setOtpPurpose(isRegister ? 'register' : 'login');
   };
 
   const resetMessages = () => {
@@ -120,29 +109,14 @@ export const AuthPage = () => {
   };
 
   useEffect(() => {
-    resetOtpUi();
+    resetOtp();
     resetMessages();
-    setOtpPurpose(isRegister ? 'register' : 'login');
     if (!isRegister) setPrivacyAccepted(false);
   }, [isRegister]);
 
-  useEffect(() => {
-    if (!otpSent) {
-      setResendLeft(0);
-      return;
-    }
-
-    setResendLeft(RESEND_SECONDS);
-    const id = window.setInterval(() => {
-      setResendLeft((s) => (s <= 1 ? 0 : s - 1));
-    }, 1000);
-
-    return () => window.clearInterval(id);
-  }, [otpSent]);
-
   const onLogin = async (values: LoginValues) => {
     resetMessages();
-    resetOtpUi();
+    resetOtp();
 
     try {
       const result = await login(values.email, values.password);
@@ -151,10 +125,7 @@ export const AuthPage = () => {
         setOtpPurpose('login');
         setOtpRequired(true);
         setOtpToken(result.tempToken ?? null);
-
-        const phoneFromUser = result.user?.phone ?? '';
-        setOtpForm({ phone: phoneFromUser ? formatRuPhone(phoneFromUser) : '', code: '' });
-
+        setOtpPhone(result.user?.phone ?? '');
         setMessage('Подтвердите номер телефона для входа.');
         return;
       }
@@ -167,7 +138,7 @@ export const AuthPage = () => {
 
   const onRegister = async (values: RegisterValues) => {
     resetMessages();
-    resetOtpUi();
+    resetOtp();
 
     try {
       const result = await register({
@@ -176,15 +147,14 @@ export const AuthPage = () => {
         password: values.password,
         phone: toE164Ru(values.phone),
         address: values.address,
-        privacyAccepted,
+        privacyAccepted
       });
 
       if (result.requiresOtp) {
         setOtpPurpose('register');
         setOtpRequired(true);
         setOtpToken(result.tempToken ?? null);
-
-        setOtpForm({ phone: formatRuPhone(values.phone), code: '' });
+        setOtpPhone(values.phone);
         setMessage('Подтвердите номер телефона для завершения регистрации.');
         return;
       }
@@ -195,142 +165,24 @@ export const AuthPage = () => {
     }
   };
 
-  const handleOtpRequest = async () => {
-    resetMessages();
-    setOtpLoading(true);
-
-    try {
-      const phone = toE164Ru(otpForm.phone);
-
-      // ввод "с 9"
-      const ten = phone.slice(1);
-      if (ten.length !== 10 || ten[0] !== '9') {
-        setError('Введите номер в формате: +7 (9XX) XXX-XX-XX');
-        return;
-      }
-
-      await requestOtp({ phone, purpose: otpPurpose }, otpToken);
-      setOtpSent(true);
-      setMessage('Код отправлен. Проверьте SMS.');
-    } catch {
-      setError('Не удалось отправить код.');
-    } finally {
-      setOtpLoading(false);
-    }
-  };
-
-  const handleOtpVerify = async () => {
-    resetMessages();
-    setOtpLoading(true);
-
-    try {
-      const phone = toE164Ru(otpForm.phone);
-
-      await verifyOtp(
-        {
-          phone,
-          code: otpForm.code.trim(),
-          purpose: otpPurpose,
-        },
-        otpToken
-      );
-
-      handleRedirect(useAuthStore.getState().user?.role);
-    } catch (e: any) {
-      const msg =
-        e?.message === 'PHONE_MISMATCH'
-          ? 'Номер телефона не совпадает с учетной записью.'
-          : 'Неверный код или время истекло.';
-      setError(msg);
-    } finally {
-      setOtpLoading(false);
-    }
-  };
-
-  // ВАЖНО: +7 не должен блокировать поле
-  const phoneDigits = normalizePhone(otpForm.phone);
-  const phoneReadonly =
-    otpPurpose === 'login' &&
-    phoneDigits.replace(/^7/, '').length === 10; // блокируем только когда есть полный номер
-
   return (
     <section className={styles.page}>
       <div className={styles.card}>
         <h1>{isRegister ? 'Регистрация' : 'Вход'}</h1>
 
         {otpRequired ? (
-          <form
-            className={styles.form}
-            onSubmit={(e) => {
-              e.preventDefault();
-              otpSent ? handleOtpVerify() : handleOtpRequest();
-            }}
-          >
-            <input
-              placeholder="+7 (___) ___-__-__"
-              value={otpForm.phone}
-              readOnly={phoneReadonly}
-              aria-readonly={phoneReadonly}
-              className={phoneReadonly ? styles.readonly : undefined}
-              inputMode="tel"
-              onFocus={() => {
-                if (!otpForm.phone) setOtpForm((p) => ({ ...p, phone: '+7' }));
-              }}
-              onChange={(e) => {
-                if (phoneReadonly) return;
-                const formatted = formatRuPhone(e.target.value);
-                setOtpForm((p) => ({ ...p, phone: formatted }));
-              }}
-            />
-
-            {otpSent && (
-              <input
-                placeholder="Код из SMS"
-                value={otpForm.code}
-                inputMode="numeric"
-                onChange={(e) => setOtpForm((p) => ({ ...p, code: e.target.value }))}
-              />
-            )}
-
-            {otpPurpose === 'register' && (
-              <label className={styles.consent}>
-                <input
-                  type="checkbox"
-                  checked={privacyAccepted}
-                  onChange={(e) => setPrivacyAccepted(e.target.checked)}
-                />
-                <span>
-                  Я соглашаюсь на{' '}
-                  <Link to="/privacy-policy" className={styles.policyLink}>
-                    обработку персональных данных
-                  </Link>
-                </span>
-              </label>
-            )}
-
-            <Button
-              type="submit"
-              disabled={
-                otpLoading ||
-                phoneDigits.replace(/^7/, '').length < 10 ||
-                (otpSent && !otpForm.code.trim()) ||
-                (otpPurpose === 'register' && !privacyAccepted)
-              }
-            >
-              {otpSent ? 'Подтвердить' : 'Отправить код'}
-            </Button>
-
-            {otpSent && (
-              <button
-                type="button"
-                className={styles.resend}
-                disabled={otpLoading || resendLeft > 0}
-                onClick={handleOtpRequest}
-              >
-                {resendLeft > 0 ? `Отправить ещё раз через ${resendLeft}с` : 'Отправить ещё раз'}
-              </button>
-            )}
-          </form>
+          <OtpStep
+            purpose={otpPurpose}
+            tempToken={otpToken}
+            initialPhone={otpPhone}
+            privacyAccepted={privacyAccepted}
+            onPrivacyAcceptedChange={setPrivacyAccepted}
+            onRequestOtp={requestOtp}
+            onVerifyOtp={verifyOtp}
+            onSuccess={() => handleRedirect(useAuthStore.getState().user?.role)}
+            setMessage={setMessage}
+            setError={setError}
+          />
         ) : isRegister ? (
           <form onSubmit={registerForm.handleSubmit(onRegister)} className={styles.form}>
             <input placeholder="Имя" {...registerForm.register('name')} />
@@ -343,12 +195,12 @@ export const AuthPage = () => {
                 const v = registerForm.getValues('phone') ?? '';
                 if (!v) registerForm.setValue('phone', '+7', { shouldValidate: true });
               }}
-              onChange={(e) => {
+              onChange={(e) =>
                 registerForm.setValue('phone', formatRuPhone(e.target.value), {
                   shouldValidate: true,
-                  shouldDirty: true,
-                });
-              }}
+                  shouldDirty: true
+                })
+              }
             />
 
             <input placeholder="Адрес" {...registerForm.register('address')} />
