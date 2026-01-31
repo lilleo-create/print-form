@@ -96,6 +96,10 @@ export const api = {
     return apiClient.request<{ categories: string[]; materials: string[]; sizes: string[] }>('/filters');
   },
 
+  async getReferenceCategories() {
+    return apiClient.request<{ id: string; slug: string; title: string }[]>('/filters/reference-categories');
+  },
+
   async sendCustomRequest(payload: Omit<CustomPrintRequest, 'id' | 'status'>) {
     return apiClient.request<CustomPrintRequest>('/custom-requests', { method: 'POST', body: payload });
   },
