@@ -15,4 +15,15 @@ router.get('/reference-categories', async (_req, res) => {
   res.json(categories);
 });
 
+// GET /filters/cities
+router.get('/cities', async (_req, res) => {
+  const cities = await prisma.city.findMany({
+    where: { isActive: true },
+    orderBy: { name: 'asc' },
+    select: { id: true, name: true },
+  });
+
+  res.json(cities);
+});
+
 export { router as filterRoutes };

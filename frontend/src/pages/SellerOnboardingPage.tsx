@@ -7,7 +7,6 @@ import { Role } from '../shared/types';
 import styles from './SellerOnboardingPage.module.css';
 
 const steps = ['Контакты', 'Статус', 'Город', 'Категория'] as const;
-const cities = ['Москва', 'Санкт-Петербург', 'Казань', 'Екатеринбург', 'Новосибирск', 'Ростов-на-Дону'];
 const phonePattern = /^\+?[0-9\s()-]{7,}$/;
 
 export const SellerOnboardingPage = () => {
@@ -19,6 +18,7 @@ export const SellerOnboardingPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [phoneVerificationRequired, setPhoneVerificationRequired] = useState(false);
   const [referenceCategories, setReferenceCategories] = useState<{ id: string; slug: string; title: string }[]>([]);
+  const [cities, setCities] = useState<{ id: string; name: string }[]>([]);
   const [form, setForm] = useState({
     name: '',
     phone: '',
@@ -50,16 +50,17 @@ export const SellerOnboardingPage = () => {
 
   useEffect(() => {
     let isMounted = true;
-    api
-      .getReferenceCategories()
-      .then((response) => {
+    Promise.all([api.getReferenceCategories(), api.getCities()])
+      .then(([categoriesResponse, citiesResponse]) => {
         if (isMounted) {
-          setReferenceCategories(response.data);
+          setReferenceCategories(categoriesResponse.data);
+          setCities(citiesResponse.data);
         }
       })
       .catch(() => {
         if (isMounted) {
           setReferenceCategories([]);
+          setCities([]);
         }
       });
 
@@ -73,7 +74,7 @@ export const SellerOnboardingPage = () => {
   const phoneValid = phonePattern.test(form.phone.trim());
   const statusValid = form.status.trim().length > 0;
   const storeNameValid = form.storeName.trim().length >= 2;
-  const cityValid = cities.includes(form.city);
+  const cityValid = cities.some((city) => city.name === form.city);
   const referenceCategoryValid = form.referenceCategory.trim().length >= 2;
   const catalogPositionValid = form.catalogPosition.trim().length >= 2;
 
@@ -249,8 +250,8 @@ export const SellerOnboardingPage = () => {
                     Выберите город
                   </option>
                   {cities.map((city) => (
-                    <option key={city} value={city}>
-                      {city}
+                    <option key={city.id} value={city.name}>
+                      {city.name}
                     </option>
                   ))}
                 </select>

@@ -93,7 +93,24 @@ export const api = {
   },
 
   async getFilters() {
-    return apiClient.request<{ categories: string[]; materials: string[]; sizes: string[] }>('/filters');
+    const categoriesResponse = await apiClient.request<{ id: string; slug: string; title: string }[]>(
+      '/filters/reference-categories'
+    );
+    return {
+      data: {
+        categories: categoriesResponse.data.map((category) => category.title),
+        materials: [],
+        sizes: []
+      }
+    };
+  },
+
+  async getReferenceCategories() {
+    return apiClient.request<{ id: string; slug: string; title: string }[]>('/filters/reference-categories');
+  },
+
+  async getCities() {
+    return apiClient.request<{ id: string; name: string }[]>('/filters/cities');
   },
 
   async getReferenceCategories() {
