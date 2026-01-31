@@ -54,7 +54,11 @@ const loginSchema = z.object({
 const registerSchema = loginSchema.extend({
   name: z.string().min(2, 'Введите имя'),
   phone: z.string().min(5, 'Введите телефон'),
-  address: z.string().min(5, 'Введите адрес')
+  address: z.string().min(5, 'Введите адрес'),
+  confirmPassword: z.string().min(6, 'Минимум 6 символов')
+}).refine((data) => data.password === data.confirmPassword, {
+  message: 'Пароли не совпадают',
+  path: ['confirmPassword']
 });
 
 type LoginValues = z.infer<typeof loginSchema>;
@@ -154,6 +158,13 @@ export const AuthPage = () => {
     resetMessages();
     if (!isRegister) setPrivacyAccepted(false);
   }, [isRegister]);
+
+  useEffect(() => {
+    const state = location.state as { message?: string } | null;
+    if (state?.message) {
+      setMessage(state.message);
+    }
+  }, [location.state]);
 
   const onLogin = async (values: LoginValues) => {
     resetMessages();
@@ -263,6 +274,10 @@ export const AuthPage = () => {
             <input placeholder="Адрес" {...registerForm.register('address')} />
             <input placeholder="Email" {...registerForm.register('email')} />
             <input type="password" placeholder="Пароль" {...registerForm.register('password')} />
+            <input type="password" placeholder="Повторите пароль" {...registerForm.register('confirmPassword')} />
+            {registerForm.formState.errors.confirmPassword && (
+              <span>{registerForm.formState.errors.confirmPassword.message}</span>
+            )}
 
             <label className={styles.consent}>
               <input

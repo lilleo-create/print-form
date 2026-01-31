@@ -15,6 +15,9 @@ import { CategoriesPage } from './pages/CategoriesPage';
 import { SellerOnboardingPage } from './pages/SellerOnboardingPage';
 import { OrdersPage } from './pages/OrdersPage';
 import { AdminKycPage } from './pages/AdminKycPage';
+import { FavoritesPage } from './pages/FavoritesPage';
+import { ReturnsPage } from './pages/ReturnsPage';
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 
 const App = () => {
   return (
@@ -26,6 +29,8 @@ const App = () => {
         <Route path="/product/:id/reviews" element={<ProductReviewsPage />} />
         <Route path="/categories" element={<CategoriesPage />} />
         <Route path="/cart" element={<CartPage />} />
+        <Route path="/favorites" element={<FavoritesPage />} />
+        <Route path="/returns" element={<ReturnsPage />} />
         <Route
           path="/orders"
           element={
@@ -69,6 +74,7 @@ const App = () => {
         />
         <Route path="/auth/login" element={<AuthPage />} />
         <Route path="/auth/register" element={<AuthPage />} />
+        <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
       </Routes>
     </Layout>

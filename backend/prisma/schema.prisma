@@ -315,6 +315,7 @@ enum OtpPurpose {
   LOGIN
   REGISTER
   SELLER_VERIFY
+  PASSWORD_RESET
 }
 
 enum KycStatus {

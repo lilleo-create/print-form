@@ -108,6 +108,22 @@ export const SellerOnboardingPage = () => {
     setIsSubmitting(true);
     try {
       setPhoneVerificationRequired(false);
+      const waitForSellerProfile = async () => {
+        const attempts = 5;
+        const delayMs = 250;
+        for (let attempt = 0; attempt < attempts; attempt += 1) {
+          try {
+            const profileResponse = await api.getSellerProfile();
+            if (profileResponse.data?.profile) {
+              return true;
+            }
+          } catch {
+            // ignore and retry
+          }
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+        }
+        return false;
+      };
       const response = await api.submitSellerOnboarding({
         name: form.name,
         phone: form.phone,
@@ -117,16 +133,18 @@ export const SellerOnboardingPage = () => {
         referenceCategory: form.referenceCategory,
         catalogPosition: form.catalogPosition
       });
-      const role = response.data.data.role.toLowerCase() === 'seller' ? 'seller' : 'buyer';
+      const role = response.data.role.toLowerCase() === 'seller' ? 'seller' : 'buyer';
       setUser({
-        id: response.data.data.id,
-        name: response.data.data.name,
-        email: response.data.data.email,
-        phone: response.data.data.phone,
+        id: response.data.id,
+        name: response.data.name,
+        email: response.data.email,
+        phone: response.data.phone,
         role: role as Role,
         address: user?.address ?? null
       });
       setIsComplete(true);
+      await waitForSellerProfile();
+      queueMicrotask(() => navigate('/seller', { replace: true }));
     } catch (error) {
       if (error instanceof Error && error.message === 'PHONE_NOT_VERIFIED') {
         setPhoneVerificationRequired(true);

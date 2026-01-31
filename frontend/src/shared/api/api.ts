@@ -228,6 +228,27 @@ export const api = {
     return apiClient.request<{ success: boolean }>('/auth/logout', { method: 'POST' });
   },
 
+  async requestPasswordReset(payload: { phone: string }) {
+    return apiClient.request<{ ok: boolean; devOtp?: string }>('/auth/password-reset/request', {
+      method: 'POST',
+      body: payload
+    });
+  },
+
+  async verifyPasswordReset(payload: { phone: string; code: string }) {
+    return apiClient.request<{ ok: boolean; resetToken: string }>('/auth/password-reset/verify', {
+      method: 'POST',
+      body: payload
+    });
+  },
+
+  async confirmPasswordReset(payload: { token: string; password: string }) {
+    return apiClient.request<{ ok: boolean }>('/auth/password-reset/confirm', {
+      method: 'POST',
+      body: payload
+    });
+  },
+
   async me() {
     return apiClient.request<{ id: string; name: string; role: string; email: string; phone?: string | null; address?: string | null }>(
       '/auth/me'
@@ -260,7 +281,7 @@ export const api = {
     referenceCategory: string;
     catalogPosition: string;
   }) {
-    return apiClient.request<{ data: { id: string; name: string; email: string; phone?: string | null; role: string } }>(
+    return apiClient.request<{ id: string; name: string; email: string; phone?: string | null; role: string }>(
       '/seller/onboarding',
       { method: 'POST', body: payload }
     );

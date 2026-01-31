@@ -1,0 +1,24 @@
+.page {
+  padding: 64px 0 96px;
+  width: 100%;
+  align-self: stretch;
+}
+
+.container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.card {
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  gap: 12px;
+}
+
+.empty {
+  color: var(--color-text-muted);
+}
