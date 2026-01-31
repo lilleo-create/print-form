@@ -19,7 +19,7 @@ const sortMap = (sort: string): ReviewOrderBy => {
 
 const buildWhere = (productIds: string[]): Prisma.ReviewWhereInput => ({
   productId: { in: productIds },
-  status: ReviewStatus.APPROVED,
+  moderationStatus: 'APPROVED',
   isPublic: true
 });
 
@@ -36,13 +36,10 @@ export const reviewService = {
     return prisma.$transaction(async (tx) => {
       const product = await tx.product.findUnique({
         where: { id: data.productId },
-        select: { ratingAvg: true, ratingCount: true }
+        select: { id: true }
       });
 
       if (!product) throw new Error('NOT_FOUND');
-
-      const nextCount = product.ratingCount + 1;
-      const nextAvg = (product.ratingAvg * product.ratingCount + data.rating) / nextCount;
 
       const review = await tx.review.create({
         data: {
@@ -53,13 +50,12 @@ export const reviewService = {
           cons: data.cons,
           comment: data.comment,
           photos: data.photos,
-          status: ReviewStatus.APPROVED
+          status: ReviewStatus.PENDING,
+          moderationStatus: 'PENDING',
+          moderationNotes: null,
+          moderatedAt: null,
+          moderatedById: null
         }
-      });
-
-      await tx.product.update({
-        where: { id: data.productId },
-        data: { ratingAvg: nextAvg, ratingCount: nextCount }
       });
 
       return review;

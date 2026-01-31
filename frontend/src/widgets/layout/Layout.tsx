@@ -88,13 +88,9 @@ export const Layout = ({ children }: LayoutProps) => {
       setSellerProfile(null);
       return;
     }
-    if (user.role !== 'seller') {
-      setSellerProfile({ isSeller: false, profile: null });
-      return;
-    }
     let isMounted = true;
     api
-      .getSellerProfile()
+      .getSellerContext()
       .then((response) => {
         if (isMounted) {
           setSellerProfile(response.data);
@@ -102,7 +98,7 @@ export const Layout = ({ children }: LayoutProps) => {
       })
       .catch(() => {
         if (isMounted) {
-          setSellerProfile({ isSeller: true, profile: null });
+          setSellerProfile({ isSeller: false, profile: null });
         }
       });
     return () => {

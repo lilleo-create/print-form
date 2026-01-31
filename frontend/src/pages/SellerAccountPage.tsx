@@ -1,8 +1,10 @@
 import { ChangeEvent, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuthStore } from '../app/store/authStore';
 import { api } from '../shared/api';
 import { ordersApi } from '../shared/api/ordersApi';
-import { Order, OrderStatus, Payment, Product, SellerKycSubmission, SellerProfile } from '../shared/types';
+import { useSellerGuard } from '../shared/hooks/useSellerGuard';
+import { Order, OrderStatus, Payment, Product, SellerKycSubmission } from '../shared/types';
 import { Button } from '../shared/ui/Button';
 import { SellerProductModal, SellerProductPayload } from '../widgets/seller/SellerProductModal';
 import styles from './SellerAccountPage.module.css';
@@ -32,12 +34,18 @@ const statusLabels: Record<OrderStatus, string> = {
 const formatCurrency = (value: number) => value.toLocaleString('ru-RU');
 const formatDate = (value: string) =>
   new Date(value).toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric' });
+const getErrorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error));
+const isAccessError = (error: unknown) => {
+  const message = getErrorMessage(error).toLowerCase();
+  return message.includes('forbidden') || message.includes('unauthorized') || message.includes('401') || message.includes('403');
+};
 
 export const SellerAccountPage = () => {
   const [activeItem, setActiveItem] = useState<(typeof menuItems)[number]>('Сводка');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [isProductsLoading, setIsProductsLoading] = useState(true);
+  const [productsError, setProductsError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeProduct, setActiveProduct] = useState<Product | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -49,23 +57,30 @@ export const SellerAccountPage = () => {
   const [orderUpdateError, setOrderUpdateError] = useState<string | null>(null);
   const [trackingDrafts, setTrackingDrafts] = useState<Record<string, { trackingNumber: string; carrier: string }>>({});
   const [kycSubmission, setKycSubmission] = useState<SellerKycSubmission | null>(null);
-  const [kycLoading, setKycLoading] = useState(true);
+  const [kycLoading, setKycLoading] = useState(false);
   const [isKycUploading, setIsKycUploading] = useState(false);
   const [kycMessage, setKycMessage] = useState<string | null>(null);
-  const [sellerProfile, setSellerProfile] = useState<SellerProfile | null>(null);
-  const [profileLoading, setProfileLoading] = useState(true);
+  const [kycError, setKycError] = useState<string | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [paymentsLoading, setPaymentsLoading] = useState(true);
+  const [paymentsError, setPaymentsError] = useState<string | null>(null);
   const canSell = kycSubmission?.status === 'APPROVED';
   const userId = useAuthStore((state) => state.user?.id);
+  const { authStatus, sellerStatus, sellerProfile, error: sellerGuardError, reload } = useSellerGuard();
+  const isSellerReady = authStatus === 'authorized' && sellerStatus === 'seller';
+  const isAuthLoading = authStatus === 'loading';
 
   const loadProducts = async () => {
     setIsProductsLoading(true);
+    setProductsError(null);
     try {
       const productsResponse = await api.getSellerProducts();
       setProducts(productsResponse.data);
-    } catch {
+    } catch (error) {
       setProducts([]);
+      if (isAccessError(error) && isSellerReady) {
+        setProductsError('Сессия истекла, войдите снова.');
+      }
     } finally {
       setIsProductsLoading(false);
     }
@@ -76,6 +91,11 @@ export const SellerAccountPage = () => {
     setOrdersError(null);
     try {
       if (!userId) {
+        setOrders([]);
+        setOrdersView([]);
+        return;
+      }
+      if (!isSellerReady) {
         setOrders([]);
         setOrdersView([]);
         return;
@@ -93,10 +113,14 @@ export const SellerAccountPage = () => {
         });
         return next;
       });
-    } catch {
+    } catch (error) {
       setOrders([]);
       setOrdersView([]);
-      setOrdersError('Не удалось загрузить заказы.');
+      if (isAccessError(error) && isSellerReady) {
+        setOrdersError('Сессия истекла, войдите снова.');
+      } else if (isSellerReady) {
+        setOrdersError('Не удалось загрузить заказы.');
+      }
     } finally {
       setOrdersLoading(false);
     }
@@ -110,7 +134,7 @@ export const SellerAccountPage = () => {
     setOrdersLoading(true);
     setOrdersError(null);
     try {
-      if (!userId) {
+      if (!userId || !isSellerReady) {
         setOrdersView([]);
         return;
       }
@@ -126,79 +150,112 @@ export const SellerAccountPage = () => {
         });
         return next;
       });
-    } catch {
+    } catch (error) {
       setOrdersView([]);
-      setOrdersError('Не удалось загрузить заказы.');
+      if (isAccessError(error) && isSellerReady) {
+        setOrdersError('Сессия истекла, войдите снова.');
+      } else if (isSellerReady) {
+        setOrdersError('Не удалось загрузить заказы.');
+      }
     } finally {
       setOrdersLoading(false);
     }
   };
 
   const loadKyc = async () => {
+    setKycLoading(true);
+    setKycError(null);
     try {
       const response = await api.getSellerKyc();
       setKycSubmission(response.data);
-    } catch {
+    } catch (error) {
       setKycSubmission(null);
+      if (isAccessError(error) && isSellerReady) {
+        setKycError('Сессия истекла, войдите снова.');
+      }
     } finally {
       setKycLoading(false);
     }
   };
 
-  const loadProfile = async () => {
-    try {
-      const response = await api.getSellerProfile();
-      setSellerProfile(response.data.profile ?? null);
-    } catch {
-      setSellerProfile(null);
-    } finally {
-      setProfileLoading(false);
-    }
-  };
-
   const loadPayments = async () => {
     setPaymentsLoading(true);
+    setPaymentsError(null);
     try {
       const response = await api.getSellerPayments();
       setPayments(response.data ?? []);
-    } catch {
+    } catch (error) {
       setPayments([]);
+      if (isAccessError(error) && isSellerReady) {
+        setPaymentsError('Сессия истекла, войдите снова.');
+      }
     } finally {
       setPaymentsLoading(false);
     }
   };
 
   useEffect(() => {
-    loadProducts();
-    loadKyc();
-    loadProfile();
-    loadPayments();
-  }, []);
+    if (!isSellerReady) {
+      setProducts([]);
+      setPayments([]);
+      setOrders([]);
+      setOrdersView([]);
+      setOrdersError(null);
+      setPaymentsError(null);
+      setProductsError(null);
+      setKycSubmission(null);
+      setKycLoading(false);
+      setKycError(null);
+      setIsProductsLoading(false);
+      setPaymentsLoading(false);
+      setOrdersLoading(false);
+      return;
+    }
+
+    void loadProducts();
+    void loadKyc();
+    void loadPayments();
+    if (userId) {
+      void loadOrders();
+    }
+  }, [isSellerReady, userId]);
 
   useEffect(() => {
-    loadOrders();
-  }, [userId]);
-
-  useEffect(() => {
+    if (!isSellerReady) {
+      setOrdersView([]);
+      return;
+    }
     if (statusFilter === 'ALL') {
       setOrdersView(orders);
       return;
     }
     loadOrdersByStatus(statusFilter);
-  }, [orders, statusFilter]);
+  }, [orders, statusFilter, isSellerReady]);
 
   const handleKycUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0) {
       return;
     }
+    if (!isSellerReady) {
+      setKycMessage('Подключите профиль продавца, чтобы загрузить документы.');
+      event.target.value = '';
+      return;
+    }
     setIsKycUploading(true);
     setKycMessage(null);
+    setKycError(null);
     try {
       await api.uploadSellerKycDocuments(files);
       const response = await api.getSellerKyc();
       setKycSubmission(response.data);
       setKycMessage('Документы загружены.');
+    } catch (error) {
+      if (isAccessError(error)) {
+        setKycError('Сессия истекла, войдите снова.');
+      } else {
+        setKycError('Не удалось загрузить документы.');
+      }
     } finally {
       setIsKycUploading(false);
       event.target.value = '';
@@ -206,14 +263,29 @@ export const SellerAccountPage = () => {
   };
 
   const handleKycSubmit = async () => {
+    if (!isSellerReady) {
+      setKycMessage('Подключите профиль продавца, чтобы отправить документы.');
+      return;
+    }
     setKycMessage(null);
-    const response = await api.submitSellerKyc();
-    setKycSubmission(response.data);
-    setKycMessage('Заявка отправлена на проверку.');
+    setKycError(null);
+    try {
+      const response = await api.submitSellerKyc();
+      setKycSubmission(response.data);
+      setKycMessage('Заявка отправлена на проверку.');
+      await reload();
+    } catch (error) {
+      if (isAccessError(error)) {
+        setKycError('Сессия истекла, войдите снова.');
+      } else {
+        setKycError('Не удалось отправить документы.');
+      }
+    }
   };
 
   const handleSaveProduct = async (payload: SellerProductPayload) => {
     setKycMessage(null);
+    setProductsError(null);
     try {
       if (payload.id) {
         await api.updateSellerProduct(payload.id, payload);
@@ -223,8 +295,12 @@ export const SellerAccountPage = () => {
       setIsModalOpen(false);
       setActiveProduct(null);
       await loadProducts();
-    } catch {
-      setKycMessage('Загрузка товаров доступна после одобрения KYC.');
+    } catch (error) {
+      if (isAccessError(error) && isSellerReady) {
+        setProductsError('Сессия истекла, войдите снова.');
+      } else {
+        setKycMessage('Загрузка товаров доступна после одобрения KYC.');
+      }
     }
   };
 
@@ -342,7 +418,47 @@ export const SellerAccountPage = () => {
             </div>
           </div>
 
-          {activeItem === 'Сводка' && (
+          {isAuthLoading && (
+            <div className={styles.section}>
+              <p className={styles.muted}>Загрузка...</p>
+            </div>
+          )}
+
+          {authStatus === 'unauthorized' && (
+            <div className={styles.section}>
+              <div className={styles.infoCard}>
+                <h2>Войдите в аккаунт</h2>
+                <p className={styles.muted}>Авторизуйтесь, чтобы получить доступ к кабинету продавца.</p>
+                <Link className={styles.linkButton} to="/auth/login?redirectTo=/seller">
+                  Войти
+                </Link>
+              </div>
+            </div>
+          )}
+
+          {authStatus === 'authorized' && sellerStatus === 'not_seller' && (
+            <div className={styles.section}>
+              <div className={styles.infoCard}>
+                <h2>Подключение продавца</h2>
+                <p className={styles.muted}>
+                  Чтобы получить доступ к товарам, заказам и выплатам, заполните профиль продавца.
+                </p>
+                <Link className={styles.linkButton} to="/seller/onboarding">
+                  Заполнить профиль
+                </Link>
+              </div>
+            </div>
+          )}
+
+          {authStatus === 'authorized' && sellerStatus === 'unknown' && sellerGuardError && (
+            <div className={styles.section}>
+              <p className={styles.error}>Не удалось проверить профиль продавца: {sellerGuardError}</p>
+            </div>
+          )}
+
+          {isSellerReady && (
+            <>
+              {activeItem === 'Сводка' && (
             <div className={styles.section}>
               <div className={styles.statsGrid}>
                 <div className={styles.statCard}>
@@ -368,9 +484,9 @@ export const SellerAccountPage = () => {
                 ))}
               </div>
             </div>
-          )}
+              )}
 
-          {(activeItem === 'Подключение' || activeItem === 'Сводка') && (
+              {(activeItem === 'Подключение' || activeItem === 'Сводка') && (
             <div className={styles.section}>
               <div className={styles.sectionHeader}>
                 <div>
@@ -417,38 +533,52 @@ export const SellerAccountPage = () => {
                       Отправить на проверку
                     </Button>
                   </div>
+                  {kycError && <p className={styles.error}>{kycError}</p>}
                   {kycMessage && <p className={styles.kycMessage}>{kycMessage}</p>}
                 </div>
               )}
             </div>
-          )}
+              )}
 
-          {activeItem === 'Товары' && (
+              {activeItem === 'Товары' && (
             <div className={styles.section}>
               <div className={styles.sectionHeader}>
                 <div>
                   <h2>Товары продавца</h2>
                   <p>Создавайте и редактируйте карточки с описанием и фото.</p>
                 </div>
-                <Button
-                  type="button"
-                  onClick={() => {
-                    setActiveProduct(null);
-                    setIsModalOpen(true);
-                  }}
-                  disabled={!canSell}
-                >
-                  Добавить товар
-                </Button>
+                <div className={styles.sectionActions}>
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      if (!canSell) {
+                        return;
+                      }
+                      setActiveProduct(null);
+                      setIsModalOpen(true);
+                    }}
+                    disabled={!canSell}
+                  >
+                    Добавить товар
+                  </Button>
+                  {!canSell && (
+                    <span className={styles.helperText}>
+                      Добавление товаров доступно после одобрения KYC.
+                    </span>
+                  )}
+                </div>
               </div>
               {isProductsLoading ? (
                 <p className={styles.muted}>Загрузка данных...</p>
+              ) : productsError ? (
+                <p className={styles.error}>{productsError}</p>
               ) : (
                 <div className={styles.table}>
                   <div className={styles.tableHeader}>
                     <span>Название</span>
                     <span>Цена</span>
                     <span>Категория</span>
+                    <span>Статус</span>
                     <span>Действия</span>
                   </div>
                   {products.length === 0 ? (
@@ -459,6 +589,12 @@ export const SellerAccountPage = () => {
                         <span>{product.title}</span>
                         <span>{formatCurrency(product.price)} ₽</span>
                         <span>{product.category}</span>
+                        <span>
+                          <strong>{product.moderationStatus ?? '—'}</strong>
+                          {product.moderationStatus === 'NEEDS_EDIT' && product.moderationNotes && (
+                            <span className={styles.moderationNote}>{product.moderationNotes}</span>
+                          )}
+                        </span>
                         <button
                           type="button"
                           className={styles.linkButton}
@@ -475,9 +611,9 @@ export const SellerAccountPage = () => {
                 </div>
               )}
             </div>
-          )}
+              )}
 
-          {activeItem === 'Заказы' && (
+              {activeItem === 'Заказы' && (
             <div className={styles.section}>
               <div className={styles.sectionHeader}>
                 <div>
@@ -583,9 +719,9 @@ export const SellerAccountPage = () => {
               )}
               {orderUpdateError && <p className={styles.error}>{orderUpdateError}</p>}
             </div>
-          )}
+              )}
 
-          {activeItem === 'Логистика' && (
+              {activeItem === 'Логистика' && (
             <div className={styles.section}>
               <div className={styles.sectionHeader}>
                 <div>
@@ -620,20 +756,22 @@ export const SellerAccountPage = () => {
                 </div>
               )}
             </div>
-          )}
+              )}
 
-          {activeItem === 'Продвижение' && (
+              {activeItem === 'Продвижение' && (
             <div className={styles.section}>
               <h2>Продвижение</h2>
               <p className={styles.muted}>Пока нет кампаний.</p>
             </div>
-          )}
+              )}
 
-          {activeItem === 'Бухгалтерия' && (
+              {activeItem === 'Бухгалтерия' && (
             <div className={styles.section}>
               <h2>Бухгалтерия</h2>
               {paymentsLoading ? (
                 <p className={styles.muted}>Загрузка платежей...</p>
+              ) : paymentsError ? (
+                <p className={styles.error}>{paymentsError}</p>
               ) : payments.length === 0 ? (
                 <p className={styles.muted}>Данные о выплатах пока отсутствуют.</p>
               ) : (
@@ -655,9 +793,9 @@ export const SellerAccountPage = () => {
                 </div>
               )}
             </div>
-          )}
+              )}
 
-          {activeItem === 'Отчеты' && (
+              {activeItem === 'Отчеты' && (
             <div className={styles.section}>
               <div className={styles.sectionHeader}>
                 <div>
@@ -684,16 +822,16 @@ export const SellerAccountPage = () => {
                 </div>
               )}
             </div>
-          )}
+              )}
 
-          {activeItem === 'Поддержка' && (
+              {activeItem === 'Поддержка' && (
             <div className={styles.section}>
               <h2>Поддержка</h2>
               <p className={styles.muted}>Пока нет обращений.</p>
             </div>
-          )}
+              )}
 
-          {activeItem === 'Настройки' && (
+              {activeItem === 'Настройки' && (
             <div className={styles.section}>
               <div className={styles.sectionHeader}>
                 <div>
@@ -701,9 +839,7 @@ export const SellerAccountPage = () => {
                   <p>Актуальные данные магазина.</p>
                 </div>
               </div>
-              {profileLoading ? (
-                <p className={styles.muted}>Загрузка профиля...</p>
-              ) : sellerProfile ? (
+              {sellerProfile ? (
                 <div className={styles.settingsGrid}>
                   <div>
                     <span className={styles.muted}>Название магазина</span>
@@ -735,14 +871,16 @@ export const SellerAccountPage = () => {
               )}
               <p className={styles.muted}>Редактирование профиля доступно через форму подключения продавца.</p>
             </div>
-          )}
+              )}
 
-          {isModalOpen && (
+              {isModalOpen && (
             <SellerProductModal
               product={activeProduct}
               onClose={() => setIsModalOpen(false)}
               onSubmit={handleSaveProduct}
             />
+              )}
+            </>
           )}
         </div>
       </div>

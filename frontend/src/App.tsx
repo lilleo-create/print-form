@@ -1,4 +1,4 @@
-import { Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import { Layout } from './widgets/layout/Layout';
 import { LandingPage } from './pages/LandingPage';
 import { CatalogPage } from './pages/CatalogPage';
@@ -8,13 +8,17 @@ import { AuthPage } from './pages/AuthPage';
 import { CartPage } from './pages/CartPage';
 import { CheckoutPage } from './pages/CheckoutPage';
 import { ProtectedRoute } from './app/routes/ProtectedRoute';
+import { AdminRoute } from './app/routes/AdminRoute';
 import { ProductPage } from './pages/ProductPage';
 import { ProductReviewsPage } from './pages/ProductReviewsPage';
 import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
 import { CategoriesPage } from './pages/CategoriesPage';
 import { SellerOnboardingPage } from './pages/SellerOnboardingPage';
 import { OrdersPage } from './pages/OrdersPage';
-import { AdminKycPage } from './pages/AdminKycPage';
+import { AdminLayout } from './pages/admin/AdminLayout';
+import { AdminKycPage } from './pages/admin/AdminKycPage';
+import { AdminProductsPage } from './pages/admin/AdminProductsPage';
+import { AdminReviewsPage } from './pages/admin/AdminReviewsPage';
 import { FavoritesPage } from './pages/FavoritesPage';
 import { ReturnsPage } from './pages/ReturnsPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
@@ -67,11 +71,16 @@ const App = () => {
         <Route
           path="/admin"
           element={
-            <ProtectedRoute requiredRole="admin">
-              <AdminKycPage />
-            </ProtectedRoute>
+            <AdminRoute>
+              <AdminLayout />
+            </AdminRoute>
           }
-        />
+        >
+          <Route index element={<Navigate to="/admin/kyc" replace />} />
+          <Route path="kyc" element={<AdminKycPage />} />
+          <Route path="products" element={<AdminProductsPage />} />
+          <Route path="reviews" element={<AdminReviewsPage />} />
+        </Route>
         <Route path="/auth/login" element={<AuthPage />} />
         <Route path="/auth/register" element={<AuthPage />} />
         <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />

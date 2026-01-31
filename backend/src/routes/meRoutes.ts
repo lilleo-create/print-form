@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { authenticate, AuthRequest } from '../middleware/authMiddleware';
+import { requireAuth, AuthRequest } from '../middleware/authMiddleware';
+import { userRepository } from '../repositories/userRepository';
 import { orderUseCases } from '../usecases/orderUseCases';
 import { reviewService } from '../services/reviewService';
 import { writeLimiter } from '../middleware/rateLimiters';
@@ -30,7 +31,26 @@ const contactSchema = z.object({
   email: z.string().email().optional()
 });
 
-meRoutes.get('/addresses', authenticate, async (req: AuthRequest, res, next) => {
+meRoutes.get('/', requireAuth, async (req: AuthRequest, res, next) => {
+  try {
+    const user = await userRepository.findById(req.user!.userId);
+    if (!user) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND' } });
+    }
+    res.json({
+      data: {
+        id: user.id,
+        name: user.name,
+        role: user.role,
+        email: user.email
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+meRoutes.get('/addresses', requireAuth, async (req: AuthRequest, res, next) => {
   try {
     const addresses = await prisma.address.findMany({
       where: { userId: req.user!.userId },
@@ -42,7 +62,7 @@ meRoutes.get('/addresses', authenticate, async (req: AuthRequest, res, next) => 
   }
 });
 
-meRoutes.get('/addresses/default', authenticate, async (req: AuthRequest, res, next) => {
+meRoutes.get('/addresses/default', requireAuth, async (req: AuthRequest, res, next) => {
   try {
     const address = await prisma.address.findFirst({
       where: { userId: req.user!.userId, isDefault: true }
@@ -53,7 +73,7 @@ meRoutes.get('/addresses/default', authenticate, async (req: AuthRequest, res, n
   }
 });
 
-meRoutes.post('/addresses', authenticate, writeLimiter, async (req: AuthRequest, res, next) => {
+meRoutes.post('/addresses', requireAuth, writeLimiter, async (req: AuthRequest, res, next) => {
   try {
     const payload = addressSchema.parse(req.body);
     const existingDefault = await prisma.address.findFirst({
@@ -78,7 +98,7 @@ meRoutes.post('/addresses', authenticate, writeLimiter, async (req: AuthRequest,
   }
 });
 
-meRoutes.patch('/addresses/:id', authenticate, writeLimiter, async (req: AuthRequest, res, next) => {
+meRoutes.patch('/addresses/:id', requireAuth, writeLimiter, async (req: AuthRequest, res, next) => {
   try {
     const payload = addressSchema.partial().parse(req.body);
     const existing = await prisma.address.findFirst({
@@ -105,7 +125,7 @@ meRoutes.patch('/addresses/:id', authenticate, writeLimiter, async (req: AuthReq
   }
 });
 
-meRoutes.delete('/addresses/:id', authenticate, writeLimiter, async (req: AuthRequest, res, next) => {
+meRoutes.delete('/addresses/:id', requireAuth, writeLimiter, async (req: AuthRequest, res, next) => {
   try {
     const existing = await prisma.address.findFirst({
       where: { id: req.params.id, userId: req.user!.userId }
@@ -129,7 +149,7 @@ meRoutes.delete('/addresses/:id', authenticate, writeLimiter, async (req: AuthRe
   }
 });
 
-meRoutes.post('/addresses/:id/default', authenticate, writeLimiter, async (req: AuthRequest, res, next) => {
+meRoutes.post('/addresses/:id/default', requireAuth, writeLimiter, async (req: AuthRequest, res, next) => {
   try {
     const address = await prisma.address.findFirst({
       where: { id: req.params.id, userId: req.user!.userId }
@@ -151,7 +171,7 @@ meRoutes.post('/addresses/:id/default', authenticate, writeLimiter, async (req: 
   }
 });
 
-meRoutes.get('/contacts', authenticate, async (req: AuthRequest, res, next) => {
+meRoutes.get('/contacts', requireAuth, async (req: AuthRequest, res, next) => {
   try {
     const contacts = await prisma.contact.findMany({
       where: { userId: req.user!.userId },
@@ -163,7 +183,7 @@ meRoutes.get('/contacts', authenticate, async (req: AuthRequest, res, next) => {
   }
 });
 
-meRoutes.post('/contacts', authenticate, writeLimiter, async (req: AuthRequest, res, next) => {
+meRoutes.post('/contacts', requireAuth, writeLimiter, async (req: AuthRequest, res, next) => {
   try {
     const payload = contactSchema.parse(req.body);
     const created = await prisma.contact.create({
@@ -180,7 +200,7 @@ meRoutes.post('/contacts', authenticate, writeLimiter, async (req: AuthRequest, 
   }
 });
 
-meRoutes.patch('/contacts/:id', authenticate, writeLimiter, async (req: AuthRequest, res, next) => {
+meRoutes.patch('/contacts/:id', requireAuth, writeLimiter, async (req: AuthRequest, res, next) => {
   try {
     const payload = contactSchema.partial().parse(req.body);
     const existing = await prisma.contact.findFirst({
@@ -203,7 +223,7 @@ meRoutes.patch('/contacts/:id', authenticate, writeLimiter, async (req: AuthRequ
   }
 });
 
-meRoutes.get('/orders', authenticate, async (req: AuthRequest, res, next) => {
+meRoutes.get('/orders', requireAuth, async (req: AuthRequest, res, next) => {
   try {
     const orders = await orderUseCases.listByBuyer(req.user!.userId);
     res.json({ data: orders });
@@ -216,7 +236,7 @@ const reviewVisibilitySchema = z.object({
   isPublic: z.boolean()
 });
 
-meRoutes.get('/reviews', authenticate, async (req: AuthRequest, res, next) => {
+meRoutes.get('/reviews', requireAuth, async (req: AuthRequest, res, next) => {
   try {
     const reviews = await reviewService.listByUser(req.user!.userId);
     res.json({ data: reviews });
@@ -225,7 +245,7 @@ meRoutes.get('/reviews', authenticate, async (req: AuthRequest, res, next) => {
   }
 });
 
-meRoutes.patch('/reviews/:id/visibility', authenticate, writeLimiter, async (req: AuthRequest, res, next) => {
+meRoutes.patch('/reviews/:id/visibility', requireAuth, writeLimiter, async (req: AuthRequest, res, next) => {
   try {
     const payload = reviewVisibilitySchema.parse(req.body);
     const updated = await reviewService.updateVisibility(req.params.id, req.user!.userId, payload.isPublic);
