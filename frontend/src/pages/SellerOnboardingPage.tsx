@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../app/store/authStore';
-import { useFilters } from '../features/catalog/useFilters';
 import { api } from '../shared/api';
 import { Button } from '../shared/ui/Button';
 import { Role } from '../shared/types';
@@ -15,11 +14,11 @@ export const SellerOnboardingPage = () => {
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const setUser = useAuthStore((state) => state.setUser);
-  const { categories } = useFilters();
   const [step, setStep] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [phoneVerificationRequired, setPhoneVerificationRequired] = useState(false);
+  const [referenceCategories, setReferenceCategories] = useState<{ id: string; slug: string; title: string }[]>([]);
   const [form, setForm] = useState({
     name: '',
     phone: '',
@@ -48,6 +47,26 @@ export const SellerOnboardingPage = () => {
       }));
     }
   }, [user]);
+
+  useEffect(() => {
+    let isMounted = true;
+    api
+      .getReferenceCategories()
+      .then((response) => {
+        if (isMounted) {
+          setReferenceCategories(response.data);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setReferenceCategories([]);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const isLoggedIn = Boolean(user);
   const nameValid = form.name.trim().length >= 2;
@@ -254,9 +273,9 @@ export const SellerOnboardingPage = () => {
                   <option value="" disabled>
                     Выберите категорию
                   </option>
-                  {categories.map((category) => (
-                    <option key={category} value={category}>
-                      {category}
+                  {referenceCategories.map((category) => (
+                    <option key={category.id} value={category.slug}>
+                      {category.title}
                     </option>
                   ))}
                 </select>
