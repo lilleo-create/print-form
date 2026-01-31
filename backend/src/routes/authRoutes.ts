@@ -172,7 +172,7 @@ authRoutes.post('/refresh', async (req, res, next) => {
   try {
     const token = req.cookies.refreshToken as string | undefined;
     if (!token) {
-      return res.status(401).json({ error: 'UNAUTHORIZED' });
+      return res.status(401).json({ error: { code: 'UNAUTHORIZED' } });
     }
     const result = await authService.refresh(token);
     return res.json({ token: result.accessToken });
@@ -373,9 +373,7 @@ authRoutes.get('/me', authenticate, async (req: AuthRequest, res, next) => {
         id: user.id,
         name: user.name,
         role: user.role,
-        email: user.email,
-        phone: user.phone,
-        address: user.address
+        email: user.email
       }
     });
   } catch (error) {

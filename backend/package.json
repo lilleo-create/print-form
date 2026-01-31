@@ -12,7 +12,8 @@
     "start": "node dist/main.js",
     "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:migrate": "prisma migrate dev",
+    "make:admin": "tsx scripts/make-admin.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.18.0",
