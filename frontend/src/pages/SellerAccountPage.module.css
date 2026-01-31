@@ -149,6 +149,27 @@
   flex-wrap: wrap;
 }
 
+.sectionActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.infoCard {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  gap: 12px;
+}
+
+.helperText {
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+
 .table {
   background: #ffffff;
   border-radius: 20px;
