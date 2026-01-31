@@ -148,8 +148,7 @@ export const CheckoutPage = () => {
       qty: item.quantity,
       sellerId: item.product.sellerId ?? 'platform',
       lineTotal: item.product.price * item.quantity,
-      image: item.product.image,
-      status: 'new' as const
+      image: item.product.image
     }));
     const order = await createOrder({
       user,

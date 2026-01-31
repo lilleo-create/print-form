@@ -104,6 +104,43 @@
   gap: 20px;
 }
 
+.statsGrid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.statCard {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  gap: 8px;
+}
+
+.statusList {
+  display: grid;
+  gap: 8px;
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.statusRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 8px;
+}
+
+.statusRow:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
 .sectionHeader {
   display: flex;
   justify-content: space-between;
@@ -137,6 +174,99 @@
 .tableRow {
   padding: 10px 0;
   border-top: 1px solid var(--color-border);
+}
+
+.ordersTable {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  gap: 12px;
+}
+
+.ordersHeader,
+.ordersRow {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.4fr) minmax(160px, 1.2fr) minmax(120px, 1fr) minmax(140px, 1fr) minmax(200px, 1.4fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.ordersHeader {
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.ordersRow {
+  padding: 12px 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.filterRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.select {
+  margin-left: 8px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  background: #ffffff;
+}
+
+.deliveryInputs {
+  display: grid;
+  gap: 6px;
+}
+
+.input {
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  width: 100%;
+}
+
+.error {
+  color: #ef4444;
+}
+
+.reportTable {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  gap: 12px;
+}
+
+.reportHeader,
+.reportRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+  align-items: center;
+}
+
+.reportHeader {
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.reportRow {
+  padding: 8px 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.settingsGrid {
+  display: grid;
+  gap: 12px;
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
 }
 
 .linkButton {
@@ -232,6 +362,13 @@
 
   .tableHeader,
   .tableRow {
+    grid-template-columns: 1fr;
+  }
+
+  .ordersHeader,
+  .ordersRow,
+  .reportHeader,
+  .reportRow {
     grid-template-columns: 1fr;
   }
 }

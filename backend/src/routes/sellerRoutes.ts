@@ -4,6 +4,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { authenticate, authorize, AuthRequest } from '../middleware/authMiddleware';
+import { OrderStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { productUseCases } from '../usecases/productUseCases';
 import { orderUseCases } from '../usecases/orderUseCases';
@@ -145,6 +146,14 @@ sellerRoutes.get('/me', authenticate, async (req: AuthRequest, res, next) => {
 });
 
 sellerRoutes.use(authenticate, authorize(['SELLER', 'ADMIN']));
+
+const orderStatusFlow: OrderStatus[] = [
+  'CREATED',
+  'PRINTING',
+  'HANDED_TO_DELIVERY',
+  'IN_TRANSIT',
+  'DELIVERED'
+];
 
 const ensureKycApproved = async (userId: string) => {
   const approved = await prisma.sellerKycSubmission.findFirst({
@@ -320,10 +329,125 @@ sellerRoutes.delete('/products/:id', writeLimiter, async (req: AuthRequest, res,
   }
 });
 
+const sellerOrdersQuerySchema = z.object({
+  status: z
+    .enum(['CREATED', 'PRINTING', 'HANDED_TO_DELIVERY', 'IN_TRANSIT', 'DELIVERED'])
+    .optional(),
+  offset: z.coerce.number().int().min(0).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional()
+});
+
+const sellerOrderStatusSchema = z.object({
+  status: z.enum(['CREATED', 'PRINTING', 'HANDED_TO_DELIVERY', 'IN_TRANSIT', 'DELIVERED']),
+  trackingNumber: z.string().min(2).optional(),
+  carrier: z.string().min(2).optional()
+});
+
 sellerRoutes.get('/orders', async (req: AuthRequest, res, next) => {
   try {
-    const orders = await orderUseCases.listBySeller(req.user!.userId);
+    const query = sellerOrdersQuerySchema.parse(req.query);
+    const orders = await orderUseCases.listBySeller(req.user!.userId, {
+      status: query.status as OrderStatus | undefined,
+      offset: query.offset,
+      limit: query.limit
+    });
     res.json({ data: orders });
+  } catch (error) {
+    next(error);
+  }
+});
+
+sellerRoutes.get('/payments', async (req: AuthRequest, res, next) => {
+  try {
+    const payments = await prisma.payment.findMany({
+      where: {
+        order: {
+          items: { some: { product: { sellerId: req.user!.userId } } }
+        }
+      },
+      select: {
+        id: true,
+        orderId: true,
+        amount: true,
+        status: true,
+        currency: true,
+        createdAt: true
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json({ data: payments });
+  } catch (error) {
+    next(error);
+  }
+});
+
+sellerRoutes.patch('/orders/:id/status', writeLimiter, async (req: AuthRequest, res, next) => {
+  try {
+    const payload = sellerOrderStatusSchema.parse(req.body);
+    const order = await prisma.order.findFirst({
+      where: {
+        id: req.params.id,
+        items: { some: { product: { sellerId: req.user!.userId } } }
+      },
+      include: {
+        items: {
+          where: { product: { sellerId: req.user!.userId } },
+          include: { product: true, variant: true }
+        },
+        contact: true,
+        shippingAddress: true,
+        buyer: true
+      }
+    });
+
+    if (!order) {
+      return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND' } });
+    }
+
+    const currentIndex = orderStatusFlow.indexOf(order.status);
+    const nextIndex = orderStatusFlow.indexOf(payload.status);
+    if (currentIndex === -1 || nextIndex === -1) {
+      return res.status(400).json({ error: { code: 'STATUS_INVALID' } });
+    }
+    if (order.status === 'DELIVERED') {
+      return res.status(400).json({ error: { code: 'STATUS_FINAL' } });
+    }
+    if (nextIndex <= currentIndex) {
+      return res.status(400).json({ error: { code: 'STATUS_BACKWARD' } });
+    }
+    if (nextIndex !== currentIndex + 1) {
+      return res.status(400).json({ error: { code: 'STATUS_SKIP_NOT_ALLOWED' } });
+    }
+
+    const trackingNumber = payload.trackingNumber ?? order.trackingNumber ?? undefined;
+    const carrier = payload.carrier ?? order.carrier ?? undefined;
+    if (
+      ['HANDED_TO_DELIVERY', 'IN_TRANSIT', 'DELIVERED'].includes(payload.status) &&
+      (!trackingNumber || !carrier)
+    ) {
+      return res.status(400).json({ error: { code: 'TRACKING_REQUIRED' } });
+    }
+
+    const updated = await prisma.order.update({
+      where: { id: order.id },
+      data: {
+        status: payload.status,
+        statusUpdatedAt: new Date(),
+        trackingNumber,
+        carrier
+      },
+      include: {
+        items: {
+          where: { product: { sellerId: req.user!.userId } },
+          include: { product: true, variant: true }
+        },
+        contact: true,
+        shippingAddress: true,
+        buyer: true
+      }
+    });
+
+    res.json({ data: updated });
   } catch (error) {
     next(error);
   }
@@ -332,16 +456,26 @@ sellerRoutes.get('/orders', async (req: AuthRequest, res, next) => {
 sellerRoutes.get('/stats', async (req: AuthRequest, res, next) => {
   try {
     const orders = await orderUseCases.listBySeller(req.user!.userId);
-    const revenue = orders.reduce((sum, order) => sum + order.total, 0);
+    const revenue = orders.reduce(
+      (sum, order) =>
+        sum +
+        order.items.reduce((itemSum, item) => itemSum + item.priceAtPurchase * item.quantity, 0),
+      0
+    );
     const products = await prisma.product.findMany({ where: { sellerId: req.user!.userId } });
-    const averageRating =
-      products.reduce((sum, product) => sum + product.ratingAvg, 0) / Math.max(products.length, 1);
+    const statusCounts = orderStatusFlow.reduce(
+      (acc, status) => {
+        acc[status] = orders.filter((order) => order.status === status).length;
+        return acc;
+      },
+      {} as Record<OrderStatus, number>
+    );
     res.json({
       data: {
         totalOrders: orders.length,
         totalRevenue: revenue,
         totalProducts: products.length,
-        averageRating
+        statusCounts
       }
     });
   } catch (error) {

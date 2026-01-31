@@ -1,3 +1,4 @@
+import { OrderStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 
 export const orderRepository = {
@@ -66,10 +67,30 @@ export const orderRepository = {
       where: { id },
       include: { items: { include: { product: true } }, contact: true, shippingAddress: true }
     }),
-  findSellerOrders: (sellerId: string) =>
+  findSellerOrders: (
+    sellerId: string,
+    options?: {
+      status?: OrderStatus;
+      offset?: number;
+      limit?: number;
+    }
+  ) =>
     prisma.order.findMany({
-      where: { items: { some: { product: { sellerId } } } },
-      include: { items: { include: { product: true } }, contact: true, shippingAddress: true },
-      orderBy: { createdAt: 'desc' }
+      where: {
+        items: { some: { product: { sellerId } } },
+        ...(options?.status ? { status: options.status } : {})
+      },
+      include: {
+        items: {
+          where: { product: { sellerId } },
+          include: { product: true, variant: true }
+        },
+        contact: true,
+        shippingAddress: true,
+        buyer: true
+      },
+      orderBy: { createdAt: 'desc' },
+      skip: options?.offset ?? 0,
+      take: options?.limit ?? 50
     })
 };

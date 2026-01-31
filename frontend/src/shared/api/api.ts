@@ -3,6 +3,8 @@ import type {
   Product,
   CustomPrintRequest,
   Order,
+  OrderStatus,
+  Payment,
   Review,
   SellerProfile,
   SellerKycSubmission,
@@ -166,8 +168,24 @@ export const api = {
     return apiClient.request<{ success: boolean }>(`/seller/products/${id}`, { method: 'DELETE' });
   },
 
-  async getSellerOrders() {
-    return apiClient.request<Order[]>('/seller/orders');
+  async getSellerOrders(filters?: { status?: OrderStatus; offset?: number; limit?: number }) {
+    const params = new URLSearchParams();
+    if (filters?.status) params.set('status', filters.status);
+    if (filters?.offset !== undefined) params.set('offset', String(filters.offset));
+    if (filters?.limit !== undefined) params.set('limit', String(filters.limit));
+    const query = params.toString();
+    return apiClient.request<Order[]>(`/seller/orders${query ? `?${query}` : ''}`);
+  },
+
+  async updateSellerOrderStatus(
+    id: string,
+    payload: { status: OrderStatus; trackingNumber?: string; carrier?: string }
+  ) {
+    return apiClient.request<Order>(`/seller/orders/${id}/status`, { method: 'PATCH', body: payload });
+  },
+
+  async getSellerPayments() {
+    return apiClient.request<Payment[]>('/seller/payments');
   },
 
   async createOrder(payload: {
@@ -294,9 +312,12 @@ export const api = {
   },
 
   async getSellerStats() {
-    return apiClient.request<{ totalOrders: number; totalRevenue: number; totalProducts: number; averageRating: number }>(
-      '/seller/stats'
-    );
+    return apiClient.request<{
+      totalOrders: number;
+      totalRevenue: number;
+      totalProducts: number;
+      statusCounts: Record<OrderStatus, number>;
+    }>('/seller/stats');
   },
 
   async uploadSellerImages(files: FileList) {
