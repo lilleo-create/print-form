@@ -132,7 +132,7 @@ authRoutes.post('/login', authLimiter, async (req, res, next) => {
     const tokens = await authService.issueTokens(result.user);
     res.cookie('refreshToken', tokens.refreshToken, cookieOptions);
     return res.json({
-      token: tokens.accessToken,
+      accessToken: tokens.accessToken,
       user: {
         id: result.user.id,
         name: result.user.name,
@@ -269,7 +269,7 @@ authRoutes.post('/otp/verify', otpVerifyLimiter, async (req, res, next) => {
     const tokens = await authService.issueTokens(user);
     res.cookie('refreshToken', tokens.refreshToken, cookieOptions);
     return res.json({
-      token: tokens.accessToken,
+      accessToken: tokens.accessToken,
       user: {
         id: user.id,
         name: user.name,

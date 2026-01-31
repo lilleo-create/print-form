@@ -96,6 +96,10 @@ export const api = {
     return apiClient.request<{ categories: string[]; materials: string[]; sizes: string[] }>('/filters');
   },
 
+  async getReferenceCategories() {
+    return apiClient.request<{ id: string; slug: string; title: string }[]>('/filters/reference-categories');
+  },
+
   async sendCustomRequest(payload: Omit<CustomPrintRequest, 'id' | 'status'>) {
     return apiClient.request<CustomPrintRequest>('/custom-requests', { method: 'POST', body: payload });
   },
@@ -163,7 +167,7 @@ export const api = {
 
   async login(payload: { email: string; password: string }) {
     return apiClient.request<{
-      token?: string;
+      accessToken?: string;
       requiresOtp?: boolean;
       tempToken?: string;
       user: { name: string; role: string; email: string; id: string; phone?: string | null; address?: string | null };
@@ -179,7 +183,7 @@ export const api = {
     privacyAccepted?: boolean;
   }) {
     return apiClient.request<{
-      token?: string;
+      accessToken?: string;
       requiresOtp?: boolean;
       tempToken?: string;
       user: { name: string; role: string; email: string; id: string; phone?: string | null; address?: string | null };
@@ -202,7 +206,7 @@ export const api = {
     token?: string | null
   ) {
     return apiClient.request<{
-      token: string;
+      accessToken: string;
       user: { name: string; role: string; email: string; id: string; phone?: string | null; address?: string | null };
     }>('/auth/otp/verify', { method: 'POST', body: payload, token });
   },

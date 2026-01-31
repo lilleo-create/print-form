@@ -26,7 +26,7 @@ type RawAuthData = {
   requires_otp?: boolean;
   tempToken?: string;
   temp_token?: string;
-  token?: string;
+  accessToken?: string;
   user?: RawUser;
 };
 
@@ -69,7 +69,7 @@ export const authApi = {
       };
     }
 
-    const token = data.token ?? '';
+    const token = data.accessToken ?? '';
     const user = requireUser(data, 'Login');
 
     const session: StoredSession = { token, user };
@@ -109,7 +109,7 @@ export const authApi = {
       };
     }
 
-    const token = data.token ?? '';
+    const token = data.accessToken ?? '';
     const user = requireUser(data, 'Register');
 
     const session: StoredSession = { token, user };
@@ -131,11 +131,10 @@ export const authApi = {
   ) => {
     const result = await api.verifyOtp(payload, token);
 
-    // verifyOtp на бэке обычно возвращает {token, user}
-    const data = result.data as { token?: string; user?: RawUser };
+    const data = result.data as { accessToken?: string; user?: RawUser };
 
     const session: StoredSession = {
-      token: data.token ?? '',
+      token: data.accessToken ?? '',
       user: normalizeUser(data.user)
     };
 
