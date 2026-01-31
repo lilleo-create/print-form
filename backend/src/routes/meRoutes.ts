@@ -42,9 +42,7 @@ meRoutes.get('/', requireAuth, async (req: AuthRequest, res, next) => {
         id: user.id,
         name: user.name,
         role: user.role,
-        email: user.email,
-        phone: user.phone,
-        address: user.address
+        email: user.email
       }
     });
   } catch (error) {

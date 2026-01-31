@@ -2,6 +2,8 @@ export type MaterialType = 'PLA' | 'ABS' | 'PETG' | 'RESIN';
 export type TechnologyType = 'FDM' | 'SLA';
 export type Role = 'buyer' | 'seller' | 'admin';
 export type OrderStatus = 'CREATED' | 'PRINTING' | 'HANDED_TO_DELIVERY' | 'IN_TRANSIT' | 'DELIVERED';
+export type ProductModerationStatus = 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'NEEDS_EDIT' | 'ARCHIVED';
+export type ReviewModerationStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'NEEDS_EDIT';
 
 export interface Product {
   id: string;
@@ -22,6 +24,8 @@ export interface Product {
   printTime: string;
   color: string;
   sellerId: string | null;
+  createdAt?: string;
+  updatedAt?: string;
   images?: ProductImage[];
   variants?: ProductVariant[];
   specs?: ProductSpec[];
@@ -29,6 +33,11 @@ export interface Product {
   deliveryDateEstimated?: string;
   deliveryDates?: string[];
   imageUrls?: string[];
+  moderationStatus?: ProductModerationStatus;
+  moderationNotes?: string | null;
+  publishedAt?: string | null;
+  moderatedAt?: string | null;
+  moderatedById?: string | null;
 }
 
 export interface ProductImage {
@@ -66,6 +75,10 @@ export interface Review {
   likesCount?: number;
   dislikesCount?: number;
   isPublic?: boolean;
+  moderationStatus?: ReviewModerationStatus;
+  moderationNotes?: string | null;
+  moderatedAt?: string | null;
+  moderatedById?: string | null;
   createdAt: string;
   user?: { id: string; name: string } | null;
   product?: { id: string; title: string; image?: string };

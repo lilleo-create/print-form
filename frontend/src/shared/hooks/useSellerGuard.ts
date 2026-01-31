@@ -34,7 +34,7 @@ export const useSellerGuard = () => {
     }
 
     try {
-      const response = await api.getSellerProfile();
+      const response = await api.getSellerContext();
       const profile = response.data.profile ?? null;
       setSellerProfile(profile);
       setSellerStatus(profile ? 'seller' : 'not_seller');

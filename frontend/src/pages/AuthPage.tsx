@@ -124,7 +124,7 @@ export const AuthPage = () => {
       return getRedirectPath({ role, redirectTo });
     }
     try {
-      const response = await api.getSellerProfile();
+      const response = await api.getSellerContext();
       return getRedirectPath({
         role,
         redirectTo,

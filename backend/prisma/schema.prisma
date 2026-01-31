@@ -28,6 +28,8 @@ model User {
   reviewedKycSubmissions SellerKycSubmission[] @relation("KycReviewer")
   sellerKycSubmissions   SellerKycSubmission[]
   sellerProfile          SellerProfile?
+  moderatedProducts      Product[]             @relation("ProductModerator")
+  moderatedReviews       Review[]              @relation("ReviewModerator")
 }
 
 model SellerProfile {
@@ -76,10 +78,16 @@ model Product {
   deliveryDateEstimated DateTime?
   deliveryDates         String[]         @default([])
   sellerId              String
+  moderationStatus      ProductModerationStatus @default(PENDING)
+  moderationNotes       String?
+  publishedAt           DateTime?
+  moderatedAt           DateTime?
+  moderatedById         String?
   createdAt             DateTime         @default(now())
   updatedAt             DateTime         @updatedAt
   orderItems            OrderItem[]
   seller                User             @relation(fields: [sellerId], references: [id])
+  moderatedBy           User?            @relation("ProductModerator", fields: [moderatedById], references: [id])
   images                ProductImage[]
   specs                 ProductSpec[]
   variants              ProductVariant[]
@@ -131,10 +139,15 @@ model Review {
   dislikesCount Int          @default(0)
   isPublic      Boolean      @default(true)
   status        ReviewStatus @default(PENDING)
+  moderationStatus ReviewModerationStatus @default(PENDING)
+  moderationNotes  String?
+  moderatedAt      DateTime?
+  moderatedById    String?
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
   product       Product      @relation(fields: [productId], references: [id])
   user          User?        @relation(fields: [userId], references: [id])
+  moderatedBy   User?        @relation("ReviewModerator", fields: [moderatedById], references: [id])
 
   @@index([productId])
   @@index([createdAt])
@@ -302,6 +315,15 @@ enum Role {
   ADMIN
 }
 
+enum ProductModerationStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+  NEEDS_EDIT
+  ARCHIVED
+}
+
 enum OrderStatus {
   CREATED
   PRINTING
@@ -313,6 +335,13 @@ enum OrderStatus {
 enum ReviewStatus {
   PENDING
   APPROVED
+}
+
+enum ReviewModerationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  NEEDS_EDIT
 }
 
 enum OtpPurpose {

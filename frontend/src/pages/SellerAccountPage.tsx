@@ -578,6 +578,7 @@ export const SellerAccountPage = () => {
                     <span>Название</span>
                     <span>Цена</span>
                     <span>Категория</span>
+                    <span>Статус</span>
                     <span>Действия</span>
                   </div>
                   {products.length === 0 ? (
@@ -588,6 +589,12 @@ export const SellerAccountPage = () => {
                         <span>{product.title}</span>
                         <span>{formatCurrency(product.price)} ₽</span>
                         <span>{product.category}</span>
+                        <span>
+                          <strong>{product.moderationStatus ?? '—'}</strong>
+                          {product.moderationStatus === 'NEEDS_EDIT' && product.moderationNotes && (
+                            <span className={styles.moderationNote}>{product.moderationNotes}</span>
+                          )}
+                        </span>
                         <button
                           type="button"
                           className={styles.linkButton}

@@ -268,8 +268,8 @@ export const api = {
   },
 
   async me() {
-    return apiClient.request<{ id: string; name: string; role: string; email: string; phone?: string | null; address?: string | null }>(
-      '/auth/me'
+    return apiClient.request<{ id: string; name: string; role: string; email: string }>(
+      '/me'
     );
   },
 
@@ -305,9 +305,15 @@ export const api = {
     );
   },
 
+  async getSellerContext() {
+    return apiClient.request<{ isSeller: boolean; profile: SellerProfile | null; kyc?: SellerKycSubmission | null; canSell?: boolean }>(
+      '/seller/context'
+    );
+  },
+
   async getSellerProfile() {
     return apiClient.request<{ isSeller: boolean; profile: SellerProfile | null; kyc?: SellerKycSubmission | null; canSell?: boolean }>(
-      '/seller/me'
+      '/seller/context'
     );
   },
 
@@ -362,12 +368,52 @@ export const api = {
     return response.json() as Promise<{ data: { submissionId: string; documents: SellerKycSubmission['documents'] } }>;
   },
 
-  async getAdminKyc() {
-    return apiClient.request<SellerKycSubmission[]>('/admin/kyc');
+  async getAdminKyc(status: 'PENDING' | 'APPROVED' | 'REJECTED' = 'PENDING') {
+    return apiClient.request<SellerKycSubmission[]>(`/admin/kyc?status=${status}`);
   },
 
-  async reviewAdminKyc(id: string, payload: { status: 'APPROVED' | 'REJECTED'; notes?: string }) {
-    return apiClient.request<SellerKycSubmission>(`/admin/kyc/${id}`, { method: 'PATCH', body: payload });
+  async approveAdminKyc(id: string) {
+    return apiClient.request<SellerKycSubmission>(`/admin/kyc/${id}/approve`, { method: 'POST' });
+  },
+
+  async rejectAdminKyc(id: string, payload: { notes?: string }) {
+    return apiClient.request<SellerKycSubmission>(`/admin/kyc/${id}/reject`, { method: 'POST', body: payload });
+  },
+
+  async getAdminProducts(status: string = 'PENDING') {
+    return apiClient.request<Product[]>(`/admin/products?status=${status}`);
+  },
+
+  async approveAdminProduct(id: string) {
+    return apiClient.request<Product>(`/admin/products/${id}/approve`, { method: 'POST' });
+  },
+
+  async rejectAdminProduct(id: string, payload: { notes?: string }) {
+    return apiClient.request<Product>(`/admin/products/${id}/reject`, { method: 'POST', body: payload });
+  },
+
+  async needsEditAdminProduct(id: string, payload: { notes?: string }) {
+    return apiClient.request<Product>(`/admin/products/${id}/needs-edit`, { method: 'POST', body: payload });
+  },
+
+  async archiveAdminProduct(id: string) {
+    return apiClient.request<Product>(`/admin/products/${id}`, { method: 'DELETE' });
+  },
+
+  async getAdminReviews(status: string = 'PENDING') {
+    return apiClient.request<Review[]>(`/admin/reviews?status=${status}`);
+  },
+
+  async approveAdminReview(id: string) {
+    return apiClient.request<Review>(`/admin/reviews/${id}/approve`, { method: 'POST' });
+  },
+
+  async rejectAdminReview(id: string, payload: { notes?: string }) {
+    return apiClient.request<Review>(`/admin/reviews/${id}/reject`, { method: 'POST', body: payload });
+  },
+
+  async needsEditAdminReview(id: string, payload: { notes?: string }) {
+    return apiClient.request<Review>(`/admin/reviews/${id}/needs-edit`, { method: 'POST', body: payload });
   },
 
   async createPaymentIntent(payload: { orderId: string; amount: number; currency?: string; provider?: string }) {

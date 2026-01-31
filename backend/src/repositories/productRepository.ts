@@ -43,6 +43,7 @@ export const productRepository = {
         category: filters.category,
         material: filters.material,
         size: filters.size,
+        moderationStatus: 'APPROVED',
         price: {
           gte: filters.minPrice,
           lte: filters.maxPrice
@@ -54,8 +55,8 @@ export const productRepository = {
     });
   },
   findById: (id: string) =>
-    prisma.product.findUnique({
-      where: { id },
+    prisma.product.findFirst({
+      where: { id, moderationStatus: 'APPROVED' },
       include: {
         images: { orderBy: { sortOrder: 'asc' } },
         variants: true,
@@ -67,6 +68,11 @@ export const productRepository = {
     return prisma.product.create({
       data: {
         ...rest,
+        moderationStatus: 'PENDING',
+        moderationNotes: null,
+        moderatedAt: null,
+        moderatedById: null,
+        publishedAt: null,
         images: imageUrls?.length
           ? {
               create: imageUrls.map((url, index) => ({
@@ -83,11 +89,17 @@ export const productRepository = {
   },
   update: async (id: string, data: Partial<ProductInput>) => {
     const { imageUrls, ...rest } = data;
+    const moderationPatch = {
+      moderationStatus: 'PENDING' as const,
+      moderationNotes: null,
+      moderatedAt: null,
+      moderatedById: null
+    };
     if (!imageUrls) {
-      return prisma.product.update({ where: { id }, data: rest });
+      return prisma.product.update({ where: { id }, data: { ...rest, ...moderationPatch } });
     }
     return prisma.$transaction(async (tx) => {
-      await tx.product.update({ where: { id }, data: rest });
+      await tx.product.update({ where: { id }, data: { ...rest, ...moderationPatch } });
       await tx.productImage.deleteMany({ where: { productId: id } });
       if (imageUrls.length > 0) {
         await tx.productImage.createMany({

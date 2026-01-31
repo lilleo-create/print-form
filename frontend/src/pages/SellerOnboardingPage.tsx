@@ -113,7 +113,7 @@ export const SellerOnboardingPage = () => {
         const delayMs = 250;
         for (let attempt = 0; attempt < attempts; attempt += 1) {
           try {
-            const profileResponse = await api.getSellerProfile();
+            const profileResponse = await api.getSellerContext();
             if (profileResponse.data?.profile) {
               return true;
             }
