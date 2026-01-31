@@ -74,6 +74,7 @@ export const authApi = {
 
     const session: StoredSession = { token, user };
     saveToStorage(STORAGE_KEYS.session, session);
+    saveToStorage(STORAGE_KEYS.accessToken, token);
 
     return { requiresOtp: false, token, user };
   },
@@ -114,6 +115,7 @@ export const authApi = {
 
     const session: StoredSession = { token, user };
     saveToStorage(STORAGE_KEYS.session, session);
+    saveToStorage(STORAGE_KEYS.accessToken, token);
 
     return { requiresOtp: false, token, user };
   },
@@ -143,6 +145,7 @@ export const authApi = {
     }
 
     saveToStorage(STORAGE_KEYS.session, session);
+    saveToStorage(STORAGE_KEYS.accessToken, session.token);
     return session;
   },
 
@@ -169,6 +172,7 @@ export const authApi = {
   logout: async () => {
     await api.logout();
     removeFromStorage(STORAGE_KEYS.session);
+    removeFromStorage(STORAGE_KEYS.accessToken);
   },
 
   getSession: () => loadFromStorage<StoredSession | null>(STORAGE_KEYS.session, null),

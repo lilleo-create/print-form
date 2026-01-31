@@ -23,8 +23,8 @@ export function createFetchClient(baseUrl: string) {
       headers['Content-Type'] = 'application/json';
     }
 
-    const sessionToken = loadFromStorage<{ token?: string } | null>(STORAGE_KEYS.session, null)?.token ?? null;
-    const authToken = opts?.token ?? sessionToken;
+    const storedToken = loadFromStorage<string | null>(STORAGE_KEYS.accessToken, null);
+    const authToken = opts?.token ?? storedToken;
     if (authToken) {
       headers.Authorization = `Bearer ${authToken}`;
     }

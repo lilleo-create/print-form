@@ -167,10 +167,10 @@ export const api = {
 
   async login(payload: { email: string; password: string }) {
     return apiClient.request<{
-      accessToken?: string;
       requiresOtp?: boolean;
       tempToken?: string;
-      user: { name: string; role: string; email: string; id: string; phone?: string | null; address?: string | null };
+      user?: { name: string; role: string; email: string; id: string; phone?: string | null; address?: string | null };
+      accessToken?: string;
     }>('/auth/login', { method: 'POST', body: payload });
   },
 
@@ -183,10 +183,10 @@ export const api = {
     privacyAccepted?: boolean;
   }) {
     return apiClient.request<{
-      accessToken?: string;
       requiresOtp?: boolean;
       tempToken?: string;
-      user: { name: string; role: string; email: string; id: string; phone?: string | null; address?: string | null };
+      user?: { name: string; role: string; email: string; id: string; phone?: string | null; address?: string | null };
+      accessToken?: string;
     }>('/auth/register', { method: 'POST', body: payload });
   },
 
@@ -206,8 +206,8 @@ export const api = {
     token?: string | null
   ) {
     return apiClient.request<{
-      accessToken: string;
-      user: { name: string; role: string; email: string; id: string; phone?: string | null; address?: string | null };
+      accessToken?: string;
+      user?: { name: string; role: string; email: string; id: string; phone?: string | null; address?: string | null };
     }>('/auth/otp/verify', { method: 'POST', body: payload, token });
   },
 

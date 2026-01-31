@@ -87,13 +87,12 @@ export const AuthPage = () => {
   const loginForm = useForm<LoginValues>({ resolver: zodResolver(loginSchema) });
   const registerForm = useForm<RegisterValues>({ resolver: zodResolver(registerSchema) });
 
-  const handleRedirect = (role?: string) => {
+  const handleRedirect = () => {
     if (redirectTo) {
       navigate(redirectTo);
       return;
     }
-    if (role === 'admin') navigate('/admin');
-    else navigate(role === 'seller' ? '/seller' : '/account');
+    navigate('/account');
   };
 
   const resetOtp = () => {
@@ -130,7 +129,7 @@ export const AuthPage = () => {
         return;
       }
 
-      handleRedirect(useAuthStore.getState().user?.role);
+      handleRedirect();
     } catch {
       setError('Неверный email или пароль.');
     }
@@ -159,7 +158,7 @@ export const AuthPage = () => {
         return;
       }
 
-      handleRedirect(useAuthStore.getState().user?.role);
+      handleRedirect();
     } catch {
       setError('Не удалось зарегистрироваться.');
     }
@@ -179,7 +178,7 @@ export const AuthPage = () => {
             onPrivacyAcceptedChange={setPrivacyAccepted}
             onRequestOtp={requestOtp}
             onVerifyOtp={verifyOtp}
-            onSuccess={() => handleRedirect(useAuthStore.getState().user?.role)}
+            onSuccess={() => handleRedirect()}
             setMessage={setMessage}
             setError={setError}
           />

@@ -1,6 +1,7 @@
 export const STORAGE_KEYS = {
   users: 'pf_users',
   session: 'pf_session',
+  accessToken: 'accessToken',
   cart: 'pf_cart',
   orders: 'pf_orders',
   sellerProducts: 'pf_seller_products',
