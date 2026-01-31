@@ -93,7 +93,24 @@ export const api = {
   },
 
   async getFilters() {
-    return apiClient.request<{ categories: string[]; materials: string[]; sizes: string[] }>('/filters');
+    const categoriesResponse = await apiClient.request<{ id: string; slug: string; title: string }[]>(
+      '/filters/reference-categories'
+    );
+    return {
+      data: {
+        categories: categoriesResponse.data.map((category) => category.title),
+        materials: [],
+        sizes: []
+      }
+    };
+  },
+
+  async getReferenceCategories() {
+    return apiClient.request<{ id: string; slug: string; title: string }[]>('/filters/reference-categories');
+  },
+
+  async getCities() {
+    return apiClient.request<{ id: string; name: string }[]>('/filters/cities');
   },
 
   async sendCustomRequest(payload: Omit<CustomPrintRequest, 'id' | 'status'>) {
@@ -163,10 +180,10 @@ export const api = {
 
   async login(payload: { email: string; password: string }) {
     return apiClient.request<{
-      token?: string;
       requiresOtp?: boolean;
       tempToken?: string;
-      user: { name: string; role: string; email: string; id: string; phone?: string | null; address?: string | null };
+      user?: { name: string; role: string; email: string; id: string; phone?: string | null; address?: string | null };
+      accessToken?: string;
     }>('/auth/login', { method: 'POST', body: payload });
   },
 
@@ -179,10 +196,10 @@ export const api = {
     privacyAccepted?: boolean;
   }) {
     return apiClient.request<{
-      token?: string;
       requiresOtp?: boolean;
       tempToken?: string;
-      user: { name: string; role: string; email: string; id: string; phone?: string | null; address?: string | null };
+      user?: { name: string; role: string; email: string; id: string; phone?: string | null; address?: string | null };
+      accessToken?: string;
     }>('/auth/register', { method: 'POST', body: payload });
   },
 
@@ -202,13 +219,34 @@ export const api = {
     token?: string | null
   ) {
     return apiClient.request<{
-      token: string;
-      user: { name: string; role: string; email: string; id: string; phone?: string | null; address?: string | null };
+      accessToken?: string;
+      user?: { name: string; role: string; email: string; id: string; phone?: string | null; address?: string | null };
     }>('/auth/otp/verify', { method: 'POST', body: payload, token });
   },
 
   async logout() {
     return apiClient.request<{ success: boolean }>('/auth/logout', { method: 'POST' });
+  },
+
+  async requestPasswordReset(payload: { phone: string }) {
+    return apiClient.request<{ ok: boolean; devOtp?: string }>('/auth/password-reset/request', {
+      method: 'POST',
+      body: payload
+    });
+  },
+
+  async verifyPasswordReset(payload: { phone: string; code: string }) {
+    return apiClient.request<{ ok: boolean; resetToken: string }>('/auth/password-reset/verify', {
+      method: 'POST',
+      body: payload
+    });
+  },
+
+  async confirmPasswordReset(payload: { token: string; password: string }) {
+    return apiClient.request<{ ok: boolean }>('/auth/password-reset/confirm', {
+      method: 'POST',
+      body: payload
+    });
   },
 
   async me() {
@@ -243,7 +281,7 @@ export const api = {
     referenceCategory: string;
     catalogPosition: string;
   }) {
-    return apiClient.request<{ data: { id: string; name: string; email: string; phone?: string | null; role: string } }>(
+    return apiClient.request<{ id: string; name: string; email: string; phone?: string | null; role: string }>(
       '/seller/onboarding',
       { method: 'POST', body: payload }
     );

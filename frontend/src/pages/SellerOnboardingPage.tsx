@@ -1,25 +1,24 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../app/store/authStore';
-import { useFilters } from '../features/catalog/useFilters';
 import { api } from '../shared/api';
 import { Button } from '../shared/ui/Button';
 import { Role } from '../shared/types';
 import styles from './SellerOnboardingPage.module.css';
 
 const steps = ['Контакты', 'Статус', 'Город', 'Категория'] as const;
-const cities = ['Москва', 'Санкт-Петербург', 'Казань', 'Екатеринбург', 'Новосибирск', 'Ростов-на-Дону'];
 const phonePattern = /^\+?[0-9\s()-]{7,}$/;
 
 export const SellerOnboardingPage = () => {
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const setUser = useAuthStore((state) => state.setUser);
-  const { categories } = useFilters();
   const [step, setStep] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [phoneVerificationRequired, setPhoneVerificationRequired] = useState(false);
+  const [referenceCategories, setReferenceCategories] = useState<{ id: string; slug: string; title: string }[]>([]);
+  const [cities, setCities] = useState<{ id: string; name: string }[]>([]);
   const [form, setForm] = useState({
     name: '',
     phone: '',
@@ -49,12 +48,33 @@ export const SellerOnboardingPage = () => {
     }
   }, [user]);
 
+  useEffect(() => {
+    let isMounted = true;
+    Promise.all([api.getReferenceCategories(), api.getCities()])
+      .then(([categoriesResponse, citiesResponse]) => {
+        if (isMounted) {
+          setReferenceCategories(categoriesResponse.data);
+          setCities(citiesResponse.data);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setReferenceCategories([]);
+          setCities([]);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const isLoggedIn = Boolean(user);
   const nameValid = form.name.trim().length >= 2;
   const phoneValid = phonePattern.test(form.phone.trim());
   const statusValid = form.status.trim().length > 0;
   const storeNameValid = form.storeName.trim().length >= 2;
-  const cityValid = cities.includes(form.city);
+  const cityValid = cities.some((city) => city.name === form.city);
   const referenceCategoryValid = form.referenceCategory.trim().length >= 2;
   const catalogPositionValid = form.catalogPosition.trim().length >= 2;
 
@@ -88,6 +108,22 @@ export const SellerOnboardingPage = () => {
     setIsSubmitting(true);
     try {
       setPhoneVerificationRequired(false);
+      const waitForSellerProfile = async () => {
+        const attempts = 5;
+        const delayMs = 250;
+        for (let attempt = 0; attempt < attempts; attempt += 1) {
+          try {
+            const profileResponse = await api.getSellerProfile();
+            if (profileResponse.data?.profile) {
+              return true;
+            }
+          } catch {
+            // ignore and retry
+          }
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+        }
+        return false;
+      };
       const response = await api.submitSellerOnboarding({
         name: form.name,
         phone: form.phone,
@@ -97,16 +133,18 @@ export const SellerOnboardingPage = () => {
         referenceCategory: form.referenceCategory,
         catalogPosition: form.catalogPosition
       });
-      const role = response.data.data.role.toLowerCase() === 'seller' ? 'seller' : 'buyer';
+      const role = response.data.role.toLowerCase() === 'seller' ? 'seller' : 'buyer';
       setUser({
-        id: response.data.data.id,
-        name: response.data.data.name,
-        email: response.data.data.email,
-        phone: response.data.data.phone,
+        id: response.data.id,
+        name: response.data.name,
+        email: response.data.email,
+        phone: response.data.phone,
         role: role as Role,
         address: user?.address ?? null
       });
       setIsComplete(true);
+      await waitForSellerProfile();
+      queueMicrotask(() => navigate('/seller', { replace: true }));
     } catch (error) {
       if (error instanceof Error && error.message === 'PHONE_NOT_VERIFIED') {
         setPhoneVerificationRequired(true);
@@ -119,7 +157,7 @@ export const SellerOnboardingPage = () => {
   if (isComplete) {
     return (
       <section className={styles.page}>
-        <div className="container">
+        <div className={styles.onboardingContainer}>
           <div className={styles.completeCard}>
             <h1>Кабинет готов</h1>
             <p>Ваш профиль продавца создан. Можно переходить к настройке кабинета.</p>
@@ -134,7 +172,7 @@ export const SellerOnboardingPage = () => {
 
   return (
     <section className={styles.page}>
-      <div className="container">
+      <div className={styles.onboardingContainer}>
         <div className={styles.header}>
           <h1>Подключение продавца</h1>
           <p>Заполните короткую анкету — это займет несколько минут.</p>
@@ -230,8 +268,8 @@ export const SellerOnboardingPage = () => {
                     Выберите город
                   </option>
                   {cities.map((city) => (
-                    <option key={city} value={city}>
-                      {city}
+                    <option key={city.id} value={city.name}>
+                      {city.name}
                     </option>
                   ))}
                 </select>
@@ -254,9 +292,9 @@ export const SellerOnboardingPage = () => {
                   <option value="" disabled>
                     Выберите категорию
                   </option>
-                  {categories.map((category) => (
-                    <option key={category} value={category}>
-                      {category}
+                  {referenceCategories.map((category) => (
+                    <option key={category.id} value={category.slug}>
+                      {category.title}
                     </option>
                   ))}
                 </select>

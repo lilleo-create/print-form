@@ -43,8 +43,6 @@ export const Layout = ({ children }: LayoutProps) => {
   const [categoriesHeight, setCategoriesHeight] = useState(0);
   const [productBoardHeight, setProductBoardHeight] = useState(0);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
-  const [isFavoritesMenuOpen, setIsFavoritesMenuOpen] = useState(false);
-  const [isReturnsMenuOpen, setIsReturnsMenuOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window === 'undefined') {
       return 'light';
@@ -90,6 +88,10 @@ export const Layout = ({ children }: LayoutProps) => {
       setSellerProfile(null);
       return;
     }
+    if (user.role !== 'seller') {
+      setSellerProfile({ isSeller: false, profile: null });
+      return;
+    }
     let isMounted = true;
     api
       .getSellerProfile()
@@ -100,7 +102,7 @@ export const Layout = ({ children }: LayoutProps) => {
       })
       .catch(() => {
         if (isMounted) {
-          setSellerProfile({ isSeller: false, profile: null });
+          setSellerProfile({ isSeller: true, profile: null });
         }
       });
     return () => {
@@ -193,8 +195,6 @@ export const Layout = ({ children }: LayoutProps) => {
 
   useEffect(() => {
     setIsProfileMenuOpen(false);
-    setIsFavoritesMenuOpen(false);
-    setIsReturnsMenuOpen(false);
   }, [location.pathname, location.search]);
 
   useEffect(() => {
@@ -207,18 +207,6 @@ export const Layout = ({ children }: LayoutProps) => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isProfileMenuOpen]);
-
-  useEffect(() => {
-    if (!isFavoritesMenuOpen && !isReturnsMenuOpen) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setIsFavoritesMenuOpen(false);
-        setIsReturnsMenuOpen(false);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isFavoritesMenuOpen, isReturnsMenuOpen]);
 
   const handleSearchUpdate = (value: string) => {
     setSearchValue(value);
@@ -271,25 +259,10 @@ export const Layout = ({ children }: LayoutProps) => {
     !location.pathname.startsWith('/seller') &&
     !location.pathname.startsWith('/auth') &&
     !location.pathname.startsWith('/privacy-policy');
-  const isFavorites = location.pathname === '/account' && searchParams.get('tab') === 'favorites';
-  const isFavoritesActive = isFavorites || isFavoritesMenuOpen;
+  const isFavoritesActive = location.pathname === '/favorites';
   const isProfile = location.pathname === '/account' && (searchParams.get('tab') === 'profile' || !searchParams.get('tab'));
   const sellLink = isSeller ? '/seller' : '/seller/onboarding';
   const closeProfileMenu = () => setIsProfileMenuOpen(false);
-  const closeActionMenus = () => {
-    setIsFavoritesMenuOpen(false);
-    setIsReturnsMenuOpen(false);
-  };
-  const handleFavoritesToggle = () => {
-    setIsReturnsMenuOpen(false);
-    setIsFavoritesMenuOpen((prev) => !prev);
-    setIsProfileMenuOpen(false);
-  };
-  const handleReturnsToggle = () => {
-    setIsFavoritesMenuOpen(false);
-    setIsReturnsMenuOpen((prev) => !prev);
-    setIsProfileMenuOpen(false);
-  };
 
   return (
     <div className={styles.app}>
@@ -318,24 +291,12 @@ export const Layout = ({ children }: LayoutProps) => {
             <Link to="/orders" className={styles.actionLink} aria-label="Заказы">
               <span aria-hidden>🧾</span>
             </Link>
-            <button
-              type="button"
-              className={`${styles.actionLink} ${styles.actionButton}`}
-              onClick={handleReturnsToggle}
-              aria-label="Возвраты"
-              aria-expanded={isReturnsMenuOpen}
-            >
+            <Link to="/returns" className={styles.actionLink} aria-label="Возвраты">
               <span aria-hidden>↩️</span>
-            </button>
-            <button
-              type="button"
-              className={`${styles.actionLink} ${styles.actionButton}`}
-              onClick={handleFavoritesToggle}
-              aria-label="Избранное"
-              aria-expanded={isFavoritesMenuOpen}
-            >
+            </Link>
+            <Link to="/favorites" className={styles.actionLink} aria-label="Избранное">
               <span aria-hidden>❤</span>
-            </button>
+            </Link>
             <Link to="/cart" className={styles.actionLink}>
               <span aria-hidden>🛒</span>
               <span className={styles.cartCount}>{cartItems.length}</span>
@@ -492,18 +453,22 @@ export const Layout = ({ children }: LayoutProps) => {
             <span aria-hidden>🏠</span>
             <span>Главная</span>
           </Link>
-          <button
-            type="button"
-            className={`${styles.bottomNavItem} ${styles.bottomNavButton} ${
-              isFavoritesActive ? styles.bottomNavItemActive : ''
-            }`}
-            onClick={handleFavoritesToggle}
+          <Link
+            to="/favorites"
+            className={`${styles.bottomNavItem} ${isFavoritesActive ? styles.bottomNavItemActive : ''}`}
             aria-label="Избранное"
-            aria-expanded={isFavoritesMenuOpen}
           >
             <span aria-hidden>❤</span>
             <span>Избранное</span>
-          </button>
+          </Link>
+          <Link
+            to="/returns"
+            className={`${styles.bottomNavItem} ${location.pathname === '/returns' ? styles.bottomNavItemActive : ''}`}
+            aria-label="Возвраты"
+          >
+            <span aria-hidden>↩️</span>
+            <span>Возвраты</span>
+          </Link>
           <Link
             to="/orders"
             className={`${styles.bottomNavItem} ${location.pathname === '/orders' ? styles.bottomNavItemActive : ''}`}
@@ -566,20 +531,12 @@ export const Layout = ({ children }: LayoutProps) => {
               <Link to="/account?tab=purchases" className={styles.profileMenuItem} onClick={closeProfileMenu}>
                 Купленный товар
               </Link>
-              <button
-                type="button"
-                className={`${styles.profileMenuItem} ${styles.profileMenuButton}`}
-                onClick={handleReturnsToggle}
-              >
+              <Link to="/returns" className={styles.profileMenuItem} onClick={closeProfileMenu}>
                 Возвраты
-              </button>
-              <button
-                type="button"
-                className={`${styles.profileMenuItem} ${styles.profileMenuButton}`}
-                onClick={handleFavoritesToggle}
-              >
+              </Link>
+              <Link to="/favorites" className={styles.profileMenuItem} onClick={closeProfileMenu}>
                 Избранные
-              </button>
+              </Link>
               <button
                 type="button"
                 className={`${styles.profileMenuItem} ${styles.profileMenuToggle}`}
@@ -608,20 +565,6 @@ export const Layout = ({ children }: LayoutProps) => {
                 Выйти
               </button>
             </nav>
-          </div>
-        </div>
-      )}
-      {(isFavoritesMenuOpen || isReturnsMenuOpen) && (
-        <div className={styles.actionMenuOverlay} role="dialog" aria-modal="false" onClick={closeActionMenus}>
-          <div className={styles.actionMenuPanel} onClick={(event) => event.stopPropagation()}>
-            <div className={styles.actionMenuHeader}>{isFavoritesMenuOpen ? 'Избранное' : 'Возвраты'}</div>
-            <div className={styles.actionMenuBody}>
-              {isFavoritesMenuOpen ? (
-                <p className="empty-state">В избранном пока нет товаров.</p>
-              ) : (
-                <p className="empty-state">У вас пока нет возвратов.</p>
-              )}
-            </div>
           </div>
         </div>
       )}

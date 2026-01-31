@@ -39,6 +39,7 @@ interface AuthState {
     requiresOtp: boolean;
     tempToken?: string;
     user?: User;
+    token?: string;
   }>;
 
   register: (payload: {
@@ -53,6 +54,7 @@ interface AuthState {
     requiresOtp: boolean;
     tempToken?: string;
     user?: User;
+    token?: string;
   }>;
 
   requestOtp: (payload: { phone: string; purpose?: Purpose }, token?: string | null) => Promise<void>;
@@ -126,7 +128,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
       // non-OTP success
       set({ user: result.user, token: result.token });
-      return { requiresOtp: false };
+      return { requiresOtp: false, user: result.user, token: result.token };
     },
 
     async register(payload) {
@@ -152,7 +154,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
       }
 
       set({ user: result.user, token: result.token });
-      return { requiresOtp: false };
+      return { requiresOtp: false, user: result.user, token: result.token };
     },
 
     async requestOtp(payload, token) {
