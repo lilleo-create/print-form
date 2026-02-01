@@ -138,6 +138,7 @@ export const api = {
     color: string;
     description: string;
     imageUrls: string[];
+    videoUrls?: string[];
     deliveryDateEstimated?: string;
     deliveryDates?: string[];
   }) {
@@ -157,6 +158,7 @@ export const api = {
       color?: string;
       description?: string;
       imageUrls?: string[];
+      videoUrls?: string[];
       deliveryDateEstimated?: string;
       deliveryDates?: string[];
     }
@@ -326,7 +328,7 @@ export const api = {
     }>('/seller/stats');
   },
 
-  async uploadSellerImages(files: FileList) {
+  async uploadSellerImages(files: File[] | FileList) {
     const session = loadFromStorage<{ token: string } | null>(STORAGE_KEYS.session, null);
 
     const formData = new FormData();

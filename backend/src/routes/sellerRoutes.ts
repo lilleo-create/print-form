@@ -27,10 +27,20 @@ const storage = multer.diskStorage({
     cb(null, `${unique}-${file.originalname}`);
   }
 });
+const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp'];
+const allowedVideoTypes = ['video/mp4', 'video/webm'];
+const maxImageSize = 10 * 1024 * 1024;
+const maxVideoSize = 100 * 1024 * 1024;
 const upload = multer({
   storage,
   limits: {
-    fileSize: 2 * 1024 * 1024
+    fileSize: maxVideoSize
+  },
+  fileFilter: (_req, file, cb) => {
+    if ([...allowedImageTypes, ...allowedVideoTypes].includes(file.mimetype)) {
+      return cb(null, true);
+    }
+    return cb(new Error('UPLOAD_FILE_TYPE_INVALID'));
   }
 });
 const kycStorage = multer.diskStorage({
@@ -284,7 +294,9 @@ sellerRoutes.post('/products', writeLimiter, async (req: AuthRequest, res, next)
     if (!payload.imageUrls?.length && !payload.image) {
       return res.status(400).json({ error: { code: 'IMAGE_REQUIRED' } });
     }
-    const imageUrls = payload.imageUrls?.length ? payload.imageUrls : [payload.image ?? ''];
+    const providedImageUrls = payload.imageUrls ?? [];
+    const imageUrls = providedImageUrls.length ? providedImageUrls : payload.image ? [payload.image] : [];
+    const videoUrls = payload.videoUrls ?? [];
     const product = await productUseCases.create({
       ...payload,
       descriptionShort: payload.descriptionShort ?? payload.description,
@@ -294,6 +306,7 @@ sellerRoutes.post('/products', writeLimiter, async (req: AuthRequest, res, next)
       sellerId: req.user!.userId,
       image: imageUrls[0],
       imageUrls,
+      videoUrls,
       deliveryDateEstimated: payload.deliveryDateEstimated ? new Date(payload.deliveryDateEstimated) : undefined,
       deliveryDates: payload.deliveryDates ?? []
     });
@@ -311,6 +324,7 @@ sellerRoutes.put('/products/:id', writeLimiter, async (req: AuthRequest, res, ne
     }
     const payload = sellerProductSchema.partial().parse(req.body);
     const imageUrls = payload.imageUrls ?? (payload.image ? [payload.image] : undefined);
+    const videoUrls = payload.videoUrls;
     const product = await productUseCases.update(req.params.id, {
       ...payload,
       descriptionShort: payload.descriptionShort ?? payload.description,
@@ -320,6 +334,7 @@ sellerRoutes.put('/products/:id', writeLimiter, async (req: AuthRequest, res, ne
       sellerId: req.user!.userId,
       image: imageUrls?.[0] ?? payload.image,
       imageUrls,
+      videoUrls,
       deliveryDateEstimated: payload.deliveryDateEstimated ? new Date(payload.deliveryDateEstimated) : undefined,
       deliveryDates: payload.deliveryDates ?? undefined
     });
@@ -331,6 +346,22 @@ sellerRoutes.put('/products/:id', writeLimiter, async (req: AuthRequest, res, ne
 
 sellerRoutes.post('/uploads', writeLimiter, upload.array('files', 10), async (req, res) => {
   const files = (req.files as Express.Multer.File[]) ?? [];
+  if (!files.length) {
+    return res.status(400).json({ error: { code: 'FILES_REQUIRED' } });
+  }
+  const oversizedFiles = files.filter((file) => {
+    if (allowedImageTypes.includes(file.mimetype)) {
+      return file.size > maxImageSize;
+    }
+    if (allowedVideoTypes.includes(file.mimetype)) {
+      return file.size > maxVideoSize;
+    }
+    return true;
+  });
+  if (oversizedFiles.length) {
+    await Promise.all(files.map((file) => fs.promises.unlink(file.path).catch(() => undefined)));
+    return res.status(400).json({ error: { code: 'FILE_TOO_LARGE' } });
+  }
   const urls = files.map((file) => `/uploads/${file.filename}`);
   res.json({ data: { urls } });
 });

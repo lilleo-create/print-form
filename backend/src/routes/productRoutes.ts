@@ -7,6 +7,18 @@ import { writeLimiter } from '../middleware/rateLimiters';
 
 export const productRoutes = Router();
 
+const mediaUrlSchema = z.string().refine((value) => {
+  if (value.startsWith('/uploads/')) {
+    return true;
+  }
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+});
+
 const listSchema = z.object({
   category: z.string().optional(),
   material: z.string().optional(),
@@ -56,8 +68,9 @@ export const sellerProductSchema = z.object({
   title: z.string().min(2),
   category: z.string().min(2),
   price: z.number().min(1),
-  image: z.string().url().optional(),
-  imageUrls: z.array(z.string().url()).optional(),
+  image: mediaUrlSchema.optional(),
+  imageUrls: z.array(mediaUrlSchema).optional(),
+  videoUrls: z.array(mediaUrlSchema).optional(),
   description: z.string().min(5),
   descriptionShort: z.string().min(5).optional(),
   descriptionFull: z.string().min(10).optional(),
