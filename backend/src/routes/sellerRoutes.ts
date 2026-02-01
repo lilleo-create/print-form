@@ -308,7 +308,6 @@ sellerRoutes.post('/products', writeLimiter, async (req: AuthRequest, res, next)
       imageUrls,
       videoUrls,
       deliveryDateEstimated: payload.deliveryDateEstimated ? new Date(payload.deliveryDateEstimated) : undefined,
-      deliveryDates: payload.deliveryDates ?? []
     });
     res.status(201).json({ data: product });
   } catch (error) {
@@ -336,7 +335,6 @@ sellerRoutes.put('/products/:id', writeLimiter, async (req: AuthRequest, res, ne
       imageUrls,
       videoUrls,
       deliveryDateEstimated: payload.deliveryDateEstimated ? new Date(payload.deliveryDateEstimated) : undefined,
-      deliveryDates: payload.deliveryDates ?? undefined
     });
     res.json({ data: product });
   } catch (error) {

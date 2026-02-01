@@ -22,6 +22,20 @@ export interface ApiError {
 const baseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
 export const apiClient = createFetchClient(baseUrl);
 
+type UploadResponse = { data: { urls: string[] } };
+
+const normalizeUploadUrl = (u: string) => {
+  if (!u) return u;
+  if (u.startsWith('http://') || u.startsWith('https://')) return u;
+  if (u.startsWith('/')) return u;
+  return `/${u}`;
+};
+
+const authHeaders = () => {
+  const session = loadFromStorage<{ token: string } | null>(STORAGE_KEYS.session, null);
+  return session?.token ? { Authorization: `Bearer ${session.token}` } : undefined;
+};
+
 export const api = {
   async getProducts(filters?: {
     category?: string;
@@ -140,7 +154,6 @@ export const api = {
     imageUrls: string[];
     videoUrls?: string[];
     deliveryDateEstimated?: string;
-    deliveryDates?: string[];
   }) {
     return apiClient.request<Product>('/seller/products', { method: 'POST', body: payload });
   },
@@ -160,7 +173,6 @@ export const api = {
       imageUrls?: string[];
       videoUrls?: string[];
       deliveryDateEstimated?: string;
-      deliveryDates?: string[];
     }
   ) {
     return apiClient.request<Product>(`/seller/products/${id}`, { method: 'PUT', body: payload });
@@ -179,10 +191,7 @@ export const api = {
     return apiClient.request<Order[]>(`/seller/orders${query ? `?${query}` : ''}`);
   },
 
-  async updateSellerOrderStatus(
-    id: string,
-    payload: { status: OrderStatus; trackingNumber?: string; carrier?: string }
-  ) {
+  async updateSellerOrderStatus(id: string, payload: { status: OrderStatus; trackingNumber?: string; carrier?: string }) {
     return apiClient.request<Order>(`/seller/orders/${id}/status`, { method: 'PATCH', body: payload });
   },
 
@@ -234,10 +243,7 @@ export const api = {
     });
   },
 
-  async verifyOtp(
-    payload: { phone: string; code: string; purpose?: 'login' | 'register' | 'seller_verify' },
-    token?: string | null
-  ) {
+  async verifyOtp(payload: { phone: string; code: string; purpose?: 'login' | 'register' | 'seller_verify' }, token?: string | null) {
     return apiClient.request<{
       accessToken?: string;
       user?: { name: string; role: string; email: string; id: string; phone?: string | null; address?: string | null };
@@ -270,9 +276,7 @@ export const api = {
   },
 
   async me() {
-    return apiClient.request<{ id: string; name: string; role: string; email: string }>(
-      '/me'
-    );
+    return apiClient.request<{ id: string; name: string; role: string; email: string }>('/me');
   },
 
   async updateProfile(payload: { name?: string; email?: string; phone?: string; address?: string }) {
@@ -308,15 +312,21 @@ export const api = {
   },
 
   async getSellerContext() {
-    return apiClient.request<{ isSeller: boolean; profile: SellerProfile | null; kyc?: SellerKycSubmission | null; canSell?: boolean }>(
-      '/seller/context'
-    );
+    return apiClient.request<{
+      isSeller: boolean;
+      profile: SellerProfile | null;
+      kyc?: SellerKycSubmission | null;
+      canSell?: boolean;
+    }>('/seller/context');
   },
 
   async getSellerProfile() {
-    return apiClient.request<{ isSeller: boolean; profile: SellerProfile | null; kyc?: SellerKycSubmission | null; canSell?: boolean }>(
-      '/seller/context'
-    );
+    return apiClient.request<{
+      isSeller: boolean;
+      profile: SellerProfile | null;
+      kyc?: SellerKycSubmission | null;
+      canSell?: boolean;
+    }>('/seller/context');
   },
 
   async getSellerStats() {
@@ -328,21 +338,22 @@ export const api = {
     }>('/seller/stats');
   },
 
+  // ✅ Upload images/videos to /seller/uploads (fetch-based)
   async uploadSellerImages(files: File[] | FileList) {
-    const session = loadFromStorage<{ token: string } | null>(STORAGE_KEYS.session, null);
-
     const formData = new FormData();
     Array.from(files).forEach((file) => formData.append('files', file));
 
     const response = await fetch(`${baseUrl}/seller/uploads`, {
       method: 'POST',
-      headers: session?.token ? { Authorization: `Bearer ${session.token}` } : undefined,
+      headers: authHeaders(),
       body: formData,
       credentials: 'include'
     });
 
     if (!response.ok) throw new Error('UPLOAD_FAILED');
-    return response.json() as Promise<{ data: { urls: string[] } }>;
+
+    const json = (await response.json()) as UploadResponse;
+    return { data: { urls: (json.data.urls ?? []).map(normalizeUploadUrl) } } satisfies UploadResponse;
   },
 
   async getSellerKyc() {
@@ -354,19 +365,18 @@ export const api = {
   },
 
   async uploadSellerKycDocuments(files: FileList) {
-    const session = loadFromStorage<{ token: string } | null>(STORAGE_KEYS.session, null);
-
     const formData = new FormData();
     Array.from(files).forEach((file) => formData.append('files', file));
 
     const response = await fetch(`${baseUrl}/seller/kyc/documents`, {
       method: 'POST',
-      headers: session?.token ? { Authorization: `Bearer ${session.token}` } : undefined,
+      headers: authHeaders(),
       body: formData,
       credentials: 'include'
     });
 
     if (!response.ok) throw new Error('UPLOAD_FAILED');
+
     return response.json() as Promise<{ data: { submissionId: string; documents: SellerKycSubmission['documents'] } }>;
   },
 

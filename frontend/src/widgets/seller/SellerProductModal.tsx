@@ -19,7 +19,6 @@ const productSchema = z.object({
   color: z.string().min(2, 'Введите цвет'),
   description: z.string().min(10, 'Добавьте описание'),
   deliveryDateEstimated: z.string().optional(),
-  deliveryDates: z.string().optional()
 });
 
 type ProductFormValues = z.infer<typeof productSchema>;
@@ -38,7 +37,6 @@ export interface SellerProductPayload {
   imageUrls: string[];
   videoUrls: string[];
   deliveryDateEstimated?: string;
-  deliveryDates?: string[];
 }
 
 interface SellerProductModalProps {
@@ -83,7 +81,6 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
         color: product.color,
         description: product.description,
         deliveryDateEstimated: product.deliveryDateEstimated?.slice(0, 10) ?? '',
-        deliveryDates: product.deliveryDates?.join(', ') ?? ''
       });
     } else {
       reset({
@@ -97,7 +94,6 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
         color: '',
         description: '',
         deliveryDateEstimated: '',
-        deliveryDates: ''
       });
     }
   }, [product, reset]);
@@ -154,42 +150,34 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
     if (files.length > 0) {
       setIsUploading(true);
       try {
-        const response = await api.uploadSellerImages(files);
+        const result = await api.uploadSellerImages(files);
+        const urls = result.data.urls;
+
         const uploadedImageUrls: string[] = [];
         const uploadedVideoUrls: string[] = [];
-        response.data.urls.forEach((url, index) => {
+
+        urls.forEach((url, index) => {
           const file = files[index];
-          if (!file) {
-            return;
-          }
-          if (isVideoFile(file)) {
-            uploadedVideoUrls.push(url);
-          } else {
-            uploadedImageUrls.push(url);
-          }
+          if (!file) return;
+          if (isVideoFile(file)) uploadedVideoUrls.push(url);
+          else uploadedImageUrls.push(url);
         });
-        imageUrls = uploadedImageUrls.length ? uploadedImageUrls : existingImageUrls;
-        videoUrls = uploadedVideoUrls.length ? uploadedVideoUrls : existingVideoUrls;
-      } catch (error) {
+
+        imageUrls = uploadedImageUrls.length ? [...existingImageUrls, ...uploadedImageUrls] : existingImageUrls;
+        videoUrls = uploadedVideoUrls.length ? [...existingVideoUrls, ...uploadedVideoUrls] : existingVideoUrls;
+      } catch (_error) {
         setUploadError('Не удалось загрузить файлы. Попробуйте снова.');
-        setIsUploading(false);
         return;
       } finally {
         setIsUploading(false);
       }
     }
 
+
     if (imageUrls.length === 0) {
       setUploadError('Добавьте хотя бы одно изображение.');
       return;
     }
-
-    const deliveryDates = values.deliveryDates
-      ? values.deliveryDates
-          .split(',')
-          .map((date) => date.trim())
-          .filter(Boolean)
-      : [];
 
     const payload: SellerProductPayload = {
       id: product?.id,
@@ -205,7 +193,6 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
       imageUrls,
       videoUrls,
       deliveryDateEstimated: values.deliveryDateEstimated ? new Date(values.deliveryDateEstimated).toISOString() : undefined,
-      deliveryDates
     };
 
     await onSubmit(payload);
@@ -350,10 +337,6 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
           <label>
             Ближайшая дата доставки
             <input type="date" {...register('deliveryDateEstimated')} />
-          </label>
-          <label>
-            Даты доставки (через запятую)
-            <input {...register('deliveryDates')} placeholder="2024-10-01, 2024-10-03" />
           </label>
           <div className={styles.actions}>
             <Button type="submit" disabled={isUploading}>

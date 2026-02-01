@@ -18,7 +18,6 @@ export interface ProductInput {
   printTime: string;
   color: string;
   deliveryDateEstimated?: Date | string | null;
-  deliveryDates?: string[];
   sellerId: string;
 }
 

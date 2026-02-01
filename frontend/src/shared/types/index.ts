@@ -31,7 +31,6 @@ export interface Product {
   specs?: ProductSpec[];
   deliveryDateNearest?: string;
   deliveryDateEstimated?: string;
-  deliveryDates?: string[];
   imageUrls?: string[];
   videoUrls?: string[];
   moderationStatus?: ProductModerationStatus;
