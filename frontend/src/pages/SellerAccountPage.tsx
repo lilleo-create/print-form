@@ -486,7 +486,7 @@ export const SellerAccountPage = () => {
             </div>
               )}
 
-              {(activeItem === 'Подключение' || activeItem === 'Сводка') && (
+              {activeItem === 'Подключение' && (
             <div className={styles.section}>
               <div className={styles.sectionHeader}>
                 <div>

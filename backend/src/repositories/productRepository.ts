@@ -6,6 +6,7 @@ export interface ProductInput {
   price: number;
   image: string;
   imageUrls?: string[];
+  videoUrls?: string[];
   description: string;
   descriptionShort: string;
   descriptionFull: string;
@@ -64,10 +65,11 @@ export const productRepository = {
       }
     }),
   create: (data: ProductInput) => {
-    const { imageUrls, ...rest } = data;
+    const { imageUrls, videoUrls, ...rest } = data;
     return prisma.product.create({
       data: {
         ...rest,
+        videoUrls: videoUrls ?? [],
         moderationStatus: 'PENDING',
         moderationNotes: null,
         moderatedAt: null,
@@ -88,18 +90,22 @@ export const productRepository = {
     });
   },
   update: async (id: string, data: Partial<ProductInput>) => {
-    const { imageUrls, ...rest } = data;
+    const { imageUrls, videoUrls, ...rest } = data;
     const moderationPatch = {
       moderationStatus: 'PENDING' as const,
       moderationNotes: null,
       moderatedAt: null,
       moderatedById: null
     };
+    const videoUrlsPatch = videoUrls !== undefined ? { videoUrls } : {};
     if (!imageUrls) {
-      return prisma.product.update({ where: { id }, data: { ...rest, ...moderationPatch } });
+      return prisma.product.update({
+        where: { id },
+        data: { ...rest, ...moderationPatch, ...videoUrlsPatch }
+      });
     }
     return prisma.$transaction(async (tx) => {
-      await tx.product.update({ where: { id }, data: { ...rest, ...moderationPatch } });
+      await tx.product.update({ where: { id }, data: { ...rest, ...moderationPatch, ...videoUrlsPatch } });
       await tx.productImage.deleteMany({ where: { productId: id } });
       if (imageUrls.length > 0) {
         await tx.productImage.createMany({

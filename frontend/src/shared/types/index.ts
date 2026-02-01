@@ -33,6 +33,7 @@ export interface Product {
   deliveryDateEstimated?: string;
   deliveryDates?: string[];
   imageUrls?: string[];
+  videoUrls?: string[];
   moderationStatus?: ProductModerationStatus;
   moderationNotes?: string | null;
   publishedAt?: string | null;

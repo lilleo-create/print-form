@@ -69,6 +69,7 @@ model Product {
   ratingCount           Int              @default(0)
   category              String
   image                 String
+  videoUrls             String[]         @default([])
   description           String
   material              String
   size                  String

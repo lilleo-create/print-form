@@ -10,6 +10,7 @@ export const sellerProductsApi = {
     const result = await api.createSellerProduct({
       ...product,
       imageUrls: product.imageUrls ?? [],
+      videoUrls: product.videoUrls ?? [],
     });
     return result.data;
   },

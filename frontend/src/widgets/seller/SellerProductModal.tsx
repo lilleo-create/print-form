@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type DragEvent } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -36,6 +36,7 @@ export interface SellerProductPayload {
   color: string;
   description: string;
   imageUrls: string[];
+  videoUrls: string[];
   deliveryDateEstimated?: string;
   deliveryDates?: string[];
 }
@@ -48,9 +49,12 @@ interface SellerProductModalProps {
 
 export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProductModalProps) => {
   const modalRef = useRef<HTMLDivElement>(null);
-  const [files, setFiles] = useState<FileList | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [uploadError, setUploadError] = useState('');
+  const [fileErrors, setFileErrors] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [isDragActive, setIsDragActive] = useState(false);
   const {
     register,
     handleSubmit,
@@ -60,8 +64,13 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
 
   useModalFocus(true, onClose, modalRef);
 
+  const isImageFile = (file: File) => ['image/jpeg', 'image/png', 'image/webp'].includes(file.type);
+  const isVideoFile = (file: File) => ['video/mp4', 'video/webm'].includes(file.type);
+
   useEffect(() => {
-    setFiles(null);
+    setFiles([]);
+    setFileErrors([]);
+    setUploadError('');
     if (product) {
       reset({
         title: product.title,
@@ -93,19 +102,76 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
     }
   }, [product, reset]);
 
+  const handleIncomingFiles = (incoming: FileList | File[]) => {
+    const nextErrors: string[] = [];
+    const nextFiles: File[] = [];
+
+    Array.from(incoming).forEach((file) => {
+      const isImage = isImageFile(file);
+      const isVideo = isVideoFile(file);
+
+      if (!isImage && !isVideo) {
+        nextErrors.push(`Файл ${file.name}: неподдерживаемый формат.`);
+        return;
+      }
+
+      if (isImage && file.size > 10 * 1024 * 1024) {
+        nextErrors.push(`Файл ${file.name}: изображение больше 10 МБ.`);
+        return;
+      }
+
+      if (isVideo && file.size > 100 * 1024 * 1024) {
+        nextErrors.push(`Файл ${file.name}: видео больше 100 МБ.`);
+        return;
+      }
+
+      nextFiles.push(file);
+    });
+
+    setUploadError('');
+    setFileErrors(nextErrors);
+    if (nextFiles.length) {
+      setFiles((prev) => [...prev, ...nextFiles]);
+    }
+  };
+
+  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setIsDragActive(false);
+    if (event.dataTransfer.files?.length) {
+      handleIncomingFiles(event.dataTransfer.files);
+    }
+  };
+
   const handleFormSubmit = async (values: ProductFormValues) => {
     setUploadError('');
     const existingImageUrls =
       product?.images?.map((image) => image.url) ?? (product?.image ? [product.image] : []);
+    const existingVideoUrls = product?.videoUrls ?? [];
     let imageUrls = existingImageUrls;
+    let videoUrls = existingVideoUrls;
 
-    if (files && files.length > 0) {
+    if (files.length > 0) {
       setIsUploading(true);
       try {
         const response = await api.uploadSellerImages(files);
-        imageUrls = response.data.urls;
+        const uploadedImageUrls: string[] = [];
+        const uploadedVideoUrls: string[] = [];
+        response.data.urls.forEach((url, index) => {
+          const file = files[index];
+          if (!file) {
+            return;
+          }
+          if (isVideoFile(file)) {
+            uploadedVideoUrls.push(url);
+          } else {
+            uploadedImageUrls.push(url);
+          }
+        });
+        imageUrls = uploadedImageUrls.length ? uploadedImageUrls : existingImageUrls;
+        videoUrls = uploadedVideoUrls.length ? uploadedVideoUrls : existingVideoUrls;
       } catch (error) {
-        setUploadError('Не удалось загрузить изображения. Попробуйте снова.');
+        setUploadError('Не удалось загрузить файлы. Попробуйте снова.');
         setIsUploading(false);
         return;
       } finally {
@@ -137,6 +203,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
       color: values.color,
       description: values.description,
       imageUrls,
+      videoUrls,
       deliveryDateEstimated: values.deliveryDateEstimated ? new Date(values.deliveryDateEstimated).toISOString() : undefined,
       deliveryDates
     };
@@ -205,13 +272,79 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
             {errors.description && <span>{errors.description.message}</span>}
           </label>
           <label>
-            Фото товара (файлы)
-            <input
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={(event) => setFiles(event.target.files)}
-            />
+            Медиа товара
+            <div
+              className={`${styles.dropzone} ${isDragActive ? styles.dropzoneActive : ''}`}
+              onDragOver={(event) => {
+                event.preventDefault();
+                setIsDragActive(true);
+              }}
+              onDragLeave={() => setIsDragActive(false)}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  fileInputRef.current?.click();
+                }
+              }}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".jpg,.jpeg,.png,.webp,.mp4,.webm"
+                multiple
+                className={styles.fileInput}
+                onChange={(event) => {
+                  if (event.target.files?.length) {
+                    handleIncomingFiles(event.target.files);
+                  }
+                  event.target.value = '';
+                }}
+              />
+              <div className={styles.dropzoneContent}>
+                <span className={styles.dropzoneIcon}>⬆️</span>
+                <div>
+                  <p>Загрузка файлов</p>
+                  <p className={styles.dropzoneHint}>Перетащите файлы сюда или нажмите для выбора</p>
+                </div>
+              </div>
+            </div>
+            {files.length > 0 && (
+              <div className={styles.fileList}>
+                {files.map((file, index) => (
+                  <div key={`${file.name}-${index}`} className={styles.fileItem}>
+                    {isImageFile(file) ? (
+                      <img
+                        src={URL.createObjectURL(file)}
+                        alt={file.name}
+                        className={styles.filePreview}
+                        onLoad={(event) => URL.revokeObjectURL((event.target as HTMLImageElement).src)}
+                      />
+                    ) : (
+                      <span className={styles.videoIcon}>▶</span>
+                    )}
+                    <span className={styles.fileName}>{file.name}</span>
+                    <button
+                      type="button"
+                      className={styles.removeFile}
+                      onClick={() => setFiles((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}
+                    >
+                      Удалить
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {fileErrors.length > 0 && (
+              <ul className={styles.errorList}>
+                {fileErrors.map((message) => (
+                  <li key={message}>{message}</li>
+                ))}
+              </ul>
+            )}
             {uploadError && <span>{uploadError}</span>}
           </label>
           <label>
