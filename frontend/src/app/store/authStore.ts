@@ -89,12 +89,44 @@ const emptyOtp: AuthState['otp'] = {
   user: null,
 };
 
+const AUTH_SESSION_KEY = 'auth_session_v1';
+type AuthSession = { token: string; user: User };
+
+const loadAuthSession = (): AuthSession | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(AUTH_SESSION_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as AuthSession;
+  } catch {
+    return null;
+  }
+};
+
+const saveAuthSession = (session: AuthSession | null) => {
+  if (typeof window === 'undefined') return;
+  try {
+    if (!session) window.localStorage.removeItem(AUTH_SESSION_KEY);
+    else window.localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+  } catch {
+    // silent
+  }
+};
+
+const safeGetSession = () => {
+  try {
+    return authApi.getSession?.() ?? null;
+  } catch {
+    return null;
+  }
+};
+
 export const useAuthStore = create<AuthState>((set, get) => {
   const session = loadSession();
 
   return {
-    user: session?.user ?? null,
-    token: session?.token ?? null,
+    user: bootSession?.user ?? null,
+    token: bootSession?.token ?? null,
 
     otp: { ...emptyOtp },
 
@@ -107,7 +139,6 @@ export const useAuthStore = create<AuthState>((set, get) => {
     },
 
     async login(email, password) {
-      // сбрасываем предыдущие OTP попытки
       get().clearOtp();
 
       const raw = await authApi.login(email, password);
@@ -137,7 +168,6 @@ export const useAuthStore = create<AuthState>((set, get) => {
     },
 
     async register(payload) {
-      // сбрасываем предыдущие OTP попытки
       get().clearOtp();
 
       const raw = await authApi.register(payload);
@@ -166,7 +196,6 @@ export const useAuthStore = create<AuthState>((set, get) => {
     },
 
     async requestOtp(payload, token) {
-      // purpose лучше задавать явно из UI, но подстрахуем:
       const purpose = (payload.purpose ?? get().otp.purpose ?? 'login') as Purpose;
       const finalPayload = { ...payload, purpose };
 
@@ -202,6 +231,10 @@ export const useAuthStore = create<AuthState>((set, get) => {
           role: result.user.role as Role,
         };
         set({ user });
+
+        // обновим сохранённую сессию, если есть token
+        const token = get().token;
+        if (token) saveAuthSession({ user, token });
       }
     },
 
@@ -212,14 +245,16 @@ export const useAuthStore = create<AuthState>((set, get) => {
         saveToStorage(STORAGE_KEYS.session, { user, token });
       }
       set({ user });
+
+      const token = get().token;
+      if (token) saveAuthSession({ user, token });
     },
 
     async logout() {
-      // Даже если бэк не поднят, локально мы обязаны "выйти"
       try {
         await authApi.logout();
       } catch {
-        // намеренно игнорим, чтобы не ломать UI
+        // ignore
       } finally {
         removeFromStorage(STORAGE_KEYS.session);
         removeFromStorage(STORAGE_KEYS.accessToken);
@@ -236,6 +271,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
 if (typeof window !== 'undefined') {
   window.addEventListener('auth:logout', () => {
+    saveAuthSession(null);
     useAuthStore.setState({ user: null, token: null, otp: { ...emptyOtp } });
   });
 }

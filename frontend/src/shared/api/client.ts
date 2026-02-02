@@ -20,11 +20,18 @@ export function createFetchClient(baseUrl: string) {
       ...(opts?.headers ?? {})
     };
 
-    if (!headers['Content-Type'] && opts?.body !== undefined && !(opts.body instanceof FormData)) {
+    if (
+      !headers['Content-Type'] &&
+      opts?.body !== undefined &&
+      !(opts.body instanceof FormData)
+    ) {
       headers['Content-Type'] = 'application/json';
     }
 
-    const storedToken = loadFromStorage<string | null>(STORAGE_KEYS.accessToken, null);
+    const storedToken = loadFromStorage<string | null>(
+      STORAGE_KEYS.accessToken,
+      null
+    );
     const authToken = opts?.token ?? storedToken;
     if (authToken) {
       headers.Authorization = `Bearer ${authToken}`;
@@ -57,10 +64,11 @@ export function createFetchClient(baseUrl: string) {
     }
 
     if (!res.ok) {
-      // попытка вытащить норм message
       const msg =
         typeof payload === 'object' && payload !== null && 'message' in payload
-          ? String((payload as { message?: unknown }).message ?? 'Request failed')
+          ? String(
+              (payload as { message?: unknown }).message ?? 'Request failed'
+            )
           : 'Request failed';
 
       const error = new Error(msg) as Error & { status?: number; payload?: unknown };
