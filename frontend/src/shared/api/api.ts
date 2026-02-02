@@ -392,6 +392,22 @@ export const api = {
     return apiClient.request<SellerKycSubmission>(`/admin/kyc/${id}/reject`, { method: 'POST', body: payload });
   },
 
+  async downloadAdminSellerDocument(id: string) {
+    const response = await fetch(`${baseUrl}/admin/seller-documents/${id}/download`, {
+      method: 'GET',
+      headers: authHeaders(),
+      credentials: 'include'
+    });
+    if (!response.ok) {
+      throw new Error('DOWNLOAD_FAILED');
+    }
+    const blob = await response.blob();
+    const contentDisposition = response.headers.get('content-disposition') ?? '';
+    const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
+    const filename = filenameMatch?.[1];
+    return { blob, filename };
+  },
+
   async getAdminProducts(status: string = 'PENDING') {
     return apiClient.request<Product[]>(`/admin/products?status=${status}`);
   },

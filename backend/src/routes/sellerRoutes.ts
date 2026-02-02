@@ -192,6 +192,37 @@ const ensureKycApproved = async (userId: string) => {
   return Boolean(approved);
 };
 
+const ensureReferenceCategory = async (category: string) => {
+  const ref = await prisma.referenceCategory.findFirst({
+    where: {
+      isActive: true,
+      OR: [{ title: category }, { slug: category }]
+    }
+  });
+  if (!ref) {
+    throw new Error('CATEGORY_INVALID');
+  }
+  return ref.title;
+};
+
+const validateDeliveryDate = (value?: string) => {
+  if (!value) return;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error('DELIVERY_DATE_INVALID');
+  }
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const candidate = new Date(parsed);
+  candidate.setHours(0, 0, 0, 0);
+  if (candidate < today) {
+    throw new Error('DELIVERY_DATE_TOO_EARLY');
+  }
+  if (candidate.getFullYear() > today.getFullYear()) {
+    throw new Error('DELIVERY_DATE_YEAR_INVALID');
+  }
+};
+
 sellerRoutes.get('/kyc/me', async (req: AuthRequest, res, next) => {
   try {
     const submission = await prisma.sellerKycSubmission.findFirst({
@@ -254,6 +285,7 @@ sellerRoutes.post('/kyc/documents', writeLimiter, kycUpload.array('files', 5), a
             submissionId: submission!.id,
             type: 'document',
             url: `/uploads/kyc/${file.filename}`,
+            fileName: file.filename,
             originalName: file.originalname,
             mime: file.mimetype,
             size: file.size
@@ -290,6 +322,8 @@ sellerRoutes.post('/products', writeLimiter, async (req: AuthRequest, res, next)
       return res.status(403).json({ error: { code: 'KYC_NOT_APPROVED', message: 'KYC not approved' } });
     }
     const payload = sellerProductSchema.parse(req.body);
+    const normalizedCategory = await ensureReferenceCategory(payload.category);
+    validateDeliveryDate(payload.deliveryDateEstimated);
     const skuFallback = payload.sku ?? `SKU-${Date.now()}`;
     if (!payload.imageUrls?.length && !payload.image) {
       return res.status(400).json({ error: { code: 'IMAGE_REQUIRED' } });
@@ -299,6 +333,7 @@ sellerRoutes.post('/products', writeLimiter, async (req: AuthRequest, res, next)
     const videoUrls = payload.videoUrls ?? [];
     const product = await productUseCases.create({
       ...payload,
+      category: normalizedCategory,
       descriptionShort: payload.descriptionShort ?? payload.description,
       descriptionFull: payload.descriptionFull ?? payload.description,
       sku: skuFallback,
@@ -311,6 +346,12 @@ sellerRoutes.post('/products', writeLimiter, async (req: AuthRequest, res, next)
     });
     res.status(201).json({ data: product });
   } catch (error) {
+    if (error instanceof Error && error.message === 'CATEGORY_INVALID') {
+      return res.status(400).json({ error: { code: 'CATEGORY_INVALID', message: 'Категория недоступна.' } });
+    }
+    if (error instanceof Error && error.message.startsWith('DELIVERY_DATE_')) {
+      return res.status(400).json({ error: { code: error.message, message: 'Некорректная дата доставки.' } });
+    }
     next(error);
   }
 });
@@ -322,10 +363,15 @@ sellerRoutes.put('/products/:id', writeLimiter, async (req: AuthRequest, res, ne
       return res.status(403).json({ error: { code: 'KYC_NOT_APPROVED', message: 'KYC not approved' } });
     }
     const payload = sellerProductSchema.partial().parse(req.body);
+    const normalizedCategory = payload.category ? await ensureReferenceCategory(payload.category) : undefined;
+    if (payload.deliveryDateEstimated) {
+      validateDeliveryDate(payload.deliveryDateEstimated);
+    }
     const imageUrls = payload.imageUrls ?? (payload.image ? [payload.image] : undefined);
     const videoUrls = payload.videoUrls;
     const product = await productUseCases.update(req.params.id, {
       ...payload,
+      category: normalizedCategory ?? payload.category,
       descriptionShort: payload.descriptionShort ?? payload.description,
       descriptionFull: payload.descriptionFull ?? payload.description,
       sku: payload.sku,
@@ -338,6 +384,12 @@ sellerRoutes.put('/products/:id', writeLimiter, async (req: AuthRequest, res, ne
     });
     res.json({ data: product });
   } catch (error) {
+    if (error instanceof Error && error.message === 'CATEGORY_INVALID') {
+      return res.status(400).json({ error: { code: 'CATEGORY_INVALID', message: 'Категория недоступна.' } });
+    }
+    if (error instanceof Error && error.message.startsWith('DELIVERY_DATE_')) {
+      return res.status(400).json({ error: { code: error.message, message: 'Некорректная дата доставки.' } });
+    }
     next(error);
   }
 });

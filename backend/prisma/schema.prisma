@@ -248,6 +248,7 @@ model SellerKycSubmission {
   submittedAt DateTime?
   reviewedAt  DateTime?
   reviewerId  String?
+  moderationNotes String?
   notes       String?
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
@@ -263,6 +264,7 @@ model SellerDocument {
   submissionId String
   type         String
   url          String
+  fileName     String?
   originalName String
   mime         String
   size         Int

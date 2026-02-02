@@ -9,6 +9,8 @@ import { useProductBoardStore } from '../app/store/productBoardStore';
 import { ProductCard } from '../widgets/shop/ProductCard';
 import styles from './ProductPage.module.css';
 
+const apiBaseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
+
 const formatDeliveryDate = (date?: string) => {
   if (date) return date;
   const next = new Date();
@@ -26,6 +28,7 @@ export const ProductPage = () => {
   const setProductBoard = useProductBoardStore((state) => state.setProduct);
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeImage, setActiveImage] = useState<string>('');
   const [selectedVariant, setSelectedVariant] = useState<string>('');
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -38,17 +41,31 @@ export const ProductPage = () => {
   const [feedHasMore, setFeedHasMore] = useState(true);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
+  const resolveImageUrl = useCallback((url?: string | null) => {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    if (url.startsWith('blob:') || url.startsWith('data:')) return url;
+    if (url.startsWith('/')) return `${apiBaseUrl}${url}`;
+    return `${apiBaseUrl}/${url}`;
+  }, []);
+
   useEffect(() => {
     if (!id) return;
     setLoading(true);
+    setError(null);
     api
       .getProduct(id)
       .then((response) => {
-        setProduct(response.data);
-        setActiveImage(response.data.images?.[0]?.url ?? response.data.image);
+        const productData = response.data?.data ?? response.data;
+        setProduct(productData ?? null);
+        setActiveImage(resolveImageUrl(productData?.images?.[0]?.url ?? productData?.image));
+      })
+      .catch((err) => {
+        setProduct(null);
+        setError(err instanceof Error ? err.message : 'Не удалось загрузить товар.');
       })
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, resolveImageUrl]);
 
   useEffect(() => {
     if (product) {
@@ -141,7 +158,7 @@ export const ProductPage = () => {
     }
   };
 
-  if (loading || !product) {
+  if (loading) {
     return (
       <section className={styles.page}>
         <div className="container">
@@ -151,6 +168,19 @@ export const ProductPage = () => {
     );
   }
 
+  if (!product) {
+    return (
+      <section className={styles.page}>
+        <div className="container">
+          <p>{error ?? 'Товар не найден.'}</p>
+        </div>
+      </section>
+    );
+  }
+
+  const productImages =
+    product.images && product.images.length > 0 ? product.images : [{ id: 'main', url: product.image, sortOrder: 0 }];
+
   return (
     <section className={styles.page}>
       <div className="container">
@@ -158,18 +188,19 @@ export const ProductPage = () => {
           <div className={styles.gallery}>
             <img src={activeImage} alt={product.title} className={styles.mainImage} />
             <div className={styles.thumbs}>
-              {(product.images?.length ? product.images : [{ id: 'main', url: product.image, sortOrder: 0 }]).map(
-                (image) => (
+              {productImages.map((image) => {
+                const resolved = resolveImageUrl(image.url);
+                return (
                   <button
                     key={image.id}
-                    className={activeImage === image.url ? `${styles.thumb} ${styles.thumbActive}` : styles.thumb}
-                    onClick={() => setActiveImage(image.url)}
+                    className={activeImage === resolved ? `${styles.thumb} ${styles.thumbActive}` : styles.thumb}
+                    onClick={() => setActiveImage(resolved)}
                     aria-label={`Показать изображение ${product.title}`}
                   >
-                    <img src={image.url} alt={product.title} />
+                    <img src={resolved} alt={product.title} />
                   </button>
-                )
-              )}
+                );
+              })}
             </div>
           </div>
           <div className={styles.details}>

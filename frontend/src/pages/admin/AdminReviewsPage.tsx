@@ -17,6 +17,7 @@ export const AdminReviewsPage = () => {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<AdminReview | null>(null);
   const [notes, setNotes] = useState('');
+  const [notesError, setNotesError] = useState('');
   const [actionId, setActionId] = useState<string | null>(null);
 
   const loadReviews = async () => {
@@ -46,15 +47,21 @@ export const AdminReviewsPage = () => {
   };
 
   const handleReject = async (id: string, reason: 'reject' | 'needs-edit') => {
+    const trimmed = notes.trim();
+    if (trimmed.length < 10 || trimmed.length > 500) {
+      setNotesError('Укажите причину длиной от 10 до 500 символов.');
+      return;
+    }
     setActionId(id);
     try {
       if (reason === 'reject') {
-        await api.rejectAdminReview(id, { notes: notes || undefined });
+        await api.rejectAdminReview(id, { notes: trimmed });
       } else {
-        await api.needsEditAdminReview(id, { notes: notes || undefined });
+        await api.needsEditAdminReview(id, { notes: trimmed });
       }
       setSelected(null);
       setNotes('');
+      setNotesError('');
       await loadReviews();
     } finally {
       setActionId(null);
@@ -126,6 +133,7 @@ export const AdminReviewsPage = () => {
                   onClick={() => {
                     setSelected(review);
                     setNotes(review.moderationNotes ?? '');
+                    setNotesError('');
                   }}
                 >
                   Подробнее
@@ -158,9 +166,16 @@ export const AdminReviewsPage = () => {
               </div>
             ) : null}
             <label>
-              Примечание
-              <textarea value={notes} onChange={(event) => setNotes(event.target.value)} />
+              Причина
+              <textarea
+                value={notes}
+                onChange={(event) => {
+                  setNotes(event.target.value);
+                  setNotesError('');
+                }}
+              />
             </label>
+            {notesError && <p className={styles.errorText}>{notesError}</p>}
             <div className={styles.modalActions}>
               <Button type="button" onClick={() => handleApprove(selected.id)} disabled={actionId === selected.id}>
                 Одобрить
