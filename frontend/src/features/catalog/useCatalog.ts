@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../shared/api';
 import { Product } from '../../shared/types';
 
@@ -18,41 +18,104 @@ export const useCatalog = (filters: CatalogFilters) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const requestKey = useMemo(
+    () =>
+      JSON.stringify({
+        category: filters.category ?? '',
+        material: filters.material ?? '',
+        price: filters.price ?? '',
+        size: filters.size ?? '',
+        sort: filters.sort ?? '',
+        order: filters.order ?? '',
+        page: filters.page ?? '',
+        limit: filters.limit ?? ''
+      }),
+    [
+      filters.category,
+      filters.material,
+      filters.price,
+      filters.size,
+      filters.sort,
+      filters.order,
+      filters.page,
+      filters.limit
+    ]
+  );
+  const requestFilters = useMemo(() => ({ ...filters }), [requestKey]);
+
   useEffect(() => {
     let isMounted = true;
+    const sharedKey = requestKey;
+    // Reuse in-flight request for identical params to avoid duplicate fetches in StrictMode/fast navigation.
+    const entry = getCatalogRequest(sharedKey, requestFilters);
+    entry.subscribers += 1;
     setLoading(true);
-    api
-      .getProducts(filters)
-      .then((response) => {
-        if (isMounted) {
-          setProducts(response.data);
-          setError(null);
-        }
+    entry.promise
+      .then((data) => {
+        if (!isMounted) return;
+        setProducts(data);
+        setError(null);
       })
       .catch((err) => {
-        if (isMounted) {
-          setError(err instanceof Error ? err.message : 'Ошибка загрузки');
+        if (!isMounted) return;
+        if (err instanceof Error && err.name === 'AbortError') {
+          return;
         }
+        setError(err instanceof Error ? err.message : 'Ошибка загрузки');
       })
       .finally(() => {
-        if (isMounted) {
-          setLoading(false);
-        }
+        if (!isMounted) return;
+        setLoading(false);
       });
-
     return () => {
       isMounted = false;
+      releaseCatalogRequest(sharedKey);
     };
-  }, [
-    filters.category,
-    filters.material,
-    filters.price,
-    filters.size,
-    filters.sort,
-    filters.order,
-    filters.page,
-    filters.limit
-  ]);
+  }, [requestFilters, requestKey]);
 
   return { products, loading, error };
+};
+
+type CatalogEntry = {
+  controller: AbortController;
+  promise: Promise<Product[]>;
+  subscribers: number;
+  abortTimeout?: ReturnType<typeof setTimeout>;
+};
+
+const catalogRequests = new Map<string, CatalogEntry>();
+
+const getCatalogRequest = (key: string, filters: CatalogFilters) => {
+  const existing = catalogRequests.get(key);
+  if (existing) {
+    if (existing.abortTimeout) {
+      clearTimeout(existing.abortTimeout);
+      existing.abortTimeout = undefined;
+    }
+    return existing;
+  }
+  const controller = new AbortController();
+  const promise = api.getProducts({ ...filters, signal: controller.signal }).then((response) => response.data);
+  const entry: CatalogEntry = { controller, promise, subscribers: 0 };
+  catalogRequests.set(key, entry);
+  promise.finally(() => {
+    const current = catalogRequests.get(key);
+    if (current === entry) {
+      catalogRequests.delete(key);
+    }
+  });
+  return entry;
+};
+
+const releaseCatalogRequest = (key: string) => {
+  const entry = catalogRequests.get(key);
+  if (!entry) return;
+  entry.subscribers -= 1;
+  if (entry.subscribers <= 0) {
+    // Delay abort slightly so StrictMode remounts can reuse the same request without spam.
+    entry.abortTimeout = setTimeout(() => {
+      entry.controller.abort();
+      catalogRequests.delete(key);
+    }, 0);
+  }
 };

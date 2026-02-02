@@ -35,6 +35,7 @@ export const Layout = ({ children }: LayoutProps) => {
   const cartItems = useCartStore((state) => state.items);
   const addItem = useCartStore((state) => state.addItem);
   const { user, logout } = useAuthStore();
+  const token = useAuthStore((state) => state.token);
   const addresses = useAddressStore((state) => state.addresses);
   const selectedAddressId = useAddressStore((state) => state.selectedAddressId);
   const isModalOpen = useAddressStore((state) => state.isModalOpen);
@@ -50,7 +51,8 @@ export const Layout = ({ children }: LayoutProps) => {
   const location = useLocation();
   const navigate = useNavigate();
   const filterData = useFilters();
-  const { products } = useCatalog({ limit: 12 });
+  const catalogParams = useMemo(() => ({ limit: 12 }), []);
+  const { products } = useCatalog(catalogParams);
   const [searchValue, setSearchValue] = useState(searchParams.get('q') ?? '');
   const [isCategoriesHidden, setIsCategoriesHidden] = useState(false);
   const [categoriesHeight, setCategoriesHeight] = useState(0);
@@ -92,11 +94,13 @@ export const Layout = ({ children }: LayoutProps) => {
 
   useEffect(() => {
     if (user && token) {
-      loadAddresses(user.id);
+      const controller = new AbortController();
+      loadAddresses(user.id, controller.signal);
+      return () => controller.abort();
     } else {
       resetAddresses();
     }
-  }, [loadAddresses, resetAddresses, user, token]);
+  }, [loadAddresses, resetAddresses, token, user]);
 
   useEffect(() => {
     if (location.pathname === '/catalog') {
@@ -109,11 +113,10 @@ export const Layout = ({ children }: LayoutProps) => {
       setSellerProfile(null);
       return;
     }
-
-    let cancelled = false;
-
+    let isMounted = true;
+    const controller = new AbortController();
     api
-      .getSellerContext()
+      .getSellerContext(controller.signal)
       .then((response) => {
         if (!cancelled) setSellerProfile(response.data);
       })
@@ -136,9 +139,10 @@ export const Layout = ({ children }: LayoutProps) => {
       });
 
     return () => {
-      cancelled = true;
+      controller.abort();
+      isMounted = false;
     };
-  }, [user, token]);
+  }, [token, user]);
 
   const categories = useMemo(() => {
     if (filterData.categories.length) {

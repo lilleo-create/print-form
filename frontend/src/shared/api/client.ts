@@ -11,6 +11,7 @@ export function createFetchClient(baseUrl: string) {
       body?: unknown;
       token?: string | null;
       headers?: Record<string, string>;
+      signal?: AbortSignal;
     }
   ): Promise<ApiResponse<T>> => {
     const url = `${baseUrl}${path}`;
@@ -45,7 +46,8 @@ export function createFetchClient(baseUrl: string) {
           : opts.body instanceof FormData
             ? opts.body
             : JSON.stringify(opts.body),
-      credentials: 'include'
+      credentials: 'include',
+      signal: opts?.signal
     });
 
     // 204 No Content
@@ -69,11 +71,10 @@ export function createFetchClient(baseUrl: string) {
             )
           : 'Request failed';
 
-      const err = Object.assign(new Error(msg), {
-        status: res.status,
-        payload
-      });
-      throw err;
+      const error = new Error(msg) as Error & { status?: number; payload?: unknown };
+      error.status = res.status;
+      error.payload = payload;
+      throw error;
     }
 
     // ✅ Нормализация: всегда возвращаем { data: ... }

@@ -47,6 +47,7 @@ export const api = {
     page?: number;
     limit?: number;
     cursor?: string;
+    signal?: AbortSignal;
   }) {
     const params = new URLSearchParams();
     if (filters?.category) params.set('category', filters.category);
@@ -63,7 +64,7 @@ export const api = {
     if (filters?.limit) params.set('limit', String(filters.limit));
 
     const query = params.toString();
-    return apiClient.request<Product[]>(`/products${query ? `?${query}` : ''}`);
+    return apiClient.request<Product[]>(`/products${query ? `?${query}` : ''}`, { signal: filters?.signal });
   },
 
   async getProduct(id: string) {
@@ -108,9 +109,10 @@ export const api = {
     }>(`/products/${id}/reviews/summary${qs ? `?${qs}` : ''}`);
   },
 
-  async getFilters() {
+  async getFilters(signal?: AbortSignal) {
     const categoriesResponse = await apiClient.request<{ id: string; slug: string; title: string }[]>(
-      '/filters/reference-categories'
+      '/filters/reference-categories',
+      { signal }
     );
     return {
       data: {
@@ -311,13 +313,13 @@ export const api = {
     );
   },
 
-  async getSellerContext() {
+  async getSellerContext(signal?: AbortSignal) {
     return apiClient.request<{
       isSeller: boolean;
       profile: SellerProfile | null;
       kyc?: SellerKycSubmission | null;
       canSell?: boolean;
-    }>('/seller/context');
+    }>('/seller/context', { signal });
   },
 
   async getSellerProfile() {

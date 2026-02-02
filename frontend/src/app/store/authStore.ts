@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { authApi } from '../../shared/api/authApi';
+import { loadFromStorage, removeFromStorage, saveToStorage } from '../../shared/lib/storage';
+import { STORAGE_KEYS } from '../../shared/constants/storageKeys';
 import { User, Role } from '../../shared/types';
 
 type Purpose = 'login' | 'register' | 'seller_verify';
@@ -71,6 +73,14 @@ interface AuthState {
   hydrate: () => void;
 }
 
+const loadSession = () => {
+  try {
+    return loadFromStorage<{ token: string; user: User } | null>(STORAGE_KEYS.session, null);
+  } catch {
+    return null;
+  }
+};
+
 const emptyOtp: AuthState['otp'] = {
   required: false,
   purpose: null,
@@ -112,7 +122,7 @@ const safeGetSession = () => {
 };
 
 export const useAuthStore = create<AuthState>((set, get) => {
-  const bootSession = loadAuthSession() ?? safeGetSession();
+  const session = loadSession();
 
   return {
     user: bootSession?.user ?? null,
@@ -149,8 +159,11 @@ export const useAuthStore = create<AuthState>((set, get) => {
         return { requiresOtp: true, tempToken: result.tempToken, user: result.user };
       }
 
-      set({ user: result.user, token: result.token });
-      saveAuthSession({ user: result.user, token: result.token });
+      // non-OTP success
+      const nextSession = { user: result.user, token: result.token };
+      saveToStorage(STORAGE_KEYS.session, nextSession);
+      saveToStorage(STORAGE_KEYS.accessToken, result.token);
+      set(nextSession);
       return { requiresOtp: false, user: result.user, token: result.token };
     },
 
@@ -175,8 +188,10 @@ export const useAuthStore = create<AuthState>((set, get) => {
         return { requiresOtp: true, tempToken: result.tempToken, user: result.user };
       }
 
-      set({ user: result.user, token: result.token });
-      saveAuthSession({ user: result.user, token: result.token });
+      const nextSession = { user: result.user, token: result.token };
+      saveToStorage(STORAGE_KEYS.session, nextSession);
+      saveToStorage(STORAGE_KEYS.accessToken, result.token);
+      set(nextSession);
       return { requiresOtp: false, user: result.user, token: result.token };
     },
 
@@ -203,7 +218,8 @@ export const useAuthStore = create<AuthState>((set, get) => {
         token: result.token,
         otp: { ...emptyOtp },
       });
-      saveAuthSession({ user: result.user, token: result.token });
+      saveToStorage(STORAGE_KEYS.session, { user: result.user, token: result.token });
+      saveToStorage(STORAGE_KEYS.accessToken, result.token);
     },
 
     async updateProfile(payload) {
@@ -223,7 +239,11 @@ export const useAuthStore = create<AuthState>((set, get) => {
     },
 
     setUser(user) {
+      const token = get().token;
       authApi.setSessionUser?.(user);
+      if (token) {
+        saveToStorage(STORAGE_KEYS.session, { user, token });
+      }
       set({ user });
 
       const token = get().token;
@@ -236,13 +256,14 @@ export const useAuthStore = create<AuthState>((set, get) => {
       } catch {
         // ignore
       } finally {
-        saveAuthSession(null);
+        removeFromStorage(STORAGE_KEYS.session);
+        removeFromStorage(STORAGE_KEYS.accessToken);
         set({ user: null, token: null, otp: { ...emptyOtp } });
       }
     },
 
     hydrate() {
-      const current = loadAuthSession() ?? safeGetSession();
+      const current = loadSession();
       set({ user: current?.user ?? null, token: current?.token ?? null });
     },
   };

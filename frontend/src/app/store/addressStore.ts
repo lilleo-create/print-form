@@ -6,7 +6,7 @@ interface AddressState {
   addresses: Address[];
   selectedAddressId: string;
   isModalOpen: boolean;
-  loadAddresses: (userId: string) => Promise<void>;
+  loadAddresses: (userId: string, signal?: AbortSignal) => Promise<void>;
   selectAddress: (userId: string, addressId: string) => Promise<void>;
   addAddress: (payload: Omit<Address, 'id' | 'createdAt'>) => Promise<Address>;
   updateAddress: (payload: Address) => Promise<Address>;
@@ -20,16 +20,22 @@ export const useAddressStore = create<AddressState>((set) => ({
   addresses: [],
   selectedAddressId: '',
   isModalOpen: false,
-  async loadAddresses(userId) {
+  async loadAddresses(userId, signal) {
     try {
-      const data = await addressesApi.listByUser(userId);
-      const defaultId = await addressesApi.getDefault(userId);
+      const data = await addressesApi.listByUser(userId, signal);
+      const defaultId = await addressesApi.getDefault(userId, signal);
+      if (signal?.aborted) {
+        return;
+      }
       const nextSelected = defaultId ?? data[0]?.id ?? '';
       if (nextSelected && nextSelected !== defaultId) {
         await addressesApi.setDefault(userId, nextSelected);
       }
       set({ addresses: data, selectedAddressId: nextSelected });
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        return;
+      }
       set({ addresses: [], selectedAddressId: '' });
     }
   },

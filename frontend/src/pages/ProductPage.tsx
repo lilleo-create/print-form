@@ -11,6 +11,8 @@ import styles from './ProductPage.module.css';
 import { resolveImageUrl } from '../../shared/lib/resolveImageUrl';
 
 
+const apiBaseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
+
 const formatDeliveryDate = (date?: string) => {
   if (date) return date;
   const next = new Date();
@@ -34,7 +36,6 @@ export const ProductPage = () => {
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
   const [activeImage, setActiveImage] = useState<string>('');
   const [selectedVariant, setSelectedVariant] = useState<string>('');
 
@@ -51,70 +52,29 @@ export const ProductPage = () => {
   const [feedHasMore, setFeedHasMore] = useState(true);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
+  const resolveImageUrl = useCallback((url?: string | null) => {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    if (url.startsWith('blob:') || url.startsWith('data:')) return url;
+    if (url.startsWith('/')) return `${apiBaseUrl}${url}`;
+    return `${apiBaseUrl}/${url}`;
+  }, []);
 
-  // Derived safe arrays (NO HOOKS, safe even if product is null)
-  const images = product?.images ?? [];
-  const variants = product?.variants ?? [];
-  const safeReviews = reviews ?? [];
-  const reviewsCount = summary?.total ?? 0;
-  const ratingCount = product?.ratingCount ?? summary?.total ?? 0;
-
-  // IMPORTANT: useMemo must be called on every render (before any early return)
-  const specs = useMemo(() => {
-    if (!product) return [];
-
-    const base = product.specs ?? [
-      {
-        id: 'material',
-        key: 'Материал',
-        value: (product as any).material,
-        sortOrder: 1
-      },
-      { id: 'size', key: 'Размер', value: (product as any).size, sortOrder: 2 },
-      {
-        id: 'technology',
-        key: 'Технология',
-        value: (product as any).technology,
-        sortOrder: 3
-      },
-      {
-        id: 'printTime',
-        key: 'Время печати',
-        value: (product as any).printTime,
-        sortOrder: 4
-      },
-      { id: 'color', key: 'Цвет', value: (product as any).color, sortOrder: 5 }
-    ];
-
-    return [...base].sort(
-      (a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
-    );
-  }, [product]);
-
-  // Load product
   useEffect(() => {
     if (!id) return;
 
     setLoading(true);
     setError(null);
-
     api
       .getProduct(id)
-      .then((response: any) => {
-        // Accept both: axios response OR already-unwrapped object
-        const raw = response?.data ?? response;
-        const productData = raw?.data ?? raw;
-
+      .then((response) => {
+        const productData = response.data?.data ?? response.data;
         setProduct(productData ?? null);
-
-        const first = productData?.images?.[0]?.url ?? productData?.image ?? '';
-        setActiveImage(resolveImageUrl(first));
+        setActiveImage(resolveImageUrl(productData?.images?.[0]?.url ?? productData?.image));
       })
-      .catch((err: any) => {
+      .catch((err) => {
         setProduct(null);
-        setError(
-          err instanceof Error ? err.message : 'Не удалось загрузить товар.'
-        );
+        setError(err instanceof Error ? err.message : 'Не удалось загрузить товар.');
       })
       .finally(() => setLoading(false));
   }, [id, resolveImageUrl]);
@@ -221,7 +181,31 @@ export const ProductPage = () => {
     return () => observer.disconnect();
   }, [feedHasMore, feedLoading, loadFeed]);
 
-  // Early returns AFTER all hooks
+  const specs = useMemo(() => {
+    if (!product) return [];
+    return (
+      product.specs ?? [
+        { id: 'material', key: 'Материал', value: product.material, sortOrder: 1 },
+        { id: 'size', key: 'Размер', value: product.size, sortOrder: 2 },
+        { id: 'technology', key: 'Технология', value: product.technology, sortOrder: 3 },
+        { id: 'printTime', key: 'Время печати', value: product.printTime, sortOrder: 4 },
+        { id: 'color', key: 'Цвет', value: product.color, sortOrder: 5 }
+      ]
+    ).sort((a, b) => a.sortOrder - b.sortOrder);
+  }, [product]);
+
+  const ratingCount = product?.ratingCount ?? summary?.total ?? 0;
+  const reviewsCount = summary?.total ?? 0;
+
+  const handleVariantChange = async (variantId: string) => {
+    setSelectedVariant(variantId);
+    const variant = product?.variants?.find((item) => item.id === variantId);
+    const nextProductId = variant?.productId ?? variantId;
+    if (product && nextProductId && nextProductId !== product.id) {
+      navigate(`/product/${nextProductId}`);
+    }
+  };
+
   if (loading) {
     return (
       <section className={styles.page}>
@@ -243,19 +227,7 @@ export const ProductPage = () => {
   }
 
   const productImages =
-    images.length > 0
-      ? images
-      : ([{ id: 'main', url: (product as any).image, sortOrder: 0 }] as any[]);
-
-  const handleVariantChange = (variantId: string) => {
-    setSelectedVariant(variantId);
-    const variant = variants.find((item: any) => item.id === variantId);
-    const nextProductId = (variant as any)?.productId ?? variantId;
-
-    if (nextProductId && nextProductId !== product.id) {
-      navigate(`/product/${nextProductId}`);
-    }
-  };
+    product.images && product.images.length > 0 ? product.images : [{ id: 'main', url: product.image, sortOrder: 0 }];
 
   return (
     <section className={styles.page}>
@@ -268,16 +240,12 @@ export const ProductPage = () => {
               className={styles.mainImage}
             />
             <div className={styles.thumbs}>
-              {productImages.map((image: any) => {
+              {productImages.map((image) => {
                 const resolved = resolveImageUrl(image.url);
                 return (
                   <button
                     key={image.id}
-                    className={
-                      activeImage === resolved
-                        ? `${styles.thumb} ${styles.thumbActive}`
-                        : styles.thumb
-                    }
+                    className={activeImage === resolved ? `${styles.thumb} ${styles.thumbActive}` : styles.thumb}
                     onClick={() => setActiveImage(resolved)}
                     aria-label={`Показать изображение ${product.title}`}
                     type="button"

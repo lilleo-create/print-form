@@ -5,8 +5,8 @@ const baseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
 const client = createFetchClient(baseUrl);
 
 export const addressesApi = {
-  listByUser: async (_userId: string) => {
-    const response = await client.request<Address[]>('/me/addresses');
+  listByUser: async (_userId: string, signal?: AbortSignal) => {
+    const response = await client.request<Address[]>('/me/addresses', { signal });
     return response.data ?? [];
   },
   create: async (payload: Omit<Address, 'id' | 'createdAt'>) => {
@@ -26,8 +26,8 @@ export const addressesApi = {
   setDefault: async (_userId: string, addressId: string) => {
     await client.request<Address>(`/me/addresses/${addressId}/default`, { method: 'POST' });
   },
-  getDefault: async (_userId: string) => {
-    const response = await client.request<Address | null>('/me/addresses/default');
+  getDefault: async (_userId: string, signal?: AbortSignal) => {
+    const response = await client.request<Address | null>('/me/addresses/default', { signal });
     return response.data?.id ?? null;
   }
 };

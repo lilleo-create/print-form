@@ -25,11 +25,15 @@ export const CatalogPage = () => {
   });
 
   const sort = (searchParams.get('sort') as 'createdAt' | 'rating') ?? 'createdAt';
-  const { products, loading, error } = useCatalog({
-    ...filters,
-    sort,
-    order: 'desc'
-  });
+  const catalogParams = useMemo(
+    () => ({
+      ...filters,
+      sort,
+      order: 'desc' as const
+    }),
+    [filters, sort]
+  );
+  const { products, loading, error } = useCatalog(catalogParams);
 
   const filteredProducts = useMemo(() => {
     return products;
