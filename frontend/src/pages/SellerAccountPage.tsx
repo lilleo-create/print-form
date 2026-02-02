@@ -502,8 +502,10 @@ export const SellerAccountPage = () => {
                     <span className={styles.kycLabel}>Статус:</span>
                     <strong>{kycSubmission?.status ?? 'Не отправлено'}</strong>
                   </div>
-                  {kycSubmission?.notes && (
-                    <p className={styles.kycNotes}>Комментарий: {kycSubmission.notes}</p>
+                  {(kycSubmission?.moderationNotes || kycSubmission?.notes) && (
+                    <p className={styles.kycNotes}>
+                      Комментарий: {kycSubmission.moderationNotes ?? kycSubmission.notes}
+                    </p>
                   )}
                   {kycSubmission?.documents?.length ? (
                     <ul className={styles.kycDocs}>

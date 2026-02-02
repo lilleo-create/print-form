@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import path from 'path';
+import fs from 'fs';
 import { ProductModerationStatus, ReviewModerationStatus } from '@prisma/client';
 import { requireAuth, requireAdmin, AuthRequest } from '../middleware/authMiddleware';
 import { prisma } from '../lib/prisma';
@@ -8,13 +10,32 @@ import { notFound } from '../utils/httpErrors';
 
 export const adminRoutes = Router();
 
-const reviewSchema = z.object({
-  status: z.enum(['APPROVED', 'REJECTED']),
-  notes: z.string().max(1000).optional()
-});
+const reasonSchema = z.string().min(10).max(500);
+
+const reviewSchema = z
+  .object({
+    status: z.enum(['APPROVED', 'REJECTED']),
+    notes: z.string().max(500).optional()
+  })
+  .superRefine((value, ctx) => {
+    if (value.status === 'REJECTED') {
+      const reason = value.notes?.trim();
+      if (!reason || reason.length < 10) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Reason required for rejection (10-500 chars).',
+          path: ['notes']
+        });
+      }
+    }
+  });
 
 const notesSchema = z.object({
-  notes: z.string().max(1000).optional()
+  notes: z.string().max(500).optional()
+});
+
+const reasonPayloadSchema = z.object({
+  notes: reasonSchema
 });
 
 const kycListSchema = z.object({
@@ -33,6 +54,28 @@ const productStatusSchema = z.enum([
 const reviewStatusSchema = z.enum(['PENDING', 'APPROVED', 'REJECTED', 'NEEDS_EDIT']);
 
 adminRoutes.use(requireAuth, requireAdmin);
+
+adminRoutes.get('/seller-documents/:id/download', async (req, res, next) => {
+  try {
+    const document = await prisma.sellerDocument.findUnique({ where: { id: req.params.id } });
+    if (!document) {
+      return notFound(res, 'Document not found');
+    }
+    const uploadRoot = path.join(process.cwd(), 'uploads');
+    const relativePath = document.url.startsWith('/') ? document.url.slice(1) : document.url;
+    const filePath = path.resolve(process.cwd(), relativePath);
+    if (!filePath.startsWith(uploadRoot)) {
+      return res.status(400).json({ error: { code: 'INVALID_PATH' } });
+    }
+    if (!fs.existsSync(filePath)) {
+      return notFound(res, 'File not found');
+    }
+    const filename = document.originalName || document.fileName || path.basename(filePath);
+    return res.download(filePath, filename);
+  } catch (error) {
+    return next(error);
+  }
+});
 
 const listKycSubmissions = async (status: 'PENDING' | 'APPROVED' | 'REJECTED') => {
   return prisma.sellerKycSubmission.findMany({
@@ -57,6 +100,7 @@ const reviewSubmission = async (id: string, status: 'APPROVED' | 'REJECTED', not
     where: { id },
     data: {
       status,
+      moderationNotes: notes ?? null,
       notes: notes ?? null,
       reviewedAt: new Date(),
       reviewerId: reviewerId ?? null
@@ -123,7 +167,7 @@ adminRoutes.post('/kyc/:id/approve', writeLimiter, async (req: AuthRequest, res,
 
 adminRoutes.post('/kyc/:id/reject', writeLimiter, async (req: AuthRequest, res, next) => {
   try {
-    const payload = notesSchema.parse(req.body);
+    const payload = reasonPayloadSchema.parse(req.body);
     const updated = await reviewSubmission(req.params.id, 'REJECTED', payload.notes ?? null, req.user!.userId);
     if (!updated) {
       return notFound(res, 'KYC submission not found');
@@ -281,7 +325,7 @@ adminRoutes.post('/reviews/:id/approve', writeLimiter, async (req: AuthRequest, 
 
 adminRoutes.post('/reviews/:id/reject', writeLimiter, async (req: AuthRequest, res, next) => {
   try {
-    const payload = notesSchema.parse(req.body);
+    const payload = reasonPayloadSchema.parse(req.body);
     const updated = await prisma.review.update({
       where: { id: req.params.id },
       data: {
@@ -300,7 +344,7 @@ adminRoutes.post('/reviews/:id/reject', writeLimiter, async (req: AuthRequest, r
 
 adminRoutes.post('/reviews/:id/needs-edit', writeLimiter, async (req: AuthRequest, res, next) => {
   try {
-    const payload = notesSchema.parse(req.body);
+    const payload = reasonPayloadSchema.parse(req.body);
     const updated = await prisma.review.update({
       where: { id: req.params.id },
       data: {

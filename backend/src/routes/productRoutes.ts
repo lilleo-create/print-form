@@ -67,7 +67,10 @@ productRoutes.get('/:id', async (req, res, next) => {
 export const sellerProductSchema = z.object({
   title: z.string().min(2),
   category: z.string().min(2),
-  price: z.number().min(1),
+  price: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() !== '' ? Number(value) : value),
+    z.number({ invalid_type_error: 'PRICE_INVALID' }).min(1)
+  ),
   image: mediaUrlSchema.optional(),
   imageUrls: z.array(mediaUrlSchema).optional(),
   videoUrls: z.array(mediaUrlSchema).optional(),

@@ -8,17 +8,41 @@ import { useModalFocus } from '../../shared/lib/useModalFocus';
 import { api } from '../../shared/api';
 import styles from './SellerProductModal.module.css';
 
+const today = new Date();
+today.setHours(0, 0, 0, 0);
+
+const isDeliveryDateValid = (value?: string) => {
+  if (!value) return true;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return false;
+  const candidate = new Date(parsed);
+  candidate.setHours(0, 0, 0, 0);
+  if (candidate < today) return false;
+  if (candidate.getFullYear() > today.getFullYear()) return false;
+  return true;
+};
+
 const productSchema = z.object({
   title: z.string().min(2, 'Введите название'),
-  price: z.coerce.number().min(1, 'Введите цену'),
+  price: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? NaN : value),
+    z
+      .number({ invalid_type_error: 'Введите цену числом' })
+      .min(1, 'Цена должна быть больше 0')
+  ),
   material: z.string().min(2, 'Введите материал'),
-  category: z.string().min(2, 'Введите категорию'),
+  category: z.string().min(1, 'Выберите категорию'),
   size: z.string().min(2, 'Введите размер'),
   technology: z.string().min(2, 'Введите технологию'),
   printTime: z.string().min(2, 'Введите время печати'),
   color: z.string().min(2, 'Введите цвет'),
   description: z.string().min(10, 'Добавьте описание'),
-  deliveryDateEstimated: z.string().optional(),
+  deliveryDateEstimated: z
+    .string()
+    .optional()
+    .refine((value) => isDeliveryDateValid(value), {
+      message: 'Дата должна быть не раньше сегодня и не позже конца года'
+    }),
 });
 
 type ProductFormValues = z.infer<typeof productSchema>;
@@ -53,6 +77,8 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
   const [fileErrors, setFileErrors] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isDragActive, setIsDragActive] = useState(false);
+  const [categories, setCategories] = useState<{ id: string; title: string }[]>([]);
+  const [categoriesError, setCategoriesError] = useState('');
   const {
     register,
     handleSubmit,
@@ -97,6 +123,25 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
       });
     }
   }, [product, reset]);
+
+  useEffect(() => {
+    let isMounted = true;
+    api
+      .getReferenceCategories()
+      .then((response) => {
+        if (!isMounted) return;
+        setCategories(response.data.map((item) => ({ id: item.id, title: item.title })));
+        setCategoriesError('');
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setCategories([]);
+        setCategoriesError('Не удалось загрузить категории.');
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleIncomingFiles = (incoming: FileList | File[]) => {
     const nextErrors: string[] = [];
@@ -215,48 +260,68 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
         <form className={styles.form} onSubmit={handleSubmit(handleFormSubmit)}>
           <label>
             Название
-            <input {...register('title')} />
-            {errors.title && <span>{errors.title.message}</span>}
+            <input className={errors.title ? styles.inputError : styles.input} placeholder="Название товара" {...register('title')} />
+            {errors.title && <span className={styles.errorText}>{errors.title.message}</span>}
           </label>
           <label>
             Цена
-            <input type="number" {...register('price')} />
-            {errors.price && <span>{errors.price.message}</span>}
+            <input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              className={errors.price ? styles.inputError : styles.input}
+              placeholder="Например, 1200"
+              {...register('price', { valueAsNumber: true })}
+            />
+            {errors.price && <span className={styles.errorText}>{errors.price.message}</span>}
           </label>
           <label>
             Материал
-            <input {...register('material')} />
-            {errors.material && <span>{errors.material.message}</span>}
+            <input className={errors.material ? styles.inputError : styles.input} placeholder="PLA" {...register('material')} />
+            {errors.material && <span className={styles.errorText}>{errors.material.message}</span>}
           </label>
           <label>
             Категория
-            <input {...register('category')} />
-            {errors.category && <span>{errors.category.message}</span>}
+            <select className={errors.category ? styles.inputError : styles.input} {...register('category')}>
+              <option value="">Выберите категорию</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.title}>
+                  {category.title}
+                </option>
+              ))}
+            </select>
+            {categoriesError && <span className={styles.errorText}>{categoriesError}</span>}
+            {errors.category && <span className={styles.errorText}>{errors.category.message}</span>}
           </label>
           <label>
             Размер
-            <input {...register('size')} />
-            {errors.size && <span>{errors.size.message}</span>}
+            <input className={errors.size ? styles.inputError : styles.input} placeholder="10 × 15 см" {...register('size')} />
+            {errors.size && <span className={styles.errorText}>{errors.size.message}</span>}
           </label>
           <label>
             Технология
-            <input {...register('technology')} />
-            {errors.technology && <span>{errors.technology.message}</span>}
+            <input className={errors.technology ? styles.inputError : styles.input} placeholder="FDM" {...register('technology')} />
+            {errors.technology && <span className={styles.errorText}>{errors.technology.message}</span>}
           </label>
           <label>
             Время печати
-            <input {...register('printTime')} />
-            {errors.printTime && <span>{errors.printTime.message}</span>}
+            <input className={errors.printTime ? styles.inputError : styles.input} placeholder="2 часа" {...register('printTime')} />
+            {errors.printTime && <span className={styles.errorText}>{errors.printTime.message}</span>}
           </label>
           <label>
             Цвет
-            <input {...register('color')} />
-            {errors.color && <span>{errors.color.message}</span>}
+            <input className={errors.color ? styles.inputError : styles.input} placeholder="Белый" {...register('color')} />
+            {errors.color && <span className={styles.errorText}>{errors.color.message}</span>}
           </label>
           <label>
             Описание
-            <textarea rows={4} {...register('description')} />
-            {errors.description && <span>{errors.description.message}</span>}
+            <textarea
+              rows={4}
+              className={errors.description ? styles.inputError : styles.input}
+              placeholder="Расскажите о товаре"
+              {...register('description')}
+            />
+            {errors.description && <span className={styles.errorText}>{errors.description.message}</span>}
           </label>
           <label>
             Медиа товара
@@ -332,11 +397,20 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
                 ))}
               </ul>
             )}
-            {uploadError && <span>{uploadError}</span>}
+            {uploadError && <span className={styles.errorText}>{uploadError}</span>}
           </label>
           <label>
             Ближайшая дата доставки
-            <input type="date" {...register('deliveryDateEstimated')} />
+            <input
+              type="date"
+              className={errors.deliveryDateEstimated ? styles.inputError : styles.input}
+              min={today.toISOString().slice(0, 10)}
+              max={`${today.getFullYear()}-12-31`}
+              {...register('deliveryDateEstimated')}
+            />
+            {errors.deliveryDateEstimated && (
+              <span className={styles.errorText}>{errors.deliveryDateEstimated.message}</span>
+            )}
           </label>
           <div className={styles.actions}>
             <Button type="submit" disabled={isUploading}>

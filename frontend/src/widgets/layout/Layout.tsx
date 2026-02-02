@@ -22,6 +22,7 @@ export const Layout = ({ children }: LayoutProps) => {
   const cartItems = useCartStore((state) => state.items);
   const addItem = useCartStore((state) => state.addItem);
   const { user, logout } = useAuthStore();
+  const token = useAuthStore((state) => state.token);
   const addresses = useAddressStore((state) => state.addresses);
   const selectedAddressId = useAddressStore((state) => state.selectedAddressId);
   const isModalOpen = useAddressStore((state) => state.isModalOpen);
@@ -37,7 +38,8 @@ export const Layout = ({ children }: LayoutProps) => {
   const location = useLocation();
   const navigate = useNavigate();
   const filterData = useFilters();
-  const { products } = useCatalog({ limit: 12 });
+  const catalogParams = useMemo(() => ({ limit: 12 }), []);
+  const { products } = useCatalog(catalogParams);
   const [searchValue, setSearchValue] = useState(searchParams.get('q') ?? '');
   const [isCategoriesHidden, setIsCategoriesHidden] = useState(false);
   const [categoriesHeight, setCategoriesHeight] = useState(0);
@@ -70,12 +72,14 @@ export const Layout = ({ children }: LayoutProps) => {
   const scrollStateRef = useRef({ lastY: 0, acc: 0, ticking: false });
 
   useEffect(() => {
-    if (user) {
-      loadAddresses(user.id);
+    if (user && token) {
+      const controller = new AbortController();
+      loadAddresses(user.id, controller.signal);
+      return () => controller.abort();
     } else {
       resetAddresses();
     }
-  }, [loadAddresses, resetAddresses, user]);
+  }, [loadAddresses, resetAddresses, token, user]);
 
   useEffect(() => {
     if (location.pathname === '/catalog') {
@@ -84,13 +88,14 @@ export const Layout = ({ children }: LayoutProps) => {
   }, [location.pathname, searchParams]);
 
   useEffect(() => {
-    if (!user) {
+    if (!user || !token) {
       setSellerProfile(null);
       return;
     }
     let isMounted = true;
+    const controller = new AbortController();
     api
-      .getSellerContext()
+      .getSellerContext(controller.signal)
       .then((response) => {
         if (isMounted) {
           setSellerProfile(response.data);
@@ -102,9 +107,10 @@ export const Layout = ({ children }: LayoutProps) => {
         }
       });
     return () => {
+      controller.abort();
       isMounted = false;
     };
-  }, [user]);
+  }, [token, user]);
 
   const categories = useMemo(() => {
     if (filterData.categories.length) {

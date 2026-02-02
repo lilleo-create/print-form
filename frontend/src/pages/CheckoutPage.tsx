@@ -25,6 +25,7 @@ export const CheckoutPage = () => {
   const items = useCartStore((state) => state.items);
   const clear = useCartStore((state) => state.clear);
   const user = useAuthStore((state) => state.user);
+  const token = useAuthStore((state) => state.token);
   const updateProfile = useAuthStore((state) => state.updateProfile);
   const createOrder = useOrdersStore((state) => state.createOrder);
   const addresses = useAddressStore((state) => state.addresses);
@@ -41,31 +42,48 @@ export const CheckoutPage = () => {
   const contactForm = useForm<ContactFormValues>({ resolver: zodResolver(contactSchema) });
 
   useEffect(() => {
-    if (!user) {
+    if (!user || !token) {
+      setContacts([]);
       return;
     }
-    contactsApi.listByUser(user.id).then((data) => {
-      setContacts(data);
-      if (data[0]) {
-        contactForm.reset({ name: data[0].name, phone: data[0].phone, email: data[0].email ?? '' });
-        return;
-      }
-      contactForm.reset({
-        name: user.name ?? '',
-        phone: user.phone ?? '',
-        email: user.email ?? ''
+    const controller = new AbortController();
+    contactsApi
+      .listByUser(user.id, controller.signal)
+      .then((data) => {
+        setContacts(data);
+        if (data[0]) {
+          contactForm.reset({ name: data[0].name, phone: data[0].phone, email: data[0].email ?? '' });
+          return;
+        }
+        contactForm.reset({
+          name: user.name ?? '',
+          phone: user.phone ?? '',
+          email: user.email ?? ''
+        });
+      })
+      .catch((error: unknown) => {
+        if (error instanceof Error && error.name === 'AbortError') {
+          return;
+        }
+        if (typeof error === 'object' && error && 'status' in error && (error as { status?: number }).status === 401) {
+          setContacts([]);
+          return;
+        }
       });
-    });
-  }, [contactForm, user]);
+    return () => controller.abort();
+  }, [contactForm, token, user]);
 
   useEffect(() => {
-    if (user) {
-      loadAddresses(user.id);
+    if (user && token) {
+      const controller = new AbortController();
+      loadAddresses(user.id, controller.signal);
+      return () => controller.abort();
     }
-  }, [loadAddresses, user]);
+    return undefined;
+  }, [loadAddresses, token, user]);
 
   useEffect(() => {
-    if (!user) {
+    if (!user || !token) {
       return;
     }
     if (user.address && addresses.length === 0) {
@@ -78,7 +96,7 @@ export const CheckoutPage = () => {
         await selectAddress(user.id, created.id);
       })();
     }
-  }, [addAddress, addresses.length, selectAddress, user]);
+  }, [addAddress, addresses.length, selectAddress, token, user]);
 
   const total = useMemo(
     () => items.reduce((sum, item) => sum + item.product.price * item.quantity, 0),

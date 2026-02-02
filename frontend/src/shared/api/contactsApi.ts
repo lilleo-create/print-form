@@ -5,8 +5,8 @@ const baseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
 const client = createFetchClient(baseUrl);
 
 export const contactsApi = {
-  listByUser: async (_userId: string) => {
-    const response = await client.request<Contact[]>('/me/contacts');
+  listByUser: async (_userId: string, signal?: AbortSignal) => {
+    const response = await client.request<Contact[]>('/me/contacts', { signal });
     return response.data ?? [];
   },
   create: async (payload: Omit<Contact, 'id' | 'createdAt'>) => {
