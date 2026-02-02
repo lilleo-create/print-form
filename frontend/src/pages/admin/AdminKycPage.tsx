@@ -12,6 +12,8 @@ export const AdminKycPage = () => {
   const [loading, setLoading] = useState(true);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectNotes, setRejectNotes] = useState('');
+  const [rejectError, setRejectError] = useState('');
+  const [downloadError, setDownloadError] = useState('');
   const [actionId, setActionId] = useState<string | null>(null);
 
   const loadSubmissions = async () => {
@@ -40,14 +42,37 @@ export const AdminKycPage = () => {
 
   const handleReject = async () => {
     if (!rejectingId) return;
+    const trimmed = rejectNotes.trim();
+    if (trimmed.length < 10 || trimmed.length > 500) {
+      setRejectError('Укажите причину длиной от 10 до 500 символов.');
+      return;
+    }
     setActionId(rejectingId);
     try {
-      await api.rejectAdminKyc(rejectingId, { notes: rejectNotes || undefined });
+      await api.rejectAdminKyc(rejectingId, { notes: trimmed });
       setRejectingId(null);
       setRejectNotes('');
+      setRejectError('');
       await loadSubmissions();
     } finally {
       setActionId(null);
+    }
+  };
+
+  const handleDownload = async (docId: string, fallbackName?: string) => {
+    try {
+      const { blob, filename } = await api.downloadAdminSellerDocument(docId);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename || fallbackName || 'document';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      setDownloadError('');
+    } catch {
+      setDownloadError('Не удалось скачать документ.');
     }
   };
 
@@ -109,14 +134,25 @@ export const AdminKycPage = () => {
               <div className={styles.previewList}>
                 {submission.documents?.length ? (
                   submission.documents.map((doc) => (
-                    <a key={doc.id} className={styles.link} href={doc.url} target="_blank" rel="noreferrer">
-                      {doc.originalName}
-                    </a>
+                    <div key={doc.id} className={styles.previewRow}>
+                      <span>{doc.originalName}</span>
+                      <div className={styles.previewActions}>
+                        <Button type="button" onClick={() => handleDownload(doc.id, doc.originalName)}>
+                          Скачать
+                        </Button>
+                        <a className={styles.link} href={doc.url} target="_blank" rel="noreferrer">
+                          Открыть
+                        </a>
+                      </div>
+                    </div>
                   ))
                 ) : (
                   <span className={styles.muted}>Документы не загружены.</span>
                 )}
               </div>
+              {submission.moderationNotes && (
+                <div className={styles.muted}>Причина: {submission.moderationNotes}</div>
+              )}
               <div className={styles.actions}>
                 <Button type="button" onClick={() => handleApprove(submission.id)} disabled={actionId === submission.id}>
                   Одобрить
@@ -129,13 +165,24 @@ export const AdminKycPage = () => {
           ))}
         </div>
       )}
+      {downloadError && <p className={styles.errorText}>{downloadError}</p>}
 
       {rejectingId && (
         <div className={styles.modalOverlay}>
           <div className={styles.modal}>
             <h2>Отклонить заявку</h2>
             <p className={styles.muted}>Добавьте комментарий для продавца.</p>
-            <textarea value={rejectNotes} onChange={(event) => setRejectNotes(event.target.value)} />
+            <label>
+              Причина
+              <textarea
+                value={rejectNotes}
+                onChange={(event) => {
+                  setRejectNotes(event.target.value);
+                  setRejectError('');
+                }}
+              />
+            </label>
+            {rejectError && <p className={styles.errorText}>{rejectError}</p>}
             <div className={styles.modalActions}>
               <Button type="button" onClick={handleReject} disabled={actionId === rejectingId}>
                 Подтвердить

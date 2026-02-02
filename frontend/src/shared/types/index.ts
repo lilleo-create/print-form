@@ -168,6 +168,7 @@ export interface SellerDocument {
   submissionId: string;
   type: string;
   url: string;
+  fileName?: string | null;
   originalName: string;
   mime: string;
   size: number;
@@ -181,6 +182,7 @@ export interface SellerKycSubmission {
   submittedAt?: string | null;
   reviewedAt?: string | null;
   reviewerId?: string | null;
+  moderationNotes?: string | null;
   notes?: string | null;
   documents: SellerDocument[];
   user?: { id: string; name: string; email: string; phone?: string | null };
