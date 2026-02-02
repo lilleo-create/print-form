@@ -1,5 +1,18 @@
-import { FormEvent, ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  FormEvent,
+  ReactNode,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react';
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useSearchParams
+} from 'react-router-dom';
 import { useCartStore } from '../../app/store/cartStore';
 import { useAuthStore } from '../../app/store/authStore';
 import { useAddressStore } from '../../app/store/addressStore';
@@ -68,14 +81,22 @@ export const Layout = ({ children }: LayoutProps) => {
   const categoriesRef = useRef<HTMLDivElement | null>(null);
   const productBoardRef = useRef<HTMLDivElement | null>(null);
   const scrollStateRef = useRef({ lastY: 0, acc: 0, ticking: false });
+  const token = useAuthStore((s) => s.token);
+  const apiBaseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
+  const resolveImageUrl = (url?: string | null) => {
+    if (!url) return '';
+    if (url.startsWith('http')) return url;
+    if (url.startsWith('/')) return `${apiBaseUrl}${url}`;
+    return `${apiBaseUrl}/${url}`;
+  };
 
   useEffect(() => {
-    if (user) {
+    if (user && token) {
       loadAddresses(user.id);
     } else {
       resetAddresses();
     }
-  }, [loadAddresses, resetAddresses, user]);
+  }, [loadAddresses, resetAddresses, user, token]);
 
   useEffect(() => {
     if (location.pathname === '/catalog') {
@@ -84,33 +105,48 @@ export const Layout = ({ children }: LayoutProps) => {
   }, [location.pathname, searchParams]);
 
   useEffect(() => {
-    if (!user) {
+    if (!user || !token) {
       setSellerProfile(null);
       return;
     }
-    let isMounted = true;
+
+    let cancelled = false;
+
     api
       .getSellerContext()
       .then((response) => {
-        if (isMounted) {
-          setSellerProfile(response.data);
-        }
+        if (!cancelled) setSellerProfile(response.data);
       })
-      .catch(() => {
-        if (isMounted) {
-          setSellerProfile({ isSeller: false, profile: null });
+      .catch((e: any) => {
+        if (cancelled) return;
+
+        // 401 = просто не авторизован, не надо паниковать
+        if (e?.status === 401) {
+          setSellerProfile(null);
+          return;
         }
+
+        // 429 = нас порезал лимитер, чтобы не повторять/не плодить запросы
+        if (e?.status === 429) {
+          setSellerProfile(null);
+          return;
+        }
+
+        setSellerProfile({ isSeller: false, profile: null });
       });
+
     return () => {
-      isMounted = false;
+      cancelled = true;
     };
-  }, [user]);
+  }, [user, token]);
 
   const categories = useMemo(() => {
     if (filterData.categories.length) {
       return filterData.categories;
     }
-    return Array.from(new Set(products.map((product) => product.category))).filter(Boolean);
+    return Array.from(
+      new Set(products.map((product) => product.category))
+    ).filter(Boolean);
   }, [filterData.categories, products]);
 
   const avatarText = useMemo(() => {
@@ -246,7 +282,8 @@ export const Layout = ({ children }: LayoutProps) => {
   };
 
   const activeCategory = searchParams.get('category') ?? '';
-  const showProductBoard = isCategoriesHidden && (isProductPage || isReviewPage) && productBoard;
+  const showProductBoard =
+    isCategoriesHidden && (isProductPage || isReviewPage) && productBoard;
   const ratingValue = productBoard?.ratingAvg ?? 0;
   const ratingCount = productBoard?.ratingCount ?? 0;
   const categoriesBarHeight = categoriesHeight || productBoardHeight;
@@ -256,7 +293,9 @@ export const Layout = ({ children }: LayoutProps) => {
     !location.pathname.startsWith('/auth') &&
     !location.pathname.startsWith('/privacy-policy');
   const isFavoritesActive = location.pathname === '/favorites';
-  const isProfile = location.pathname === '/account' && (searchParams.get('tab') === 'profile' || !searchParams.get('tab'));
+  const isProfile =
+    location.pathname === '/account' &&
+    (searchParams.get('tab') === 'profile' || !searchParams.get('tab'));
   const sellLink = isSeller ? '/seller' : '/seller/onboarding';
   const closeProfileMenu = () => setIsProfileMenuOpen(false);
 
@@ -284,13 +323,25 @@ export const Layout = ({ children }: LayoutProps) => {
             </button>
           </form>
           <div className={styles.actions}>
-            <Link to="/orders" className={styles.actionLink} aria-label="Заказы">
+            <Link
+              to="/orders"
+              className={styles.actionLink}
+              aria-label="Заказы"
+            >
               <span aria-hidden>🧾</span>
             </Link>
-            <Link to="/returns" className={styles.actionLink} aria-label="Возвраты">
+            <Link
+              to="/returns"
+              className={styles.actionLink}
+              aria-label="Возвраты"
+            >
               <span aria-hidden>↩️</span>
             </Link>
-            <Link to="/favorites" className={styles.actionLink} aria-label="Избранное">
+            <Link
+              to="/favorites"
+              className={styles.actionLink}
+              aria-label="Избранное"
+            >
               <span aria-hidden>❤</span>
             </Link>
             <Link to="/cart" className={styles.actionLink}>
@@ -354,7 +405,9 @@ export const Layout = ({ children }: LayoutProps) => {
         </div>
         <div
           className={`${styles.categoriesWrap} ${isCategoriesHidden ? styles.categoriesWrapHidden : ''}`}
-          style={{ maxHeight: `${isCategoriesHidden ? 0 : categoriesBarHeight}px` }}
+          style={{
+            maxHeight: `${isCategoriesHidden ? 0 : categoriesBarHeight}px`
+          }}
         >
           <div className={styles.categoriesBar}>
             <div className={styles.categoriesSurface}>
@@ -362,39 +415,47 @@ export const Layout = ({ children }: LayoutProps) => {
                 ref={categoriesRef}
                 className={`${styles.categoriesInner} ${isCategoriesHidden ? styles.categoriesInnerHidden : ''}`}
               >
-              <div className={styles.categoriesMeta}>
-                <div className={styles.categoriesTitle}>Категории</div>
-                <div className={styles.categoriesAddress}>
-                  <HeaderAddress variant="compact" />
+                <div className={styles.categoriesMeta}>
+                  <div className={styles.categoriesTitle}>Категории</div>
+                  <div className={styles.categoriesAddress}>
+                    <HeaderAddress variant="compact" />
+                  </div>
                 </div>
-              </div>
-              <button
-                type="button"
-                className={!activeCategory ? styles.categoryActive : styles.categoryButton}
-                onClick={() => handleCategorySelect('')}
-              >
-                Все категории
-              </button>
-              {categories.map((category) => (
                 <button
                   type="button"
-                  key={category}
-                  className={activeCategory === category ? styles.categoryActive : styles.categoryButton}
-                  onClick={() => handleCategorySelect(category)}
+                  className={
+                    !activeCategory
+                      ? styles.categoryActive
+                      : styles.categoryButton
+                  }
+                  onClick={() => handleCategorySelect('')}
                 >
-                  {category}
+                  Все категории
                 </button>
-              ))}
-              {isSeller ? (
-                <Link to="/seller" className={styles.sellCta}>
-                  Кабинет продавца
-                </Link>
-              ) : (
-                <Link to="/seller/onboarding" className={styles.sellCta}>
-                  Продавайте на PrintForm
-                </Link>
-              )}
-            </div>
+                {categories.map((category) => (
+                  <button
+                    type="button"
+                    key={category}
+                    className={
+                      activeCategory === category
+                        ? styles.categoryActive
+                        : styles.categoryButton
+                    }
+                    onClick={() => handleCategorySelect(category)}
+                  >
+                    {category}
+                  </button>
+                ))}
+                {isSeller ? (
+                  <Link to="/seller" className={styles.sellCta}>
+                    Кабинет продавца
+                  </Link>
+                ) : (
+                  <Link to="/seller/onboarding" className={styles.sellCta}>
+                    Продавайте на PrintForm
+                  </Link>
+                )}
+              </div>
               <div
                 ref={productBoardRef}
                 className={`${styles.productBoard} ${showProductBoard ? styles.productBoardVisible : ''}`}
@@ -402,11 +463,18 @@ export const Layout = ({ children }: LayoutProps) => {
                 {productBoard && (
                   <>
                     <div className={styles.productBoardInfo}>
-                      <img src={productBoard.image} alt={productBoard.title} />
+                      <img
+                        src={resolveImageUrl(productBoard.image)}
+                        alt={productBoard.title}
+                      />
                       <div>
                         <h4>{productBoard.title}</h4>
                         <div className={styles.productBoardRating}>
-                          <Rating value={ratingValue} count={ratingCount} size="sm" />
+                          <Rating
+                            value={ratingValue}
+                            count={ratingCount}
+                            size="sm"
+                          />
                           <span>{ratingValue.toFixed(1)}</span>
                           <span>{ratingCount} оценок</span>
                         </div>
@@ -513,41 +581,81 @@ export const Layout = ({ children }: LayoutProps) => {
           aria-modal="true"
           onClick={closeProfileMenu}
         >
-          <div className={styles.profileMenuPage} onClick={(event) => event.stopPropagation()}>
+          <div
+            className={styles.profileMenuPage}
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className={styles.profileMenuHeader}>
               <span>Меню</span>
-              <button type="button" className={styles.profileMenuClose} onClick={closeProfileMenu} aria-label="Закрыть меню">
+              <button
+                type="button"
+                className={styles.profileMenuClose}
+                onClick={closeProfileMenu}
+                aria-label="Закрыть меню"
+              >
                 ✕
               </button>
             </div>
             <nav className={styles.profileMenuList}>
-              <Link to="/orders" className={styles.profileMenuItem} onClick={closeProfileMenu}>
+              <Link
+                to="/orders"
+                className={styles.profileMenuItem}
+                onClick={closeProfileMenu}
+              >
                 Заказы
               </Link>
-              <Link to="/account?tab=purchases" className={styles.profileMenuItem} onClick={closeProfileMenu}>
+              <Link
+                to="/account?tab=purchases"
+                className={styles.profileMenuItem}
+                onClick={closeProfileMenu}
+              >
                 Купленный товар
               </Link>
-              <Link to="/returns" className={styles.profileMenuItem} onClick={closeProfileMenu}>
+              <Link
+                to="/returns"
+                className={styles.profileMenuItem}
+                onClick={closeProfileMenu}
+              >
                 Возвраты
               </Link>
-              <Link to="/favorites" className={styles.profileMenuItem} onClick={closeProfileMenu}>
+              <Link
+                to="/favorites"
+                className={styles.profileMenuItem}
+                onClick={closeProfileMenu}
+              >
                 Избранные
               </Link>
               <button
                 type="button"
                 className={`${styles.profileMenuItem} ${styles.profileMenuToggle}`}
-                onClick={() => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))}
+                onClick={() =>
+                  setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))
+                }
               >
                 <span>Тема оформления</span>
-                <span className={styles.profileMenuToggleValue}>{theme === 'light' ? 'Светлая' : 'Тёмная'}</span>
+                <span className={styles.profileMenuToggleValue}>
+                  {theme === 'light' ? 'Светлая' : 'Тёмная'}
+                </span>
               </button>
-              <Link to={sellLink} className={styles.profileMenuItem} onClick={closeProfileMenu}>
+              <Link
+                to={sellLink}
+                className={styles.profileMenuItem}
+                onClick={closeProfileMenu}
+              >
                 Продавайте на PrintForm
               </Link>
-              <Link to="/account?tab=chats" className={styles.profileMenuItem} onClick={closeProfileMenu}>
+              <Link
+                to="/account?tab=chats"
+                className={styles.profileMenuItem}
+                onClick={closeProfileMenu}
+              >
                 Чаты (наше с поддержкой и продавцом)
               </Link>
-              <Link to="/privacy-policy" className={styles.profileMenuItem} onClick={closeProfileMenu}>
+              <Link
+                to="/privacy-policy"
+                className={styles.profileMenuItem}
+                onClick={closeProfileMenu}
+              >
                 О сервисе
               </Link>
               <button
@@ -579,7 +687,9 @@ export const Layout = ({ children }: LayoutProps) => {
           }}
           onUpdate={updateAddress}
           onDelete={async (addressId) => {
-            const nextAddresses = addresses.filter((address) => address.id !== addressId);
+            const nextAddresses = addresses.filter(
+              (address) => address.id !== addressId
+            );
             await removeAddress(user.id, addressId);
             if (selectedAddressId === addressId) {
               const fallbackId = nextAddresses[0]?.id ?? '';

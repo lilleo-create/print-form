@@ -27,29 +27,45 @@ if (!fs.existsSync(uploadsDir)) {
 
 app.set("trust proxy", 1);
 app.disable("x-powered-by");
-app.use(helmet());
-app.use(globalLimiter);
 
 const allowedOrigins = [env.frontendUrl];
+
+const corsOptions: cors.CorsOptions = {
+  origin: (origin, callback) => {
+    // server-to-server / curl / same-origin can have no Origin
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+
+    return callback(new Error("CORS_NOT_ALLOWED"));
+  },
+  credentials: true,
+};
+
+// ✅ 1) CORS должен быть ПЕРВЫМ (до helmet и до limiter)
+app.use(cors(corsOptions));
+// ✅ 2) Явно отвечаем на preflight до любых ограничителей
+app.options("*", cors(corsOptions));
+
+// ✅ 3) Теперь можно security headers
 app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin) {
-        return callback(null, true);
-      }
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-      return callback(new Error("CORS_NOT_ALLOWED"));
-    },
-    credentials: true,
-  }),
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  })
 );
+
+// ✅ 4) Теперь можно rate-limit (а OPTIONS мы уже обработали выше)
+// (и в rateLimiters всё равно добавь skip OPTIONS, это полезно)
+app.use(globalLimiter);
+
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
+
+// ✅ uploads
 app.use("/uploads", express.static(uploadsDir));
 
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
+
 app.use("/auth", authRoutes);
 app.use("/products", productRoutes);
 app.use("/orders", orderRoutes);
