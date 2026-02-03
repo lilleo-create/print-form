@@ -17,11 +17,13 @@ const createLimiter = (options: { windowMs: number; max: number; skip?: (req: Re
       (options.skip ? options.skip(req) : false)
   });
 
+const isDev = process.env.NODE_ENV !== 'production';
 const globalMax = env.isProduction ? 200 : 1000;
 export const globalLimiter = createLimiter({
   windowMs: 5 * 60 * 1000,
   max: globalMax,
-  skip: isPublicProductRead
+  // Avoid 429s during dev navigation by disabling the global limiter in dev.
+  skip: (req) => (isDev ? true : isPublicProductRead(req))
 });
 export const authLimiter = createLimiter({ windowMs: 15 * 60 * 1000, max: 30 });
 export const otpRequestLimiter = createLimiter({
