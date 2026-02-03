@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useCartStore } from '../app/store/cartStore';
 import { useOrdersStore } from '../app/store/ordersStore';
 import { useAuthStore } from '../app/store/authStore';
@@ -34,6 +34,7 @@ export const CheckoutPage = () => {
   const loadAddresses = useAddressStore((state) => state.loadAddresses);
   const addAddress = useAddressStore((state) => state.addAddress);
   const selectAddress = useAddressStore((state) => state.selectAddress);
+  const { pathname } = useLocation();
   const navigate = useNavigate();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [saveToProfile, setSaveToProfile] = useState(false);
@@ -42,6 +43,9 @@ export const CheckoutPage = () => {
   const contactForm = useForm<ContactFormValues>({ resolver: zodResolver(contactSchema) });
 
   useEffect(() => {
+    if (pathname !== '/checkout') {
+      return;
+    }
     if (!user || !token) {
       setContacts([]);
       return;
@@ -71,18 +75,24 @@ export const CheckoutPage = () => {
         }
       });
     return () => controller.abort();
-  }, [contactForm, token, user]);
+  }, [contactForm, pathname, token, user]);
 
   useEffect(() => {
+    if (pathname !== '/checkout') {
+      return undefined;
+    }
     if (user && token) {
       const controller = new AbortController();
       loadAddresses(user.id, controller.signal);
       return () => controller.abort();
     }
     return undefined;
-  }, [loadAddresses, token, user]);
+  }, [loadAddresses, pathname, token, user]);
 
   useEffect(() => {
+    if (pathname !== '/checkout') {
+      return;
+    }
     if (!user || !token) {
       return;
     }
@@ -96,7 +106,7 @@ export const CheckoutPage = () => {
         await selectAddress(user.id, created.id);
       })();
     }
-  }, [addAddress, addresses.length, selectAddress, token, user]);
+  }, [addAddress, addresses.length, pathname, selectAddress, token, user]);
 
   const total = useMemo(
     () => items.reduce((sum, item) => sum + item.product.price * item.quantity, 0),

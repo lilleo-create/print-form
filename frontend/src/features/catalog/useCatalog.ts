@@ -13,7 +13,7 @@ export interface CatalogFilters {
   limit?: number;
 }
 
-export const useCatalog = (filters: CatalogFilters) => {
+export const useCatalog = (filters: CatalogFilters, enabled = true) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +44,9 @@ export const useCatalog = (filters: CatalogFilters) => {
   const requestFilters = useMemo(() => ({ ...filters }), [requestKey]);
 
   useEffect(() => {
+    if (!enabled) {
+      return undefined;
+    }
     let isMounted = true;
     const sharedKey = requestKey;
     // Reuse in-flight request for identical params to avoid duplicate fetches in StrictMode/fast navigation.
@@ -75,7 +78,7 @@ export const useCatalog = (filters: CatalogFilters) => {
       isMounted = false;
       releaseCatalogRequest(sharedKey);
     };
-  }, [requestFilters, requestKey]);
+  }, [enabled, requestFilters, requestKey]);
 
   return { products, loading, error };
 };

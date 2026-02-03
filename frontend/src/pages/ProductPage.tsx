@@ -8,7 +8,6 @@ import { useCartStore } from '../app/store/cartStore';
 import { useProductBoardStore } from '../app/store/productBoardStore';
 import { ProductCard } from '../widgets/shop/ProductCard';
 import styles from './ProductPage.module.css';
-
 const apiBaseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
 
 const formatDeliveryDate = (date?: string) => {
@@ -54,6 +53,7 @@ export const ProductPage = () => {
   const [feedHasMore, setFeedHasMore] = useState(true);
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const feedControllerRef = useRef<AbortController | null>(null);
 
   const feedControllerRef = useRef<AbortController | null>(null);
   const feedLoadingRef = useRef(false); // защита от спама observer
@@ -73,13 +73,11 @@ export const ProductPage = () => {
     return value as T;
   }, []);
 
-  // ===== Product
   useEffect(() => {
     if (!id) return;
 
     const controller = new AbortController();
     let isActive = true;
-
     setLoading(true);
     setError(null);
 
@@ -93,16 +91,15 @@ export const ProductPage = () => {
       })
       .catch((err) => {
         if (!isActive) return;
-        if (err instanceof Error && err.name === 'AbortError') return;
-
-        const status = (err as { status?: number })?.status;
-        if (status === 429) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          return;
+        }
+        if ((err as { status?: number })?.status === 429) {
           setError('Слишком много запросов. Пожалуйста, попробуйте позже.');
           return;
         }
-        if (status === 404) {
+        if ((err as { status?: number })?.status === 404) {
           setProduct(null);
-          return;
         }
         setError(err instanceof Error ? err.message : 'Не удалось загрузить товар.');
       })
@@ -131,7 +128,6 @@ export const ProductPage = () => {
 
     const controller = new AbortController();
     let isActive = true;
-
     api
       .getProductReviews(id, 1, 3, 'new', undefined, { signal: controller.signal })
       .then((response) => {
@@ -141,10 +137,13 @@ export const ProductPage = () => {
       })
       .catch((err) => {
         if (!isActive) return;
-        if (err instanceof Error && err.name === 'AbortError') return;
-
-        const status = (err as { status?: number })?.status;
-        if (status === 429) setError('Слишком много запросов. Пожалуйста, попробуйте позже.');
+        if (err instanceof Error && err.name === 'AbortError') {
+          return;
+        }
+        if ((err as { status?: number })?.status === 429) {
+          setError('Слишком много запросов. Пожалуйста, попробуйте позже.');
+          return;
+        }
         setReviews([]);
       });
 
@@ -152,19 +151,18 @@ export const ProductPage = () => {
       .getReviewSummary(id, undefined, { signal: controller.signal })
       .then((response) => {
         if (!isActive) return;
-        const raw = extractData<ReviewSummary | { data?: ReviewSummary } | null>(response);
-        const value =
-          raw && typeof raw === 'object' && 'data' in raw
-            ? ((raw as { data?: ReviewSummary }).data ?? null)
-            : (raw as ReviewSummary | null);
-        setSummary(value);
+        const raw = extractData<{ data?: typeof summary } | typeof summary>(response);
+        setSummary((raw as { data?: typeof summary })?.data ?? raw ?? null);
       })
       .catch((err) => {
         if (!isActive) return;
-        if (err instanceof Error && err.name === 'AbortError') return;
-
-        const status = (err as { status?: number })?.status;
-        if (status === 429) setError('Слишком много запросов. Пожалуйста, попробуйте позже.');
+        if (err instanceof Error && err.name === 'AbortError') {
+          return;
+        }
+        if ((err as { status?: number })?.status === 429) {
+          setError('Слишком много запросов. Пожалуйста, попробуйте позже.');
+          return;
+        }
         setSummary(null);
       });
 
@@ -172,34 +170,33 @@ export const ProductPage = () => {
       isActive = false;
       controller.abort();
     };
-  }, [extractData, id]);
-
-  // ===== Feed (ещё товары)
-  const setFeedLoadingSafe = (v: boolean) => {
-    feedLoadingRef.current = v;
-    setFeedLoading(v);
-  };
+  }, [id]);
 
   const loadFeed = useCallback(async () => {
-    if (!id) return;
-    if (feedLoadingRef.current || !feedHasMore) return;
+    if (feedLoading || !feedHasMore) return;
 
-    setFeedLoadingSafe(true);
-
-    feedControllerRef.current?.abort();
-    const controller = new AbortController();
-    feedControllerRef.current = controller;
-
+    setFeedLoading(true);
     try {
+      feedControllerRef.current?.abort();
+      const controller = new AbortController();
+      feedControllerRef.current = controller;
       const response = await api.getProducts(
-        { cursor: feedCursor ?? undefined, limit: 6, sort: 'createdAt', order: 'desc' },
+        {
+          cursor: feedCursor ?? undefined,
+          limit: 6,
+          sort: 'createdAt',
+          order: 'desc'
+        },
         { signal: controller.signal }
       );
-
-      if (feedControllerRef.current !== controller) return;
+      if (feedControllerRef.current !== controller) {
+        return;
+      }
 
       const raw = extractData<unknown>(response);
-      const items: Product[] = Array.isArray(raw) ? (raw as Product[]) : ((raw as { data?: Product[] })?.data ?? []);
+      const items = Array.isArray(raw)
+        ? (raw as Product[])
+        : ((raw as { data?: Product[] })?.data ?? []);
 
       setFeedProducts((prev) => {
         const ids = new Set(prev.map((x) => x.id));
@@ -217,11 +214,29 @@ export const ProductPage = () => {
       if (status === 429) {
         setError('Слишком много запросов. Пожалуйста, попробуйте позже.');
       }
+    } catch (e: unknown) {
+      if (feedControllerRef.current !== controller) {
+        return;
+      }
+      if (e instanceof Error && e.name === 'AbortError') {
+        return;
+      }
+      const status = (e as { status?: number })?.status;
+      // важно: чтобы не было бесконечной долбёжки при 429/500/сетевых ошибках
+      if (status === 429) {
+        setError('Слишком много запросов. Пожалуйста, попробуйте позже.');
+        setFeedHasMore(false);
+        return;
+      }
+
+      // на любое другое тоже стопаем, иначе будет "вечный пулемёт" запросов
       setFeedHasMore(false);
     } finally {
-      if (feedControllerRef.current === controller) setFeedLoadingSafe(false);
+      if (feedControllerRef.current === controller) {
+        setFeedLoading(false);
+      }
     }
-  }, [extractData, feedCursor, feedHasMore, id]);
+  }, [extractData, feedCursor, feedHasMore, feedLoading, id]);
 
   // reset feed on product change
   useEffect(() => {
@@ -229,9 +244,7 @@ export const ProductPage = () => {
     setFeedCursor(null);
     setFeedHasMore(true);
     feedControllerRef.current?.abort();
-    feedLoadingRef.current = false;
-    setFeedLoading(false);
-  }, [id]);
+  }, [extractData, id]);
 
   // initial feed load (один раз после reset)
   useEffect(() => {
@@ -264,6 +277,12 @@ export const ProductPage = () => {
     };
   }, []);
 
+  useEffect(() => {
+    return () => {
+      feedControllerRef.current?.abort();
+    };
+  }, []);
+
   const specs = useMemo(() => {
     if (!product) return [];
     const fallback = product.specs ?? [
@@ -277,8 +296,11 @@ export const ProductPage = () => {
     return [...fallback].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   }, [product]);
 
-  const variants: ProductVariant[] = product?.variants ?? [];
-  const safeReviews: Review[] = Array.isArray(reviews) ? reviews : [];
+  const variants = useMemo<ProductVariant[]>(() => product?.variants ?? [], [product?.variants]);
+  const safeReviews = useMemo<Review[]>(() => reviews ?? [], [reviews]);
+
+  const ratingCount = product?.ratingCount ?? summary?.total ?? 0;
+  const reviewsCount = summary?.total ?? 0;
 
   const reviewsCount = summary?.total ?? 0;
   const ratingCount = product?.ratingCount ?? reviewsCount;
@@ -360,7 +382,8 @@ export const ProductPage = () => {
                 {Number((product as any).price ?? 0).toLocaleString('ru-RU')} ₽
               </span>
               <span className={styles.delivery}>
-                Ближайшая дата доставки: {formatDeliveryDate(product.deliveryDateNearest)}
+                Ближайшая дата доставки:{' '}
+                {formatDeliveryDate(product.deliveryDateNearest)}
               </span>
             </div>
 
@@ -403,14 +426,16 @@ export const ProductPage = () => {
               </Button>
             </div>
 
-            <p className={styles.shortDescription}>{product.descriptionShort ?? (product as any).description}</p>
+            <p className={styles.shortDescription}>
+              {product.descriptionShort ?? product.description}
+            </p>
           </div>
         </div>
 
         <div className={styles.sections}>
           <div className={styles.description}>
             <h2>Описание</h2>
-            <p>{product.descriptionFull ?? (product as any).description}</p>
+            <p>{product.descriptionFull ?? product.description}</p>
           </div>
 
           <div className={styles.specs}>

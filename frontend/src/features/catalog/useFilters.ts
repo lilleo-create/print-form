@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../../shared/api';
 
-export const useFilters = () => {
+export const useFilters = (enabled = true) => {
   const [filters, setFilters] = useState({ categories: [] as string[], materials: [] as string[], sizes: [] as string[] });
   const isMountedRef = useRef(true);
 
   useEffect(() => {
+    if (!enabled) {
+      return undefined;
+    }
     isMountedRef.current = true;
     // Share a single request across mounts to avoid duplicate fetches in StrictMode.
     const entry = getFiltersRequest();
@@ -30,7 +33,7 @@ export const useFilters = () => {
       isMountedRef.current = false;
       releaseFiltersRequest();
     };
-  }, []);
+  }, [enabled]);
 
   return filters;
 };

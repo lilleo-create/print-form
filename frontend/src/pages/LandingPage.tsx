@@ -1,22 +1,11 @@
 import { Link } from 'react-router-dom';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api } from '../shared/api';
-import { Product } from '../shared/types';
-import { ProductCard } from '../widgets/shop/ProductCard';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '../shared/ui/Button';
 import { CustomPrintForm } from '../widgets/shop/CustomPrintForm';
 import styles from './LandingPage.module.css';
 
 export const LandingPage = () => {
   const [activeSlide, setActiveSlide] = useState(0);
-
-  const [feedProducts, setFeedProducts] = useState<Product[]>([]);
-  const [feedCursor, setFeedCursor] = useState<string | null>(null);
-  const [feedLoading, setFeedLoading] = useState(false);
-  const [feedHasMore, setFeedHasMore] = useState(true);
-  const [feedError, setFeedError] = useState<string | null>(null);
-
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   // Guard против параллельных запросов (state в замыканиях не спасает)
   const loadingRef = useRef(false);
@@ -49,96 +38,12 @@ export const LandingPage = () => {
     []
   );
 
-  const safeSetLoading = (v: boolean) => {
-    loadingRef.current = v;
-    setFeedLoading(v);
-  };
-
-  const loadFeed = useCallback(async () => {
-    if (loadingRef.current || !feedHasMore) return;
-
-    setFeedError(null);
-    safeSetLoading(true);
-
-    // отменяем прошлый запрос
-    controllerRef.current?.abort();
-    const controller = new AbortController();
-    controllerRef.current = controller;
-
-    try {
-      const response = await api.getProducts(
-        { cursor: feedCursor ?? undefined, limit: 8, sort: 'createdAt', order: 'desc' },
-        { signal: controller.signal }
-      );
-
-      // если уже стартанул новый запрос - игнорим этот
-      if (controllerRef.current !== controller) return;
-
-      const items: Product[] = Array.isArray(response.data) ? response.data : [];
-
-      setFeedProducts((prev) => {
-        const ids = new Set(prev.map((p) => p.id));
-        const next = items.filter((p) => !ids.has(p.id));
-        return [...prev, ...next];
-      });
-
-      setFeedHasMore(items.length > 0);
-      setFeedCursor(items.length ? items[items.length - 1]?.id ?? null : null);
-    } catch (e: unknown) {
-      if (controllerRef.current !== controller) return;
-      if (e instanceof Error && e.name === 'AbortError') return;
-
-      const status = (e as { status?: number })?.status;
-      if (status === 429) {
-        setFeedError('Слишком много запросов. Пожалуйста, попробуйте позже.');
-        setFeedHasMore(false);
-      } else {
-        setFeedError('Не удалось загрузить каталог. Попробуйте позже.');
-        setFeedHasMore(false);
-      }
-    } finally {
-      if (controllerRef.current === controller) safeSetLoading(false);
-    }
-  }, [feedCursor, feedHasMore]);
-
-  // слайдер
   useEffect(() => {
     const timer = setInterval(() => {
       setActiveSlide((prev) => (prev + 1) % slides.length);
     }, 6000);
     return () => clearInterval(timer);
   }, [slides.length]);
-
-  // первичная загрузка фида (1 раз)
-  useEffect(() => {
-    loadFeed();
-  }, [loadFeed]);
-
-  // infinite scroll
-  useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el || !feedHasMore) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const first = entries[0];
-        if (!first?.isIntersecting) return;
-        if (loadingRef.current) return; // жёсткая защита
-        loadFeed();
-      },
-      { rootMargin: '200px' }
-    );
-
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [feedHasMore, loadFeed]);
-
-  // cleanup abort
-  useEffect(() => {
-    return () => {
-      controllerRef.current?.abort();
-    };
-  }, []);
 
   return (
     <div className={styles.page}>
@@ -225,18 +130,7 @@ export const LandingPage = () => {
             Весь каталог →
           </Link>
         </div>
-
-        {feedError ? <p className={styles.feedLoading}>{feedError}</p> : null}
-
-        <div className={styles.grid}>
-          {feedProducts.map((product) => (
-            <ProductCard product={product} key={product.id} />
-          ))}
-        </div>
-
-        {feedLoading && <p className={styles.feedLoading}>Загрузка...</p>}
-
-        <div ref={sentinelRef} />
+        <div className={styles.grid} />
       </section>
 
       <section className={`${styles.customSection} container`} id="custom">

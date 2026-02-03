@@ -105,38 +105,36 @@ export const Layout = ({ children }: LayoutProps) => {
   }, [location.pathname, searchParams]);
 
   useEffect(() => {
-  if (!user) {
-    setSellerProfile(null);
-    return;
-  }
+    if (!token) {
+      setSellerProfile(null);
+      return;
+    }
+    let isActive = true;
+    const controller = new AbortController();
+    api
+      .getSellerContext(controller.signal)
+      .then((response) => {
+        if (!isActive) return;
+        setSellerProfile(response.data);
+      })
+      .catch((e: unknown) => {
+        if (!isActive) return;
+        if (e instanceof Error && e.name === 'AbortError') {
+          return;
+        }
+        const status = (e as { status?: number })?.status;
+        if (status === 401 || status === 429) {
+          setSellerProfile(null);
+          return;
+        }
+        setSellerProfile({ isSeller: false, profile: null });
+      });
 
-  let isActive = true;
-  const controller = new AbortController();
-
-  api
-    .getSellerContext(controller.signal)
-    .then((response) => {
-      if (!isActive) return;
-      setSellerProfile(response.data);
-    })
-    .catch((e: unknown) => {
-      if (!isActive) return;
-      if (e instanceof Error && e.name === 'AbortError') return;
-
-      const status = (e as { status?: number })?.status;
-      if (status === 401 || status === 429) {
-        setSellerProfile(null);
-        return;
-      }
-      setSellerProfile({ isSeller: false, profile: null });
-    });
-
-  return () => {
-    isActive = false;
-    controller.abort();
-  };
-}, [user]);
-
+    return () => {
+      isActive = false;
+      controller.abort();
+    };
+  }, [token]);
 
   const avatarText = useMemo(() => {
     const source = user?.name ?? user?.email ?? 'Пользователь';

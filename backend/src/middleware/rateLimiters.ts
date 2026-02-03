@@ -22,8 +22,7 @@ const globalMax = env.isProduction ? 200 : 1000;
 export const globalLimiter = createLimiter({
   windowMs: 5 * 60 * 1000,
   max: globalMax,
-  // Avoid 429s during dev navigation by disabling the global limiter in dev.
-  skip: (req) => (isDev ? true : isPublicProductRead(req))
+  skip: isPublicProductRead
 });
 export const authLimiter = createLimiter({ windowMs: 15 * 60 * 1000, max: 30 });
 export const otpRequestLimiter = createLimiter({
