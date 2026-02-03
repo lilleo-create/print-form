@@ -33,6 +33,7 @@ export const Layout = ({ children }: LayoutProps) => {
   const cartItems = useCartStore((state) => state.items);
   const addItem = useCartStore((state) => state.addItem);
   const { user, logout } = useAuthStore();
+  const setUser = useAuthStore((state) => state.setUser);
   const token = useAuthStore((state) => state.token);
   const addresses = useAddressStore((state) => state.addresses);
   const selectedAddressId = useAddressStore((state) => state.selectedAddressId);
@@ -78,6 +79,8 @@ export const Layout = ({ children }: LayoutProps) => {
   const categoriesRef = useRef<HTMLDivElement | null>(null);
   const productBoardRef = useRef<HTMLDivElement | null>(null);
   const scrollStateRef = useRef({ lastY: 0, acc: 0, ticking: false });
+  const lastTokenRef = useRef<string | null>(token);
+  const hasFetchedMeRef = useRef(false);
   const apiBaseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
   const resolveImageUrl = (url?: string | null) => {
     if (!url) return '';
@@ -95,6 +98,60 @@ export const Layout = ({ children }: LayoutProps) => {
       resetAddresses();
     }
   }, [loadAddresses, resetAddresses, token, user]);
+
+  useEffect(() => {
+    if (lastTokenRef.current !== token) {
+      lastTokenRef.current = token;
+      hasFetchedMeRef.current = false;
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (!token || hasFetchedMeRef.current) return;
+    const hasRequiredUserFields =
+      Boolean(user?.id) && Boolean(user?.role) && Boolean(user?.phone) && Boolean(user?.email);
+    if (hasRequiredUserFields) return;
+    hasFetchedMeRef.current = true;
+    let isActive = true;
+    api
+      .me()
+      .then((response) => {
+        if (!isActive) return;
+        const data = response.data as {
+          id: string;
+          name: string;
+          role: string;
+          email: string;
+          phone?: string | null;
+          address?: string | null;
+        };
+        const nextRole = (data.role ?? user?.role ?? 'buyer').toLowerCase();
+        const role = nextRole === 'admin' ? 'admin' : nextRole === 'seller' ? 'seller' : 'buyer';
+        const fallbackUser = user ?? {
+          id: '',
+          name: '',
+          email: '',
+          role,
+          phone: null,
+          address: null
+        };
+        setUser({
+          ...fallbackUser,
+          ...data,
+          role,
+          email: data.email ?? fallbackUser.email,
+          phone: data.phone ?? fallbackUser.phone ?? null,
+          address: data.address ?? fallbackUser.address ?? null
+        });
+      })
+      .catch(() => {
+        // Keep hasFetchedMeRef true to avoid repeated refetches on route changes.
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [setUser, token, user]);
 
   useEffect(() => {
     if (location.pathname === '/catalog') {
