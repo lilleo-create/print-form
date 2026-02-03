@@ -32,12 +32,13 @@ const normalizeUploadUrl = (u: string) => {
 };
 
 const authHeaders = () => {
-  const session = loadFromStorage<{ token: string } | null>(STORAGE_KEYS.session, null);
-  return session?.token ? { Authorization: `Bearer ${session.token}` } : undefined;
+  const token = loadFromStorage<string | null>(STORAGE_KEYS.accessToken, null);
+  return token ? { Authorization: `Bearer ${token}` } : undefined;
 };
 
 export const api = {
-  async getProducts(filters?: {
+  async getProducts(
+    filters?: {
     category?: string;
     material?: string;
     price?: string;
@@ -48,7 +49,9 @@ export const api = {
     limit?: number;
     cursor?: string;
     signal?: AbortSignal;
-  }) {
+    },
+    opts?: { signal?: AbortSignal }
+  ) {
     const params = new URLSearchParams();
     if (filters?.category) params.set('category', filters.category);
     if (filters?.material) params.set('material', filters.material);
@@ -64,11 +67,12 @@ export const api = {
     if (filters?.limit) params.set('limit', String(filters.limit));
 
     const query = params.toString();
-    return apiClient.request<Product[]>(`/products${query ? `?${query}` : ''}`, { signal: filters?.signal });
+    const signal = opts?.signal ?? filters?.signal;
+    return apiClient.request<Product[]>(`/products${query ? `?${query}` : ''}`, { signal });
   },
 
-  async getProduct(id: string) {
-    return apiClient.request<Product>(`/products/${id}`);
+  async getProduct(id: string, opts?: { signal?: AbortSignal }) {
+    return apiClient.request<Product>(`/products/${id}`, { signal: opts?.signal });
   },
 
   async getProductReviews(
@@ -76,7 +80,8 @@ export const api = {
     page = 1,
     limit = 5,
     sort: 'helpful' | 'high' | 'low' | 'new' = 'new',
-    productIds?: string[]
+    productIds?: string[],
+    opts?: { signal?: AbortSignal }
   ) {
     const params = new URLSearchParams({
       page: String(page),
@@ -87,7 +92,8 @@ export const api = {
       params.set('productIds', productIds.join(','));
     }
     return apiClient.request<{ data: Review[]; meta: { total: number } }>(
-      `/products/${id}/reviews?${params.toString()}`
+      `/products/${id}/reviews?${params.toString()}`,
+      { signal: opts?.signal }
     );
   },
 
@@ -98,7 +104,7 @@ export const api = {
     return apiClient.request<Review>(`/products/${id}/reviews`, { method: 'POST', body: payload });
   },
 
-  async getReviewSummary(id: string, productIds?: string[]) {
+  async getReviewSummary(id: string, productIds?: string[], opts?: { signal?: AbortSignal }) {
     const params = new URLSearchParams();
     if (productIds && productIds.length > 0) {
       params.set('productIds', productIds.join(','));
@@ -106,10 +112,11 @@ export const api = {
     const qs = params.toString();
     return apiClient.request<{
       data: { total: number; avg: number; counts: { rating: number; count: number }[]; photos: string[] };
-    }>(`/products/${id}/reviews/summary${qs ? `?${qs}` : ''}`);
+    }>(`/products/${id}/reviews/summary${qs ? `?${qs}` : ''}`, { signal: opts?.signal });
   },
 
-  async getFilters(signal?: AbortSignal) {
+  async getFilters(opts?: { signal?: AbortSignal } | AbortSignal) {
+    const signal = opts instanceof AbortSignal ? opts : opts?.signal;
     const categoriesResponse = await apiClient.request<{ id: string; slug: string; title: string }[]>(
       '/filters/reference-categories',
       { signal }

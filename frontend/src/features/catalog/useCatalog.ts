@@ -13,7 +13,7 @@ export interface CatalogFilters {
   limit?: number;
 }
 
-export const useCatalog = (filters: CatalogFilters) => {
+export const useCatalog = (filters: CatalogFilters, enabled = true) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +44,9 @@ export const useCatalog = (filters: CatalogFilters) => {
   const requestFilters = useMemo(() => ({ ...filters }), [requestKey]);
 
   useEffect(() => {
+    if (!enabled) {
+      return undefined;
+    }
     let isMounted = true;
     const sharedKey = requestKey;
     // Reuse in-flight request for identical params to avoid duplicate fetches in StrictMode/fast navigation.
@@ -61,6 +64,10 @@ export const useCatalog = (filters: CatalogFilters) => {
         if (err instanceof Error && err.name === 'AbortError') {
           return;
         }
+        if ((err as { status?: number })?.status === 429) {
+          setError('Слишком много запросов. Пожалуйста, попробуйте позже.');
+          return;
+        }
         setError(err instanceof Error ? err.message : 'Ошибка загрузки');
       })
       .finally(() => {
@@ -71,7 +78,7 @@ export const useCatalog = (filters: CatalogFilters) => {
       isMounted = false;
       releaseCatalogRequest(sharedKey);
     };
-  }, [requestFilters, requestKey]);
+  }, [enabled, requestFilters, requestKey]);
 
   return { products, loading, error };
 };
@@ -95,7 +102,7 @@ const getCatalogRequest = (key: string, filters: CatalogFilters) => {
     return existing;
   }
   const controller = new AbortController();
-  const promise = api.getProducts({ ...filters, signal: controller.signal }).then((response) => response.data);
+  const promise = api.getProducts({ ...filters }, { signal: controller.signal }).then((response) => response.data);
   const entry: CatalogEntry = { controller, promise, subscribers: 0 };
   catalogRequests.set(key, entry);
   promise.finally(() => {

@@ -1,19 +1,11 @@
 import { Link } from 'react-router-dom';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api } from '../shared/api';
-import { Product } from '../shared/types';
-import { ProductCard } from '../widgets/shop/ProductCard';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '../shared/ui/Button';
 import { CustomPrintForm } from '../widgets/shop/CustomPrintForm';
 import styles from './LandingPage.module.css';
 
 export const LandingPage = () => {
   const [activeSlide, setActiveSlide] = useState(0);
-  const [feedProducts, setFeedProducts] = useState<Product[]>([]);
-  const [feedCursor, setFeedCursor] = useState<string | null>(null);
-  const [feedLoading, setFeedLoading] = useState(false);
-  const [feedHasMore, setFeedHasMore] = useState(true);
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const slides = useMemo(
     () => [
@@ -42,47 +34,12 @@ export const LandingPage = () => {
     []
   );
 
-  const loadFeed = useCallback(async () => {
-    if (feedLoading || !feedHasMore) return;
-    setFeedLoading(true);
-    const response = await api.getProducts({ cursor: feedCursor ?? undefined, limit: 8, sort: 'createdAt' });
-    setFeedProducts((prev) => {
-      const ids = new Set(prev.map((item) => item.id));
-      const nextItems = response.data.filter((item) => !ids.has(item.id));
-      return [...prev, ...nextItems];
-    });
-    setFeedHasMore(response.data.length > 0);
-    const last = response.data[response.data.length - 1];
-    setFeedCursor(last?.id ?? null);
-    setFeedLoading(false);
-  }, [feedCursor, feedHasMore, feedLoading]);
-
   useEffect(() => {
     const timer = setInterval(() => {
       setActiveSlide((prev) => (prev + 1) % slides.length);
     }, 6000);
     return () => clearInterval(timer);
   }, [slides.length]);
-
-  useEffect(() => {
-    loadFeed();
-  }, [loadFeed]);
-
-  useEffect(() => {
-    if (!sentinelRef.current || !feedHasMore) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            loadFeed();
-          }
-        });
-      },
-      { rootMargin: '200px' }
-    );
-    observer.observe(sentinelRef.current);
-    return () => observer.disconnect();
-  }, [feedHasMore, loadFeed]);
 
   return (
     <div className={styles.page}>
@@ -170,13 +127,7 @@ export const LandingPage = () => {
             Весь каталог →
           </Link>
         </div>
-        <div className={styles.grid}>
-          {feedProducts.map((product) => (
-            <ProductCard product={product} key={product.id} />
-          ))}
-        </div>
-        {feedLoading && <p className={styles.feedLoading}>Загрузка...</p>}
-        <div ref={sentinelRef} />
+        <div className={styles.grid} />
       </section>
 
       <section className={`${styles.customSection} container`} id="custom">

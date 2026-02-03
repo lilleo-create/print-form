@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../../shared/api';
 
-export const useFilters = () => {
+export const useFilters = (enabled = true) => {
   const [filters, setFilters] = useState({ categories: [] as string[], materials: [] as string[], sizes: [] as string[] });
   const isMountedRef = useRef(true);
 
   useEffect(() => {
+    if (!enabled) {
+      return undefined;
+    }
     isMountedRef.current = true;
     // Share a single request across mounts to avoid duplicate fetches in StrictMode.
     const entry = getFiltersRequest();
@@ -20,6 +23,9 @@ export const useFilters = () => {
         if (error instanceof Error && error.name === 'AbortError') {
           return;
         }
+        if ((error as { status?: number })?.status === 429) {
+          return;
+        }
         setFilters({ categories: [], materials: [], sizes: [] });
       });
 
@@ -27,7 +33,7 @@ export const useFilters = () => {
       isMountedRef.current = false;
       releaseFiltersRequest();
     };
-  }, []);
+  }, [enabled]);
 
   return filters;
 };
@@ -50,7 +56,7 @@ const getFiltersRequest = () => {
     return filtersRequest;
   }
   const controller = new AbortController();
-  const promise = api.getFilters(controller.signal).then((response) => response.data);
+  const promise = api.getFilters({ signal: controller.signal }).then((response) => response.data);
   filtersRequest = { controller, promise, subscribers: 0 };
   promise.finally(() => {
     if (filtersRequest?.promise === promise) {
