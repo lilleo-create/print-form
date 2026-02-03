@@ -13,6 +13,10 @@ export interface CatalogFilters {
   limit?: number;
 }
 
+let inFlightKey: string | null = null;
+let inFlightController: AbortController | null = null;
+let inFlightPromise: Promise<Product[]> | null = null;
+
 export const useCatalog = (filters: CatalogFilters) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -21,13 +25,15 @@ export const useCatalog = (filters: CatalogFilters) => {
   const requestKey = useMemo(
     () =>
       JSON.stringify({
-        category: filters.category ?? '',
-        material: filters.material ?? '',
-        price: filters.price ?? '',
-        size: filters.size ?? '',
-        sort: filters.sort ?? '',
-        order: filters.order ?? '',
+        filters: {
+          category: filters.category ?? '',
+          material: filters.material ?? '',
+          price: filters.price ?? '',
+          size: filters.size ?? '',
+          order: filters.order ?? ''
+        },
         page: filters.page ?? '',
+        sort: filters.sort ?? '',
         limit: filters.limit ?? ''
       }),
     [
@@ -35,8 +41,8 @@ export const useCatalog = (filters: CatalogFilters) => {
       filters.material,
       filters.price,
       filters.size,
-      filters.sort,
       filters.order,
+      filters.sort,
       filters.page,
       filters.limit
     ]
@@ -45,19 +51,34 @@ export const useCatalog = (filters: CatalogFilters) => {
 
   useEffect(() => {
     let isMounted = true;
-    const sharedKey = requestKey;
-    // Reuse in-flight request for identical params to avoid duplicate fetches in StrictMode/fast navigation.
-    const entry = getCatalogRequest(sharedKey, requestFilters);
-    entry.subscribers += 1;
+    const currentKey = requestKey;
+    if (inFlightKey !== currentKey || !inFlightPromise) {
+      if (inFlightController) {
+        inFlightController.abort();
+      }
+      inFlightController = new AbortController();
+      inFlightKey = currentKey;
+      inFlightPromise = api
+        .getProducts({ ...requestFilters }, { signal: inFlightController.signal })
+        .then((response) => response.data);
+    }
+    const activePromise = inFlightPromise;
+    if (!activePromise) {
+      return () => {
+        isMounted = false;
+      };
+    }
     setLoading(true);
-    entry.promise
+    activePromise
       .then((data) => {
         if (!isMounted) return;
+        if (inFlightKey !== currentKey) return;
         setProducts(data);
         setError(null);
       })
       .catch((err) => {
         if (!isMounted) return;
+        if (inFlightKey !== currentKey) return;
         if (err instanceof Error && err.name === 'AbortError') {
           return;
         }
@@ -69,57 +90,15 @@ export const useCatalog = (filters: CatalogFilters) => {
       })
       .finally(() => {
         if (!isMounted) return;
+        if (inFlightKey !== currentKey) return;
+        inFlightPromise = null;
+        inFlightController = null;
         setLoading(false);
       });
     return () => {
       isMounted = false;
-      releaseCatalogRequest(sharedKey);
     };
   }, [requestFilters, requestKey]);
 
   return { products, loading, error };
-};
-
-type CatalogEntry = {
-  controller: AbortController;
-  promise: Promise<Product[]>;
-  subscribers: number;
-  abortTimeout?: ReturnType<typeof setTimeout>;
-};
-
-const catalogRequests = new Map<string, CatalogEntry>();
-
-const getCatalogRequest = (key: string, filters: CatalogFilters) => {
-  const existing = catalogRequests.get(key);
-  if (existing) {
-    if (existing.abortTimeout) {
-      clearTimeout(existing.abortTimeout);
-      existing.abortTimeout = undefined;
-    }
-    return existing;
-  }
-  const controller = new AbortController();
-  const promise = api.getProducts({ ...filters }, { signal: controller.signal }).then((response) => response.data);
-  const entry: CatalogEntry = { controller, promise, subscribers: 0 };
-  catalogRequests.set(key, entry);
-  promise.finally(() => {
-    const current = catalogRequests.get(key);
-    if (current === entry) {
-      catalogRequests.delete(key);
-    }
-  });
-  return entry;
-};
-
-const releaseCatalogRequest = (key: string) => {
-  const entry = catalogRequests.get(key);
-  if (!entry) return;
-  entry.subscribers -= 1;
-  if (entry.subscribers <= 0) {
-    // Delay abort slightly so StrictMode remounts can reuse the same request without spam.
-    entry.abortTimeout = setTimeout(() => {
-      entry.controller.abort();
-      catalogRequests.delete(key);
-    }, 0);
-  }
 };
