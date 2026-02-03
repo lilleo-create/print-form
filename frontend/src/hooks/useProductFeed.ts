@@ -1,68 +1,48 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { RefObject } from 'react';
-import { api } from '../shared/api';
+// frontend/src/hooks/useProductFeed.ts
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Product } from '../shared/types';
-import type { LoadStatus } from './useProduct';
+import { api } from '../shared/api';
+import { ApiError } from '../shared/api/client';
 
-export type UseProductFeedOptions = {
-  productId: string;
-  limit?: number;
-  sort?: 'createdAt' | 'rating';
-  order?: 'asc' | 'desc';
-  rootMargin?: string;
-};
+type Status = 'idle' | 'loading' | 'success' | 'error';
 
-type UseProductFeedResult = {
-  items: Product[];
-  status: LoadStatus;
-  error: string | null;
-  hasMore: boolean;
-  sentinelRef: RefObject<HTMLDivElement>;
-  loadMore: () => void;
-};
+type Args = { productId: string };
 
-const extractData = <T,>(value: unknown): T => {
-  if (value && typeof value === 'object' && 'data' in value) {
-    return (value as { data: T }).data;
-  }
-  return value as T;
-};
+const feedCache = new Map<string, { ts: number; items: Product[] }>();
+const TTL = 30_000;
 
-export const useProductFeed = ({
-  productId,
-  limit = 6,
-  sort = 'createdAt',
-  order = 'desc',
-  rootMargin = '200px'
-}: UseProductFeedOptions): UseProductFeedResult => {
-  const [items, setItems] = useState<Product[]>([]);
-  const [status, setStatus] = useState<LoadStatus>('idle');
-  const [error, setError] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(true);
-  const [cursor, setCursor] = useState<string | null>(null);
+export function useProductFeed({ productId }: Args) {
+  const [items, setItems] = useState<Product[]>(() => feedCache.get(productId)?.items ?? []);
+  const [status, setStatus] = useState<Status>(items.length ? 'success' : 'idle');
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
-  const controllerRef = useRef<AbortController | null>(null);
-  const requestIdRef = useRef(0);
+  const cursorRef = useRef<string | null>(null);
+  const hasMoreRef = useRef(true);
   const loadingRef = useRef(false);
-  const stopRef = useRef(false);
-  const lastLoadAtRef = useRef(0);
+  const cooldownUntilRef = useRef(0);
+  const controllerRef = useRef<AbortController | null>(null);
 
-  const resetFeed = useCallback(() => {
-    setItems([]);
-    setCursor(null);
-    setHasMore(true);
-    setError(null);
-    setStatus('idle');
-    stopRef.current = false;
-  }, []);
+  // reset when product changes
+  useEffect(() => {
+    controllerRef.current?.abort();
+    cursorRef.current = null;
+    hasMoreRef.current = true;
+    loadingRef.current = false;
 
-  const loadMore = useCallback(() => {
-    if (loadingRef.current || stopRef.current || !hasMore) return;
+    const cached = feedCache.get(productId);
+    if (cached && Date.now() - cached.ts < TTL) {
+      setItems(cached.items);
+      setStatus('success');
+    } else {
+      setItems([]);
+      setStatus('idle');
+    }
+  }, [productId]);
 
-    const now = Date.now();
-    if (now - lastLoadAtRef.current < 300) return;
-    lastLoadAtRef.current = now;
+  const loadMore = useCallback(async () => {
+    if (loadingRef.current) return;
+    if (!hasMoreRef.current) return;
+    if (Date.now() < cooldownUntilRef.current) return;
 
     loadingRef.current = true;
     setStatus('loading');
@@ -71,99 +51,69 @@ export const useProductFeed = ({
     const controller = new AbortController();
     controllerRef.current = controller;
 
-    const requestId = ++requestIdRef.current;
-
-    api
-      .getProducts(
+    try {
+      const res: any = await api.getProducts(
         {
-          cursor: cursor ?? undefined,
-          limit,
-          sort,
-          order
+          cursor: cursorRef.current ?? undefined,
+          limit: 6,
+          sort: 'createdAt',
+          order: 'desc'
         },
         { signal: controller.signal }
-      )
-      .then((response) => {
-        if (requestIdRef.current !== requestId) return;
+      );
 
-        const raw = extractData<unknown>(response);
-        const nextItems = Array.isArray(raw)
-          ? (raw as Product[])
-          : ((raw as { data?: Product[] })?.data ?? []);
+      const raw = res?.data ?? res;
+      const fetched: Product[] = Array.isArray(raw) ? raw : (raw?.data ?? []);
 
-        setItems((prev) => {
-          const existing = new Set(prev.map((item) => item.id));
-          const filtered = nextItems.filter((item) => item.id !== productId && !existing.has(item.id));
-          return [...prev, ...filtered];
-        });
+      const next = fetched.filter((p) => p.id !== productId);
 
-        setHasMore(nextItems.length > 0);
-        if (nextItems.length === 0) {
-          stopRef.current = true;
-        }
-        setCursor(nextItems.length ? nextItems[nextItems.length - 1]?.id ?? null : null);
-        setStatus('success');
-      })
-      .catch((err: unknown) => {
-        if (requestIdRef.current !== requestId) return;
-        if ((err as { name?: string })?.name === 'AbortError') return;
-
-        const statusCode = (err as { status?: number })?.status;
-        if (statusCode === 429) {
-          stopRef.current = true;
-          setHasMore(false);
-        }
-        setError(err instanceof Error ? err.message : 'Не удалось загрузить товары.');
-        setStatus('error');
-      })
-      .finally(() => {
-        if (requestIdRef.current !== requestId) return;
-        loadingRef.current = false;
+      setItems((prev) => {
+        const ids = new Set(prev.map((x) => x.id));
+        const merged = [...prev, ...next.filter((x) => !ids.has(x.id))];
+        feedCache.set(productId, { ts: Date.now(), items: merged });
+        return merged;
       });
-  }, [cursor, hasMore, limit, order, productId, sort]);
 
+      hasMoreRef.current = fetched.length > 0;
+      cursorRef.current = fetched.length ? fetched[fetched.length - 1]?.id ?? null : null;
+
+      setStatus('success');
+    } catch (e: any) {
+      if (e?.name === 'AbortError') return;
+
+      const statusCode = e?.status ?? (e instanceof ApiError ? e.status : undefined);
+      if (statusCode === 429) {
+        cooldownUntilRef.current = Date.now() + 5000;
+        hasMoreRef.current = false;
+        setStatus('success');
+        return;
+      }
+
+      hasMoreRef.current = false;
+      setStatus('error');
+    } finally {
+      loadingRef.current = false;
+    }
+  }, [productId]);
+
+  // observer: грузим только когда пользователь реально долистал
   useEffect(() => {
-    resetFeed();
-  }, [productId, resetFeed]);
+    const el = sentinelRef.current;
+    if (!el) return;
 
-  useEffect(() => {
-    if (status !== 'idle') return;
-    if (!hasMore || stopRef.current) return;
-    loadMore();
-  }, [hasMore, loadMore, status]);
-
-  useEffect(() => {
-    if (!sentinelRef.current) return;
-    if (!hasMore || stopRef.current) return;
-
-    const observer = new IntersectionObserver(
+    const obs = new IntersectionObserver(
       (entries) => {
-        const first = entries[0];
-        if (!first?.isIntersecting) return;
+        if (!entries[0]?.isIntersecting) return;
         loadMore();
       },
-      { rootMargin }
+      { rootMargin: '400px' }
     );
 
-    observer.observe(sentinelRef.current);
-    return () => observer.disconnect();
-  }, [hasMore, loadMore, rootMargin]);
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [loadMore]);
 
-  useEffect(() => {
-    return () => {
-      controllerRef.current?.abort();
-    };
-  }, []);
+  useEffect(() => () => controllerRef.current?.abort(), []);
 
-  return useMemo(
-    () => ({
-      items,
-      status,
-      error,
-      hasMore,
-      sentinelRef,
-      loadMore
-    }),
-    [items, status, error, hasMore, loadMore]
-  );
-};
+  return { items, status, sentinelRef };
+}

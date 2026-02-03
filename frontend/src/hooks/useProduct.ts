@@ -1,78 +1,81 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { api } from '../shared/api';
+// frontend/src/hooks/useProduct.ts
+import { useEffect, useRef, useState } from 'react';
 import type { Product } from '../shared/types';
+import { api } from '../shared/api';
+import { ApiError } from '../shared/api/client'; // путь подстрой
 
-export type LoadStatus = 'idle' | 'loading' | 'success' | 'error';
+type Status = 'idle' | 'loading' | 'success' | 'error';
 
-type UseProductOptions = {
+type Options = {
   keepPreviousData?: boolean;
+  ttlMs?: number;
 };
 
-type UseProductResult = {
-  data: Product | null;
-  status: LoadStatus;
-  error: string | null;
-  refresh: () => void;
-};
+const productCache = new Map<string, { ts: number; data: Product | null }>();
 
-const extractData = <T,>(value: unknown): T => {
-  if (value && typeof value === 'object' && 'data' in value) {
-    return (value as { data: T }).data;
-  }
-  return value as T;
-};
+export function useProduct(productId: string, opts?: Options) {
+  const ttlMs = opts?.ttlMs ?? 30_000;
 
-export const useProduct = (productId: string, options: UseProductOptions = {}): UseProductResult => {
-  const { keepPreviousData = true } = options;
-  const [data, setData] = useState<Product | null>(null);
-  const [status, setStatus] = useState<LoadStatus>('idle');
+  const [data, setData] = useState<Product | null>(() => {
+    const cached = productCache.get(productId);
+    return cached ? cached.data : null;
+  });
+  const [status, setStatus] = useState<Status>(data ? 'success' : 'loading');
   const [error, setError] = useState<string | null>(null);
-  const [refreshIndex, setRefreshIndex] = useState(0);
 
-  const controllerRef = useRef<AbortController | null>(null);
-  const requestIdRef = useRef(0);
-
-  const refresh = useCallback(() => {
-    setRefreshIndex((prev) => prev + 1);
-  }, []);
+  const reqIdRef = useRef(0);
+  const cooldownUntilRef = useRef(0);
 
   useEffect(() => {
-    if (!productId) return;
+    const cached = productCache.get(productId);
+    const fresh = cached && Date.now() - cached.ts < ttlMs;
 
-    controllerRef.current?.abort();
+    if (fresh) {
+      setData(cached!.data);
+      setStatus(cached!.data ? 'success' : 'error');
+      setError(cached!.data ? null : 'Товар не найден.');
+      return;
+    }
+
+    if (!opts?.keepPreviousData) setData(null);
+
     const controller = new AbortController();
-    controllerRef.current = controller;
+    const reqId = ++reqIdRef.current;
 
-    const requestId = ++requestIdRef.current;
+    if (Date.now() < cooldownUntilRef.current) return;
 
     setStatus('loading');
     setError(null);
-    if (!keepPreviousData) {
-      setData(null);
-    }
 
     api
       .getProduct(productId, { signal: controller.signal })
-      .then((response) => {
-        if (requestIdRef.current !== requestId) return;
-        const productData = extractData<Product | null>(response);
-        setData(productData ?? null);
-        setStatus('success');
+      .then((res: any) => {
+        if (reqId !== reqIdRef.current) return;
+        const product = res?.data ?? res ?? null;
+        setData(product);
+        productCache.set(productId, { ts: Date.now(), data: product });
+        setStatus(product ? 'success' : 'error');
+        if (!product) setError('Товар не найден.');
       })
-      .catch((err: unknown) => {
-        if (requestIdRef.current !== requestId) return;
-        if ((err as { name?: string })?.name === 'AbortError') return;
-        if ((err as { status?: number })?.status === 404) {
-          setData(null);
+      .catch((e: any) => {
+        if (reqId !== reqIdRef.current) return;
+        if (e?.name === 'AbortError') return;
+
+        const statusCode = e?.status ?? (e instanceof ApiError ? e.status : undefined);
+        if (statusCode === 429) {
+          cooldownUntilRef.current = Date.now() + 3000;
+          setError('Слишком много запросов. Подождите пару секунд.');
+          setStatus(data ? 'success' : 'error');
+          return;
         }
-        setError(err instanceof Error ? err.message : 'Не удалось загрузить товар.');
+
+        setError(e instanceof Error ? e.message : 'Не удалось загрузить товар.');
         setStatus('error');
       });
 
-    return () => {
-      controller.abort();
-    };
-  }, [productId, refreshIndex, keepPreviousData]);
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productId, ttlMs]);
 
-  return { data, status, error, refresh };
-};
+  return { data, status, error };
+}

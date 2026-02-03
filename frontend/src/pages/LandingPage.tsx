@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef} from 'react';
 import { Button } from '../shared/ui/Button';
 import { CustomPrintForm } from '../widgets/shop/CustomPrintForm';
 import { CatalogBoot } from '../features/catalog/CatalogBoot';
