@@ -1,4 +1,4 @@
-import { Navigate, Outlet, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import { Layout } from './widgets/layout/Layout';
 import { LandingPage } from './pages/LandingPage';
 import { CatalogPage } from './pages/CatalogPage';
@@ -28,9 +28,7 @@ const App = () => {
     <Routes>
       <Route
         element={
-          <Layout>
-            <Outlet />
-          </Layout>
+          <Layout />
         }
       >
         <Route path="/" element={<LandingPage />} />
