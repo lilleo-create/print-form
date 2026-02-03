@@ -1,10 +1,9 @@
 import type { User, Role } from '../types';
-import { loadFromStorage, saveToStorage, removeFromStorage } from '../lib/storage';
+import { loadFromStorage, removeFromStorage, saveToStorage, setAccessToken } from '../lib/storage';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 import { api } from './index';
 
 interface StoredSession {
-  token: string;
   user: User;
 }
 
@@ -72,10 +71,6 @@ export const authApi = {
     const token = data.accessToken ?? '';
     const user = requireUser(data, 'Login');
 
-    const session: StoredSession = { token, user };
-    saveToStorage(STORAGE_KEYS.session, session);
-    saveToStorage(STORAGE_KEYS.accessToken, token);
-
     return { requiresOtp: false, token, user };
   },
 
@@ -113,10 +108,6 @@ export const authApi = {
     const token = data.accessToken ?? '';
     const user = requireUser(data, 'Register');
 
-    const session: StoredSession = { token, user };
-    saveToStorage(STORAGE_KEYS.session, session);
-    saveToStorage(STORAGE_KEYS.accessToken, token);
-
     return { requiresOtp: false, token, user };
   },
 
@@ -135,7 +126,7 @@ export const authApi = {
 
     const data = result.data as { accessToken?: string; user?: RawUser };
 
-    const session: StoredSession = {
+    const session = {
       token: data.accessToken ?? '',
       user: normalizeUser(data.user)
     };
@@ -143,44 +134,35 @@ export const authApi = {
     if (!session.token || !session.user.id) {
       throw new Error('OTP verify: invalid response');
     }
-
-    saveToStorage(STORAGE_KEYS.session, session);
-    saveToStorage(STORAGE_KEYS.accessToken, session.token);
     return session;
   },
 
   updateProfile: async (payload: { name?: string; email?: string; phone?: string; address?: string }) => {
     const result = await api.updateProfile(payload);
-
-    const current = loadFromStorage<StoredSession | null>(STORAGE_KEYS.session, null);
-    if (!current) return null;
-
     const updatedUser = result.data?.data as RawUser | undefined;
-
-    const nextSession: StoredSession = {
-      ...current,
-      user: {
-        ...current.user,
-        ...(updatedUser ? normalizeUser(updatedUser) : {})
-      }
-    };
-
-    saveToStorage(STORAGE_KEYS.session, nextSession);
-    return nextSession;
+    if (!updatedUser) return null;
+    return { user: normalizeUser(updatedUser) };
   },
 
   logout: async () => {
     await api.logout();
     removeFromStorage(STORAGE_KEYS.session);
-    removeFromStorage(STORAGE_KEYS.accessToken);
+    setAccessToken(null);
   },
 
-  getSession: () => loadFromStorage<StoredSession | null>(STORAGE_KEYS.session, null),
+  getSession: () => {
+    const session = loadFromStorage<StoredSession | null>(STORAGE_KEYS.session, null);
+    const token = loadFromStorage<string | null>(STORAGE_KEYS.accessToken, null);
+    if (!session?.user && !token) return null;
+    return { user: session?.user ?? null, token };
+  },
 
   setSessionUser: (user: User) => {
-    const current = loadFromStorage<StoredSession | null>(STORAGE_KEYS.session, null);
-    if (!current) return null;
-    const nextSession = { ...current, user };
+    if (!user) {
+      removeFromStorage(STORAGE_KEYS.session);
+      return null;
+    }
+    const nextSession = { user };
     saveToStorage(STORAGE_KEYS.session, nextSession);
     return nextSession;
   }
