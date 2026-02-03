@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "tsx watch src/main.ts",
+    "dev:trace": "NODE_OPTIONS='--trace-uncaught --unhandled-rejections=strict' tsx watch src/main.ts",
     "build": "tsc",
     "start": "node dist/main.js",
     "postinstall": "prisma generate",

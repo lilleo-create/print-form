@@ -2,6 +2,15 @@ import { loadFromStorage, removeFromStorage, setAccessToken } from '../lib/stora
 import { STORAGE_KEYS } from '../constants/storageKeys';
 
 export type ApiResponse<T> = { data: T };
+export class ApiError extends Error {
+  status: number;
+  data: any;
+  constructor(status: number, message: string, data?: any) {
+    super(message);
+    this.status = status;
+    this.data = data;
+  }
+}
 
 let refreshPromise: Promise<string | null> | null = null;
 
@@ -146,16 +155,29 @@ export function createFetchClient(baseUrl: string) {
     }
 
     if (!res.ok) {
-      const msg =
+      let payload: unknown = null;
+
+      try {
+        payload = await res.json();
+      } catch {
+        // тело может быть пустым (401 / 204 / HTML)
+      }
+
+      const message =
         typeof payload === 'object' && payload !== null && 'message' in payload
           ? String(
-              (payload as { message?: unknown }).message ?? 'Request failed'
+              (payload as { message?: unknown }).message ?? `HTTP ${res.status}`
             )
-          : 'Request failed';
+          : `HTTP ${res.status}`;
 
-      const error = new Error(msg) as Error & { status?: number; payload?: unknown };
+      const error = new Error(message) as Error & {
+        status?: number;
+        payload?: unknown;
+      };
+
       error.status = res.status;
       error.payload = payload;
+
       throw error;
     }
 

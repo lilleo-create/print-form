@@ -9,11 +9,18 @@ import styles from './LandingPage.module.css';
 
 export const LandingPage = () => {
   const [activeSlide, setActiveSlide] = useState(0);
+
   const [feedProducts, setFeedProducts] = useState<Product[]>([]);
   const [feedCursor, setFeedCursor] = useState<string | null>(null);
   const [feedLoading, setFeedLoading] = useState(false);
   const [feedHasMore, setFeedHasMore] = useState(true);
+  const [feedError, setFeedError] = useState<string | null>(null);
+
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  // Guard против параллельных запросов (state в замыканиях не спасает)
+  const loadingRef = useRef(false);
+  const controllerRef = useRef<AbortController | null>(null);
 
   const slides = useMemo(
     () => [
@@ -42,21 +49,59 @@ export const LandingPage = () => {
     []
   );
 
-  const loadFeed = useCallback(async () => {
-    if (feedLoading || !feedHasMore) return;
-    setFeedLoading(true);
-    const response = await api.getProducts({ cursor: feedCursor ?? undefined, limit: 8, sort: 'createdAt' });
-    setFeedProducts((prev) => {
-      const ids = new Set(prev.map((item) => item.id));
-      const nextItems = response.data.filter((item) => !ids.has(item.id));
-      return [...prev, ...nextItems];
-    });
-    setFeedHasMore(response.data.length > 0);
-    const last = response.data[response.data.length - 1];
-    setFeedCursor(last?.id ?? null);
-    setFeedLoading(false);
-  }, [feedCursor, feedHasMore, feedLoading]);
+  const safeSetLoading = (v: boolean) => {
+    loadingRef.current = v;
+    setFeedLoading(v);
+  };
 
+  const loadFeed = useCallback(async () => {
+    if (loadingRef.current || !feedHasMore) return;
+
+    setFeedError(null);
+    safeSetLoading(true);
+
+    // отменяем прошлый запрос
+    controllerRef.current?.abort();
+    const controller = new AbortController();
+    controllerRef.current = controller;
+
+    try {
+      const response = await api.getProducts(
+        { cursor: feedCursor ?? undefined, limit: 8, sort: 'createdAt', order: 'desc' },
+        { signal: controller.signal }
+      );
+
+      // если уже стартанул новый запрос - игнорим этот
+      if (controllerRef.current !== controller) return;
+
+      const items: Product[] = Array.isArray(response.data) ? response.data : [];
+
+      setFeedProducts((prev) => {
+        const ids = new Set(prev.map((p) => p.id));
+        const next = items.filter((p) => !ids.has(p.id));
+        return [...prev, ...next];
+      });
+
+      setFeedHasMore(items.length > 0);
+      setFeedCursor(items.length ? items[items.length - 1]?.id ?? null : null);
+    } catch (e: unknown) {
+      if (controllerRef.current !== controller) return;
+      if (e instanceof Error && e.name === 'AbortError') return;
+
+      const status = (e as { status?: number })?.status;
+      if (status === 429) {
+        setFeedError('Слишком много запросов. Пожалуйста, попробуйте позже.');
+        setFeedHasMore(false);
+      } else {
+        setFeedError('Не удалось загрузить каталог. Попробуйте позже.');
+        setFeedHasMore(false);
+      }
+    } finally {
+      if (controllerRef.current === controller) safeSetLoading(false);
+    }
+  }, [feedCursor, feedHasMore]);
+
+  // слайдер
   useEffect(() => {
     const timer = setInterval(() => {
       setActiveSlide((prev) => (prev + 1) % slides.length);
@@ -64,25 +109,36 @@ export const LandingPage = () => {
     return () => clearInterval(timer);
   }, [slides.length]);
 
+  // первичная загрузка фида (1 раз)
   useEffect(() => {
     loadFeed();
   }, [loadFeed]);
 
+  // infinite scroll
   useEffect(() => {
-    if (!sentinelRef.current || !feedHasMore) return;
+    const el = sentinelRef.current;
+    if (!el || !feedHasMore) return;
+
     const observer = new IntersectionObserver(
       (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            loadFeed();
-          }
-        });
+        const first = entries[0];
+        if (!first?.isIntersecting) return;
+        if (loadingRef.current) return; // жёсткая защита
+        loadFeed();
       },
       { rootMargin: '200px' }
     );
-    observer.observe(sentinelRef.current);
+
+    observer.observe(el);
     return () => observer.disconnect();
   }, [feedHasMore, loadFeed]);
+
+  // cleanup abort
+  useEffect(() => {
+    return () => {
+      controllerRef.current?.abort();
+    };
+  }, []);
 
   return (
     <div className={styles.page}>
@@ -90,9 +146,7 @@ export const LandingPage = () => {
         <div className={styles.heroContent}>
           <span className={styles.badge}>Маркетплейс 3D-печати</span>
           <h1>Покупайте и печатайте 3D-модели в одном месте</h1>
-          <p>
-            Каталог готовых изделий, быстрый расчет кастомной печати и надежные продавцы.
-          </p>
+          <p>Каталог готовых изделий, быстрый расчет кастомной печати и надежные продавцы.</p>
           <div className={styles.heroActions}>
             <Link to="/catalog" className={styles.primaryLink}>
               Смотреть каталог
@@ -147,6 +201,7 @@ export const LandingPage = () => {
             <img src={slides[activeSlide].image} alt={slides[activeSlide].title} />
           </div>
         </div>
+
         <div className={styles.sliderDots}>
           {slides.map((_, index) => (
             <button
@@ -170,21 +225,24 @@ export const LandingPage = () => {
             Весь каталог →
           </Link>
         </div>
+
+        {feedError ? <p className={styles.feedLoading}>{feedError}</p> : null}
+
         <div className={styles.grid}>
           {feedProducts.map((product) => (
             <ProductCard product={product} key={product.id} />
           ))}
         </div>
+
         {feedLoading && <p className={styles.feedLoading}>Загрузка...</p>}
+
         <div ref={sentinelRef} />
       </section>
 
       <section className={`${styles.customSection} container`} id="custom">
         <div className={styles.customContent}>
           <h2>Напечатать свою модель</h2>
-          <p>
-            Загрузите STL или опишите задачу — мы подберем технологию, материал и цену.
-          </p>
+          <p>Загрузите STL или опишите задачу — мы подберем технологию, материал и цену.</p>
           <div className={styles.customActions}>
             <Button>Загрузить STL</Button>
             <a className={styles.secondaryLink} href="https://t.me/" target="_blank" rel="noreferrer">
