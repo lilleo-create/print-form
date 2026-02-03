@@ -20,7 +20,7 @@ export const useFilters = (enabled = true) => {
       })
       .catch((error) => {
         if (!isMountedRef.current) return;
-        if (error instanceof Error && error.name === 'AbortError') {
+        if ((error as { name?: string })?.name === 'AbortError') {
           return;
         }
         if ((error as { status?: number })?.status === 429) {

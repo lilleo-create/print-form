@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ProductCard } from '../widgets/shop/ProductCard';
-import { useCatalog } from '../features/catalog/useCatalog';
-import { useFilters } from '../features/catalog/useFilters';
+import { CatalogBoot } from '../features/catalog/CatalogBoot';
 import { FilterModal } from '../widgets/catalog/FilterModal';
 import { CatalogHeader } from '../widgets/catalog/CatalogHeader';
 import { Button } from '../shared/ui/Button';
@@ -15,7 +14,6 @@ const sortOptions = {
 
 export const CatalogPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const filterData = useFilters();
   const [isModalOpen, setModalOpen] = useState(false);
 
   const [filters, setFilters] = useState({
@@ -34,18 +32,7 @@ export const CatalogPage = () => {
     }),
     [filters, sort]
   );
-  const { products, loading, error } = useCatalog(catalogParams);
-  const categories = useMemo(() => {
-    if (filterData.categories.length) {
-      return filterData.categories;
-    }
-    return Array.from(new Set(products.map((product) => product.category))).filter(Boolean);
-  }, [filterData.categories, products]);
   const activeCategory = searchParams.get('category') ?? '';
-
-  const filteredProducts = useMemo(() => {
-    return products;
-  }, [products]);
 
   const applyFilters = () => {
     const params = new URLSearchParams();
@@ -75,62 +62,73 @@ export const CatalogPage = () => {
   };
 
   return (
-    <section className={styles.page}>
-      <CatalogHeader
-        categories={categories}
-        activeCategory={activeCategory}
-        onSelect={handleCategorySelect}
-      />
-      <div className="container">
-        <div className={styles.header}>
-          <div>
-            <h1>Каталог моделей</h1>
-            <p>Подберите готовые изделия от проверенных продавцов.</p>
-          </div>
-          <Button variant="secondary" onClick={() => setModalOpen(true)}>
-            Фильтр
-          </Button>
-        </div>
-        <div className={styles.controls}>
-          <span className={styles.controlsTitle}>Быстрая сортировка</span>
-          <div className={styles.sortButtons}>
-            {Object.entries(sortOptions).map(([value, label]) => (
-              <Button
-                key={value}
-                variant={sort === value ? 'primary' : 'ghost'}
-                size="sm"
-                onClick={() => handleSortChange(value as 'createdAt' | 'rating')}
-              >
-                {label}
-              </Button>
-            ))}
-          </div>
-        </div>
-        {loading ? (
-          <p className={styles.loading}>Загрузка...</p>
-        ) : error ? (
-          <p className={styles.loading}>Не удалось загрузить каталог.</p>
-        ) : (
-          <div className={styles.grid}>
-            {filteredProducts.map((product) => (
-              <ProductCard product={product} key={product.id} />
-            ))}
-          </div>
-        )}
-      </div>
-      <FilterModal
-        isOpen={isModalOpen}
-        filters={filters}
-        filterOptions={filterData}
-        onChange={(key, value) =>
-          setFilters((prev) => ({
-            ...prev,
-            [key]: value
-          }))
-        }
-        onApply={applyFilters}
-        onClose={() => setModalOpen(false)}
-      />
-    </section>
+    <CatalogBoot filters={catalogParams}>
+      {({ filterData, products, loading, error }) => {
+        const categories = filterData.categories.length
+          ? filterData.categories
+          : Array.from(new Set(products.map((product) => product.category))).filter(Boolean);
+        const filteredProducts = products;
+
+        return (
+          <section className={styles.page}>
+            <CatalogHeader
+              categories={categories}
+              activeCategory={activeCategory}
+              onSelect={handleCategorySelect}
+            />
+            <div className="container">
+              <div className={styles.header}>
+                <div>
+                  <h1>Каталог моделей</h1>
+                  <p>Подберите готовые изделия от проверенных продавцов.</p>
+                </div>
+                <Button variant="secondary" onClick={() => setModalOpen(true)}>
+                  Фильтр
+                </Button>
+              </div>
+              <div className={styles.controls}>
+                <span className={styles.controlsTitle}>Быстрая сортировка</span>
+                <div className={styles.sortButtons}>
+                  {Object.entries(sortOptions).map(([value, label]) => (
+                    <Button
+                      key={value}
+                      variant={sort === value ? 'primary' : 'ghost'}
+                      size="sm"
+                      onClick={() => handleSortChange(value as 'createdAt' | 'rating')}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              {loading ? (
+                <p className={styles.loading}>Загрузка...</p>
+              ) : error ? (
+                <p className={styles.loading}>Не удалось загрузить каталог.</p>
+              ) : (
+                <div className={styles.grid}>
+                  {filteredProducts.map((product) => (
+                    <ProductCard product={product} key={product.id} />
+                  ))}
+                </div>
+              )}
+            </div>
+            <FilterModal
+              isOpen={isModalOpen}
+              filters={filters}
+              filterOptions={filterData}
+              onChange={(key, value) =>
+                setFilters((prev) => ({
+                  ...prev,
+                  [key]: value
+                }))
+              }
+              onApply={applyFilters}
+              onClose={() => setModalOpen(false)}
+            />
+          </section>
+        );
+      }}
+    </CatalogBoot>
   );
 };

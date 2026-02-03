@@ -61,7 +61,7 @@ export const useCatalog = (filters: CatalogFilters, enabled = true) => {
       })
       .catch((err) => {
         if (!isMounted) return;
-        if (err instanceof Error && err.name === 'AbortError') {
+        if ((err as { name?: string })?.name === 'AbortError') {
           return;
         }
         if ((err as { status?: number })?.status === 429) {

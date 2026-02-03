@@ -77,7 +77,7 @@ export const CheckoutPage = () => {
         });
       })
       .catch((error: unknown) => {
-        if (error instanceof Error && error.name === 'AbortError') {
+        if ((error as { name?: string })?.name === 'AbortError') {
           return;
         }
         if (typeof error === 'object' && error && 'status' in error && (error as { status?: number }).status === 401) {

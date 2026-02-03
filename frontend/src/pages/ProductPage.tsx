@@ -91,7 +91,7 @@ export const ProductPage = () => {
       })
       .catch((err) => {
         if (!isActive) return;
-        if (err instanceof Error && err.name === 'AbortError') {
+        if ((err as { name?: string })?.name === 'AbortError') {
           return;
         }
         if ((err as { status?: number })?.status === 429) {
@@ -137,7 +137,7 @@ export const ProductPage = () => {
       })
       .catch((err) => {
         if (!isActive) return;
-        if (err instanceof Error && err.name === 'AbortError') {
+        if ((err as { name?: string })?.name === 'AbortError') {
           return;
         }
         if ((err as { status?: number })?.status === 429) {
@@ -156,7 +156,7 @@ export const ProductPage = () => {
       })
       .catch((err) => {
         if (!isActive) return;
-        if (err instanceof Error && err.name === 'AbortError') {
+        if ((err as { name?: string })?.name === 'AbortError') {
           return;
         }
         if ((err as { status?: number })?.status === 429) {
@@ -208,7 +208,7 @@ export const ProductPage = () => {
       setFeedCursor(items.length ? items[items.length - 1]?.id ?? null : null);
     } catch (e: unknown) {
       if (feedControllerRef.current !== controller) return;
-      if (e instanceof Error && e.name === 'AbortError') return;
+      if ((e as { name?: string })?.name === 'AbortError') return;
 
       const status = (e as { status?: number })?.status;
       if (status === 429) {
@@ -218,7 +218,7 @@ export const ProductPage = () => {
       if (feedControllerRef.current !== controller) {
         return;
       }
-      if (e instanceof Error && e.name === 'AbortError') {
+      if ((e as { name?: string })?.name === 'AbortError') {
         return;
       }
       const status = (e as { status?: number })?.status;

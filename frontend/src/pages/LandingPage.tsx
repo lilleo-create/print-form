@@ -2,10 +2,19 @@ import { Link } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '../shared/ui/Button';
 import { CustomPrintForm } from '../widgets/shop/CustomPrintForm';
+import { CatalogBoot } from '../features/catalog/CatalogBoot';
 import styles from './LandingPage.module.css';
 
 export const LandingPage = () => {
   const [activeSlide, setActiveSlide] = useState(0);
+  const catalogBootFilters = useMemo(
+    () => ({
+      sort: 'createdAt' as const,
+      order: 'desc' as const,
+      limit: 12
+    }),
+    []
+  );
 
   // Guard против параллельных запросов (state в замыканиях не спасает)
   const loadingRef = useRef(false);
@@ -47,6 +56,7 @@ export const LandingPage = () => {
 
   return (
     <div className={styles.page}>
+      <CatalogBoot filters={catalogBootFilters}>{() => null}</CatalogBoot>
       <section className={`${styles.hero} container`}>
         <div className={styles.heroContent}>
           <span className={styles.badge}>Маркетплейс 3D-печати</span>

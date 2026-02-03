@@ -33,7 +33,7 @@ export const useAddressStore = create<AddressState>((set) => ({
       }
       set({ addresses: data, selectedAddressId: nextSelected });
     } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
+      if ((error as { name?: string })?.name === 'AbortError') {
         return;
       }
       set({ addresses: [], selectedAddressId: '' });
