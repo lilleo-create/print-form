@@ -61,6 +61,10 @@ export const useCatalog = (filters: CatalogFilters) => {
         if (err instanceof Error && err.name === 'AbortError') {
           return;
         }
+        if ((err as { status?: number })?.status === 429) {
+          setError('Слишком много запросов. Пожалуйста, попробуйте позже.');
+          return;
+        }
         setError(err instanceof Error ? err.message : 'Ошибка загрузки');
       })
       .finally(() => {
@@ -95,7 +99,7 @@ const getCatalogRequest = (key: string, filters: CatalogFilters) => {
     return existing;
   }
   const controller = new AbortController();
-  const promise = api.getProducts({ ...filters, signal: controller.signal }).then((response) => response.data);
+  const promise = api.getProducts({ ...filters }, { signal: controller.signal }).then((response) => response.data);
   const entry: CatalogEntry = { controller, promise, subscribers: 0 };
   catalogRequests.set(key, entry);
   promise.finally(() => {

@@ -22,8 +22,6 @@ import { HeaderAddress } from '../../shared/ui/address/HeaderAddress';
 import { Rating } from '../../shared/ui/Rating';
 import { Button } from '../../shared/ui/Button';
 import { ProductModal } from '../shop/ProductModal';
-import { useFilters } from '../../features/catalog/useFilters';
-import { useCatalog } from '../../features/catalog/useCatalog';
 import { api } from '../../shared/api';
 import styles from './Layout.module.css';
 
@@ -50,9 +48,6 @@ export const Layout = ({ children }: LayoutProps) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const filterData = useFilters();
-  const catalogParams = useMemo(() => ({ limit: 12 }), []);
-  const { products } = useCatalog(catalogParams);
   const [searchValue, setSearchValue] = useState(searchParams.get('q') ?? '');
   const [isCategoriesHidden, setIsCategoriesHidden] = useState(false);
   const [categoriesHeight, setCategoriesHeight] = useState(0);
@@ -83,7 +78,6 @@ export const Layout = ({ children }: LayoutProps) => {
   const categoriesRef = useRef<HTMLDivElement | null>(null);
   const productBoardRef = useRef<HTMLDivElement | null>(null);
   const scrollStateRef = useRef({ lastY: 0, acc: 0, ticking: false });
-  const token = useAuthStore((s) => s.token);
   const apiBaseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
   const resolveImageUrl = (url?: string | null) => {
     if (!url) return '';
@@ -109,49 +103,36 @@ export const Layout = ({ children }: LayoutProps) => {
   }, [location.pathname, searchParams]);
 
   useEffect(() => {
-    if (!user || !token) {
+    if (!token) {
       setSellerProfile(null);
       return;
     }
-    let isMounted = true;
+    let isActive = true;
     const controller = new AbortController();
     api
       .getSellerContext(controller.signal)
       .then((response) => {
-        if (!cancelled) setSellerProfile(response.data);
+        if (!isActive) return;
+        setSellerProfile(response.data);
       })
-      .catch((e: any) => {
-        if (cancelled) return;
-
-        // 401 = просто не авторизован, не надо паниковать
-        if (e?.status === 401) {
+      .catch((e: unknown) => {
+        if (!isActive) return;
+        if (e instanceof Error && e.name === 'AbortError') {
+          return;
+        }
+        const status = (e as { status?: number })?.status;
+        if (status === 401 || status === 429) {
           setSellerProfile(null);
           return;
         }
-
-        // 429 = нас порезал лимитер, чтобы не повторять/не плодить запросы
-        if (e?.status === 429) {
-          setSellerProfile(null);
-          return;
-        }
-
         setSellerProfile({ isSeller: false, profile: null });
       });
 
     return () => {
+      isActive = false;
       controller.abort();
-      isMounted = false;
     };
-  }, [token, user]);
-
-  const categories = useMemo(() => {
-    if (filterData.categories.length) {
-      return filterData.categories;
-    }
-    return Array.from(
-      new Set(products.map((product) => product.category))
-    ).filter(Boolean);
-  }, [filterData.categories, products]);
+  }, [token]);
 
   const avatarText = useMemo(() => {
     const source = user?.name ?? user?.email ?? 'Пользователь';
@@ -164,8 +145,10 @@ export const Layout = ({ children }: LayoutProps) => {
       .toUpperCase();
   }, [user?.email, user?.name]);
 
+  const showCatalogHeader = location.pathname === '/catalog';
+
   useLayoutEffect(() => {
-    if (!categoriesRef.current) return;
+    if (!categoriesRef.current && !productBoardRef.current) return;
     const updateHeight = () => {
       if (categoriesRef.current) {
         setCategoriesHeight(categoriesRef.current.offsetHeight);
@@ -176,12 +159,20 @@ export const Layout = ({ children }: LayoutProps) => {
     };
     updateHeight();
     const observer = new ResizeObserver(updateHeight);
-    observer.observe(categoriesRef.current);
+    if (categoriesRef.current) {
+      observer.observe(categoriesRef.current);
+    }
     if (productBoardRef.current) {
       observer.observe(productBoardRef.current);
     }
     return () => observer.disconnect();
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (!showCatalogHeader) {
+      setCategoriesHeight(0);
+    }
+  }, [showCatalogHeader]);
 
   const isHome = location.pathname === '/';
   const isProductPage = /^\/product\/[^/]+$/.test(location.pathname);
@@ -271,21 +262,6 @@ export const Layout = ({ children }: LayoutProps) => {
     }
   };
 
-  const handleCategorySelect = (category?: string) => {
-    const params = new URLSearchParams(searchParams);
-    if (category) {
-      params.set('category', category);
-    } else {
-      params.delete('category');
-    }
-    if (location.pathname === '/catalog') {
-      setSearchParams(params);
-    } else {
-      navigate(`/catalog?${params.toString()}`);
-    }
-  };
-
-  const activeCategory = searchParams.get('category') ?? '';
   const showProductBoard =
     isCategoriesHidden && (isProductPage || isReviewPage) && productBoard;
   const ratingValue = productBoard?.ratingAvg ?? 0;
@@ -415,51 +391,29 @@ export const Layout = ({ children }: LayoutProps) => {
         >
           <div className={styles.categoriesBar}>
             <div className={styles.categoriesSurface}>
-              <div
-                ref={categoriesRef}
-                className={`${styles.categoriesInner} ${isCategoriesHidden ? styles.categoriesInnerHidden : ''}`}
-              >
-                <div className={styles.categoriesMeta}>
-                  <div className={styles.categoriesTitle}>Категории</div>
-                  <div className={styles.categoriesAddress}>
-                    <HeaderAddress variant="compact" />
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  className={
-                    !activeCategory
-                      ? styles.categoryActive
-                      : styles.categoryButton
-                  }
-                  onClick={() => handleCategorySelect('')}
+              {showCatalogHeader && (
+                <div
+                  ref={categoriesRef}
+                  className={`${styles.categoriesInner} ${isCategoriesHidden ? styles.categoriesInnerHidden : ''}`}
                 >
-                  Все категории
-                </button>
-                {categories.map((category) => (
-                  <button
-                    type="button"
-                    key={category}
-                    className={
-                      activeCategory === category
-                        ? styles.categoryActive
-                        : styles.categoryButton
-                    }
-                    onClick={() => handleCategorySelect(category)}
-                  >
-                    {category}
-                  </button>
-                ))}
-                {isSeller ? (
-                  <Link to="/seller" className={styles.sellCta}>
-                    Кабинет продавца
-                  </Link>
-                ) : (
-                  <Link to="/seller/onboarding" className={styles.sellCta}>
-                    Продавайте на PrintForm
-                  </Link>
-                )}
-              </div>
+                  <div className={styles.categoriesMeta}>
+                    <div className={styles.categoriesTitle}>Категории</div>
+                    <div className={styles.categoriesAddress}>
+                      <HeaderAddress variant="compact" />
+                    </div>
+                  </div>
+                  <div id="catalog-category-buttons" />
+                  {isSeller ? (
+                    <Link to="/seller" className={styles.sellCta}>
+                      Кабинет продавца
+                    </Link>
+                  ) : (
+                    <Link to="/seller/onboarding" className={styles.sellCta}>
+                      Продавайте на PrintForm
+                    </Link>
+                  )}
+                </div>
+              )}
               <div
                 ref={productBoardRef}
                 className={`${styles.productBoard} ${showProductBoard ? styles.productBoardVisible : ''}`}
