@@ -33,7 +33,6 @@ export const Layout = ({ children }: LayoutProps) => {
   const cartItems = useCartStore((state) => state.items);
   const addItem = useCartStore((state) => state.addItem);
   const { user, logout } = useAuthStore();
-  const token = useAuthStore((state) => state.token);
   const addresses = useAddressStore((state) => state.addresses);
   const selectedAddressId = useAddressStore((state) => state.selectedAddressId);
   const isModalOpen = useAddressStore((state) => state.isModalOpen);
@@ -87,16 +86,19 @@ export const Layout = ({ children }: LayoutProps) => {
   };
 
   useEffect(() => {
-    if (user && token) {
-      const controller = new AbortController();
-      loadAddresses(user.id, controller.signal);
-      return () => controller.abort();
-    } else {
-      resetAddresses();
-    }
-  }, [loadAddresses, resetAddresses, token, user]);
+  if (!user) {
+    resetAddresses();
+    return;
+  }
+
+  const controller = new AbortController();
+  loadAddresses(user.id, controller.signal);
+  return () => controller.abort();
+}, [user, loadAddresses, resetAddresses]);
+
 
   useEffect(() => {
+    if (!user) return;
     if (location.pathname === '/catalog') {
       setSearchValue(searchParams.get('q') ?? '');
     }

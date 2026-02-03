@@ -17,6 +17,7 @@ import { adminRoutes } from "./routes/adminRoutes";
 import { paymentRoutes } from "./routes/paymentRoutes";
 import { errorHandler } from "./middleware/errorHandler";
 import { globalLimiter } from "./middleware/rateLimiters";
+import { clientDisconnect } from "./middleware/clientDisconnect";
 
 const app = express();
 const uploadsDir = path.join(process.cwd(), "uploads");
@@ -53,6 +54,7 @@ app.use(
     crossOriginResourcePolicy: { policy: "cross-origin" },
   })
 );
+app.use(clientDisconnect);
 
 // ✅ 4) Теперь можно rate-limit (а OPTIONS мы уже обработали выше)
 // (и в rateLimiters всё равно добавь skip OPTIONS, это полезно)
@@ -80,4 +82,13 @@ app.use(errorHandler);
 
 app.listen(env.port, () => {
   console.log(`API running on ${env.port}`);
+});
+
+
+process.on('unhandledRejection', (reason) => {
+  console.error('UNHANDLED REJECTION:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT EXCEPTION:', err);
 });

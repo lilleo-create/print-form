@@ -7,6 +7,10 @@ import styles from './LandingPage.module.css';
 export const LandingPage = () => {
   const [activeSlide, setActiveSlide] = useState(0);
 
+  // Guard против параллельных запросов (state в замыканиях не спасает)
+  const loadingRef = useRef(false);
+  const controllerRef = useRef<AbortController | null>(null);
+
   const slides = useMemo(
     () => [
       {
@@ -47,9 +51,7 @@ export const LandingPage = () => {
         <div className={styles.heroContent}>
           <span className={styles.badge}>Маркетплейс 3D-печати</span>
           <h1>Покупайте и печатайте 3D-модели в одном месте</h1>
-          <p>
-            Каталог готовых изделий, быстрый расчет кастомной печати и надежные продавцы.
-          </p>
+          <p>Каталог готовых изделий, быстрый расчет кастомной печати и надежные продавцы.</p>
           <div className={styles.heroActions}>
             <Link to="/catalog" className={styles.primaryLink}>
               Смотреть каталог
@@ -104,6 +106,7 @@ export const LandingPage = () => {
             <img src={slides[activeSlide].image} alt={slides[activeSlide].title} />
           </div>
         </div>
+
         <div className={styles.sliderDots}>
           {slides.map((_, index) => (
             <button
@@ -133,9 +136,7 @@ export const LandingPage = () => {
       <section className={`${styles.customSection} container`} id="custom">
         <div className={styles.customContent}>
           <h2>Напечатать свою модель</h2>
-          <p>
-            Загрузите STL или опишите задачу — мы подберем технологию, материал и цену.
-          </p>
+          <p>Загрузите STL или опишите задачу — мы подберем технологию, материал и цену.</p>
           <div className={styles.customActions}>
             <Button>Загрузить STL</Button>
             <a className={styles.secondaryLink} href="https://t.me/" target="_blank" rel="noreferrer">

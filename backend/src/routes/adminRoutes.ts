@@ -7,11 +7,12 @@ import { requireAuth, requireAdmin, AuthRequest } from '../middleware/authMiddle
 import { prisma } from '../lib/prisma';
 import { writeLimiter } from '../middleware/rateLimiters';
 import { notFound } from '../utils/httpErrors';
+import { asyncHandler } from "../utils/asyncHandler";
+
 
 export const adminRoutes = Router();
 
 const reasonSchema = z.string().min(10).max(500);
-
 const reviewSchema = z
   .object({
     status: z.enum(['APPROVED', 'REJECTED']),

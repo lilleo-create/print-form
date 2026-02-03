@@ -17,6 +17,7 @@ const createLimiter = (options: { windowMs: number; max: number; skip?: (req: Re
       (options.skip ? options.skip(req) : false)
   });
 
+const isDev = process.env.NODE_ENV !== 'production';
 const globalMax = env.isProduction ? 200 : 1000;
 export const globalLimiter = createLimiter({
   windowMs: 5 * 60 * 1000,
