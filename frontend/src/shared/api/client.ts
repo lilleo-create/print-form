@@ -1,9 +1,69 @@
-import { loadFromStorage } from '../lib/storage';
+import { loadFromStorage, removeFromStorage, setAccessToken } from '../lib/storage';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 
 export type ApiResponse<T> = { data: T };
 
+let refreshPromise: Promise<string | null> | null = null;
+
+const readAccessToken = (payload: unknown): string | null => {
+  if (typeof payload !== 'object' || payload === null) {
+    return null;
+  }
+  if ('accessToken' in payload && typeof payload.accessToken === 'string') {
+    return payload.accessToken;
+  }
+  if ('token' in payload && typeof payload.token === 'string') {
+    return payload.token;
+  }
+  if (
+    'data' in payload &&
+    typeof payload.data === 'object' &&
+    payload.data !== null &&
+    'accessToken' in payload.data &&
+    typeof (payload.data as { accessToken?: unknown }).accessToken === 'string'
+  ) {
+    return (payload.data as { accessToken: string }).accessToken;
+  }
+  return null;
+};
+
+const logoutAndRedirect = () => {
+  removeFromStorage(STORAGE_KEYS.session);
+  setAccessToken(null);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('auth:logout'));
+    window.location.assign('/auth/login');
+  }
+};
+
 export function createFetchClient(baseUrl: string) {
+  const refreshAccessToken = async (): Promise<string | null> => {
+    const res = await fetch(`${baseUrl}/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include'
+    });
+
+    if (res.status === 204) {
+      return null;
+    }
+
+    const ct = res.headers.get('content-type') ?? '';
+    const payload = ct.includes('application/json') ? await res.json() : await res.text();
+
+    if (!res.ok) {
+      const error = new Error('Refresh failed') as Error & { status?: number; payload?: unknown };
+      error.status = res.status;
+      error.payload = payload;
+      throw error;
+    }
+
+    const token = readAccessToken(payload);
+    if (token) {
+      setAccessToken(token);
+    }
+    return token;
+  };
+
   const request = async <T>(
     path: string,
     opts?: {
@@ -12,6 +72,7 @@ export function createFetchClient(baseUrl: string) {
       token?: string | null;
       headers?: Record<string, string>;
       signal?: AbortSignal;
+      retry?: boolean;
     }
   ): Promise<ApiResponse<T>> => {
     const url = `${baseUrl}${path}`;
@@ -61,6 +122,27 @@ export function createFetchClient(baseUrl: string) {
       payload = await res.json();
     } else {
       payload = await res.text();
+    }
+
+    if (res.status === 401 && !opts?.retry && path !== '/auth/refresh') {
+      try {
+        if (!refreshPromise) {
+          refreshPromise = refreshAccessToken().finally(() => {
+            refreshPromise = null;
+          });
+        }
+        const newToken = await refreshPromise;
+        if (newToken) {
+          return request<T>(path, { ...opts, token: newToken, retry: true });
+        }
+        logoutAndRedirect();
+      } catch (error) {
+        const status = (error as { status?: number }).status;
+        if (status === 401 || status === 403) {
+          logoutAndRedirect();
+        }
+        throw error;
+      }
     }
 
     if (!res.ok) {
