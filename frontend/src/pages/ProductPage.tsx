@@ -24,6 +24,13 @@ const formatReviewDate = (value: string) =>
     year: 'numeric'
   });
 
+type ReviewSummary = {
+  total: number;
+  avg: number;
+  counts: { rating: number; count: number }[];
+  photos?: string[];
+};
+
 export const ProductPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -33,15 +40,12 @@ export const ProductPage = () => {
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
   const [activeImage, setActiveImage] = useState<string>('');
   const [selectedVariant, setSelectedVariant] = useState<string>('');
 
   const [reviews, setReviews] = useState<Review[]>([]);
-  const [summary, setSummary] = useState<{
-    total: number;
-    avg: number;
-    counts: { rating: number; count: number }[];
-  } | null>(null);
+  const [summary, setSummary] = useState<ReviewSummary | null>(null);
 
   const [feedProducts, setFeedProducts] = useState<Product[]>([]);
   const [feedCursor, setFeedCursor] = useState<string | null>(null);
@@ -50,6 +54,7 @@ export const ProductPage = () => {
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const feedControllerRef = useRef<AbortController | null>(null);
 
+  // ✅ ОДНА функция resolveImageUrl, без конфликтов
   const resolveImageUrl = useCallback((url?: string | null) => {
     if (!url) return '';
     if (url.startsWith('http://') || url.startsWith('https://')) return url;
@@ -72,6 +77,7 @@ export const ProductPage = () => {
     let isActive = true;
     setLoading(true);
     setError(null);
+
     api
       .getProduct(id, { signal: controller.signal })
       .then((response) => {
@@ -113,7 +119,7 @@ export const ProductPage = () => {
   // cleanup store
   useEffect(() => () => setProductBoard(null), [setProductBoard]);
 
-  // Load reviews + summary
+  // ===== Reviews + Summary
   useEffect(() => {
     if (!id) return;
 
@@ -163,6 +169,7 @@ export const ProductPage = () => {
     };
   }, [id]);
 
+  // ===== Feed (ещё товары)
   const loadFeed = useCallback(async () => {
     if (feedLoading || !feedHasMore) return;
 
@@ -190,10 +197,8 @@ export const ProductPage = () => {
         : ((raw as { data?: Product[] })?.data ?? []);
 
       setFeedProducts((prev) => {
-        const ids = new Set(prev.map((item) => item.id));
-        const nextItems = items.filter(
-          (item) => item.id !== id && !ids.has(item.id)
-        );
+        const ids = new Set(prev.map((x) => x.id));
+        const nextItems = items.filter((x) => x.id !== id && !ids.has(x.id));
         return [...prev, ...nextItems];
       });
 
@@ -219,8 +224,6 @@ export const ProductPage = () => {
         setFeedHasMore(false);
         return;
       }
-
-      // на любое другое тоже стопаем, иначе будет "вечный пулемёт" запросов
       setFeedHasMore(false);
     } finally {
       if (feedControllerRef.current === controller) {
@@ -229,6 +232,7 @@ export const ProductPage = () => {
     }
   }, [extractData, feedCursor, feedHasMore, feedLoading, id]);
 
+  // reset feed on product change
   useEffect(() => {
     setFeedProducts([]);
     setFeedCursor(null);
@@ -236,10 +240,12 @@ export const ProductPage = () => {
     feedControllerRef.current?.abort();
   }, [extractData, id]);
 
+  // initial feed load
   useEffect(() => {
     loadFeed();
   }, [loadFeed]);
 
+  // infinite scroll observer
   useEffect(() => {
     if (!sentinelRef.current || !feedHasMore) return;
 
@@ -264,15 +270,17 @@ export const ProductPage = () => {
 
   const specs = useMemo(() => {
     if (!product) return [];
-    return (
-      product.specs ?? [
-        { id: 'material', key: 'Материал', value: product.material, sortOrder: 1 },
-        { id: 'size', key: 'Размер', value: product.size, sortOrder: 2 },
-        { id: 'technology', key: 'Технология', value: product.technology, sortOrder: 3 },
-        { id: 'printTime', key: 'Время печати', value: product.printTime, sortOrder: 4 },
-        { id: 'color', key: 'Цвет', value: product.color, sortOrder: 5 }
-      ]
-    ).sort((a, b) => a.sortOrder - b.sortOrder);
+    const fallback =
+      product.specs ??
+      [
+        { id: 'material', key: 'Материал', value: (product as any).material, sortOrder: 1 },
+        { id: 'size', key: 'Размер', value: (product as any).size, sortOrder: 2 },
+        { id: 'technology', key: 'Технология', value: (product as any).technology, sortOrder: 3 },
+        { id: 'printTime', key: 'Время печати', value: (product as any).printTime, sortOrder: 4 },
+        { id: 'color', key: 'Цвет', value: (product as any).color, sortOrder: 5 }
+      ];
+
+    return [...fallback].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   }, [product]);
 
   const variants = useMemo<ProductVariant[]>(() => product?.variants ?? [], [product?.variants]);
@@ -281,15 +289,21 @@ export const ProductPage = () => {
   const ratingCount = product?.ratingCount ?? summary?.total ?? 0;
   const reviewsCount = summary?.total ?? 0;
 
-  const handleVariantChange = async (variantId: string) => {
+  const reviewsCount = summary?.total ?? 0;
+  const ratingCount = product?.ratingCount ?? reviewsCount;
+
+  const handleVariantChange = (variantId: string) => {
     setSelectedVariant(variantId);
-    const variant = product?.variants?.find((item) => item.id === variantId);
+
+    const variant = variants.find((v) => v.id === variantId) as any;
     const nextProductId = variant?.productId ?? variantId;
+
     if (product && nextProductId && nextProductId !== product.id) {
       navigate(`/product/${nextProductId}`);
     }
   };
 
+  // ===== UI states
   if (loading) {
     return (
       <section className={styles.page}>
@@ -311,25 +325,27 @@ export const ProductPage = () => {
   }
 
   const productImages =
-    product.images && product.images.length > 0 ? product.images : [{ id: 'main', url: product.image, sortOrder: 0 }];
+    product.images && product.images.length > 0
+      ? product.images
+      : [{ id: 'main', url: (product as any).image, sortOrder: 0 }];
 
   return (
     <section className={styles.page}>
       <div className="container">
         <div className={styles.hero}>
           <div className={styles.gallery}>
-            <img
-              src={activeImage}
-              alt={product.title}
-              className={styles.mainImage}
-            />
+            <img src={activeImage} alt={product.title} className={styles.mainImage} />
             <div className={styles.thumbs}>
-              {productImages.map((image) => {
+              {productImages.map((image: any) => {
                 const resolved = resolveImageUrl(image.url);
                 return (
                   <button
                     key={image.id}
-                    className={activeImage === resolved ? `${styles.thumb} ${styles.thumbActive}` : styles.thumb}
+                    className={
+                      activeImage === resolved
+                        ? `${styles.thumb} ${styles.thumbActive}`
+                        : styles.thumb
+                    }
                     onClick={() => setActiveImage(resolved)}
                     aria-label={`Показать изображение ${product.title}`}
                     type="button"
@@ -345,15 +361,8 @@ export const ProductPage = () => {
             <div className={styles.header}>
               <h1>{product.title}</h1>
               <div className={styles.ratingRow}>
-                <Rating
-                  value={product.ratingAvg ?? 0}
-                  count={ratingCount}
-                  size="md"
-                />
-                <Link
-                  to={`/product/${product.id}/reviews`}
-                  className={styles.reviewLink}
-                >
+                <Rating value={product.ratingAvg ?? 0} count={ratingCount} size="md" />
+                <Link to={`/product/${product.id}/reviews`} className={styles.reviewLink}>
                   {ratingCount} оценки · {reviewsCount} отзывов
                 </Link>
               </div>
@@ -361,7 +370,7 @@ export const ProductPage = () => {
 
             <div className={styles.priceBlock}>
               <span className={styles.price}>
-                {Number(product.price ?? 0).toLocaleString('ru-RU')} ₽
+                {Number((product as any).price ?? 0).toLocaleString('ru-RU')} ₽
               </span>
               <span className={styles.delivery}>
                 Ближайшая дата доставки:{' '}
@@ -369,7 +378,7 @@ export const ProductPage = () => {
               </span>
             </div>
 
-            <div className={styles.sku}>Артикул: {product.sku ?? '—'}</div>
+            <div className={styles.sku}>Артикул: {(product as any).sku ?? '—'}</div>
 
             {variants.length > 0 ? (
               <div className={styles.variantBlock}>
@@ -446,14 +455,9 @@ export const ProductPage = () => {
           <div className={styles.reviewsHeader}>
             <div>
               <h2>Отзывы</h2>
-              <p className={styles.reviewsHint}>
-                Последние впечатления покупателей
-              </p>
+              <p className={styles.reviewsHint}>Последние впечатления покупателей</p>
             </div>
-            <Link
-              to={`/product/${product.id}/reviews`}
-              className={styles.reviewLink}
-            >
+            <Link to={`/product/${product.id}/reviews`} className={styles.reviewLink}>
               Смотреть все отзывы
             </Link>
           </div>
@@ -462,31 +466,28 @@ export const ProductPage = () => {
             <div className={styles.reviewsSummary}>
               <div className={styles.summaryTop}>
                 <span className={styles.summaryValue}>
-                  {summary?.avg?.toFixed(1) ?? '0.0'}
+                  {typeof summary?.avg === 'number' ? summary.avg.toFixed(1) : '0.0'}
                 </span>
                 <Rating value={summary?.avg ?? 0} count={reviewsCount} />
               </div>
 
               <ul>
-                {(
-                  summary?.counts ??
-                  [5, 4, 3, 2, 1].map((rating) => ({ rating, count: 0 }))
-                ).map((item) => (
-                  <li key={item.rating}>
-                    <span>{item.rating}★</span>
-                    <div className={styles.bar}>
-                      <div
-                        className={styles.barFill}
-                        style={{
-                          width: reviewsCount
-                            ? `${(item.count / reviewsCount) * 100}%`
-                            : '0%'
-                        }}
-                      />
-                    </div>
-                    <span>{item.count}</span>
-                  </li>
-                ))}
+                {(summary?.counts ?? [5, 4, 3, 2, 1].map((rating) => ({ rating, count: 0 }))).map(
+                  (item) => (
+                    <li key={item.rating}>
+                      <span>{item.rating}★</span>
+                      <div className={styles.bar}>
+                        <div
+                          className={styles.barFill}
+                          style={{
+                            width: reviewsCount ? `${(item.count / reviewsCount) * 100}%` : '0%'
+                          }}
+                        />
+                      </div>
+                      <span>{item.count}</span>
+                    </li>
+                  )
+                )}
               </ul>
             </div>
 
@@ -524,7 +525,7 @@ export const ProductPage = () => {
                           <img
                             src={resolveImageUrl(photo)}
                             alt={`Фото отзыва ${index + 1}`}
-                            key={photo}
+                            key={`${photo}-${index}`}
                           />
                         ))}
                       </div>
