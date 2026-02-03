@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { productUseCases } from '../usecases/productUseCases';
 import { reviewService } from '../services/reviewService';
 import { authenticate, AuthRequest } from '../middleware/authMiddleware';
-import { writeLimiter } from '../middleware/rateLimiters';
+import { publicReadLimiter, writeLimiter } from '../middleware/rateLimiters';
 
 export const productRoutes = Router();
 
@@ -31,7 +31,7 @@ const listSchema = z.object({
   limit: z.coerce.number().int().positive().optional()
 });
 
-productRoutes.get('/', async (req, res, next) => {
+productRoutes.get('/', publicReadLimiter, async (req, res, next) => {
   try {
     const params = listSchema.parse(req.query);
     const products = await productUseCases.list({
@@ -51,7 +51,7 @@ productRoutes.get('/', async (req, res, next) => {
   }
 });
 
-productRoutes.get('/:id', async (req, res, next) => {
+productRoutes.get('/:id', publicReadLimiter, async (req, res, next) => {
   try {
     const product = await productUseCases.get(req.params.id);
     if (!product) {
@@ -106,7 +106,7 @@ const summaryQuerySchema = z.object({
   productIds: z.string().optional()
 });
 
-productRoutes.get('/:id/reviews', async (req, res, next) => {
+productRoutes.get('/:id/reviews', publicReadLimiter, async (req, res, next) => {
   try {
     const params = reviewListSchema.parse(req.query);
     const productIds = params.productIds
@@ -141,7 +141,7 @@ productRoutes.post('/:id/reviews', authenticate, writeLimiter, async (req: AuthR
   }
 });
 
-productRoutes.get('/:id/reviews/summary', async (req, res, next) => {
+productRoutes.get('/:id/reviews/summary', publicReadLimiter, async (req, res, next) => {
   try {
     const params = summaryQuerySchema.parse(req.query);
     const productIds = params.productIds

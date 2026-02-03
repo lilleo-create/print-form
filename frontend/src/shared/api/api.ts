@@ -71,8 +71,8 @@ export const api = {
     return apiClient.request<Product[]>(`/products${query ? `?${query}` : ''}`, { signal });
   },
 
-  async getProduct(id: string) {
-    return apiClient.request<Product>(`/products/${id}`);
+  async getProduct(id: string, opts?: { signal?: AbortSignal }) {
+    return apiClient.request<Product>(`/products/${id}`, { signal: opts?.signal });
   },
 
   async getProductReviews(
@@ -80,7 +80,8 @@ export const api = {
     page = 1,
     limit = 5,
     sort: 'helpful' | 'high' | 'low' | 'new' = 'new',
-    productIds?: string[]
+    productIds?: string[],
+    opts?: { signal?: AbortSignal }
   ) {
     const params = new URLSearchParams({
       page: String(page),
@@ -91,7 +92,8 @@ export const api = {
       params.set('productIds', productIds.join(','));
     }
     return apiClient.request<{ data: Review[]; meta: { total: number } }>(
-      `/products/${id}/reviews?${params.toString()}`
+      `/products/${id}/reviews?${params.toString()}`,
+      { signal: opts?.signal }
     );
   },
 
@@ -102,7 +104,7 @@ export const api = {
     return apiClient.request<Review>(`/products/${id}/reviews`, { method: 'POST', body: payload });
   },
 
-  async getReviewSummary(id: string, productIds?: string[]) {
+  async getReviewSummary(id: string, productIds?: string[], opts?: { signal?: AbortSignal }) {
     const params = new URLSearchParams();
     if (productIds && productIds.length > 0) {
       params.set('productIds', productIds.join(','));
@@ -110,7 +112,7 @@ export const api = {
     const qs = params.toString();
     return apiClient.request<{
       data: { total: number; avg: number; counts: { rating: number; count: number }[]; photos: string[] };
-    }>(`/products/${id}/reviews/summary${qs ? `?${qs}` : ''}`);
+    }>(`/products/${id}/reviews/summary${qs ? `?${qs}` : ''}`, { signal: opts?.signal });
   },
 
   async getFilters(opts?: { signal?: AbortSignal } | AbortSignal) {

@@ -61,6 +61,10 @@ export const useCatalog = (filters: CatalogFilters) => {
         if (err instanceof Error && err.name === 'AbortError') {
           return;
         }
+        if ((err as { status?: number })?.status === 429) {
+          setError('Слишком много запросов. Пожалуйста, попробуйте позже.');
+          return;
+        }
         setError(err instanceof Error ? err.message : 'Ошибка загрузки');
       })
       .finally(() => {

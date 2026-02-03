@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../shared/api';
-import type { Product, Review } from '../shared/types';
+import { Product, ProductSpec, ProductVariant, Review } from '../shared/types';
 import { Rating } from '../shared/ui/Rating';
 import { Button } from '../shared/ui/Button';
 import { useCartStore } from '../app/store/cartStore';
 import { useProductBoardStore } from '../app/store/productBoardStore';
 import { ProductCard } from '../widgets/shop/ProductCard';
 import styles from './ProductPage.module.css';
-
 const apiBaseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
 
 const formatDeliveryDate = (date?: string) => {
@@ -53,6 +52,7 @@ export const ProductPage = () => {
   const [feedLoading, setFeedLoading] = useState(false);
   const [feedHasMore, setFeedHasMore] = useState(true);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const feedControllerRef = useRef<AbortController | null>(null);
 
   // ✅ ОДНА функция resolveImageUrl, без конфликтов
   const resolveImageUrl = useCallback((url?: string | null) => {
@@ -63,30 +63,53 @@ export const ProductPage = () => {
     return `${apiBaseUrl}/${url}`;
   }, []);
 
-  // ===== Product
+  const extractData = useCallback(<T,>(value: unknown): T => {
+    if (value && typeof value === 'object' && 'data' in value) {
+      return (value as { data: T }).data;
+    }
+    return value as T;
+  }, []);
+
   useEffect(() => {
     if (!id) return;
 
+    const controller = new AbortController();
+    let isActive = true;
     setLoading(true);
     setError(null);
 
     api
-      .getProduct(id)
+      .getProduct(id, { signal: controller.signal })
       .then((response) => {
-        // createFetchClient уже нормализует в { data: ... }
-        const productData = response?.data ?? null;
-
-        setProduct(productData);
-        setActiveImage(
-          resolveImageUrl(productData?.images?.[0]?.url ?? productData?.image)
-        );
+        if (!isActive) return;
+        const productData = extractData<Product | null>(response);
+        setProduct(productData ?? null);
+        setActiveImage(resolveImageUrl(productData?.images?.[0]?.url ?? productData?.image));
       })
-      .catch((err: any) => {
-        setProduct(null);
+      .catch((err) => {
+        if (!isActive) return;
+        if (err instanceof Error && err.name === 'AbortError') {
+          return;
+        }
+        if ((err as { status?: number })?.status === 429) {
+          setError('Слишком много запросов. Пожалуйста, попробуйте позже.');
+          return;
+        }
+        if ((err as { status?: number })?.status === 404) {
+          setProduct(null);
+        }
         setError(err instanceof Error ? err.message : 'Не удалось загрузить товар.');
       })
-      .finally(() => setLoading(false));
-  }, [id, resolveImageUrl]);
+      .finally(() => {
+        if (!isActive) return;
+        setLoading(false);
+      });
+
+    return () => {
+      isActive = false;
+      controller.abort();
+    };
+  }, [extractData, id, resolveImageUrl]);
 
   // Sync product to store
   useEffect(() => {
@@ -100,24 +123,50 @@ export const ProductPage = () => {
   useEffect(() => {
     if (!id) return;
 
+    const controller = new AbortController();
+    let isActive = true;
     api
-      .getProductReviews(id, 1, 3, 'new')
+      .getProductReviews(id, 1, 3, 'new', undefined, { signal: controller.signal })
       .then((response) => {
-        const raw = response?.data;
-        const list = Array.isArray(raw?.data) ? raw.data : [];
-        setReviews(list);
+        if (!isActive) return;
+        const raw = extractData<{ data?: Review[] } | Review[]>(response);
+        setReviews(Array.isArray(raw) ? raw : raw?.data ?? []);
       })
-      .catch(() => setReviews([]));
+      .catch((err) => {
+        if (!isActive) return;
+        if (err instanceof Error && err.name === 'AbortError') {
+          return;
+        }
+        if ((err as { status?: number })?.status === 429) {
+          setError('Слишком много запросов. Пожалуйста, попробуйте позже.');
+          return;
+        }
+        setReviews([]);
+      });
 
     api
-      .getReviewSummary(id)
+      .getReviewSummary(id, undefined, { signal: controller.signal })
       .then((response) => {
-        const raw = response?.data;
-        // api.getReviewSummary возвращает { data: { total, avg, ... } }
-        const s = (raw?.data ?? null) as ReviewSummary | null;
-        setSummary(s);
+        if (!isActive) return;
+        const raw = extractData<{ data?: typeof summary } | typeof summary>(response);
+        setSummary((raw as { data?: typeof summary })?.data ?? raw ?? null);
       })
-      .catch(() => setSummary(null));
+      .catch((err) => {
+        if (!isActive) return;
+        if (err instanceof Error && err.name === 'AbortError') {
+          return;
+        }
+        if ((err as { status?: number })?.status === 429) {
+          setError('Слишком много запросов. Пожалуйста, попробуйте позже.');
+          return;
+        }
+        setSummary(null);
+      });
+
+    return () => {
+      isActive = false;
+      controller.abort();
+    };
   }, [id]);
 
   // ===== Feed (ещё товары)
@@ -126,15 +175,26 @@ export const ProductPage = () => {
 
     setFeedLoading(true);
     try {
-      const response = await api.getProducts({
-        cursor: feedCursor ?? undefined,
-        limit: 6,
-        sort: 'createdAt',
-        order: 'desc'
-      });
+      feedControllerRef.current?.abort();
+      const controller = new AbortController();
+      feedControllerRef.current = controller;
+      const response = await api.getProducts(
+        {
+          cursor: feedCursor ?? undefined,
+          limit: 6,
+          sort: 'createdAt',
+          order: 'desc'
+        },
+        { signal: controller.signal }
+      );
+      if (feedControllerRef.current !== controller) {
+        return;
+      }
 
-      const raw = response?.data;
-      const items: Product[] = Array.isArray(raw) ? raw : [];
+      const raw = extractData<unknown>(response);
+      const items = Array.isArray(raw)
+        ? (raw as Product[])
+        : ((raw as { data?: Product[] })?.data ?? []);
 
       setFeedProducts((prev) => {
         const ids = new Set(prev.map((x) => x.id));
@@ -150,24 +210,35 @@ export const ProductPage = () => {
       } else {
         setFeedCursor(null);
       }
-    } catch (e: any) {
-      // стопаем, чтобы не было "пулемёта"
-      if (e?.status === 429) {
+    } catch (e: unknown) {
+      if (feedControllerRef.current !== controller) {
+        return;
+      }
+      if (e instanceof Error && e.name === 'AbortError') {
+        return;
+      }
+      const status = (e as { status?: number })?.status;
+      // важно: чтобы не было бесконечной долбёжки при 429/500/сетевых ошибках
+      if (status === 429) {
+        setError('Слишком много запросов. Пожалуйста, попробуйте позже.');
         setFeedHasMore(false);
         return;
       }
       setFeedHasMore(false);
     } finally {
-      setFeedLoading(false);
+      if (feedControllerRef.current === controller) {
+        setFeedLoading(false);
+      }
     }
-  }, [feedCursor, feedHasMore, feedLoading, id]);
+  }, [extractData, feedCursor, feedHasMore, feedLoading, id]);
 
   // reset feed on product change
   useEffect(() => {
     setFeedProducts([]);
     setFeedCursor(null);
     setFeedHasMore(true);
-  }, [id]);
+    feedControllerRef.current?.abort();
+  }, [extractData, id]);
 
   // initial feed load
   useEffect(() => {
@@ -191,7 +262,12 @@ export const ProductPage = () => {
     return () => observer.disconnect();
   }, [feedHasMore, feedLoading, loadFeed]);
 
-  // ===== Specs
+  useEffect(() => {
+    return () => {
+      feedControllerRef.current?.abort();
+    };
+  }, []);
+
   const specs = useMemo(() => {
     if (!product) return [];
     const fallback =
@@ -207,9 +283,11 @@ export const ProductPage = () => {
     return [...fallback].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   }, [product]);
 
-  // ===== Derived (самое важное, чтобы НЕ падало)
-  const variants = product?.variants ?? [];
-  const safeReviews = Array.isArray(reviews) ? reviews : [];
+  const variants = useMemo<ProductVariant[]>(() => product?.variants ?? [], [product?.variants]);
+  const safeReviews = useMemo<Review[]>(() => reviews ?? [], [reviews]);
+
+  const ratingCount = product?.ratingCount ?? summary?.total ?? 0;
+  const reviewsCount = summary?.total ?? 0;
 
   const reviewsCount = summary?.total ?? 0;
   const ratingCount = product?.ratingCount ?? reviewsCount;
@@ -295,7 +373,8 @@ export const ProductPage = () => {
                 {Number((product as any).price ?? 0).toLocaleString('ru-RU')} ₽
               </span>
               <span className={styles.delivery}>
-                Ближайшая дата доставки: {formatDeliveryDate((product as any).deliveryDateNearest)}
+                Ближайшая дата доставки:{' '}
+                {formatDeliveryDate(product.deliveryDateNearest)}
               </span>
             </div>
 
@@ -305,7 +384,7 @@ export const ProductPage = () => {
               <div className={styles.variantBlock}>
                 <span>Варианты</span>
                 <div className={styles.variantList}>
-                  {variants.map((variant: any) => (
+                  {variants.map((variant) => (
                     <button
                       type="button"
                       key={variant.id}
@@ -348,7 +427,7 @@ export const ProductPage = () => {
             </div>
 
             <p className={styles.shortDescription}>
-              {(product as any).descriptionShort ?? (product as any).description}
+              {product.descriptionShort ?? product.description}
             </p>
           </div>
         </div>
@@ -356,13 +435,13 @@ export const ProductPage = () => {
         <div className={styles.sections}>
           <div className={styles.description}>
             <h2>Описание</h2>
-            <p>{(product as any).descriptionFull ?? (product as any).description}</p>
+            <p>{product.descriptionFull ?? product.description}</p>
           </div>
 
           <div className={styles.specs}>
             <h2>Характеристики</h2>
             <ul>
-              {specs.map((spec: any) => (
+              {specs.map((spec: ProductSpec) => (
                 <li key={spec.id}>
                   <span>{spec.key}</span>
                   <strong>{spec.value}</strong>

@@ -115,12 +115,13 @@ export const Layout = ({ children }: LayoutProps) => {
         if (!isActive) return;
         setSellerProfile(response.data);
       })
-      .catch((e: any) => {
+      .catch((e: unknown) => {
         if (!isActive) return;
         if (e instanceof Error && e.name === 'AbortError') {
           return;
         }
-        if (e?.status === 401 || e?.status === 429) {
+        const status = (e as { status?: number })?.status;
+        if (status === 401 || status === 429) {
           setSellerProfile(null);
           return;
         }

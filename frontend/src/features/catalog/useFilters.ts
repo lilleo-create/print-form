@@ -20,6 +20,9 @@ export const useFilters = () => {
         if (error instanceof Error && error.name === 'AbortError') {
           return;
         }
+        if ((error as { status?: number })?.status === 429) {
+          return;
+        }
         setFilters({ categories: [], materials: [], sizes: [] });
       });
 
