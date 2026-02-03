@@ -95,7 +95,7 @@ const getCatalogRequest = (key: string, filters: CatalogFilters) => {
     return existing;
   }
   const controller = new AbortController();
-  const promise = api.getProducts({ ...filters, signal: controller.signal }).then((response) => response.data);
+  const promise = api.getProducts({ ...filters }, { signal: controller.signal }).then((response) => response.data);
   const entry: CatalogEntry = { controller, promise, subscribers: 0 };
   catalogRequests.set(key, entry);
   promise.finally(() => {

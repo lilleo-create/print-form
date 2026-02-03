@@ -50,7 +50,7 @@ const getFiltersRequest = () => {
     return filtersRequest;
   }
   const controller = new AbortController();
-  const promise = api.getFilters(controller.signal).then((response) => response.data);
+  const promise = api.getFilters({ signal: controller.signal }).then((response) => response.data);
   filtersRequest = { controller, promise, subscribers: 0 };
   promise.finally(() => {
     if (filtersRequest?.promise === promise) {

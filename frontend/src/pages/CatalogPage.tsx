@@ -4,6 +4,7 @@ import { ProductCard } from '../widgets/shop/ProductCard';
 import { useCatalog } from '../features/catalog/useCatalog';
 import { useFilters } from '../features/catalog/useFilters';
 import { FilterModal } from '../widgets/catalog/FilterModal';
+import { CatalogHeader } from '../widgets/catalog/CatalogHeader';
 import { Button } from '../shared/ui/Button';
 import styles from './CatalogPage.module.css';
 
@@ -34,6 +35,13 @@ export const CatalogPage = () => {
     [filters, sort]
   );
   const { products, loading, error } = useCatalog(catalogParams);
+  const categories = useMemo(() => {
+    if (filterData.categories.length) {
+      return filterData.categories;
+    }
+    return Array.from(new Set(products.map((product) => product.category))).filter(Boolean);
+  }, [filterData.categories, products]);
+  const activeCategory = searchParams.get('category') ?? '';
 
   const filteredProducts = useMemo(() => {
     return products;
@@ -56,8 +64,23 @@ export const CatalogPage = () => {
     setSearchParams(params);
   };
 
+  const handleCategorySelect = (category?: string) => {
+    const params = new URLSearchParams(searchParams);
+    if (category) {
+      params.set('category', category);
+    } else {
+      params.delete('category');
+    }
+    setSearchParams(params);
+  };
+
   return (
     <section className={styles.page}>
+      <CatalogHeader
+        categories={categories}
+        activeCategory={activeCategory}
+        onSelect={handleCategorySelect}
+      />
       <div className="container">
         <div className={styles.header}>
           <div>

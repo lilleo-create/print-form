@@ -32,12 +32,13 @@ const normalizeUploadUrl = (u: string) => {
 };
 
 const authHeaders = () => {
-  const session = loadFromStorage<{ token: string } | null>(STORAGE_KEYS.session, null);
-  return session?.token ? { Authorization: `Bearer ${session.token}` } : undefined;
+  const token = loadFromStorage<string | null>(STORAGE_KEYS.accessToken, null);
+  return token ? { Authorization: `Bearer ${token}` } : undefined;
 };
 
 export const api = {
-  async getProducts(filters?: {
+  async getProducts(
+    filters?: {
     category?: string;
     material?: string;
     price?: string;
@@ -48,7 +49,9 @@ export const api = {
     limit?: number;
     cursor?: string;
     signal?: AbortSignal;
-  }) {
+    },
+    opts?: { signal?: AbortSignal }
+  ) {
     const params = new URLSearchParams();
     if (filters?.category) params.set('category', filters.category);
     if (filters?.material) params.set('material', filters.material);
@@ -64,7 +67,8 @@ export const api = {
     if (filters?.limit) params.set('limit', String(filters.limit));
 
     const query = params.toString();
-    return apiClient.request<Product[]>(`/products${query ? `?${query}` : ''}`, { signal: filters?.signal });
+    const signal = opts?.signal ?? filters?.signal;
+    return apiClient.request<Product[]>(`/products${query ? `?${query}` : ''}`, { signal });
   },
 
   async getProduct(id: string) {
@@ -109,7 +113,8 @@ export const api = {
     }>(`/products/${id}/reviews/summary${qs ? `?${qs}` : ''}`);
   },
 
-  async getFilters(signal?: AbortSignal) {
+  async getFilters(opts?: { signal?: AbortSignal } | AbortSignal) {
+    const signal = opts instanceof AbortSignal ? opts : opts?.signal;
     const categoriesResponse = await apiClient.request<{ id: string; slug: string; title: string }[]>(
       '/filters/reference-categories',
       { signal }
