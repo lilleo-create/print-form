@@ -10,6 +10,7 @@ import { useAddressStore } from '../app/store/addressStore';
 import { contactsApi } from '../shared/api/contactsApi';
 import { Contact, PaymentIntent } from '../shared/types';
 import { formatShortAddress } from '../shared/lib/formatShortAddress';
+import { AddressModal } from '../shared/ui/address/AddressModal';
 import { Button } from '../shared/ui/Button';
 import styles from './CheckoutPage.module.css';
 
@@ -30,10 +31,15 @@ export const CheckoutPage = () => {
   const createOrder = useOrdersStore((state) => state.createOrder);
   const addresses = useAddressStore((state) => state.addresses);
   const selectedAddressId = useAddressStore((state) => state.selectedAddressId);
+  const isModalOpen = useAddressStore((state) => state.isModalOpen);
   const openModal = useAddressStore((state) => state.openModal);
+  const closeModal = useAddressStore((state) => state.closeModal);
   const loadAddresses = useAddressStore((state) => state.loadAddresses);
   const addAddress = useAddressStore((state) => state.addAddress);
   const selectAddress = useAddressStore((state) => state.selectAddress);
+  const updateAddress = useAddressStore((state) => state.updateAddress);
+  const removeAddress = useAddressStore((state) => state.removeAddress);
+  const resetAddresses = useAddressStore((state) => state.reset);
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -46,7 +52,12 @@ export const CheckoutPage = () => {
     if (pathname !== '/checkout') {
       return;
     }
-    if (!user || !token) {
+    if (!user) {
+      resetAddresses();
+      setContacts([]);
+      return;
+    }
+    if (!token) {
       setContacts([]);
       return;
     }
@@ -66,7 +77,7 @@ export const CheckoutPage = () => {
         });
       })
       .catch((error: unknown) => {
-        if (error instanceof Error && error.name === 'AbortError') {
+        if ((error as { name?: string })?.name === 'AbortError') {
           return;
         }
         if (typeof error === 'object' && error && 'status' in error && (error as { status?: number }).status === 401) {
@@ -75,7 +86,7 @@ export const CheckoutPage = () => {
         }
       });
     return () => controller.abort();
-  }, [contactForm, pathname, token, user]);
+  }, [contactForm, pathname, resetAddresses, token, user]);
 
   useEffect(() => {
     if (pathname !== '/checkout') {
@@ -290,6 +301,34 @@ export const CheckoutPage = () => {
           </aside>
         </div>
       </div>
+      {user && (
+        <AddressModal
+          isOpen={isModalOpen}
+          addresses={addresses}
+          selectedAddressId={selectedAddressId}
+          userId={user.id}
+          onClose={closeModal}
+          onSelect={(addressId) => selectAddress(user.id, addressId)}
+          onCreate={async (payload) => {
+            const created = await addAddress(payload);
+            await selectAddress(user.id, created.id);
+            return created;
+          }}
+          onUpdate={updateAddress}
+          onDelete={async (addressId) => {
+            const nextAddresses = addresses.filter(
+              (address) => address.id !== addressId
+            );
+            await removeAddress(user.id, addressId);
+            if (selectedAddressId === addressId) {
+              const fallbackId = nextAddresses[0]?.id ?? '';
+              if (fallbackId) {
+                await selectAddress(user.id, fallbackId);
+              }
+            }
+          }}
+        />
+      )}
     </section>
   );
 };
