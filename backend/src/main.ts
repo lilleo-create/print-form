@@ -26,6 +26,7 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
+
 app.set("trust proxy", 1);
 app.disable("x-powered-by");
 
@@ -54,7 +55,6 @@ app.use(
     crossOriginResourcePolicy: { policy: "cross-origin" },
   })
 );
-app.use(clientDisconnect);
 
 // ✅ 4) Теперь можно rate-limit (а OPTIONS мы уже обработали выше)
 // (и в rateLimiters всё равно добавь skip OPTIONS, это полезно)
@@ -66,7 +66,7 @@ app.use(cookieParser());
 // ✅ uploads
 app.use("/uploads", express.static(uploadsDir));
 
-app.get("/health", (_req, res) => res.json({ status: "ok" }));
+app.get("/health", (_req, res) => res.json({ status: "ok", build: "server-2026-02-04-1" }));
 
 app.use("/auth", authRoutes);
 app.use("/products", productRoutes);
