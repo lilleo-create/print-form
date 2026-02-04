@@ -1,12 +1,20 @@
+<<<<<<< HEAD
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+=======
+import { useEffect, useState } from 'react';
+>>>>>>> 52772a9 (Add returns and chats flow)
 import { useAuthStore } from '../app/store/authStore';
 import { useOrdersStore } from '../app/store/ordersStore';
 import { api } from '../shared/api';
 import { ReturnRequest } from '../shared/types';
 import { Button } from '../shared/ui/Button';
+<<<<<<< HEAD
 import { ReturnCandidatesList } from '../components/returns/ReturnCandidatesList';
 import { ReturnCandidate } from '../components/returns/ReturnCreateFlow';
+=======
+import { ReturnCreateFlow } from '../components/returns/ReturnCreateFlow';
+>>>>>>> 52772a9 (Add returns and chats flow)
 import { ReturnList } from '../components/returns/ReturnList';
 import styles from './ReturnsPage.module.css';
 
@@ -14,12 +22,19 @@ export const ReturnsPage = () => {
   const user = useAuthStore((state) => state.user);
   const orders = useOrdersStore((state) => state.orders);
   const loadBuyerOrders = useOrdersStore((state) => state.loadBuyerOrders);
+<<<<<<< HEAD
   const navigate = useNavigate();
   const [returns, setReturns] = useState<ReturnRequest[]>([]);
   const [returnsLoading, setReturnsLoading] = useState(false);
   const [returnsError, setReturnsError] = useState<string | null>(null);
   const [selectedOrderItemId, setSelectedOrderItemId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+=======
+  const [returns, setReturns] = useState<ReturnRequest[]>([]);
+  const [returnsLoading, setReturnsLoading] = useState(false);
+  const [returnsError, setReturnsError] = useState<string | null>(null);
+  const [showReturnCreate, setShowReturnCreate] = useState(false);
+>>>>>>> 52772a9 (Add returns and chats flow)
 
   useEffect(() => {
     if (user) {
@@ -27,6 +42,7 @@ export const ReturnsPage = () => {
     }
   }, [loadBuyerOrders, user]);
 
+<<<<<<< HEAD
   const loadReturns = async () => {
     setReturnsLoading(true);
     setReturnsError(null);
@@ -48,6 +64,24 @@ export const ReturnsPage = () => {
 
   const deliveredOrders = orders.filter((order) => order.status === 'DELIVERED');
   const returnCandidates = deliveredOrders.flatMap<ReturnCandidate>((order) =>
+=======
+  useEffect(() => {
+    if (!user) return;
+    setReturnsLoading(true);
+    setReturnsError(null);
+    api.returns
+      .listMy()
+      .then((response) => setReturns(response.data ?? []))
+      .catch(() => {
+        setReturns([]);
+        setReturnsError('Не удалось загрузить возвраты.');
+      })
+      .finally(() => setReturnsLoading(false));
+  }, [user]);
+
+  const deliveredOrders = orders.filter((order) => order.status === 'DELIVERED');
+  const returnCandidates = deliveredOrders.flatMap((order) =>
+>>>>>>> 52772a9 (Add returns and chats flow)
     (order.items ?? [])
       .filter((item) => item.id)
       .map((item) => ({
@@ -61,6 +95,7 @@ export const ReturnsPage = () => {
       }))
   );
 
+<<<<<<< HEAD
   const returnsByOrderItemId = useMemo(() => {
     const map = new Map<string, ReturnRequest>();
     returns.forEach((request) => {
@@ -73,6 +108,8 @@ export const ReturnsPage = () => {
     return map;
   }, [returns]);
 
+=======
+>>>>>>> 52772a9 (Add returns and chats flow)
   if (!user) {
     return (
       <section className={styles.page}>
@@ -88,6 +125,7 @@ export const ReturnsPage = () => {
       <div className="container">
         <div className={styles.header}>
           <h1>Возвраты</h1>
+<<<<<<< HEAD
           <Button type="button" variant="secondary" onClick={() => navigate('/account?tab=chats')}>
             Перейти в чаты
           </Button>
@@ -134,7 +172,27 @@ export const ReturnsPage = () => {
             )}
           </div>
           <ReturnList items={returns} isLoading={returnsLoading} error={returnsError} />
+=======
+          <Button type="button" onClick={() => setShowReturnCreate((prev) => !prev)}>
+            Вернуть товар
+          </Button>
+>>>>>>> 52772a9 (Add returns and chats flow)
         </div>
+        {showReturnCreate ? (
+          <ReturnCreateFlow
+            items={returnCandidates}
+            onCreated={() => {
+              setShowReturnCreate(false);
+              api.returns
+                .listMy()
+                .then((response) => setReturns(response.data ?? []))
+                .catch(() => setReturns([]));
+            }}
+            onReturnToList={() => setShowReturnCreate(false)}
+          />
+        ) : (
+          <ReturnList items={returns} isLoading={returnsLoading} error={returnsError} />
+        )}
       </div>
     </section>
   );

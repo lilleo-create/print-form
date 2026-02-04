@@ -3,6 +3,36 @@
   gap: 16px;
 }
 
+<<<<<<< HEAD
+=======
+.list {
+  display: grid;
+  gap: 12px;
+}
+
+.card {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.cardBody {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.cardBody img {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+>>>>>>> 52772a9 (Add returns and chats flow)
 .caption {
   font-size: 12px;
   color: #6b7280;
@@ -31,6 +61,7 @@
   font-size: 14px;
 }
 
+<<<<<<< HEAD
 .field {
   display: grid;
   gap: 8px;
@@ -45,12 +76,24 @@
   resize: vertical;
 }
 
+=======
+>>>>>>> 52772a9 (Add returns and chats flow)
 .error {
   color: #dc2626;
   font-size: 13px;
 }
 
+<<<<<<< HEAD
 .actions {
   display: flex;
   justify-content: flex-end;
+=======
+.success {
+  display: grid;
+  gap: 12px;
+}
+
+.empty {
+  color: #6b7280;
+>>>>>>> 52772a9 (Add returns and chats flow)
 }

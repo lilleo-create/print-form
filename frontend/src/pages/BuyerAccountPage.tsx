@@ -8,8 +8,12 @@ import { Rating } from '../shared/ui/Rating';
 import { Button } from '../shared/ui/Button';
 import { PurchasedItemsList } from '../components/returns/PurchasedItemsList';
 import { ReturnList } from '../components/returns/ReturnList';
+<<<<<<< HEAD
 import { ReturnCandidatesList } from '../components/returns/ReturnCandidatesList';
 import { ReturnCandidate } from '../components/returns/ReturnCreateFlow';
+=======
+import { ReturnCreateFlow } from '../components/returns/ReturnCreateFlow';
+>>>>>>> 52772a9 (Add returns and chats flow)
 import { ChatThreadList } from '../components/chats/ChatThreadList';
 import { ChatWindow } from '../components/chats/ChatWindow';
 import styles from './BuyerAccountPage.module.css';
@@ -30,8 +34,12 @@ export const BuyerAccountPage = () => {
   const [returns, setReturns] = useState<ReturnRequest[]>([]);
   const [returnsLoading, setReturnsLoading] = useState(false);
   const [returnsError, setReturnsError] = useState<string | null>(null);
+<<<<<<< HEAD
   const [selectedOrderItemId, setSelectedOrderItemId] = useState<string | null>(null);
   const [returnsNotice, setReturnsNotice] = useState<string | null>(null);
+=======
+  const [showReturnCreate, setShowReturnCreate] = useState(false);
+>>>>>>> 52772a9 (Add returns and chats flow)
   const [chatThreads, setChatThreads] = useState<{ active: ChatThread[]; closed: ChatThread[] }>({
     active: [],
     closed: []
@@ -190,7 +198,11 @@ export const BuyerAccountPage = () => {
     }))
   );
 
+<<<<<<< HEAD
   const returnCandidates = deliveredOrders.flatMap<ReturnCandidate>((order) =>
+=======
+  const returnCandidates = deliveredOrders.flatMap((order) =>
+>>>>>>> 52772a9 (Add returns and chats flow)
     (order.items ?? [])
       .filter((item) => item.id)
       .map((item) => ({
@@ -204,6 +216,7 @@ export const BuyerAccountPage = () => {
       }))
   );
 
+<<<<<<< HEAD
   const returnsByOrderItemId = useMemo(() => {
     const map = new Map<string, ReturnRequest>();
     returns.forEach((request) => {
@@ -216,6 +229,8 @@ export const BuyerAccountPage = () => {
     return map;
   }, [returns]);
 
+=======
+>>>>>>> 52772a9 (Add returns and chats flow)
   return (
     <section className={styles.page}>
       <div className="container">
@@ -429,6 +444,7 @@ export const BuyerAccountPage = () => {
           <div className={styles.section}>
             <div className={styles.sectionHeader}>
               <h2>Возвраты</h2>
+<<<<<<< HEAD
               <Button type="button" variant="secondary" onClick={() => setTab('chats')}>
                 Перейти в чаты
               </Button>
@@ -457,6 +473,28 @@ export const BuyerAccountPage = () => {
               onChat={() => setTab('chats')}
             />
             <ReturnList items={returns} isLoading={returnsLoading} error={returnsError} />
+=======
+              <Button type="button" onClick={() => setShowReturnCreate((prev) => !prev)}>
+                Вернуть товар
+              </Button>
+            </div>
+            {showReturnCreate && (
+              <ReturnCreateFlow
+                items={returnCandidates}
+                onCreated={() => {
+                  setShowReturnCreate(false);
+                  api.returns
+                    .listMy()
+                    .then((response) => setReturns(response.data ?? []))
+                    .catch(() => setReturns([]));
+                }}
+                onReturnToList={() => setShowReturnCreate(false)}
+              />
+            )}
+            {!showReturnCreate && (
+              <ReturnList items={returns} isLoading={returnsLoading} error={returnsError} />
+            )}
+>>>>>>> 52772a9 (Add returns and chats flow)
           </div>
         )}
 
