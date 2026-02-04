@@ -1,0 +1,48 @@
+.section {
+  display: grid;
+  gap: 12px;
+}
+
+.list {
+  display: grid;
+  gap: 8px;
+}
+
+.item {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 12px;
+  text-align: left;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.itemActive {
+  border: 1px solid #111827;
+  border-radius: 10px;
+  padding: 12px;
+  text-align: left;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.preview {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+.badge {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.empty {
+  color: #6b7280;
+}

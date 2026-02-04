@@ -22,6 +22,8 @@ model User {
   addresses              Address[]
   contacts               Contact[]
   orders                 Order[]
+  returnRequests         ReturnRequest[]
+  chatThreads            ChatThread[]
   products               Product[]
   refreshTokens          RefreshToken[]
   reviews                Review[]
@@ -185,6 +187,79 @@ model OrderItem {
   order           Order           @relation(fields: [orderId], references: [id])
   product         Product         @relation(fields: [productId], references: [id])
   variant         ProductVariant? @relation(fields: [variantId], references: [id])
+  returnItems     ReturnItem[]
+}
+
+model ReturnRequest {
+  id           String        @id @default(cuid())
+  userId       String
+  status       ReturnStatus  @default(CREATED)
+  reason       ReturnReason
+  comment      String?
+  adminComment String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  user         User          @relation(fields: [userId], references: [id])
+  items        ReturnItem[]
+  photos       ReturnPhoto[]
+  chatThread   ChatThread?
+
+  @@index([userId])
+  @@index([status])
+}
+
+model ReturnItem {
+  id              String        @id @default(cuid())
+  returnRequestId String
+  orderItemId     String
+  quantity        Int           @default(1)
+  createdAt       DateTime      @default(now())
+  returnRequest   ReturnRequest @relation(fields: [returnRequestId], references: [id])
+  orderItem       OrderItem     @relation(fields: [orderItemId], references: [id])
+
+  @@index([returnRequestId])
+  @@index([orderItemId])
+}
+
+model ReturnPhoto {
+  id              String        @id @default(cuid())
+  returnRequestId String
+  url             String
+  createdAt       DateTime      @default(now())
+  returnRequest   ReturnRequest @relation(fields: [returnRequestId], references: [id])
+
+  @@index([returnRequestId])
+}
+
+model ChatThread {
+  id              String           @id @default(cuid())
+  kind            ChatThreadKind   @default(SUPPORT)
+  userId          String
+  status          ChatThreadStatus @default(ACTIVE)
+  returnRequestId String?          @unique
+  lastMessageAt   DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  user            User             @relation(fields: [userId], references: [id])
+  returnRequest   ReturnRequest?   @relation(fields: [returnRequestId], references: [id])
+  messages        ChatMessage[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([lastMessageAt])
+}
+
+model ChatMessage {
+  id         String                @id @default(cuid())
+  threadId   String
+  authorRole ChatMessageAuthorRole
+  authorId   String
+  text       String
+  createdAt  DateTime              @default(now())
+  thread     ChatThread            @relation(fields: [threadId], references: [id])
+
+  @@index([threadId])
+  @@index([createdAt])
 }
 
 model ReferenceCategory {
@@ -364,4 +439,33 @@ enum PaymentStatus {
   REQUIRES_ACTION
   SUCCEEDED
   FAILED
+}
+
+enum ReturnStatus {
+  CREATED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  REFUNDED
+}
+
+enum ReturnReason {
+  NOT_FIT
+  DAMAGED
+  WRONG_ITEM
+}
+
+enum ChatThreadKind {
+  SUPPORT
+  SELLER
+}
+
+enum ChatThreadStatus {
+  ACTIVE
+  CLOSED
+}
+
+enum ChatMessageAuthorRole {
+  USER
+  ADMIN
 }

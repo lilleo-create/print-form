@@ -34,6 +34,7 @@ const mapOrder = (order: any): Order => ({
   shippingAddress: order.shippingAddress ?? null,
   buyer: order.buyer ?? null,
   items: (order.items ?? []).map((item: any) => ({
+    id: item.id,
     productId: item.productId,
     title: item.product?.title ?? '',
     price: item.priceAtPurchase,

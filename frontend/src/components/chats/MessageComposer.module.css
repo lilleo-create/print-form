@@ -1,0 +1,11 @@
+.composer {
+  display: grid;
+  gap: 8px;
+}
+
+.composer textarea {
+  min-height: 80px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  padding: 10px;
+}

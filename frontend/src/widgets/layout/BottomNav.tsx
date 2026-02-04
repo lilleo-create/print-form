@@ -9,6 +9,9 @@ export const BottomNav = () => {
     !location.pathname.startsWith('/auth') &&
     !location.pathname.startsWith('/privacy-policy');
   const isFavoritesActive = location.pathname === '/favorites';
+  const isReturnsActive =
+    location.pathname === '/returns' ||
+    (location.pathname === '/account' && searchParams.get('tab') === 'returns');
   const isProfile =
     location.pathname === '/account' &&
     (searchParams.get('tab') === 'profile' || !searchParams.get('tab'));
@@ -36,7 +39,7 @@ export const BottomNav = () => {
       </Link>
       <Link
         to="/returns"
-        className={`${styles.bottomNavItem} ${location.pathname === '/returns' ? styles.bottomNavItemActive : ''}`}
+        className={`${styles.bottomNavItem} ${isReturnsActive ? styles.bottomNavItemActive : ''}`}
         aria-label="Возвраты"
       >
         <span aria-hidden>↩️</span>

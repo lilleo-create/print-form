@@ -53,6 +53,10 @@ const productStatusSchema = z.enum([
 ]);
 
 const reviewStatusSchema = z.enum(['PENDING', 'APPROVED', 'REJECTED', 'NEEDS_EDIT']);
+const returnStatusSchema = z.object({
+  status: z.enum(['CREATED', 'UNDER_REVIEW', 'APPROVED', 'REJECTED', 'REFUNDED']),
+  adminComment: z.string().max(2000).optional()
+});
 
 adminRoutes.use(requireAuth, requireAdmin);
 
@@ -213,6 +217,22 @@ adminRoutes.post('/products/:id/approve', writeLimiter, async (req: AuthRequest,
         moderatedAt: new Date(),
         moderatedById: req.user!.userId,
         publishedAt: existing.publishedAt ?? new Date()
+      }
+    });
+    res.json({ data: updated });
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRoutes.patch('/returns/:id/status', writeLimiter, async (req: AuthRequest, res, next) => {
+  try {
+    const payload = returnStatusSchema.parse(req.body);
+    const updated = await prisma.returnRequest.update({
+      where: { id: req.params.id },
+      data: {
+        status: payload.status,
+        adminComment: payload.adminComment?.trim() || null
       }
     });
     res.json({ data: updated });

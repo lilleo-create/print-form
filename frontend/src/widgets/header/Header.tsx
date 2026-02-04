@@ -392,9 +392,9 @@ export const Header = () => {
                 className={styles.profileMenuItem}
                 onClick={closeProfileMenu}
               >
-                Купленный товар
+                Купленные товары
               </Link>
-              <Link to="/returns" className={styles.profileMenuItem} onClick={closeProfileMenu}>
+              <Link to="/account?tab=returns" className={styles.profileMenuItem} onClick={closeProfileMenu}>
                 Возвраты
               </Link>
               <Link to="/favorites" className={styles.profileMenuItem} onClick={closeProfileMenu}>

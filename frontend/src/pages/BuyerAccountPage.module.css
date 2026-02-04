@@ -141,6 +141,96 @@
   color: var(--color-text-muted);
 }
 
+.tabs {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+
+.tab {
+  border: 1px solid var(--color-border);
+  background: #ffffff;
+  border-radius: 999px;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+
+.tabActive {
+  border: 1px solid #111827;
+  background: #111827;
+  color: #ffffff;
+  border-radius: 999px;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+
+.section {
+  display: grid;
+  gap: 16px;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ordersList {
+  display: grid;
+  gap: 16px;
+}
+
+.orderCard {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  gap: 12px;
+}
+
+.orderHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.total {
+  font-weight: 600;
+}
+
+.items {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.item {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.itemInfo {
+  display: grid;
+  gap: 4px;
+}
+
+.chatLayout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 20px;
+}
+
+.chatList {
+  display: grid;
+  gap: 16px;
+}
+
 @media (max-width: 768px) {
   .profileCard {
     grid-template-columns: 1fr;
@@ -153,5 +243,9 @@
 
   .reviewRating {
     justify-self: start;
+  }
+
+  .chatLayout {
+    grid-template-columns: 1fr;
   }
 }
