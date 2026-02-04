@@ -1,14 +1,14 @@
 import { createFetchClient } from './client';
 import type {
-  Product,
   CustomPrintRequest,
   Order,
   OrderStatus,
   Payment,
+  PaymentIntent,
+  Product,
   Review,
-  SellerProfile,
-  SellerKycSubmission,
-  PaymentIntent
+  SellerContextResponse,
+  SellerKycSubmission
 } from '../types';
 import { loadFromStorage } from '../lib/storage';
 import { STORAGE_KEYS } from '../constants/storageKeys';
@@ -321,21 +321,11 @@ export const api = {
   },
 
   async getSellerContext(signal?: AbortSignal) {
-    return apiClient.request<{
-      isSeller: boolean;
-      profile: SellerProfile | null;
-      kyc?: SellerKycSubmission | null;
-      canSell?: boolean;
-    }>('/seller/context', { signal });
+    return apiClient.request<SellerContextResponse>('/seller/context', { signal });
   },
 
   async getSellerProfile() {
-    return apiClient.request<{
-      isSeller: boolean;
-      profile: SellerProfile | null;
-      kyc?: SellerKycSubmission | null;
-      canSell?: boolean;
-    }>('/seller/context');
+    return apiClient.request<SellerContextResponse>('/seller/context');
   },
 
   async getSellerStats() {
