@@ -19,6 +19,7 @@ import { AdminLayout } from './pages/admin/AdminLayout';
 import { AdminKycPage } from './pages/admin/AdminKycPage';
 import { AdminProductsPage } from './pages/admin/AdminProductsPage';
 import { AdminReviewsPage } from './pages/admin/AdminReviewsPage';
+import { AdminChatsPage } from './pages/admin/AdminChatsPage';
 import { FavoritesPage } from './pages/FavoritesPage';
 import { ReturnsPage } from './pages/ReturnsPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
@@ -89,6 +90,7 @@ const App = () => {
         <Route path="kyc" element={<AdminKycPage />} />
         <Route path="products" element={<AdminProductsPage />} />
         <Route path="reviews" element={<AdminReviewsPage />} />
+        <Route path="chats" element={<AdminChatsPage />} />
       </Route>
     </Routes>
   );

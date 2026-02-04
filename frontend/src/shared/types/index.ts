@@ -4,6 +4,11 @@ export type Role = 'buyer' | 'seller' | 'admin';
 export type OrderStatus = 'CREATED' | 'PRINTING' | 'HANDED_TO_DELIVERY' | 'IN_TRANSIT' | 'DELIVERED';
 export type ProductModerationStatus = 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'NEEDS_EDIT' | 'ARCHIVED';
 export type ReviewModerationStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'NEEDS_EDIT';
+export type ReturnStatus = 'CREATED' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED' | 'REFUNDED';
+export type ReturnReason = 'NOT_FIT' | 'DAMAGED' | 'WRONG_ITEM';
+export type ChatThreadKind = 'SUPPORT' | 'SELLER';
+export type ChatThreadStatus = 'ACTIVE' | 'CLOSED';
+export type ChatMessageAuthorRole = 'USER' | 'ADMIN';
 
 export interface Product {
   id: string;
@@ -90,6 +95,7 @@ export interface CartItem {
 }
 
 export interface OrderItem {
+  id?: string;
   productId: string;
   title: string;
   price: number;
@@ -97,6 +103,62 @@ export interface OrderItem {
   sellerId: string;
   lineTotal: number;
   image?: string;
+}
+
+export interface ReturnPhoto {
+  id: string;
+  url: string;
+  createdAt?: string;
+}
+
+export interface ReturnItem {
+  id: string;
+  orderItemId: string;
+  quantity: number;
+  orderItem?: {
+    id: string;
+    quantity: number;
+    priceAtPurchase: number;
+    productId: string;
+    product?: Product | null;
+    order?: { id: string; createdAt: string; statusUpdatedAt?: string | null; status?: OrderStatus } | null;
+  } | null;
+}
+
+export interface ReturnRequest {
+  id: string;
+  userId?: string;
+  status: ReturnStatus;
+  reason: ReturnReason;
+  comment?: string | null;
+  adminComment?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+  items: ReturnItem[];
+  photos: ReturnPhoto[];
+}
+
+export interface ChatMessage {
+  id: string;
+  threadId: string;
+  authorRole: ChatMessageAuthorRole;
+  authorId: string;
+  text: string;
+  createdAt: string;
+}
+
+export interface ChatThread {
+  id: string;
+  kind: ChatThreadKind;
+  userId: string;
+  status: ChatThreadStatus;
+  returnRequestId?: string | null;
+  lastMessageAt?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+  lastMessage?: ChatMessage | null;
+  returnRequest?: ReturnRequest | null;
+  user?: { id: string; name: string; email: string } | null;
 }
 
 export interface Order {

@@ -7,8 +7,13 @@ import type {
   PaymentIntent,
   Product,
   Review,
+  ReturnRequest,
+  ReturnReason,
+  ReturnStatus,
   SellerContextResponse,
-  SellerKycSubmission
+  SellerKycSubmission,
+  ChatThread,
+  ChatMessage
 } from '../types';
 import { loadFromStorage } from '../lib/storage';
 import { STORAGE_KEYS } from '../constants/storageKeys';
@@ -441,6 +446,50 @@ export const api = {
 
   async needsEditAdminReview(id: string, payload: { notes?: string }) {
     return apiClient.request<Review>(`/admin/reviews/${id}/needs-edit`, { method: 'POST', body: payload });
+  },
+
+  returns: {
+    async listMy() {
+      return apiClient.request<ReturnRequest[]>('/returns/my');
+    },
+    async create(payload: { orderItemId: string; reason: ReturnReason; comment?: string; photosUrls?: string[] }) {
+      return apiClient.request<ReturnRequest>('/returns', { method: 'POST', body: payload });
+    },
+    async uploadPhotos(files: File[]) {
+      const formData = new FormData();
+      files.forEach((file) => formData.append('files', file));
+      return apiClient.request<{ urls: string[] }>('/returns/uploads', { method: 'POST', body: formData });
+    }
+  },
+
+  chats: {
+    async listMy() {
+      return apiClient.request<{ active: ChatThread[]; closed: ChatThread[] }>('/chats/my');
+    },
+    async getThread(id: string) {
+      return apiClient.request<{ thread: ChatThread; messages: ChatMessage[] }>(`/chats/${id}`);
+    },
+    async sendMessage(id: string, payload: { text: string }) {
+      return apiClient.request<ChatMessage>(`/chats/${id}/messages`, { method: 'POST', body: payload });
+    }
+  },
+
+  adminChats: {
+    async listAll() {
+      return apiClient.request<{ active: ChatThread[]; closed: ChatThread[] }>('/admin/chats');
+    },
+    async getThread(id: string) {
+      return apiClient.request<{ thread: ChatThread; messages: ChatMessage[] }>(`/admin/chats/${id}`);
+    },
+    async sendMessage(id: string, payload: { text: string }) {
+      return apiClient.request<ChatMessage>(`/admin/chats/${id}/messages`, { method: 'POST', body: payload });
+    },
+    async updateThreadStatus(id: string, payload: { status: 'ACTIVE' | 'CLOSED' }) {
+      return apiClient.request<ChatThread>(`/admin/chats/${id}`, { method: 'PATCH', body: payload });
+    },
+    async updateReturnStatus(id: string, payload: { status: ReturnStatus; adminComment?: string }) {
+      return apiClient.request<ReturnRequest>(`/admin/returns/${id}/status`, { method: 'PATCH', body: payload });
+    }
   },
 
   async createPaymentIntent(payload: { orderId: string; amount: number; currency?: string; provider?: string }) {
