@@ -1,6 +1,10 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+=======
+import { useEffect, useState } from 'react';
+>>>>>>> 52772a9 (Add returns and chats flow)
 =======
 import { useEffect, useState } from 'react';
 >>>>>>> 52772a9 (Add returns and chats flow)
@@ -10,8 +14,12 @@ import { api } from '../shared/api';
 import { ReturnRequest } from '../shared/types';
 import { Button } from '../shared/ui/Button';
 <<<<<<< HEAD
+<<<<<<< HEAD
 import { ReturnCandidatesList } from '../components/returns/ReturnCandidatesList';
 import { ReturnCandidate } from '../components/returns/ReturnCreateFlow';
+=======
+import { ReturnCreateFlow } from '../components/returns/ReturnCreateFlow';
+>>>>>>> 52772a9 (Add returns and chats flow)
 =======
 import { ReturnCreateFlow } from '../components/returns/ReturnCreateFlow';
 >>>>>>> 52772a9 (Add returns and chats flow)
@@ -23,6 +31,7 @@ export const ReturnsPage = () => {
   const orders = useOrdersStore((state) => state.orders);
   const loadBuyerOrders = useOrdersStore((state) => state.loadBuyerOrders);
 <<<<<<< HEAD
+<<<<<<< HEAD
   const navigate = useNavigate();
   const [returns, setReturns] = useState<ReturnRequest[]>([]);
   const [returnsLoading, setReturnsLoading] = useState(false);
@@ -30,10 +39,15 @@ export const ReturnsPage = () => {
   const [selectedOrderItemId, setSelectedOrderItemId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 =======
+=======
+>>>>>>> 52772a9 (Add returns and chats flow)
   const [returns, setReturns] = useState<ReturnRequest[]>([]);
   const [returnsLoading, setReturnsLoading] = useState(false);
   const [returnsError, setReturnsError] = useState<string | null>(null);
   const [showReturnCreate, setShowReturnCreate] = useState(false);
+<<<<<<< HEAD
+>>>>>>> 52772a9 (Add returns and chats flow)
+=======
 >>>>>>> 52772a9 (Add returns and chats flow)
 
   useEffect(() => {
@@ -42,6 +56,7 @@ export const ReturnsPage = () => {
     }
   }, [loadBuyerOrders, user]);
 
+<<<<<<< HEAD
 <<<<<<< HEAD
   const loadReturns = async () => {
     setReturnsLoading(true);
@@ -65,6 +80,8 @@ export const ReturnsPage = () => {
   const deliveredOrders = orders.filter((order) => order.status === 'DELIVERED');
   const returnCandidates = deliveredOrders.flatMap<ReturnCandidate>((order) =>
 =======
+=======
+>>>>>>> 52772a9 (Add returns and chats flow)
   useEffect(() => {
     if (!user) return;
     setReturnsLoading(true);
@@ -81,6 +98,9 @@ export const ReturnsPage = () => {
 
   const deliveredOrders = orders.filter((order) => order.status === 'DELIVERED');
   const returnCandidates = deliveredOrders.flatMap((order) =>
+<<<<<<< HEAD
+>>>>>>> 52772a9 (Add returns and chats flow)
+=======
 >>>>>>> 52772a9 (Add returns and chats flow)
     (order.items ?? [])
       .filter((item) => item.id)
@@ -96,6 +116,7 @@ export const ReturnsPage = () => {
   );
 
 <<<<<<< HEAD
+<<<<<<< HEAD
   const returnsByOrderItemId = useMemo(() => {
     const map = new Map<string, ReturnRequest>();
     returns.forEach((request) => {
@@ -108,6 +129,8 @@ export const ReturnsPage = () => {
     return map;
   }, [returns]);
 
+=======
+>>>>>>> 52772a9 (Add returns and chats flow)
 =======
 >>>>>>> 52772a9 (Add returns and chats flow)
   if (!user) {
@@ -125,6 +148,7 @@ export const ReturnsPage = () => {
       <div className="container">
         <div className={styles.header}>
           <h1>Возвраты</h1>
+<<<<<<< HEAD
 <<<<<<< HEAD
           <Button type="button" variant="secondary" onClick={() => navigate('/account?tab=chats')}>
             Перейти в чаты
@@ -178,6 +202,12 @@ export const ReturnsPage = () => {
           </Button>
 >>>>>>> 52772a9 (Add returns and chats flow)
         </div>
+=======
+          <Button type="button" onClick={() => setShowReturnCreate((prev) => !prev)}>
+            Вернуть товар
+          </Button>
+        </div>
+>>>>>>> 52772a9 (Add returns and chats flow)
         {showReturnCreate ? (
           <ReturnCreateFlow
             items={returnCandidates}

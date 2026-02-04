@@ -4,7 +4,10 @@
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
+=======
+>>>>>>> 52772a9 (Add returns and chats flow)
 .list {
   display: grid;
   gap: 12px;
@@ -32,6 +35,9 @@
   border-radius: 8px;
 }
 
+<<<<<<< HEAD
+>>>>>>> 52772a9 (Add returns and chats flow)
+=======
 >>>>>>> 52772a9 (Add returns and chats flow)
 .caption {
   font-size: 12px;
@@ -62,6 +68,7 @@
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 .field {
   display: grid;
   gap: 8px;
@@ -78,16 +85,21 @@
 
 =======
 >>>>>>> 52772a9 (Add returns and chats flow)
+=======
+>>>>>>> 52772a9 (Add returns and chats flow)
 .error {
   color: #dc2626;
   font-size: 13px;
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 .actions {
   display: flex;
   justify-content: flex-end;
 =======
+=======
+>>>>>>> 52772a9 (Add returns and chats flow)
 .success {
   display: grid;
   gap: 12px;
@@ -95,5 +107,8 @@
 
 .empty {
   color: #6b7280;
+<<<<<<< HEAD
+>>>>>>> 52772a9 (Add returns and chats flow)
+=======
 >>>>>>> 52772a9 (Add returns and chats flow)
 }

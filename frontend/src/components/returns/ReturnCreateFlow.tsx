@@ -1,5 +1,9 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 import { useState } from 'react';
+=======
+import { useMemo, useState } from 'react';
+>>>>>>> 52772a9 (Add returns and chats flow)
 =======
 import { useMemo, useState } from 'react';
 >>>>>>> 52772a9 (Add returns and chats flow)
@@ -11,7 +15,11 @@ import { ReturnPhotoUploader } from './ReturnPhotoUploader';
 import styles from './ReturnCreateFlow.module.css';
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 export interface ReturnCandidate {
+=======
+interface ReturnCandidate {
+>>>>>>> 52772a9 (Add returns and chats flow)
 =======
 interface ReturnCandidate {
 >>>>>>> 52772a9 (Add returns and chats flow)
@@ -25,6 +33,7 @@ interface ReturnCandidate {
 }
 
 interface ReturnCreateFlowProps {
+<<<<<<< HEAD
 <<<<<<< HEAD
   item: ReturnCandidate;
   onCreated?: () => void;
@@ -44,6 +53,8 @@ const getErrorCode = (error: unknown) => {
 
 export const ReturnCreateFlow = ({ item, onCreated, onAlreadyExists }: ReturnCreateFlowProps) => {
 =======
+=======
+>>>>>>> 52772a9 (Add returns and chats flow)
   items: ReturnCandidate[];
   onCreated?: () => void;
   onReturnToList?: () => void;
@@ -54,6 +65,9 @@ type Step = 'select' | 'form' | 'success';
 export const ReturnCreateFlow = ({ items, onCreated, onReturnToList }: ReturnCreateFlowProps) => {
   const [step, setStep] = useState<Step>('select');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+<<<<<<< HEAD
+>>>>>>> 52772a9 (Add returns and chats flow)
+=======
 >>>>>>> 52772a9 (Add returns and chats flow)
   const [reason, setReason] = useState<ReturnReason>('NOT_FIT');
   const [comment, setComment] = useState('');
@@ -62,8 +76,11 @@ export const ReturnCreateFlow = ({ items, onCreated, onReturnToList }: ReturnCre
   const [error, setError] = useState<string | null>(null);
 
 <<<<<<< HEAD
+<<<<<<< HEAD
   const handleSubmit = async () => {
 =======
+=======
+>>>>>>> 52772a9 (Add returns and chats flow)
   const selectedItem = useMemo(
     () => items.find((item) => item.orderItemId === selectedId) ?? null,
     [items, selectedId]
@@ -76,6 +93,9 @@ export const ReturnCreateFlow = ({ items, onCreated, onReturnToList }: ReturnCre
 
   const handleSubmit = async () => {
     if (!selectedItem) return;
+<<<<<<< HEAD
+>>>>>>> 52772a9 (Add returns and chats flow)
+=======
 >>>>>>> 52772a9 (Add returns and chats flow)
     setSubmitting(true);
     setError(null);
@@ -87,7 +107,11 @@ export const ReturnCreateFlow = ({ items, onCreated, onReturnToList }: ReturnCre
       }
       await api.returns.create({
 <<<<<<< HEAD
+<<<<<<< HEAD
         orderItemId: item.orderItemId,
+=======
+        orderItemId: selectedItem.orderItemId,
+>>>>>>> 52772a9 (Add returns and chats flow)
 =======
         orderItemId: selectedItem.orderItemId,
 >>>>>>> 52772a9 (Add returns and chats flow)
@@ -95,6 +119,7 @@ export const ReturnCreateFlow = ({ items, onCreated, onReturnToList }: ReturnCre
         comment: comment.trim() || undefined,
         photosUrls
       });
+<<<<<<< HEAD
 <<<<<<< HEAD
       onCreated?.();
     } catch (err) {
@@ -108,12 +133,18 @@ export const ReturnCreateFlow = ({ items, onCreated, onReturnToList }: ReturnCre
       onCreated?.();
     } catch {
 >>>>>>> 52772a9 (Add returns and chats flow)
+=======
+      setStep('success');
+      onCreated?.();
+    } catch {
+>>>>>>> 52772a9 (Add returns and chats flow)
       setError('Не удалось создать заявку на возврат.');
     } finally {
       setSubmitting(false);
     }
   };
 
+<<<<<<< HEAD
 <<<<<<< HEAD
   return (
     <div className={styles.flow}>
@@ -160,6 +191,8 @@ export const ReturnCreateFlow = ({ items, onCreated, onReturnToList }: ReturnCre
         </Button>
       </div>
 =======
+=======
+>>>>>>> 52772a9 (Add returns and chats flow)
   if (items.length === 0) {
     return <p className={styles.empty}>Пока нет товаров для возврата.</p>;
   }
@@ -248,6 +281,9 @@ export const ReturnCreateFlow = ({ items, onCreated, onReturnToList }: ReturnCre
           </Button>
         </>
       )}
+<<<<<<< HEAD
+>>>>>>> 52772a9 (Add returns and chats flow)
+=======
 >>>>>>> 52772a9 (Add returns and chats flow)
     </div>
   );
