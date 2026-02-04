@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { useEffect, useMemo, useState, useRef} from 'react';
+import { useEffect, useMemo, useState} from 'react';
 import { Button } from '../shared/ui/Button';
 import { CustomPrintForm } from '../widgets/shop/CustomPrintForm';
 import { CatalogBoot } from '../features/catalog/CatalogBoot';
@@ -17,9 +17,6 @@ export const LandingPage = () => {
   );
 
   // Guard против параллельных запросов (state в замыканиях не спасает)
-  const loadingRef = useRef(false);
-  const controllerRef = useRef<AbortController | null>(null);
-
   const slides = useMemo(
     () => [
       {

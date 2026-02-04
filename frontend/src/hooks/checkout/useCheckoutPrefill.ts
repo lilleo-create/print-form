@@ -1,3 +1,4 @@
+// frontend/src/hooks/checkout/useCheckoutPrefill.ts
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { contactsApi } from '../../shared/api/contactsApi';
@@ -8,8 +9,6 @@ export type PrefillStatus = 'idle' | 'loading' | 'success' | 'error';
 
 type UseCheckoutPrefillArgs = {
   user: User | null;
-  token: string | null;
-  pathname: string;
   keepPreviousData?: boolean;
   ttlMs?: number;
 };
@@ -17,7 +16,7 @@ type UseCheckoutPrefillArgs = {
 type PrefillCacheEntry = {
   timestamp: number;
   contacts: Contact[];
-  addressesSnapshot: Address[];
+  addresses: Address[];
   selectedAddressId: string;
 };
 
@@ -37,24 +36,23 @@ const cache = new Map<string, PrefillCacheEntry>();
 
 export const useCheckoutPrefill = ({
   user,
-  token,
-  pathname,
   keepPreviousData = true,
-  ttlMs = 60000
+  ttlMs = 60_000
 }: UseCheckoutPrefillArgs): UseCheckoutPrefillResult => {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [status, setStatus] = useState<PrefillStatus>('idle');
   const [error, setError] = useState<string | null>(null);
 
-  const addresses = useAddressStore((state) => state.addresses);
-  const selectedAddressId = useAddressStore((state) => state.selectedAddressId);
-  const isModalOpen = useAddressStore((state) => state.isModalOpen);
-  const openModal = useAddressStore((state) => state.openModal);
-  const closeModal = useAddressStore((state) => state.closeModal);
-  const loadAddresses = useAddressStore((state) => state.loadAddresses);
-  const addAddress = useAddressStore((state) => state.addAddress);
-  const selectAddress = useAddressStore((state) => state.selectAddress);
-  const resetAddresses = useAddressStore((state) => state.reset);
+  const addresses = useAddressStore((s) => s.addresses);
+  const selectedAddressId = useAddressStore((s) => s.selectedAddressId);
+  const isModalOpen = useAddressStore((s) => s.isModalOpen);
+  const openModal = useAddressStore((s) => s.openModal);
+  const closeModal = useAddressStore((s) => s.closeModal);
+
+  const loadAddresses = useAddressStore((s) => s.loadAddresses);
+  const addAddress = useAddressStore((s) => s.addAddress);
+  const selectAddress = useAddressStore((s) => s.selectAddress);
+  const resetAddresses = useAddressStore((s) => s.reset);
 
   const controllerRef = useRef<AbortController | null>(null);
   const requestIdRef = useRef(0);
@@ -63,7 +61,7 @@ export const useCheckoutPrefill = ({
   const applyCache = useCallback((entry: PrefillCacheEntry) => {
     setContacts(entry.contacts);
     useAddressStore.setState({
-      addresses: entry.addressesSnapshot,
+      addresses: entry.addresses,
       selectedAddressId: entry.selectedAddressId
     });
     setStatus('success');
@@ -71,24 +69,17 @@ export const useCheckoutPrefill = ({
   }, []);
 
   useEffect(() => {
-    if (pathname !== '/checkout') {
-      return;
-    }
-
     if (!user) {
+      controllerRef.current?.abort();
       resetAddresses();
       setContacts([]);
       setStatus('idle');
+      setError(null);
       return;
     }
 
-    if (!token) {
-      setContacts([]);
-      setStatus('idle');
-      return;
-    }
-
-    const cached = cache.get(user.id);
+    const cacheKey = `checkout:${user.id}`;
+    const cached = cache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < ttlMs) {
       applyCache(cached);
       return;
@@ -101,70 +92,73 @@ export const useCheckoutPrefill = ({
 
     setStatus('loading');
     setError(null);
-    if (!keepPreviousData) {
-      setContacts([]);
-    }
+    if (!keepPreviousData) setContacts([]);
 
-    const loadPrefill = async () => {
+    const guard = () => controller.signal.aborted || requestIdRef.current !== requestId;
+
+    (async () => {
       try {
-        const [contactsResponse] = await Promise.all([
+        const [contactsResponse, loadedAddresses] = await Promise.all([
           contactsApi.listByUser(user.id, controller.signal),
           loadAddresses(user.id, controller.signal)
         ]);
 
-        if (controller.signal.aborted || requestIdRef.current !== requestId) return;
+        if (guard()) return;
 
         setContacts(contactsResponse);
 
-        const currentState = useAddressStore.getState();
-        if (user.address && currentState.addresses.length === 0 && !createdDefaultRef.current.has(user.id)) {
+        // Если адресов нет, но в профиле есть user.address -> создаём один раз
+        if (
+          user.address &&
+          loadedAddresses.length === 0 &&
+          !createdDefaultRef.current.has(user.id)
+        ) {
           createdDefaultRef.current.add(user.id);
-          const created = await addAddress({
-            userId: user.id,
-            addressText: user.address,
-            coords: null
-          });
-          await selectAddress(user.id, created.id);
+
+          if (guard()) return;
+
+          const created = await addAddress(
+            { userId: user.id, addressText: user.address, coords: null },
+            controller.signal
+          );
+
+          if (guard()) return;
+
+          await selectAddress(user.id, created.id, controller.signal);
         }
 
+        if (guard()) return;
+
         const snapshot = useAddressStore.getState();
-        cache.set(user.id, {
+
+        cache.set(cacheKey, {
           timestamp: Date.now(),
           contacts: contactsResponse,
-          addressesSnapshot: snapshot.addresses,
+          addresses: snapshot.addresses,
           selectedAddressId: snapshot.selectedAddressId
         });
+
         setStatus('success');
       } catch (err: unknown) {
-        if (controller.signal.aborted || requestIdRef.current !== requestId) return;
         if ((err as { name?: string })?.name === 'AbortError') return;
+        if (guard()) return;
+
         if ((err as { status?: number })?.status === 401) {
+          // Сессии нет/умерла
           setContacts([]);
+          resetAddresses();
           setStatus('error');
+          setError('Unauthorized');
           return;
         }
+
         setError(err instanceof Error ? err.message : 'Не удалось загрузить данные.');
         setStatus('error');
       }
-    };
+    })();
 
-    void loadPrefill();
-
-    return () => {
-      controller.abort();
-    };
-  }, [
-    addAddress,
-    applyCache,
-    keepPreviousData,
-    loadAddresses,
-    pathname,
-    resetAddresses,
-    selectAddress,
-    token,
-    ttlMs,
-    user
-  ]);
+    return () => controller.abort();
+  }, [user?.id, ttlMs, keepPreviousData, applyCache, loadAddresses, addAddress, selectAddress, resetAddresses]);
 
   return {
     contacts,

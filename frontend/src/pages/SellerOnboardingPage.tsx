@@ -5,9 +5,9 @@ import { api } from '../shared/api';
 import { Button } from '../shared/ui/Button';
 import { Role } from '../shared/types';
 import styles from './SellerOnboardingPage.module.css';
+import { isRuPhone, toE164Ru } from '../shared/lib/validation';
 
 const steps = ['Контакты', 'Статус', 'Город', 'Категория'] as const;
-const phonePattern = /^\+?[0-9\s()-]{7,}$/;
 
 export const SellerOnboardingPage = () => {
   const navigate = useNavigate();
@@ -71,7 +71,7 @@ export const SellerOnboardingPage = () => {
 
   const isLoggedIn = Boolean(user);
   const nameValid = form.name.trim().length >= 2;
-  const phoneValid = phonePattern.test(form.phone.trim());
+  const phoneValid = isRuPhone(form.phone);
   const statusValid = form.status.trim().length > 0;
   const storeNameValid = form.storeName.trim().length >= 2;
   const cityValid = cities.some((city) => city.name === form.city);
@@ -126,7 +126,7 @@ export const SellerOnboardingPage = () => {
       };
       const response = await api.submitSellerOnboarding({
         name: form.name,
-        phone: form.phone,
+        phone: toE164Ru(form.phone),
         status: form.status as 'ИП' | 'ООО' | 'Самозанятый',
         storeName: form.storeName,
         city: form.city,
@@ -138,7 +138,7 @@ export const SellerOnboardingPage = () => {
         id: response.data.id,
         name: response.data.name,
         email: response.data.email,
-        phone: response.data.phone,
+        phone: toE164Ru(response.data.phone ?? form.phone),
         role: role as Role,
         address: user?.address ?? null
       });
