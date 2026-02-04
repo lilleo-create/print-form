@@ -3,7 +3,7 @@ import { Layout } from './widgets/layout/Layout';
 import { LandingPage } from './pages/LandingPage';
 import { CatalogPage } from './pages/CatalogPage';
 import { BuyerAccountPage } from './pages/BuyerAccountPage';
-import { SellerAccountPage } from './pages/SellerAccountPage';
+import { SellerDashboardPage } from './pages/SellerDashboardPage';
 import { AuthPage } from './pages/AuthPage';
 import { CartPage } from './pages/CartPage';
 import { CheckoutPage } from './pages/CheckoutPage';
@@ -67,7 +67,7 @@ const App = () => {
           path="/seller"
           element={
             <ProtectedRoute requiredRole="seller">
-              <SellerAccountPage />
+              <SellerDashboardPage />
             </ProtectedRoute>
           }
         />

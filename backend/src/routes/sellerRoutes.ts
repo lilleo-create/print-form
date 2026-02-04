@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Response, Router } from 'express';
 import { z } from 'zod';
 import multer from 'multer';
 import path from 'path';
@@ -132,12 +132,7 @@ const loadSellerContext = async (userId: string) => {
     where: { userId }
   });
   if (!profile) {
-    return {
-      isSeller: false,
-      profile: null,
-      kyc: null,
-      canSell: false
-    };
+    return null;
   }
   const latestSubmission = await prisma.sellerKycSubmission.findFirst({
     where: { userId },
@@ -156,10 +151,24 @@ const loadSellerContext = async (userId: string) => {
   };
 };
 
+const respondSellerContext = async (req: AuthRequest, res: Response) => {
+  if (req.user?.role !== 'SELLER') {
+    return res.status(403).json({ code: 'FORBIDDEN', message: 'Seller only' });
+  }
+  const context = await loadSellerContext(req.user.userId);
+  if (!context) {
+    console.warn('Seller profile missing for user', { userId: req.user.userId });
+    return res.status(409).json({
+      code: 'SELLER_PROFILE_MISSING',
+      message: 'Seller onboarding required'
+    });
+  }
+  return res.json({ data: context });
+};
+
 sellerRoutes.get('/context', requireAuth, async (req: AuthRequest, res, next) => {
   try {
-    const context = await loadSellerContext(req.user!.userId);
-    res.json({ data: context });
+    await respondSellerContext(req, res);
   } catch (error) {
     next(error);
   }
@@ -167,8 +176,7 @@ sellerRoutes.get('/context', requireAuth, async (req: AuthRequest, res, next) =>
 
 sellerRoutes.get('/me', requireAuth, async (req: AuthRequest, res, next) => {
   try {
-    const context = await loadSellerContext(req.user!.userId);
-    res.json({ data: context });
+    await respondSellerContext(req, res);
   } catch (error) {
     next(error);
   }

@@ -161,6 +161,13 @@ export interface SellerProfile {
   catalogPosition: string;
 }
 
+export interface SellerContextResponse {
+  isSeller: boolean;
+  profile: SellerProfile | null;
+  kyc?: SellerKycSubmission | null;
+  canSell?: boolean;
+}
+
 export type KycStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export interface SellerDocument {
