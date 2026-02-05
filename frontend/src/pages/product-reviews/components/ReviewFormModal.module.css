@@ -1,0 +1,144 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 70;
+}
+
+.modal {
+  background: #2b2b2b;
+  color: #ffffff;
+  border-radius: 24px;
+  width: min(520px, 92vw);
+  padding: 24px;
+  display: grid;
+  gap: 16px;
+  max-height: 90vh;
+  overflow: auto;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.close {
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.product {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 600;
+}
+
+.product img {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  object-fit: cover;
+  background: #111827;
+}
+
+.ratingBlock {
+  display: grid;
+  gap: 8px;
+}
+
+.stars {
+  display: flex;
+  gap: 8px;
+}
+
+.star,
+.starActive {
+  font-size: 28px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.starActive {
+  color: #facc15;
+}
+
+.ratingLabel {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+}
+
+.form {
+  display: grid;
+  gap: 12px;
+}
+
+.form label {
+  display: grid;
+  gap: 6px;
+  font-weight: 500;
+}
+
+.form input,
+.form textarea {
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 10px 12px;
+  color: #ffffff;
+}
+
+.form textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.existingPhotos {
+  display: grid;
+  gap: 10px;
+}
+
+.existingPhoto {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 8px 12px;
+  border-radius: 12px;
+}
+
+.existingPhoto img {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.existingPhoto button {
+  border: none;
+  background: transparent;
+  color: #fca5a5;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.uploader :global(input[type='file']) {
+  color: #ffffff;
+}
+
+.error {
+  color: #fecaca;
+  font-size: 13px;
+}
