@@ -136,6 +136,7 @@ export interface ReturnRequest {
   updatedAt?: string;
   items: ReturnItem[];
   photos: ReturnPhoto[];
+  chatThread?: { id: string; status: ChatThreadStatus } | null;
 }
 
 export interface ChatMessage {

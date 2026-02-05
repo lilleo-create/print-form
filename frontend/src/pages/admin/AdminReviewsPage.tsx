@@ -122,8 +122,8 @@ export const AdminReviewsPage = () => {
                 <div className={styles.muted}>{new Date(review.createdAt).toLocaleDateString('ru-RU')}</div>
               </div>
               <div>
-                <div>{review.user?.name ?? '—'}</div>
-                <div className={styles.muted}>{review.user?.email ?? ''}</div>
+                <div className={styles.cellTruncate}>{review.user?.name ?? '—'}</div>
+                <div className={`${styles.muted} ${styles.cellTruncate}`}>{review.user?.email ?? ''}</div>
               </div>
               <span>{review.rating}</span>
               <span className={styles.muted}>{review.comment.slice(0, 60)}...</span>

@@ -129,6 +129,7 @@ export const ProductReviewsPage = () => {
   }, [filter, id, scope, scopedProductIds]);
 
   const distribution = useMemo(() => summary?.counts ?? [], [summary]);
+  const safeReviews = useMemo(() => reviews ?? [], [reviews]);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -317,10 +318,12 @@ export const ProductReviewsPage = () => {
             <div className={styles.reviewList}>
               {loadError ? (
                 <p className={styles.empty}>{loadError}</p>
-              ) : reviews.length === 0 ? (
+              ) : safeReviews.length === 0 ? (
                 <p className={styles.empty}>Пока нет отзывов.</p>
               ) : (
-                reviews.map((review) => (
+                safeReviews.map((review) => {
+                  const reviewPhotos = review.photos ?? [];
+                  return (
                   <article key={review.id} className={styles.reviewCard}>
                     <div className={styles.reviewTop}>
                       <div>
@@ -340,9 +343,9 @@ export const ProductReviewsPage = () => {
                         <strong>Комментарий:</strong> {review.comment}
                       </p>
                     </div>
-                    {review.photos && review.photos.length > 0 && (
+                    {reviewPhotos.length > 0 && (
                       <div className={styles.reviewPhotos}>
-                        {review.photos.map((photo) => (
+                        {reviewPhotos.map((photo) => (
                           <button
                             type="button"
                             key={photo}
@@ -362,7 +365,8 @@ export const ProductReviewsPage = () => {
                       </div>
                     </div>
                   </article>
-                ))
+                );
+                })
               )}
             </div>
 

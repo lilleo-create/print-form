@@ -1,42 +1,105 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../../shared/api';
+import { normalizeApiError } from '../../shared/api/client';
 import { ReturnReason } from '../../shared/types';
 import { Button } from '../../shared/ui/Button';
+import { ReturnCandidate } from './ReturnCandidatesList';
 import { ReturnReasonRadioGroup } from './ReturnReasonRadioGroup';
 import { ReturnPhotoUploader } from './ReturnPhotoUploader';
 import styles from './ReturnCreateFlow.module.css';
 
-interface ReturnCandidate {
-  orderItemId: string;
-  productId: string;
-  title: string;
-  price: number;
-  image?: string;
-  orderDate: string;
-  orderId: string;
-}
-
 interface ReturnCreateFlowProps {
   items: ReturnCandidate[];
+  initialSelectedId?: string | null;
   onCreated?: () => void;
   onReturnToList?: () => void;
 }
 
-type Step = 'select' | 'form' | 'success';
+type Step = 'select' | 'form' | 'success' | 'exists';
 
-export const ReturnCreateFlow = ({ items, onCreated, onReturnToList }: ReturnCreateFlowProps) => {
-  const [step, setStep] = useState<Step>('select');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+type FieldErrors = {
+  comment?: string;
+  reason?: string;
+  photos?: string;
+};
+
+const MAX_FILES = 10;
+const MAX_SIZE = 10 * 1024 * 1024;
+const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+
+export const ReturnCreateFlow = ({
+  items,
+  initialSelectedId,
+  onCreated,
+  onReturnToList
+}: ReturnCreateFlowProps) => {
+  const navigate = useNavigate();
+  const [step, setStep] = useState<Step>(initialSelectedId ? 'form' : 'select');
+  const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId ?? null);
   const [reason, setReason] = useState<ReturnReason>('NOT_FIT');
   const [comment, setComment] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [showErrors, setShowErrors] = useState(false);
+  const [createdThreadId, setCreatedThreadId] = useState<string | null>(null);
 
   const selectedItem = useMemo(
     () => items.find((item) => item.orderItemId === selectedId) ?? null,
     [items, selectedId]
   );
+
+  useEffect(() => {
+    if (!initialSelectedId) return;
+    setSelectedId(initialSelectedId);
+    setStep('form');
+  }, [initialSelectedId]);
+
+  useEffect(() => {
+    setShowErrors(false);
+    setFieldErrors({});
+    setFormError(null);
+    setCreatedThreadId(null);
+    setComment('');
+    setFiles([]);
+    setReason('NOT_FIT');
+  }, [selectedId]);
+
+  const validateForm = (): FieldErrors => {
+    const errors: FieldErrors = {};
+    if (!reason) {
+      errors.reason = 'Выберите причину возврата';
+    }
+    const trimmed = comment.trim();
+    if (trimmed.length < 5) {
+      errors.comment = 'Опишите проблему, минимум 5 символов';
+    } else if (trimmed.length > 2000) {
+      errors.comment = 'Комментарий не должен превышать 2000 символов';
+    }
+    if (files.length > MAX_FILES) {
+      errors.photos = 'Можно добавить не больше 10 фото';
+    } else {
+      const invalidType = files.find((file) => !allowedTypes.includes(file.type));
+      if (invalidType) {
+        errors.photos = 'Неподдерживаемый формат. Только JPG/PNG/WebP';
+      }
+      const invalidSize = files.find((file) => file.size > MAX_SIZE);
+      if (invalidSize) {
+        errors.photos = 'Файл слишком большой. Максимум 10 МБ';
+      }
+    }
+    return errors;
+  };
+
+  const currentErrors = useMemo(validateForm, [comment, files, reason]);
+  const isFormValid = Object.keys(currentErrors).length === 0;
+
+  useEffect(() => {
+    if (!showErrors) return;
+    setFieldErrors(currentErrors);
+  }, [currentErrors, showErrors]);
 
   const handleContinue = () => {
     if (!selectedId) return;
@@ -45,24 +108,85 @@ export const ReturnCreateFlow = ({ items, onCreated, onReturnToList }: ReturnCre
 
   const handleSubmit = async () => {
     if (!selectedItem) return;
+    setShowErrors(true);
+    const nextErrors = validateForm();
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      return;
+    }
     setSubmitting(true);
-    setError(null);
+    setFormError(null);
     try {
       let photosUrls: string[] = [];
       if (files.length > 0) {
-        const uploadResponse = await api.returns.uploadPhotos(files);
-        photosUrls = uploadResponse.data.urls ?? [];
+        try {
+          const uploadResponse = await api.returns.uploadPhotos(files);
+          photosUrls = uploadResponse.data.urls ?? [];
+        } catch (uploadError) {
+          const normalizedUpload = normalizeApiError(uploadError);
+          if (normalizedUpload.code === 'RETURN_UPLOAD_FILE_TYPE_INVALID') {
+            setShowErrors(true);
+            setFieldErrors((prev) => ({ ...prev, photos: 'Неподдерживаемый формат. Только JPG/PNG/WebP' }));
+            return;
+          }
+          if (normalizedUpload.code === 'RETURN_UPLOAD_FILE_TOO_LARGE') {
+            setShowErrors(true);
+            setFieldErrors((prev) => ({ ...prev, photos: 'Файл слишком большой. Максимум 10 МБ' }));
+            return;
+          }
+          if (normalizedUpload.code === 'RETURN_UPLOAD_TOO_MANY_FILES') {
+            setShowErrors(true);
+            setFieldErrors((prev) => ({ ...prev, photos: 'Можно добавить не больше 10 фото' }));
+            return;
+          }
+          setShowErrors(true);
+          setFieldErrors((prev) => ({
+            ...prev,
+            photos: 'Не удалось загрузить фото. Проверьте интернет и попробуйте ещё раз'
+          }));
+          return;
+        }
       }
-      await api.returns.create({
+      const response = await api.returns.create({
         orderItemId: selectedItem.orderItemId,
         reason,
-        comment: comment.trim() || undefined,
+        comment: comment.trim(),
         photosUrls
       });
+      setCreatedThreadId(response.data?.chatThread?.id ?? null);
       setStep('success');
       onCreated?.();
-    } catch {
-      setError('Не удалось создать заявку на возврат.');
+    } catch (error) {
+      const normalized = normalizeApiError(error);
+      if (normalized.code === 'RETURN_ALREADY_EXISTS') {
+        setStep('exists');
+        return;
+      }
+      if (normalized.code === 'ORDER_ITEM_NOT_FOUND') {
+        setFormError('Товар не найден или не доступен для возврата');
+        return;
+      }
+      if (normalized.status === 401) {
+        setFormError('Сессия истекла, войдите снова');
+        return;
+      }
+      if (normalized.code === 'VALIDATION_ERROR' && normalized.issues?.length) {
+        const next: FieldErrors = {};
+        normalized.issues.forEach((issue) => {
+          if (issue.path.includes('comment')) {
+            next.comment = issue.message;
+          } else if (issue.path.includes('reason')) {
+            next.reason = issue.message;
+          } else if (issue.path.includes('photosUrls')) {
+            next.photos = issue.message;
+          }
+        });
+        setShowErrors(true);
+        setFieldErrors(next);
+        setFormError('Проверьте поля формы');
+        return;
+      }
+      setFormError('Не удалось отправить заявку. Попробуйте ещё раз');
     } finally {
       setSubmitting(false);
     }
@@ -76,9 +200,37 @@ export const ReturnCreateFlow = ({ items, onCreated, onReturnToList }: ReturnCre
     return (
       <div className={styles.success}>
         <h3>Заявка создана</h3>
-        <Button type="button" onClick={onReturnToList}>
-          Перейти на страницу возвратов
-        </Button>
+        <div className={styles.successActions}>
+          <Button type="button" onClick={onReturnToList}>
+            Перейти на страницу возвратов
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() =>
+              navigate(`/account?tab=chats${createdThreadId ? `&threadId=${createdThreadId}` : ''}`)
+            }
+          >
+            Перейти в чат
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === 'exists') {
+    return (
+      <div className={styles.success}>
+        <h3>Заявка уже создана</h3>
+        <p className={styles.helper}>Откройте чат, чтобы узнать статус возврата.</p>
+        <div className={styles.successActions}>
+          <Button type="button" onClick={onReturnToList}>
+            Перейти на страницу возвратов
+          </Button>
+          <Button type="button" variant="secondary" onClick={() => navigate('/account?tab=chats')}>
+            Перейти в чат
+          </Button>
+        </div>
       </div>
     );
   }
@@ -135,6 +287,7 @@ export const ReturnCreateFlow = ({ items, onCreated, onReturnToList }: ReturnCre
           <div className={styles.section}>
             <p className={styles.label}>Причина возврата</p>
             <ReturnReasonRadioGroup value={reason} onChange={setReason} />
+            {showErrors && fieldErrors.reason && <p className={styles.error}>{fieldErrors.reason}</p>}
           </div>
           <div className={styles.section}>
             <p className={styles.label}>Комментарий</p>
@@ -143,17 +296,27 @@ export const ReturnCreateFlow = ({ items, onCreated, onReturnToList }: ReturnCre
               placeholder="Расскажите в деталях, что не так"
               onChange={(event) => setComment(event.target.value)}
             />
+            {showErrors && fieldErrors.comment && <p className={styles.error}>{fieldErrors.comment}</p>}
           </div>
           <div className={styles.section}>
             <p className={styles.label}>
               Сделайте фото в хорошем качестве, по которым можно оценить состояние товара
             </p>
-            <ReturnPhotoUploader files={files} onChange={setFiles} />
+            <ReturnPhotoUploader files={files} onChange={setFiles} error={fieldErrors.photos} />
           </div>
-          {error && <p className={styles.error}>{error}</p>}
-          <Button type="button" onClick={handleSubmit} disabled={submitting}>
-            Продолжить
-          </Button>
+          {formError && <p className={styles.error}>{formError}</p>}
+          <div className={styles.actions}>
+            <Button
+              type="button"
+              onClick={handleSubmit}
+              disabled={submitting || (showErrors && !isFormValid)}
+            >
+              Продолжить
+            </Button>
+            <Button type="button" variant="secondary" onClick={onReturnToList}>
+              Отмена
+            </Button>
+          </div>
         </>
       )}
     </div>

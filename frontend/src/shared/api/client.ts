@@ -12,6 +12,41 @@ export class ApiError extends Error {
   }
 }
 
+export type NormalizedApiError = {
+  code?: string;
+  message: string;
+  issues?: { path: string[]; message: string }[];
+  status?: number;
+};
+
+export const normalizeApiError = (error: unknown): NormalizedApiError => {
+  const fallback = { message: 'Не удалось выполнить запрос.' };
+  if (!error || typeof error !== 'object') {
+    return fallback;
+  }
+
+  const status = 'status' in error && typeof error.status === 'number' ? error.status : undefined;
+  const payload = 'payload' in error ? (error as { payload?: unknown }).payload : undefined;
+
+  if (payload && typeof payload === 'object' && 'error' in payload) {
+    const inner = (payload as { error?: unknown }).error;
+    if (inner && typeof inner === 'object') {
+      const code = 'code' in inner && typeof inner.code === 'string' ? inner.code : undefined;
+      const issues =
+        'issues' in inner && Array.isArray(inner.issues)
+          ? (inner.issues as { path: string[]; message: string }[])
+          : undefined;
+      return { code, issues, message: code ?? fallback.message, status };
+    }
+  }
+
+  if (error instanceof Error) {
+    return { message: error.message || fallback.message, status };
+  }
+
+  return fallback;
+};
+
 let refreshPromise: Promise<string | null> | null = null;
 
 const readAccessToken = (payload: unknown): string | null => {

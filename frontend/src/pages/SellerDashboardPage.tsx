@@ -643,11 +643,11 @@ export const SellerDashboardPage = () => {
                         const total = order.items.reduce((sum, item) => sum + item.lineTotal, 0);
                         return (
                           <div key={order.id} className={styles.ordersRow}>
-                            <div>
+                            <div className={styles.cellTruncate}>
                               <strong>№{order.id}</strong>
                               <p className={styles.muted}>{formatDate(order.createdAt)}</p>
                             </div>
-                            <div>
+                            <div className={styles.cellTruncate}>
                               <p>{order.contact?.name ?? order.buyer?.name ?? '—'}</p>
                               <p className={styles.muted}>{order.contact?.phone ?? order.buyer?.email ?? ''}</p>
                             </div>
@@ -722,17 +722,17 @@ export const SellerDashboardPage = () => {
                         <span>Доставка</span>
                       </div>
                       {logisticsOrders.map((order) => (
-                        <div key={order.id} className={styles.ordersRow}>
-                          <div>
-                            <strong>№{order.id}</strong>
-                            <p className={styles.muted}>{formatDate(order.createdAt)}</p>
-                          </div>
-                          <div>{order.shippingAddress?.addressText ?? '—'}</div>
-                          <div>{statusLabels[order.status]}</div>
-                          <div>
-                            <p>{order.trackingNumber ?? '—'}</p>
-                            <p className={styles.muted}>{order.carrier ?? '—'}</p>
-                          </div>
+                          <div key={order.id} className={styles.ordersRow}>
+                            <div className={styles.cellTruncate}>
+                              <strong>№{order.id}</strong>
+                              <p className={styles.muted}>{formatDate(order.createdAt)}</p>
+                            </div>
+                            <div className={styles.cellTruncate}>{order.shippingAddress?.addressText ?? '—'}</div>
+                            <div>{statusLabels[order.status]}</div>
+                            <div className={styles.cellTruncate}>
+                              <p>{order.trackingNumber ?? '—'}</p>
+                              <p className={styles.muted}>{order.carrier ?? '—'}</p>
+                            </div>
                         </div>
                       ))}
                     </div>
@@ -767,7 +767,7 @@ export const SellerDashboardPage = () => {
                       {payments.map((payment) => (
                         <div key={payment.id} className={styles.ordersRow}>
                           <span>{formatDate(payment.createdAt)}</span>
-                          <span>№{payment.orderId}</span>
+                          <span className={styles.cellTruncate}>№{payment.orderId}</span>
                           <span>
                             {formatCurrency(payment.amount)} {payment.currency}
                           </span>

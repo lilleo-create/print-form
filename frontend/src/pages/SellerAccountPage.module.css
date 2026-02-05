@@ -214,6 +214,18 @@
   align-items: center;
 }
 
+.ordersHeader > *,
+.ordersRow > * {
+  min-width: 0;
+}
+
+.cellTruncate {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .ordersHeader {
   font-weight: 600;
   color: var(--color-text-muted);

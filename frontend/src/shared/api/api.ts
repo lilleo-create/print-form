@@ -475,8 +475,16 @@ export const api = {
   },
 
   adminChats: {
-    async listAll() {
-      return apiClient.request<{ active: ChatThread[]; closed: ChatThread[] }>('/admin/chats');
+    async listAll(query?: { status?: 'ACTIVE' | 'CLOSED'; q?: string }) {
+      const params = new URLSearchParams();
+      if (query?.status) {
+        params.set('status', query.status);
+      }
+      if (query?.q) {
+        params.set('q', query.q);
+      }
+      const suffix = params.toString() ? `?${params.toString()}` : '';
+      return apiClient.request<{ active: ChatThread[]; closed: ChatThread[] }>(`/admin/chats${suffix}`);
     },
     async getThread(id: string) {
       return apiClient.request<{ thread: ChatThread; messages: ChatMessage[] }>(`/admin/chats/${id}`);
