@@ -5,7 +5,7 @@ import { api } from '../shared/api';
 import { Button } from '../shared/ui/Button';
 import { Role } from '../shared/types';
 import styles from './SellerOnboardingPage.module.css';
-import { isRuPhone, toE164Ru } from '../shared/lib/validation';
+import { formatRuPhoneInput, isRuPhone, toE164Ru } from '../shared/lib/validation';
 
 const steps = ['Контакты', 'Статус', 'Город', 'Категория'] as const;
 
@@ -43,7 +43,7 @@ export const SellerOnboardingPage = () => {
       setForm((prev) => ({
         ...prev,
         name: prev.name || user.name,
-        phone: prev.phone || (user.phone ?? '')
+        phone: prev.phone || formatRuPhoneInput(user.phone ?? '')
       }));
     }
   }, [user]);
@@ -214,8 +214,17 @@ export const SellerOnboardingPage = () => {
               <label>
                 Телефон
                 <input
+                  placeholder="+7 (___) ___-__-__"
+                  inputMode="tel"
                   value={form.phone}
-                  onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value }))}
+                  onFocus={() => {
+                    if (!form.phone) {
+                      setForm((prev) => ({ ...prev, phone: '+7 (' }));
+                    }
+                  }}
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, phone: formatRuPhoneInput(event.target.value) }))
+                  }
                   onBlur={() => setTouched((prev) => ({ ...prev, phone: true }))}
                 />
                 {touched.phone && !phoneValid && <span className={styles.error}>Введите корректный номер.</span>}

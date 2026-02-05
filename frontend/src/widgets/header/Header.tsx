@@ -70,7 +70,33 @@ export const Header = () => {
   }, [user?.email, user?.name]);
 
   const showCatalogHeader = location.pathname === '/catalog';
+const CONTENT_MAX = 1120; // твоя max-width контейнера
+const SIDE_PAD = 16;
 
+useEffect(() => {
+  if (!isProfileMenuOpen) return;
+
+  const updateGutter = () => {
+    const w = window.innerWidth;
+    const containerWidth = Math.min(CONTENT_MAX, w);
+    const gutter =
+      Math.max(SIDE_PAD, Math.floor((w - containerWidth) / 2) - SIDE_PAD);
+
+    document.documentElement.style.setProperty(
+      '--container-gutter',
+      `${gutter}px`
+    );
+  };
+
+  updateGutter();
+  window.addEventListener('resize', updateGutter);
+  return () => window.removeEventListener('resize', updateGutter);
+}, [isProfileMenuOpen]);
+const isMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches;
+const openProfileMenu = () => {
+  if (isMobile) return;
+  setIsProfileMenuOpen(true);
+};
   useLayoutEffect(() => {
     if (!categoriesRef.current && !productBoardRef.current) return;
     const updateHeight = () => {
@@ -243,7 +269,7 @@ export const Header = () => {
             <button
               type="button"
               className={styles.avatarButton}
-              onClick={() => setIsProfileMenuOpen(true)}
+              onClick={openProfileMenu}
               aria-label="Открыть меню профиля"
             >
               <span className={styles.avatarCircle}>{avatarText}</span>
@@ -265,7 +291,7 @@ export const Header = () => {
             <button
               type="button"
               className={styles.mobileAvatarButton}
-              onClick={() => setIsProfileMenuOpen(true)}
+              onClick={openProfileMenu}
               aria-label="Открыть меню профиля"
             >
               <span className={styles.avatarCircle}>{avatarText}</span>

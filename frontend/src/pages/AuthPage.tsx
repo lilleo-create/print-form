@@ -54,7 +54,6 @@ const loginSchema = z.object({
 const registerSchema = loginSchema.extend({
   name: z.string().min(2, 'Введите имя'),
   phone: z.string().min(5, 'Введите телефон'),
-  address: z.string().min(5, 'Введите адрес'),
   confirmPassword: z.string().min(6, 'Минимум 6 символов')
 }).refine((data) => data.password === data.confirmPassword, {
   message: 'Пароли не совпадают',
@@ -203,7 +202,6 @@ export const AuthPage = () => {
         email: values.email,
         password: values.password,
         phone: toE164Ru(values.phone),
-        address: values.address,
         privacyAccepted
       });
 
@@ -271,7 +269,6 @@ export const AuthPage = () => {
               }
             />
 
-            <input placeholder="Адрес" {...registerForm.register('address')} />
             <input placeholder="Email" {...registerForm.register('email')} />
             <input type="password" placeholder="Пароль" {...registerForm.register('password')} />
             <input type="password" placeholder="Повторите пароль" {...registerForm.register('confirmPassword')} />
