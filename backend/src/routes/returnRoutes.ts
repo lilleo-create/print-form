@@ -27,22 +27,24 @@ const storage = multer.diskStorage({
 const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp'];
 const upload = multer({
   storage,
-  limits: {
-    fileSize: 10 * 1024 * 1024
-  },
+  limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    if (allowedImageTypes.includes(file.mimetype)) {
-      return cb(null, true);
-    }
+    if (allowedImageTypes.includes(file.mimetype)) return cb(null, true);
     return cb(new Error('RETURN_UPLOAD_FILE_TYPE_INVALID'));
   }
 });
+
+// ✅ Принимаем либо полный URL, либо наш относительный путь /uploads/returns/...
+const photoUrlSchema = z.union([
+  z.string().url(),
+  z.string().regex(/^\/uploads\/returns\/[^?#]+$/)
+]);
 
 const createReturnSchema = z.object({
   orderItemId: z.string().min(1),
   reason: z.enum(['NOT_FIT', 'DAMAGED', 'WRONG_ITEM']),
   comment: z.string().max(2000).optional(),
-  photosUrls: z.array(z.string().url()).max(10).optional()
+  photosUrls: z.array(photoUrlSchema).max(10).optional()
 });
 
 const reasonLabels: Record<'NOT_FIT' | 'DAMAGED' | 'WRONG_ITEM', string> = {
@@ -59,10 +61,7 @@ returnRoutes.get('/my', requireAuth, async (req: AuthRequest, res, next) => {
         items: {
           include: {
             orderItem: {
-              include: {
-                product: true,
-                order: true
-              }
+              include: { product: true, order: true }
             }
           }
         },
@@ -76,15 +75,22 @@ returnRoutes.get('/my', requireAuth, async (req: AuthRequest, res, next) => {
   }
 });
 
-returnRoutes.post('/uploads', requireAuth, writeLimiter, upload.array('files', 10), async (req, res) => {
-  const files = req.files as Express.Multer.File[] | undefined;
-  const urls = (files ?? []).map((file) => `/uploads/returns/${file.filename}`);
-  res.json({ data: { urls } });
-});
+returnRoutes.post(
+  '/uploads',
+  requireAuth,
+  writeLimiter,
+  upload.array('files', 10),
+  async (req, res) => {
+    const files = req.files as Express.Multer.File[] | undefined;
+    const urls = (files ?? []).map((file) => `/uploads/returns/${file.filename}`);
+    res.json({ data: { urls } });
+  }
+);
 
 returnRoutes.post('/', requireAuth, writeLimiter, async (req: AuthRequest, res, next) => {
   try {
     const payload = createReturnSchema.parse(req.body);
+
     const orderItem = await prisma.orderItem.findFirst({
       where: {
         id: payload.orderItemId,
@@ -98,9 +104,11 @@ returnRoutes.post('/', requireAuth, writeLimiter, async (req: AuthRequest, res, 
         product: true
       }
     });
+
     if (!orderItem) {
       return res.status(404).json({ error: { code: 'ORDER_ITEM_NOT_FOUND' } });
     }
+
     const existingReturn = await prisma.returnItem.findFirst({
       where: {
         orderItemId: payload.orderItemId,
@@ -109,6 +117,7 @@ returnRoutes.post('/', requireAuth, writeLimiter, async (req: AuthRequest, res, 
         }
       }
     });
+
     if (existingReturn) {
       return res.status(409).json({ error: { code: 'RETURN_ALREADY_EXISTS' } });
     }
@@ -121,6 +130,7 @@ returnRoutes.post('/', requireAuth, writeLimiter, async (req: AuthRequest, res, 
           comment: payload.comment?.trim() || null
         }
       });
+
       await tx.returnItem.create({
         data: {
           returnRequestId: request.id,
@@ -128,12 +138,14 @@ returnRoutes.post('/', requireAuth, writeLimiter, async (req: AuthRequest, res, 
           quantity: orderItem.quantity
         }
       });
+
       const photos = payload.photosUrls ?? [];
       if (photos.length > 0) {
         await tx.returnPhoto.createMany({
           data: photos.map((url) => ({ returnRequestId: request.id, url }))
         });
       }
+
       const thread = await tx.chatThread.create({
         data: {
           kind: 'SUPPORT',
@@ -142,6 +154,7 @@ returnRoutes.post('/', requireAuth, writeLimiter, async (req: AuthRequest, res, 
           returnRequestId: request.id
         }
       });
+
       const message = await tx.chatMessage.create({
         data: {
           threadId: thread.id,
@@ -150,6 +163,7 @@ returnRoutes.post('/', requireAuth, writeLimiter, async (req: AuthRequest, res, 
           text: `Создана заявка на возврат: ${reasonLabels[payload.reason]}`
         }
       });
+
       await tx.chatThread.update({
         where: { id: thread.id },
         data: { lastMessageAt: message.createdAt }
@@ -160,9 +174,7 @@ returnRoutes.post('/', requireAuth, writeLimiter, async (req: AuthRequest, res, 
         include: {
           items: {
             include: {
-              orderItem: {
-                include: { product: true, order: true }
-              }
+              orderItem: { include: { product: true, order: true } }
             }
           },
           photos: true

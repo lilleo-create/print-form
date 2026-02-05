@@ -5,8 +5,9 @@ import { useCartStore } from '../../app/store/cartStore';
 import { Button } from '../../shared/ui/Button';
 import { Rating } from '../../shared/ui/Rating';
 import styles from './ProductCard.module.css';
+import { toAssetUrl } from "../../shared/lib/toAssetUrl";
 
-interface ProductCardProps {
+  interface ProductCardProps {
   product: Product;
 }
 
@@ -33,7 +34,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
       onClick={handleOpen}
       onKeyDown={handleKeyDown}
     >
-      <img src={product.image} alt={product.title} className={styles.image} />
+      <img src={toAssetUrl(product.image)} alt={product.title} loading="lazy" />
       <div className={styles.body}>
         <div className={styles.meta}>
           <span>{product.category}</span>
@@ -43,7 +44,9 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           {product.title}
         </h3>
         <Rating value={product.ratingAvg} count={product.ratingCount} />
-        <p className={styles.price}>{product.price.toLocaleString('ru-RU')} ₽</p>
+        <p className={styles.price}>
+          {product.price.toLocaleString('ru-RU')} ₽
+        </p>
         <div className={styles.actions}>
           <Button onClick={handleOpen} aria-label={`Открыть ${product.title}`}>
             Подробнее

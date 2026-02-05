@@ -1,5 +1,4 @@
-<<<<<<< HEAD
-<<<<<<< HEAD
+
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 =======
@@ -36,7 +35,9 @@ export const ReturnsPage = () => {
   const [returns, setReturns] = useState<ReturnRequest[]>([]);
   const [returnsLoading, setReturnsLoading] = useState(false);
   const [returnsError, setReturnsError] = useState<string | null>(null);
-  const [selectedOrderItemId, setSelectedOrderItemId] = useState<string | null>(null);
+  const [selectedOrderItemId, setSelectedOrderItemId] = useState<string | null>(
+    null
+  );
   const [notice, setNotice] = useState<string | null>(null);
 =======
 =======
@@ -77,7 +78,9 @@ export const ReturnsPage = () => {
     loadReturns();
   }, [user]);
 
-  const deliveredOrders = orders.filter((order) => order.status === 'DELIVERED');
+  const deliveredOrders = orders.filter(
+    (order) => order.status === 'DELIVERED'
+  );
   const returnCandidates = deliveredOrders.flatMap<ReturnCandidate>((order) =>
 =======
 =======
@@ -120,14 +123,18 @@ export const ReturnsPage = () => {
   const returnsByOrderItemId = useMemo(() => {
     const map = new Map<string, ReturnRequest>();
     returns.forEach((request) => {
-      request.items?.forEach((item) => {
-        if (item.orderItemId) {
-          map.set(item.orderItemId, request);
-        }
+      request.items?.forEach((it) => {
+        if (it.orderItemId) map.set(it.orderItemId, request);
       });
     });
     return map;
   }, [returns]);
+  const visibleCandidates = useMemo(() => {
+    // Вариант A: скрываем любой orderItem, по которому уже существует возврат
+    return returnCandidates.filter(
+      (c) => !returnsByOrderItemId.has(c.orderItemId)
+    );
+  }, [returnCandidates, returnsByOrderItemId]);
 
 =======
 >>>>>>> 52772a9 (Add returns and chats flow)
@@ -137,7 +144,9 @@ export const ReturnsPage = () => {
     return (
       <section className={styles.page}>
         <div className="container">
-          <p className={styles.empty}>Войдите в аккаунт, чтобы управлять возвратами.</p>
+          <p className={styles.empty}>
+            Войдите в аккаунт, чтобы управлять возвратами.
+          </p>
         </div>
       </section>
     );
@@ -150,7 +159,15 @@ export const ReturnsPage = () => {
           <h1>Возвраты</h1>
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
           <Button type="button" variant="secondary" onClick={() => navigate('/account?tab=chats')}>
+=======
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => navigate('/account?tab=chats')}
+          >
+>>>>>>> 14e6f58 (фиксы возвратов и картинки в каталоге)
             Перейти в чаты
           </Button>
         </div>
@@ -161,13 +178,17 @@ export const ReturnsPage = () => {
           {notice && (
             <div className={styles.notice}>
               <span>{notice}</span>
-              <Button type="button" variant="secondary" onClick={() => navigate('/account?tab=chats')}>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => navigate('/account?tab=chats')}
+              >
                 Перейти в чат
               </Button>
             </div>
           )}
           <ReturnCandidatesList
-            items={returnCandidates}
+            items={visibleCandidates}
             returnsByOrderItemId={returnsByOrderItemId}
             selectedOrderItemId={selectedOrderItemId}
             onSelect={(orderItemId) => {
@@ -190,17 +211,29 @@ export const ReturnsPage = () => {
           <div className={styles.sectionHeader}>
             <h2>Мои заявки</h2>
             {returnsError && (
-              <Button type="button" variant="secondary" onClick={() => loadReturns()}>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => loadReturns()}
+              >
                 Повторить загрузку
               </Button>
             )}
           </div>
+<<<<<<< HEAD
           <ReturnList items={returns} isLoading={returnsLoading} error={returnsError} />
 =======
           <Button type="button" onClick={() => setShowReturnCreate((prev) => !prev)}>
             Вернуть товар
           </Button>
 >>>>>>> 52772a9 (Add returns and chats flow)
+=======
+          <ReturnList
+            items={returns}
+            isLoading={returnsLoading}
+            error={returnsError}
+          />
+>>>>>>> 14e6f58 (фиксы возвратов и картинки в каталоге)
         </div>
 =======
           <Button type="button" onClick={() => setShowReturnCreate((prev) => !prev)}>

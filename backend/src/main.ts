@@ -83,7 +83,7 @@ app.use("/chats", chatRoutes);
 app.use("/admin", adminRoutes);
 app.use("/admin/chats", adminChatRoutes);
 app.use("/payments", paymentRoutes);
-
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 app.use(errorHandler);
 
 app.listen(env.port, () => {

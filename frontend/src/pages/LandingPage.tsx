@@ -70,8 +70,8 @@ export const LandingPage = () => {
         </div>
         <div className={styles.heroCard}>
           <div>
-            <h3>Сборка прототипа за 48 часов</h3>
-            <p>Подберем материал, напечатаем и доставим до двери.</p>
+            <h3>Напечатаем ваш заказ за 48 часов</h3>
+            <p>Выбирайте модель — остальное мы сделаем сами.</p>
           </div>
           <div className={styles.heroStats}>
             <div>
@@ -138,8 +138,8 @@ export const LandingPage = () => {
           </Link>
         </div>
         <div className={styles.grid} />
-      </section>
-
+      </section> 
+        <!--
       <section className={`${styles.customSection} container`} id="custom">
         <div className={styles.customContent}>
           <h2>Напечатать свою модель</h2>
@@ -153,7 +153,7 @@ export const LandingPage = () => {
         </div>
         <CustomPrintForm />
       </section>
-
+--&gt;
       <section className={styles.benefits}>
         <div className="container">
           <h2>Почему выбирают нас</h2>

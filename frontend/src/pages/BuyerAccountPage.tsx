@@ -249,49 +249,6 @@ export const BuyerAccountPage = () => {
   return (
     <section className={styles.page}>
       <div className="container">
-        <div className={styles.header}>
-          <h1>Личный кабинет</h1>
-          <p>Управляйте личными данными и отзывами.</p>
-        </div>
-
-        <nav className={styles.tabs}>
-          <button
-            type="button"
-            className={activeTab === 'profile' ? styles.tabActive : styles.tab}
-            onClick={() => setTab('profile')}
-          >
-            Профиль
-          </button>
-          <button
-            type="button"
-            className={activeTab === 'orders' ? styles.tabActive : styles.tab}
-            onClick={() => setTab('orders')}
-          >
-            Заказы
-          </button>
-          <button
-            type="button"
-            className={activeTab === 'purchases' ? styles.tabActive : styles.tab}
-            onClick={() => setTab('purchases')}
-          >
-            Купленные товары
-          </button>
-          <button
-            type="button"
-            className={activeTab === 'returns' ? styles.tabActive : styles.tab}
-            onClick={() => setTab('returns')}
-          >
-            Возвраты
-          </button>
-          <button
-            type="button"
-            className={activeTab === 'chats' ? styles.tabActive : styles.tab}
-            onClick={() => setTab('chats')}
-          >
-            Чаты
-          </button>
-        </nav>
-
         {activeTab === 'profile' && (
           <>
             <div className={styles.profileCard}>

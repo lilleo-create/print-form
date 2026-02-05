@@ -206,7 +206,7 @@ export const Header = () => {
       <div className={`${styles.headerInner} ${styles.desktopHeader}`}>
         <div className={styles.brand}>
           <Link to="/" className={styles.logo}>
-            3D Market
+            Print Form
           </Link>
           <Link to="/catalog" className={styles.catalogButton}>
             Каталог
