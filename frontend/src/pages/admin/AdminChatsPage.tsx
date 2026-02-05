@@ -14,9 +14,10 @@ export const AdminChatsPage = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
 
-  const loadThreads = async () => {
-    const response = await api.adminChats.listAll();
+  const loadThreads = async (query?: string) => {
+    const response = await api.adminChats.listAll({ q: query?.trim() || undefined });
     setThreads(response.data ?? { active: [], closed: [] });
   };
 
@@ -36,8 +37,8 @@ export const AdminChatsPage = () => {
   };
 
   useEffect(() => {
-    loadThreads().catch(() => setThreads({ active: [], closed: [] }));
-  }, []);
+    loadThreads(search).catch(() => setThreads({ active: [], closed: [] }));
+  }, [search]);
 
   useEffect(() => {
     if (!selectedThread && threads.active[0]) {
@@ -73,6 +74,13 @@ export const AdminChatsPage = () => {
     <section className={styles.page}>
       <div className={styles.layout}>
         <aside className={styles.sidebar}>
+          <div className={styles.search}>
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Поиск по email или ID"
+            />
+          </div>
           <AdminChatList
             title="Активные"
             threads={threads.active ?? []}

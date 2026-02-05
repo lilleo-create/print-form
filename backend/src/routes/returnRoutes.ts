@@ -1,11 +1,11 @@
 import { Router } from 'express';
-import { z } from 'zod';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { requireAuth, AuthRequest } from '../middleware/authMiddleware';
 import { prisma } from '../lib/prisma';
 import { writeLimiter } from '../middleware/rateLimiters';
+import { createReturnSchema } from './returns/schemas';
 
 export const returnRoutes = Router();
 
@@ -38,13 +38,6 @@ const upload = multer({
   }
 });
 
-const createReturnSchema = z.object({
-  orderItemId: z.string().min(1),
-  reason: z.enum(['NOT_FIT', 'DAMAGED', 'WRONG_ITEM']),
-  comment: z.string().max(2000).optional(),
-  photosUrls: z.array(z.string().url()).max(10).optional()
-});
-
 const reasonLabels: Record<'NOT_FIT' | 'DAMAGED' | 'WRONG_ITEM', string> = {
   NOT_FIT: 'Не подошло',
   DAMAGED: 'Брак или повреждение',
@@ -66,7 +59,8 @@ returnRoutes.get('/my', requireAuth, async (req: AuthRequest, res, next) => {
             }
           }
         },
-        photos: true
+        photos: true,
+        chatThread: { select: { id: true, status: true } }
       },
       orderBy: { createdAt: 'desc' }
     });
@@ -118,7 +112,7 @@ returnRoutes.post('/', requireAuth, writeLimiter, async (req: AuthRequest, res, 
         data: {
           userId: req.user!.userId,
           reason: payload.reason,
-          comment: payload.comment?.trim() || null
+          comment: payload.comment
         }
       });
       await tx.returnItem.create({
@@ -128,7 +122,7 @@ returnRoutes.post('/', requireAuth, writeLimiter, async (req: AuthRequest, res, 
           quantity: orderItem.quantity
         }
       });
-      const photos = payload.photosUrls ?? [];
+      const photos = payload.photosUrls;
       if (photos.length > 0) {
         await tx.returnPhoto.createMany({
           data: photos.map((url) => ({ returnRequestId: request.id, url }))
@@ -165,7 +159,8 @@ returnRoutes.post('/', requireAuth, writeLimiter, async (req: AuthRequest, res, 
               }
             }
           },
-          photos: true
+          photos: true,
+          chatThread: { select: { id: true, status: true } }
         }
       });
     });

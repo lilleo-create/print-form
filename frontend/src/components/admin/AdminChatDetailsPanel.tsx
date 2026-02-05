@@ -40,6 +40,8 @@ export const AdminChatDetailsPanel = ({
   }
 
   const returnRequest = thread.returnRequest;
+  const returnItem = returnRequest?.items?.[0]?.orderItem ?? null;
+  const product = returnItem?.product ?? null;
 
   const handleUpdateReturn = () => {
     if (!returnRequest) return;
@@ -69,6 +71,15 @@ export const AdminChatDetailsPanel = ({
                   <img src={photo.url} alt="Фото возврата" />
                 </a>
               ))}
+            </div>
+          )}
+          {product && (
+            <div className={styles.returnProduct}>
+              <img src={product.image} alt={product.title} />
+              <div>
+                <strong>{product.title}</strong>
+                <p>{product.price.toLocaleString('ru-RU')} ₽</p>
+              </div>
             </div>
           )}
           <div className={styles.controls}>

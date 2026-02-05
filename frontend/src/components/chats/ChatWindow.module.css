@@ -25,6 +25,20 @@
   border-radius: 6px;
 }
 
+.returnProduct {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.returnProduct img {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
 .messages {
   display: grid;
   gap: 8px;

@@ -44,6 +44,11 @@
   align-items: center;
 }
 
+.tableHeader > *,
+.tableRow > * {
+  min-width: 0;
+}
+
 .tableHeader {
   font-weight: 600;
   color: var(--color-text-muted);
@@ -78,6 +83,13 @@
 
 .muted {
   color: var(--color-text-muted);
+}
+
+.cellTruncate {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .modalOverlay {

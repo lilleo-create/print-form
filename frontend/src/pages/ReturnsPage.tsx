@@ -4,9 +4,22 @@ import { useOrdersStore } from '../app/store/ordersStore';
 import { api } from '../shared/api';
 import { ReturnRequest } from '../shared/types';
 import { Button } from '../shared/ui/Button';
+import { ReturnCandidatesList, ReturnCandidate } from '../components/returns/ReturnCandidatesList';
 import { ReturnCreateFlow } from '../components/returns/ReturnCreateFlow';
 import { ReturnList } from '../components/returns/ReturnList';
 import styles from './ReturnsPage.module.css';
+
+const filterReturnCandidates = (
+  items: ReturnCandidate[],
+  returnsByOrderItemId: Map<string, ReturnRequest>,
+  approvedOrderItemIds: Set<string>
+) =>
+  items.filter((item) => {
+    if (approvedOrderItemIds.has(item.orderItemId)) return false;
+    const existing = returnsByOrderItemId.get(item.orderItemId);
+    if (existing && existing.status !== 'REJECTED') return false;
+    return true;
+  });
 
 export const ReturnsPage = () => {
   const user = useAuthStore((state) => state.user);
@@ -15,7 +28,21 @@ export const ReturnsPage = () => {
   const [returns, setReturns] = useState<ReturnRequest[]>([]);
   const [returnsLoading, setReturnsLoading] = useState(false);
   const [returnsError, setReturnsError] = useState<string | null>(null);
-  const [showReturnCreate, setShowReturnCreate] = useState(false);
+  const [selectedCandidate, setSelectedCandidate] = useState<ReturnCandidate | null>(null);
+
+  const loadReturns = () => {
+    if (!user) return Promise.resolve();
+    setReturnsLoading(true);
+    setReturnsError(null);
+    return api.returns
+      .listMy()
+      .then((response) => setReturns(response.data ?? []))
+      .catch(() => {
+        setReturns([]);
+        setReturnsError('Не удалось загрузить возвраты.');
+      })
+      .finally(() => setReturnsLoading(false));
+  };
 
   useEffect(() => {
     if (user) {
@@ -25,16 +52,7 @@ export const ReturnsPage = () => {
 
   useEffect(() => {
     if (!user) return;
-    setReturnsLoading(true);
-    setReturnsError(null);
-    api.returns
-      .listMy()
-      .then((response) => setReturns(response.data ?? []))
-      .catch(() => {
-        setReturns([]);
-        setReturnsError('Не удалось загрузить возвраты.');
-      })
-      .finally(() => setReturnsLoading(false));
+    loadReturns();
   }, [user]);
 
   const deliveredOrders = orders.filter((order) => order.status === 'DELIVERED');
@@ -52,6 +70,27 @@ export const ReturnsPage = () => {
       }))
   );
 
+  const returnsByOrderItemId = new Map<string, ReturnRequest>();
+  returns.forEach((request) => {
+    (request.items ?? []).forEach((item) => {
+      if (item.orderItemId) {
+        returnsByOrderItemId.set(item.orderItemId, request);
+      }
+    });
+  });
+
+  const approvedOrderItemIds = new Set(
+    returns
+      .filter((request) => request.status === 'APPROVED' || request.status === 'REFUNDED')
+      .flatMap((request) => (request.items ?? []).map((item) => item.orderItemId))
+  );
+
+  const filteredCandidates = filterReturnCandidates(
+    returnCandidates,
+    returnsByOrderItemId,
+    approvedOrderItemIds
+  );
+
   if (!user) {
     return (
       <section className={styles.page}>
@@ -67,25 +106,38 @@ export const ReturnsPage = () => {
       <div className="container">
         <div className={styles.header}>
           <h1>Возвраты</h1>
-          <Button type="button" onClick={() => setShowReturnCreate((prev) => !prev)}>
-            Вернуть товар
-          </Button>
         </div>
-        {showReturnCreate ? (
-          <ReturnCreateFlow
-            items={returnCandidates}
-            onCreated={() => {
-              setShowReturnCreate(false);
-              api.returns
-                .listMy()
-                .then((response) => setReturns(response.data ?? []))
-                .catch(() => setReturns([]));
-            }}
-            onReturnToList={() => setShowReturnCreate(false)}
+        <div className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h2>Товары для возврата</h2>
+          </div>
+          <ReturnCandidatesList
+            items={filteredCandidates}
+            returnsByOrderItemId={returnsByOrderItemId}
+            onCreate={(item) => setSelectedCandidate(item)}
           />
-        ) : (
+          {selectedCandidate && (
+            <ReturnCreateFlow
+              items={filteredCandidates}
+              initialSelectedId={selectedCandidate.orderItemId}
+              onCreated={async () => {
+                await loadReturns();
+                setSelectedCandidate(null);
+              }}
+              onReturnToList={() => setSelectedCandidate(null)}
+            />
+          )}
+        </div>
+
+        <div className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h2>Мои заявки</h2>
+            <Button type="button" variant="secondary" onClick={() => loadReturns()}>
+              Обновить
+            </Button>
+          </div>
           <ReturnList items={returns} isLoading={returnsLoading} error={returnsError} />
-        )}
+        </div>
       </div>
     </section>
   );

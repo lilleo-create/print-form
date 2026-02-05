@@ -26,11 +26,21 @@ chatRoutes.get('/my', requireAuth, async (req: AuthRequest, res, next) => {
         },
         returnRequest: {
           include: {
-            photos: true
+            photos: true,
+            items: {
+              include: {
+                orderItem: {
+                  include: { product: true, order: true }
+                }
+              }
+            }
           }
         }
       },
-      orderBy: [{ status: 'asc' }, { lastMessageAt: 'desc' }, { createdAt: 'desc' }]
+      orderBy: [
+        { lastMessageAt: { sort: 'desc', nulls: 'last' } },
+        { createdAt: 'desc' }
+      ]
     });
 
     const shaped = threads.map((thread) => ({

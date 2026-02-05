@@ -35,7 +35,9 @@ export const ReturnList = ({ items, isLoading, error }: ReturnListProps) => {
   return (
     <div className={styles.list}>
       {items.map((request) => {
-        const firstItem = request.items[0]?.orderItem;
+        const requestItems = request.items ?? [];
+        const requestPhotos = request.photos ?? [];
+        const firstItem = requestItems[0]?.orderItem;
         const product = firstItem?.product;
         return (
           <article key={request.id} className={styles.card}>
@@ -62,9 +64,9 @@ export const ReturnList = ({ items, isLoading, error }: ReturnListProps) => {
                 </div>
               </div>
             )}
-            {request.photos.length > 0 && (
+            {requestPhotos.length > 0 && (
               <div className={styles.photos}>
-                {request.photos.map((photo) => (
+                {requestPhotos.map((photo) => (
                   <img key={photo.id} src={photo.url} alt="Фото возврата" />
                 ))}
               </div>

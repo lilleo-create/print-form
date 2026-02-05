@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { requireAuth, requireAdmin, AuthRequest } from '../middleware/authMiddleware';
 import { prisma } from '../lib/prisma';
@@ -7,7 +8,8 @@ import { writeLimiter } from '../middleware/rateLimiters';
 export const adminChatRoutes = Router();
 
 const listSchema = z.object({
-  status: z.enum(['ACTIVE', 'CLOSED']).optional()
+  status: z.enum(['ACTIVE', 'CLOSED']).optional(),
+  q: z.string().trim().min(1).optional()
 });
 
 const messageSchema = z.object({
@@ -23,7 +25,16 @@ adminChatRoutes.use(requireAuth, requireAdmin);
 adminChatRoutes.get('/', async (req, res, next) => {
   try {
     const query = listSchema.parse(req.query);
-    const where = query.status ? { status: query.status } : undefined;
+    const where: Prisma.ChatThreadWhereInput = {};
+    if (query.status) {
+      where.status = query.status;
+    }
+    if (query.q) {
+      where.OR = [
+        { userId: query.q },
+        { user: { email: { contains: query.q, mode: 'insensitive' } } }
+      ];
+    }
     const threads = await prisma.chatThread.findMany({
       where,
       include: {
@@ -31,11 +42,21 @@ adminChatRoutes.get('/', async (req, res, next) => {
         messages: { orderBy: { createdAt: 'desc' }, take: 1 },
         returnRequest: {
           include: {
-            photos: true
+            photos: true,
+            items: {
+              include: {
+                orderItem: {
+                  include: { product: true, order: true }
+                }
+              }
+            }
           }
         }
       },
-      orderBy: [{ status: 'asc' }, { lastMessageAt: 'desc' }, { createdAt: 'desc' }]
+      orderBy: [
+        { lastMessageAt: { sort: 'desc', nulls: 'last' } },
+        { createdAt: 'desc' }
+      ]
     });
     const shaped = threads.map((thread) => ({
       ...thread,

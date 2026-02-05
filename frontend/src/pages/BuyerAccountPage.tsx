@@ -23,6 +23,7 @@ export const BuyerAccountPage = () => {
   const loadBuyerOrders = useOrdersStore((state) => state.loadBuyerOrders);
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') ?? 'profile';
+  const threadIdParam = searchParams.get('threadId');
   const [reviews, setReviews] = useState<Review[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -91,15 +92,22 @@ export const BuyerAccountPage = () => {
     api.chats
       .listMy()
       .then((response) => {
-        setChatThreads(response.data ?? { active: [], closed: [] });
-        if (!selectedThread && response.data?.active?.[0]) {
-          setSelectedThread(response.data.active[0]);
+        const data = response.data ?? { active: [], closed: [] };
+        setChatThreads(data);
+        const allThreads = [...(data.active ?? []), ...(data.closed ?? [])];
+        const nextThread = threadIdParam
+          ? allThreads.find((thread) => thread.id === threadIdParam) ?? null
+          : null;
+        if (nextThread) {
+          setSelectedThread(nextThread);
+        } else if (!selectedThread && data.active?.[0]) {
+          setSelectedThread(data.active[0]);
         }
       })
       .catch(() => {
         setChatThreads({ active: [], closed: [] });
       });
-  }, [activeTab, selectedThread]);
+  }, [activeTab, selectedThread, threadIdParam]);
 
   const loadChatThread = async (threadId: string) => {
     setChatLoading(true);

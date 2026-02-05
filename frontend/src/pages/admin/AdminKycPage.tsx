@@ -126,8 +126,8 @@ export const AdminKycPage = () => {
               style={{ gridTemplateColumns: 'minmax(180px, 1.4fr) 140px 140px minmax(220px, 1.6fr) 220px' }}
             >
               <div>
-                <strong>{submission.user?.name ?? submission.userId}</strong>
-                <div className={styles.muted}>{submission.user?.email ?? '—'}</div>
+                <strong className={styles.cellTruncate}>{submission.user?.name ?? submission.userId}</strong>
+                <div className={`${styles.muted} ${styles.cellTruncate}`}>{submission.user?.email ?? '—'}</div>
               </div>
               <span>{new Date(submission.createdAt).toLocaleDateString('ru-RU')}</span>
               <span className={styles.status}>{submission.status}</span>

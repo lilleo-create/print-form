@@ -1,6 +1,10 @@
 .flow {
   display: grid;
   gap: 16px;
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
 }
 
 .list {
@@ -39,6 +43,9 @@
   display: flex;
   gap: 12px;
   align-items: center;
+  padding: 12px;
+  border-radius: 16px;
+  background: #f8fafc;
 }
 
 .summary img {
@@ -58,6 +65,17 @@
   font-size: 14px;
 }
 
+.section textarea,
+.section input,
+.section select {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  padding: 10px 12px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
 .error {
   color: #dc2626;
   font-size: 13px;
@@ -68,6 +86,23 @@
   gap: 12px;
 }
 
+.successActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
 .empty {
   color: #6b7280;
+}
+
+.helper {
+  color: #6b7280;
+  font-size: 13px;
 }

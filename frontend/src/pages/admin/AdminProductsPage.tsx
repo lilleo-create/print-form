@@ -126,8 +126,8 @@ export const AdminProductsPage = () => {
                 <div className={styles.muted}>{formatDate(product.updatedAt ?? product.createdAt)}</div>
               </div>
               <div>
-                <div>{product.seller?.name ?? '—'}</div>
-                <div className={styles.muted}>{product.seller?.email ?? ''}</div>
+                <div className={styles.cellTruncate}>{product.seller?.name ?? '—'}</div>
+                <div className={`${styles.muted} ${styles.cellTruncate}`}>{product.seller?.email ?? ''}</div>
               </div>
               <span>{product.price.toLocaleString('ru-RU')} ₽</span>
               <span className={styles.status}>{product.moderationStatus ?? status}</span>

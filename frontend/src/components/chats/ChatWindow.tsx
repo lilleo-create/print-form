@@ -21,6 +21,9 @@ export const ChatWindow = ({ thread, messages, loading, error, onSend }: ChatWin
     return <div className={styles.empty}>Выберите чат.</div>;
   }
 
+  const returnItem = thread.returnRequest?.items?.[0]?.orderItem ?? null;
+  const product = returnItem?.product ?? null;
+
   return (
     <div className={styles.window}>
       {thread.returnRequest && (
@@ -44,6 +47,15 @@ export const ChatWindow = ({ thread, messages, loading, error, onSend }: ChatWin
                   <img src={photo.url} alt="Фото возврата" />
                 </a>
               ))}
+            </div>
+          )}
+          {product && (
+            <div className={styles.returnProduct}>
+              <img src={product.image} alt={product.title} />
+              <div>
+                <strong>{product.title}</strong>
+                <p>{product.price.toLocaleString('ru-RU')} ₽</p>
+              </div>
             </div>
           )}
         </div>
