@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../shared/api';
 import { Product, Review } from '../shared/types';
@@ -37,6 +37,7 @@ export const ProductReviewsPage = () => {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [filter, setFilter] = useState<ReviewFilter>('new');
   const [scope, setScope] = useState<ReviewScope>('all');
   const [activePhoto, setActivePhoto] = useState<string | null>(null);
@@ -46,6 +47,24 @@ export const ProductReviewsPage = () => {
   const [comment, setComment] = useState('');
   const [photos, setPhotos] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const reviewsRequestRef = useRef(0);
+
+  const normalizeReviews = (payload: unknown): Review[] => {
+    if (Array.isArray(payload)) return payload as Review[];
+    if (payload && typeof payload === 'object') {
+      if ('items' in payload && Array.isArray(payload.items)) {
+        return payload.items as Review[];
+      }
+      if ('data' in payload) {
+        const nested = (payload as { data?: unknown }).data;
+        if (Array.isArray(nested)) return nested as Review[];
+        if (nested && typeof nested === 'object' && 'items' in nested && Array.isArray((nested as { items?: unknown }).items)) {
+          return (nested as { items: Review[] }).items;
+        }
+      }
+    }
+    return [];
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -71,17 +90,35 @@ export const ProductReviewsPage = () => {
 
   const loadSummary = async () => {
     if (!id) return;
-    const response = await api.getReviewSummary(id, reviewProductIds);
-    setSummary(response.data.data);
+    try {
+      const response = await api.getReviewSummary(id, reviewProductIds);
+      setSummary(response.data.data ?? null);
+    } catch {
+      setSummary(null);
+    }
   };
 
   const loadReviews = async (nextPage = 1) => {
     if (!id) return;
     setLoading(true);
-    const response = await api.getProductReviews(id, nextPage, 6, filter, reviewProductIds);
-    setReviews((prev) => (nextPage === 1 ? response.data.data : [...prev, ...response.data.data]));
-    setHasMore(response.data.data.length === 6);
-    setLoading(false);
+    setLoadError(null);
+    const requestId = ++reviewsRequestRef.current;
+    try {
+      const response = await api.getProductReviews(id, nextPage, 6, filter, reviewProductIds);
+      if (requestId !== reviewsRequestRef.current) return;
+      const list = normalizeReviews(response.data);
+      setReviews((prev) => (nextPage === 1 ? list : [...prev, ...list]));
+      setHasMore(list.length === 6);
+    } catch {
+      if (requestId !== reviewsRequestRef.current) return;
+      setReviews((prev) => (nextPage === 1 ? [] : prev));
+      setHasMore(false);
+      setLoadError('Не удалось загрузить отзывы.');
+    } finally {
+      if (requestId === reviewsRequestRef.current) {
+        setLoading(false);
+      }
+    }
   };
 
   useEffect(() => {
@@ -278,7 +315,9 @@ export const ProductReviewsPage = () => {
             )}
 
             <div className={styles.reviewList}>
-              {reviews.length === 0 ? (
+              {loadError ? (
+                <p className={styles.empty}>{loadError}</p>
+              ) : reviews.length === 0 ? (
                 <p className={styles.empty}>Пока нет отзывов.</p>
               ) : (
                 reviews.map((review) => (

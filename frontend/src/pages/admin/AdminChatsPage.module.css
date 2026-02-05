@@ -1,0 +1,29 @@
+.page {
+  width: 100%;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 20px;
+}
+
+.sidebar {
+  display: grid;
+  gap: 16px;
+}
+
+.content {
+  display: grid;
+  gap: 12px;
+}
+
+.error {
+  color: #dc2626;
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}

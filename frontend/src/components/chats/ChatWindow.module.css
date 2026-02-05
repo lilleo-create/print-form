@@ -1,0 +1,61 @@
+.window {
+  display: grid;
+  gap: 16px;
+}
+
+.returnPanel {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px;
+  display: grid;
+  gap: 6px;
+  background: #f9fafb;
+}
+
+.photos {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.photos img {
+  width: 60px;
+  height: 60px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.messages {
+  display: grid;
+  gap: 8px;
+  max-height: 360px;
+  overflow: auto;
+}
+
+.messageUser {
+  justify-self: end;
+  background: #e0f2fe;
+  padding: 8px 12px;
+  border-radius: 12px;
+  max-width: 80%;
+}
+
+.messageAdmin {
+  justify-self: start;
+  background: #f3f4f6;
+  padding: 8px 12px;
+  border-radius: 12px;
+  max-width: 80%;
+}
+
+.messageUser span,
+.messageAdmin span {
+  display: block;
+  font-size: 11px;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+.empty {
+  color: #6b7280;
+}

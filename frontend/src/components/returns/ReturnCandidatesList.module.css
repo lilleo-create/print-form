@@ -1,0 +1,17 @@
+.list {
+  display: grid;
+  gap: 20px;
+}
+
+.item {
+  display: grid;
+  gap: 16px;
+}
+
+.formPanel {
+  padding: 0;
+}
+
+.empty {
+  color: var(--color-text-muted);
+}
