@@ -1,27 +1,30 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../shared/api';
-import { Product, Review } from '../shared/types';
-import { Rating } from '../shared/ui/Rating';
-import { Button } from '../shared/ui/Button';
+import type { Product } from '../shared/types';
 import { useCartStore } from '../app/store/cartStore';
 import { useAuthStore } from '../app/store/authStore';
 import { useProductBoardStore } from '../app/store/productBoardStore';
+import { ProductReviewsHeader } from './product-reviews/components/ProductReviewsHeader';
+import { ReviewsSummary } from './product-reviews/components/ReviewsSummary';
+import { ReviewsFilters } from './product-reviews/components/ReviewsFilters';
+import { ReviewsList } from './product-reviews/components/ReviewsList';
+import { ReviewFormModal, ReviewFormValues } from './product-reviews/components/ReviewFormModal';
+import {
+  ReviewFilters,
+  ReviewScope,
+  useProductReviews
+} from './product-reviews/hooks/useProductReviews';
+import { useMyReview } from './product-reviews/hooks/useMyReview';
 import styles from './ProductReviewsPage.module.css';
 
-const formatReviewDate = (value: string) =>
-  new Date(value).toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric' });
-
-const filterLabels = {
-  helpful: 'Полезные',
-  high: 'С высокой оценкой',
-  low: 'С низкой оценкой',
-  new: 'Новые'
-} as const;
-
-type ReviewFilter = keyof typeof filterLabels;
-
-type ReviewScope = 'all' | 'variant';
+const DEFAULT_FILTERS: ReviewFilters = {
+  helpful: false,
+  withMedia: false,
+  high: false,
+  low: false,
+  new: true
+};
 
 export const ProductReviewsPage = () => {
   const { id } = useParams();
@@ -30,41 +33,13 @@ export const ProductReviewsPage = () => {
   const user = useAuthStore((state) => state.user);
   const setProductBoard = useProductBoardStore((state) => state.setProduct);
   const [product, setProduct] = useState<Product | null>(null);
-  const [summary, setSummary] = useState<{ total: number; avg: number; counts: { rating: number; count: number }[]; photos: string[] } | null>(
-    null
-  );
-  const [reviews, setReviews] = useState<Review[]>([]);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
-  const [loading, setLoading] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<ReviewFilter>('new');
-  const [scope, setScope] = useState<ReviewScope>('all');
   const [activePhoto, setActivePhoto] = useState<string | null>(null);
-  const [rating, setRating] = useState(5);
-  const [pros, setPros] = useState('');
-  const [cons, setCons] = useState('');
-  const [comment, setComment] = useState('');
-  const [photos, setPhotos] = useState('');
+  const [scope, setScope] = useState<ReviewScope>('all');
+  const [filters, setFilters] = useState<ReviewFilters>(DEFAULT_FILTERS);
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const reviewsRequestRef = useRef(0);
-
-  const normalizeReviews = (payload: unknown): Review[] => {
-    if (Array.isArray(payload)) return payload as Review[];
-    if (payload && typeof payload === 'object') {
-      if ('items' in payload && Array.isArray(payload.items)) {
-        return payload.items as Review[];
-      }
-      if ('data' in payload) {
-        const nested = (payload as { data?: unknown }).data;
-        if (Array.isArray(nested)) return nested as Review[];
-        if (nested && typeof nested === 'object' && 'items' in nested && Array.isArray((nested as { items?: unknown }).items)) {
-          return (nested as { items: Review[] }).items;
-        }
-      }
-    }
-    return [];
-  };
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -86,81 +61,74 @@ export const ProductReviewsPage = () => {
     return Array.from(new Set([product.id, ...(variantIds ?? [])]));
   }, [product]);
 
-  const reviewProductIds = scope === 'all' ? scopedProductIds : undefined;
+  const {
+    reviews,
+    summary,
+    status,
+    error,
+    hasMore,
+    loadMore,
+    refresh
+  } = useProductReviews(id, {
+    filters,
+    scope,
+    productIds: scopedProductIds
+  });
 
-  const loadSummary = async () => {
-    if (!id) return;
-    try {
-      const response = await api.getReviewSummary(id, reviewProductIds);
-      setSummary(response.data.data ?? null);
-    } catch {
-      setSummary(null);
-    }
-  };
+  const { hasPurchased, myReview, refresh: refreshMyReview } = useMyReview({
+    productIds: scopedProductIds,
+    enabled: Boolean(id)
+  });
 
-  const loadReviews = async (nextPage = 1) => {
-    if (!id) return;
-    setLoading(true);
-    setLoadError(null);
-    const requestId = ++reviewsRequestRef.current;
-    try {
-      const response = await api.getProductReviews(id, nextPage, 6, filter, reviewProductIds);
-      if (requestId !== reviewsRequestRef.current) return;
-      const list = normalizeReviews(response.data);
-      setReviews((prev) => (nextPage === 1 ? list : [...prev, ...list]));
-      setHasMore(list.length === 6);
-    } catch {
-      if (requestId !== reviewsRequestRef.current) return;
-      setReviews((prev) => (nextPage === 1 ? [] : prev));
-      setHasMore(false);
-      setLoadError('Не удалось загрузить отзывы.');
-    } finally {
-      if (requestId === reviewsRequestRef.current) {
-        setLoading(false);
-      }
-    }
-  };
+  const ratingValue = summary?.avg ?? product?.ratingAvg ?? 0;
+  const totalReviews = summary?.total ?? 0;
+  const ratingCount = product?.ratingCount ?? totalReviews;
 
   useEffect(() => {
-    if (!id) return;
-    loadReviews(1);
-    loadSummary();
-    setPage(1);
-  }, [filter, id, scope, scopedProductIds]);
+    if (!toastMessage) return;
+    const timeout = window.setTimeout(() => setToastMessage(null), 3000);
+    return () => window.clearTimeout(timeout);
+  }, [toastMessage]);
 
-  const distribution = useMemo(() => summary?.counts ?? [], [summary]);
-  const safeReviews = useMemo(() => reviews ?? [], [reviews]);
-
-  const handleSubmit = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!id || !user) return;
-    setSubmitting(true);
-    try {
-      const photoList = photos
-        .split(',')
-        .map((item) => item.trim())
-        .filter(Boolean);
-      await api.createReview(id, {
-        rating,
-        pros,
-        cons,
-        comment,
-        photos: photoList.length ? photoList : undefined
-      });
-      await loadReviews(1);
-      setPage(1);
-      await loadSummary();
-      const updated = await api.getProduct(id);
-      setProduct(updated.data);
-      setPros('');
-      setCons('');
-      setComment('');
-      setPhotos('');
-      setRating(5);
-    } finally {
-      setSubmitting(false);
+  const handleBack = useCallback(() => {
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else if (product) {
+      navigate(`/product/${product.id}`);
     }
-  };
+  }, [navigate, product]);
+
+  const handleReviewSubmit = useCallback(
+    async (payload: ReviewFormValues) => {
+      if (!id || !user) return;
+      setSubmitting(true);
+      setSubmitError(null);
+      try {
+        let uploadedPhotos: string[] = [];
+        if (payload.files.length > 0) {
+          const uploadResponse = await api.returns.uploadPhotos(payload.files);
+          uploadedPhotos = uploadResponse.data.urls ?? [];
+        }
+        const photos = [...payload.existingPhotos, ...uploadedPhotos].filter(Boolean);
+        await api.createReview(id, {
+          rating: payload.rating,
+          pros: payload.pros,
+          cons: payload.cons,
+          comment: payload.comment,
+          photos: photos.length ? photos : undefined
+        });
+        await refresh();
+        await refreshMyReview();
+        setIsReviewModalOpen(false);
+        setToastMessage('Отзыв отправлен на модерацию');
+      } catch {
+        setSubmitError('Не удалось отправить отзыв. Попробуйте снова.');
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [id, refresh, refreshMyReview, user]
+  );
 
   if (!product) {
     return (
@@ -172,94 +140,49 @@ export const ProductReviewsPage = () => {
     );
   }
 
-  const total = summary?.total ?? 0;
+  const canReview = Boolean(user && hasPurchased);
+  const reviewActionLabel = myReview ? 'Изменить отзыв' : 'Оставить отзыв';
 
   return (
     <section className={styles.page}>
       <div className="container">
-        <div className={styles.header}>
-          <button type="button" className={styles.backButton} onClick={() => navigate(`/product/${product.id}`)}>
-            ← Назад к товару
-          </button>
-          <div>
-            <h1>{product.title}</h1>
-            <p className={styles.subtitle}>Отзывы покупателей</p>
+        <ProductReviewsHeader
+          product={product}
+          ratingValue={ratingValue}
+          ratingCount={ratingCount}
+          reviewsCount={totalReviews}
+          onBack={handleBack}
+          onAddToCart={() => addItem(product, 1)}
+          onBuyNow={() => {
+            addItem(product, 1);
+            navigate('/checkout');
+          }}
+        />
+
+        {toastMessage && (
+          <div className={styles.toast} role="status">
+            {toastMessage}
           </div>
-        </div>
+        )}
 
-        <div className={styles.content}>
+        <div className={styles.layout}>
           <aside className={styles.sidebar}>
-            <div className={styles.summaryCard}>
-              <span className={styles.summaryValue}>{summary?.avg?.toFixed(1) ?? '0.0'}</span>
-              <Rating value={summary?.avg ?? 0} count={total} size="md" />
-              <ul>
-                {distribution.map((item) => (
-                  <li key={item.rating}>
-                    <span>{item.rating}★</span>
-                    <div className={styles.bar}>
-                      <div
-                        className={styles.barFill}
-                        style={{ width: total ? `${(item.count / total) * 100}%` : '0%' }}
-                      />
-                    </div>
-                    <span>{item.count}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div className={styles.purchaseCard}>
-              <div className={styles.price}>{product.price.toLocaleString('ru-RU')} ₽</div>
-              <Button
-                onClick={() => {
-                  addItem(product, 1);
-                  navigate('/checkout');
-                }}
-              >
-                Купить сейчас
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  addItem(product, 1);
-                }}
-              >
-                В корзину
-              </Button>
-            </div>
+            <ReviewsSummary
+              summary={summary}
+              total={totalReviews}
+              onAction={() => setIsReviewModalOpen(true)}
+              actionLabel={reviewActionLabel}
+              canReview={canReview}
+            />
           </aside>
 
           <div className={styles.main}>
-            <div className={styles.toggleRow}>
-              <div className={styles.scopes}>
-                <button
-                  type="button"
-                  className={scope === 'all' ? styles.toggleActive : styles.toggleButton}
-                  onClick={() => setScope('all')}
-                >
-                  Все отзывы
-                </button>
-                <button
-                  type="button"
-                  className={scope === 'variant' ? styles.toggleActive : styles.toggleButton}
-                  onClick={() => setScope('variant')}
-                >
-                  Этот вариант
-                </button>
-              </div>
-              <div className={styles.filters}>
-                {(Object.keys(filterLabels) as ReviewFilter[]).map((key) => (
-                  <button
-                    key={key}
-                    type="button"
-                    className={filter === key ? styles.filterActive : styles.filterButton}
-                    onClick={() => setFilter(key)}
-                  >
-                    {filterLabels[key]}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <ReviewsFilters
+              scope={scope}
+              onScopeChange={setScope}
+              filters={filters}
+              onFiltersChange={setFilters}
+            />
 
             <div className={styles.mediaStrip}>
               {(summary?.photos ?? []).length === 0 ? (
@@ -280,117 +203,47 @@ export const ProductReviewsPage = () => {
               )}
             </div>
 
-            {user && (
-              <form className={styles.reviewForm} onSubmit={handleSubmit}>
-                <h3>Оставить отзыв</h3>
-                <label>
-                  Оценка
-                  <select value={rating} onChange={(event) => setRating(Number(event.target.value))}>
-                    {[5, 4, 3, 2, 1].map((value) => (
-                      <option value={value} key={value}>
-                        {value}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Достоинства
-                  <input value={pros} onChange={(event) => setPros(event.target.value)} required />
-                </label>
-                <label>
-                  Недостатки
-                  <input value={cons} onChange={(event) => setCons(event.target.value)} required />
-                </label>
-                <label>
-                  Комментарий
-                  <textarea value={comment} onChange={(event) => setComment(event.target.value)} required />
-                </label>
-                <label>
-                  Фото (ссылки через запятую)
-                  <input value={photos} onChange={(event) => setPhotos(event.target.value)} />
-                </label>
-                <Button type="submit" disabled={submitting}>
-                  Отправить
-                </Button>
-              </form>
-            )}
-
-            <div className={styles.reviewList}>
-              {loadError ? (
-                <p className={styles.empty}>{loadError}</p>
-              ) : safeReviews.length === 0 ? (
-                <p className={styles.empty}>Пока нет отзывов.</p>
-              ) : (
-                safeReviews.map((review) => {
-                  const reviewPhotos = review.photos ?? [];
-                  return (
-                  <article key={review.id} className={styles.reviewCard}>
-                    <div className={styles.reviewTop}>
-                      <div>
-                        <strong>{review.user?.name ?? 'Имя скрыто'}</strong>
-                        <span className={styles.reviewDate}>{formatReviewDate(review.createdAt)}</span>
-                      </div>
-                      <Rating value={review.rating} count={0} />
-                    </div>
-                    <div className={styles.reviewBody}>
-                      <p>
-                        <strong>Достоинства:</strong> {review.pros}
-                      </p>
-                      <p>
-                        <strong>Недостатки:</strong> {review.cons}
-                      </p>
-                      <p>
-                        <strong>Комментарий:</strong> {review.comment}
-                      </p>
-                    </div>
-                    {reviewPhotos.length > 0 && (
-                      <div className={styles.reviewPhotos}>
-                        {reviewPhotos.map((photo) => (
-                          <button
-                            type="button"
-                            key={photo}
-                            className={styles.mediaItem}
-                            onClick={() => setActivePhoto(photo)}
-                          >
-                            <img src={photo} alt="Фото отзыва" />
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    <div className={styles.reviewActions}>
-                      <button type="button">Ответить</button>
-                      <div className={styles.reaction}>
-                        <span>👍 {review.likesCount ?? 0}</span>
-                        <span>👎 {review.dislikesCount ?? 0}</span>
-                      </div>
-                    </div>
-                  </article>
-                );
-                })
-              )}
-            </div>
+            <ReviewsList
+              reviews={reviews}
+              status={status}
+              error={error}
+              onPhotoClick={setActivePhoto}
+            />
 
             {hasMore && (
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  const nextPage = page + 1;
-                  setPage(nextPage);
-                  loadReviews(nextPage);
-                }}
-                disabled={loading}
-              >
-                Загрузить ещё
-              </Button>
+              <div className={styles.loadMore}>
+                <button
+                  type="button"
+                  className={styles.loadMoreButton}
+                  onClick={loadMore}
+                  disabled={status === 'loading'}
+                >
+                  {status === 'loading' ? 'Загрузка...' : 'Загрузить ещё'}
+                </button>
+              </div>
             )}
           </div>
         </div>
       </div>
 
+      <ReviewFormModal
+        isOpen={isReviewModalOpen}
+        onClose={() => setIsReviewModalOpen(false)}
+        product={product}
+        initialReview={myReview ?? null}
+        onSubmit={handleReviewSubmit}
+        submitting={submitting}
+        error={submitError}
+      />
+
       {activePhoto && (
-        <div className={styles.modal} onClick={() => setActivePhoto(null)}>
-          <div className={styles.modalContent} onClick={(event) => event.stopPropagation()}>
-            <button type="button" className={styles.modalClose} onClick={() => setActivePhoto(null)}>
+        <div className={styles.photoModal} onClick={() => setActivePhoto(null)}>
+          <div className={styles.photoModalContent} onClick={(event) => event.stopPropagation()}>
+            <button
+              type="button"
+              className={styles.photoModalClose}
+              onClick={() => setActivePhoto(null)}
+            >
               ✕
             </button>
             <img src={activePhoto} alt="Фото отзыва" />
