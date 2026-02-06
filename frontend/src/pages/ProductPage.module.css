@@ -34,7 +34,7 @@
   border: 1px solid transparent;
   border-radius: 12px;
   padding: 4px;
-  background: #fff;
+  background: var(--card);
   cursor: pointer;
 }
 
@@ -46,7 +46,7 @@
 }
 
 .thumbActive {
-  border-color: #6366f1;
+  border-color: var(--primary);
 }
 
 .details {
@@ -68,7 +68,7 @@
 }
 
 .reviewLink {
-  color: var(--color-primary);
+  color: var(--primary);
   font-weight: 600;
   text-decoration: none;
 }
@@ -84,12 +84,12 @@
 }
 
 .delivery {
-  color: #64748b;
+  color: var(--muted);
   font-size: 15px;
 }
 
 .sku {
-  color: #475569;
+  color: var(--muted);
   font-size: 14px;
 }
 
@@ -97,7 +97,7 @@
   display: grid;
   gap: 10px;
   font-size: 15px;
-  color: #334155;
+  color: var(--muted);
 }
 
 .variantList {
@@ -107,8 +107,8 @@
 }
 
 .variantButton {
-  border: 1px solid #e2e8f0;
-  background: #ffffff;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
   border-radius: 999px;
   padding: 8px 16px;
   cursor: pointer;
@@ -116,9 +116,9 @@
 }
 
 .variantActive {
-  border: 1px solid #1d4ed8;
-  background: rgba(29, 78, 216, 0.12);
-  color: #1d4ed8;
+  border: 1px solid var(--primary);
+  background: rgba(47, 124, 255, 0.2);
+  color: var(--primary);
   border-radius: 999px;
   padding: 8px 16px;
   cursor: pointer;
@@ -126,7 +126,7 @@
 }
 
 .shortDescription {
-  color: #475569;
+  color: var(--muted);
   font-size: 15px;
 }
 
@@ -154,7 +154,7 @@
   display: flex;
   justify-content: space-between;
   padding-bottom: 8px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border);
 }
 
 .reviewsPreview {
@@ -172,7 +172,7 @@
 }
 
 .reviewsHint {
-  color: var(--color-text-muted);
+  color: var(--muted);
   font-size: 14px;
 }
 
@@ -183,10 +183,11 @@
 }
 
 .reviewsSummary {
-  background: #ffffff;
-  border-radius: 20px;
+  background: var(--card);
+  border-radius: var(--radius-card);
   padding: 20px;
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border);
   display: grid;
   gap: 16px;
 }
@@ -219,14 +220,14 @@
 
 .bar {
   height: 8px;
-  background: #e2e8f0;
+  background: rgba(255, 255, 255, 0.08);
   border-radius: 999px;
   overflow: hidden;
 }
 
 .barFill {
   height: 100%;
-  background: #f59e0b;
+  background: var(--warning);
 }
 
 .reviewList {
@@ -236,8 +237,9 @@
 
 .reviewCard {
   padding: 18px;
-  border-radius: 18px;
-  background: #f8fafc;
+  border-radius: var(--radius-card);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
   display: grid;
   gap: 12px;
 }
@@ -249,7 +251,7 @@
 }
 
 .reviewDate {
-  color: var(--color-text-muted);
+  color: var(--muted);
   font-size: 13px;
   display: block;
 }
@@ -272,7 +274,7 @@
 }
 
 .reviewsEmpty {
-  color: var(--color-text-muted);
+  color: var(--muted);
 }
 
 .feed {
@@ -287,7 +289,7 @@
 }
 
 .loading {
-  color: #94a3b8;
+  color: var(--muted);
 }
 
 @media (max-width: 960px) {

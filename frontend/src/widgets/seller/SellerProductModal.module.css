@@ -1,7 +1,7 @@
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.6);
+  background: rgba(7, 11, 23, 0.75);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -10,8 +10,8 @@
 }
 
 .modal {
-  background: #ffffff;
-  border-radius: 10px;
+  background: var(--card);
+  border-radius: var(--radius-card);
   width: min(720px, 100%);
   max-width: 100%;
   max-height: calc(100vh - 48px);
@@ -20,6 +20,8 @@
   flex-direction: column;
   gap: 16px;
   overflow: auto;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
 }
 
 .header {
@@ -49,29 +51,33 @@
 }
 
 .input {
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
   padding: 9px 12px;
   font-size: 14px;
+  background: var(--bg-2);
+  color: var(--text);
 }
 
 .input:focus {
   outline: none;
-  border-color: #6366f1;
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+  border-color: var(--primary);
+  box-shadow: var(--focus-ring);
 }
 
 .inputError {
-  border: 1px solid #ef4444;
-  border-radius: 8px;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-control);
   padding: 9px 12px;
   font-size: 14px;
+  background: var(--bg-2);
+  color: var(--text);
 }
 
 .inputError:focus {
   outline: none;
-  border-color: #ef4444;
-  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.15);
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px rgba(255, 77, 79, 0.25);
 }
 
 textarea.input,
@@ -80,30 +86,30 @@ textarea.inputError {
 }
 
 .errorText {
-  color: #ef4444;
+  color: var(--danger);
   font-size: 12px;
 }
 
 .dropzone {
   margin-top: 6px;
-  border: 2px dashed #cbd5f5;
-  border-radius: 14px;
+  border: 2px dashed rgba(47, 124, 255, 0.4);
+  border-radius: var(--radius-card);
   padding: 18px;
-  background: #f8fafc;
+  background: var(--bg-2);
   cursor: pointer;
   transition: border-color 0.2s ease, background 0.2s ease;
 }
 
 .dropzoneActive {
-  border-color: #6366f1;
-  background: #eef2ff;
+  border-color: var(--primary);
+  background: rgba(47, 124, 255, 0.15);
 }
 
 .dropzoneContent {
   display: flex;
   align-items: center;
   gap: 12px;
-  color: #1f2937;
+  color: var(--text);
 }
 
 .dropzoneIcon {
@@ -112,7 +118,7 @@ textarea.inputError {
 
 .dropzoneHint {
   margin: 4px 0 0;
-  color: #64748b;
+  color: var(--muted);
   font-size: 13px;
 }
 
@@ -132,24 +138,24 @@ textarea.inputError {
   align-items: center;
   gap: 12px;
   padding: 8px 12px;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--bg-2);
 }
 
 .filePreview {
   width: 48px;
   height: 48px;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   object-fit: cover;
-  background: #f3f4f6;
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .videoIcon {
   width: 48px;
   height: 48px;
-  border-radius: 8px;
-  background: #111827;
+  border-radius: var(--radius-control);
+  background: var(--primary);
   color: #ffffff;
   display: inline-flex;
   align-items: center;
@@ -159,14 +165,14 @@ textarea.inputError {
 
 .fileName {
   font-size: 14px;
-  color: #1f2937;
+  color: var(--text);
   word-break: break-all;
 }
 
 .removeFile {
   border: none;
   background: transparent;
-  color: #ef4444;
+  color: var(--danger);
   cursor: pointer;
   font-size: 13px;
   padding: 4px 6px;
@@ -175,7 +181,7 @@ textarea.inputError {
 .errorList {
   margin: 8px 0 0;
   padding-left: 18px;
-  color: #ef4444;
+  color: var(--danger);
   font-size: 12px;
   display: grid;
   gap: 4px;

@@ -1,10 +1,11 @@
 .flow {
   display: grid;
   gap: 16px;
-  background: #ffffff;
-  border-radius: 20px;
+  background: var(--card);
+  border-radius: var(--radius-card);
   padding: 20px;
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border);
 }
 
 .list {
@@ -13,12 +14,13 @@
 }
 
 .card {
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
   padding: 12px;
   display: grid;
   gap: 8px;
   cursor: pointer;
+  background: var(--bg-2);
 }
 
 .cardBody {
@@ -36,7 +38,7 @@
 
 .caption {
   font-size: 12px;
-  color: #6b7280;
+  color: var(--muted);
 }
 
 .summary {
@@ -44,8 +46,9 @@
   gap: 12px;
   align-items: center;
   padding: 12px;
-  border-radius: 16px;
-  background: #f8fafc;
+  border-radius: var(--radius-card);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
 }
 
 .summary img {
@@ -69,15 +72,17 @@
 .section input,
 .section select {
   width: 100%;
-  border-radius: 12px;
-  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border);
   padding: 10px 12px;
   font-size: 14px;
   line-height: 1.4;
+  background: var(--bg-2);
+  color: var(--text);
 }
 
 .error {
-  color: #dc2626;
+  color: var(--danger);
   font-size: 13px;
 }
 
@@ -99,10 +104,10 @@
 }
 
 .empty {
-  color: #6b7280;
+  color: var(--muted);
 }
 
 .helper {
-  color: #6b7280;
+  color: var(--muted);
   font-size: 13px;
 }

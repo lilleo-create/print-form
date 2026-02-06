@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../shared/api';
 import { Product } from '../../shared/types';
 import { Button } from '../../shared/ui/Button';
+import { EmptyState } from '../../shared/ui/EmptyState';
+import { Table } from '../../shared/ui/Table';
 import styles from './AdminPage.module.css';
 
 type AdminProduct = Product & {
@@ -102,9 +104,9 @@ export const AdminProductsPage = () => {
       {loading ? (
         <p className={styles.muted}>Загрузка товаров...</p>
       ) : rows.length === 0 ? (
-        <p className={styles.muted}>Товаров не найдено.</p>
+        <EmptyState title="Нет товаров" description="В выбранном статусе ничего не найдено." />
       ) : (
-        <div className={styles.table}>
+        <Table className={styles.table}>
           <div
             className={styles.tableHeader}
             style={{ gridTemplateColumns: 'minmax(200px, 1.6fr) 160px 160px 140px 160px' }}
@@ -144,7 +146,7 @@ export const AdminProductsPage = () => {
               </div>
             </div>
           ))}
-        </div>
+        </Table>
       )}
 
       {selected && (

@@ -1,7 +1,7 @@
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.6);
+  background: rgba(7, 11, 23, 0.75);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -11,10 +11,11 @@
 
 .modal {
   width: min(520px, 100%);
-  background: #ffffff;
-  border-radius: 16px;
+  background: var(--card);
+  border-radius: var(--radius-card);
   padding: 24px;
-  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.2);
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -42,14 +43,15 @@
   display: grid;
   gap: 8px;
   font-size: 14px;
-  color: #334155;
+  color: var(--muted);
 }
 
 .field select {
   padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid #e2e8f0;
-  background: #fff;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--text);
 }
 
 .actions {

@@ -1,0 +1,54 @@
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #070b17;
+  --bg-2: #0b1226;
+  --card: #0f1a33;
+  --border: rgba(255, 255, 255, 0.08);
+  --text: rgba(255, 255, 255, 0.92);
+  --muted: rgba(255, 255, 255, 0.65);
+  --muted-2: rgba(255, 255, 255, 0.45);
+  --primary: #2f7cff;
+  --primary-2: #1e5dff;
+  --danger: #ff4d4f;
+  --success: #1dd1a1;
+  --warning: #f7b731;
+  --radius-card: 16px;
+  --radius-control: 12px;
+  --shadow-card: 0 10px 30px rgba(0, 0, 0, 0.35);
+  --shadow-control: 0 8px 18px rgba(0, 0, 0, 0.25);
+  --focus-ring: 0 0 0 3px rgba(47, 124, 255, 0.35);
+
+  --color-bg: var(--bg);
+  --color-surface: var(--card);
+  --color-surface-muted: var(--bg-2);
+  --color-primary: var(--primary);
+  --color-primary-dark: var(--primary-2);
+  --color-text: var(--text);
+  --color-text-muted: var(--muted);
+  --color-border: var(--border);
+  --color-danger: var(--danger);
+  --radius-md: var(--radius-control);
+  --radius-lg: var(--radius-card);
+  --shadow-sm: var(--shadow-control);
+  --shadow-md: var(--shadow-card);
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f8fafc;
+  --bg-2: #eef2ff;
+  --card: #ffffff;
+  --border: rgba(15, 23, 42, 0.12);
+  --text: #0f172a;
+  --muted: rgba(15, 23, 42, 0.65);
+  --muted-2: rgba(15, 23, 42, 0.45);
+  --primary: #2f7cff;
+  --primary-2: #1e5dff;
+  --danger: #ef4444;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --shadow-card: 0 16px 40px rgba(15, 23, 42, 0.12);
+  --shadow-control: 0 8px 18px rgba(15, 23, 42, 0.12);
+  --focus-ring: 0 0 0 3px rgba(47, 124, 255, 0.25);
+}
