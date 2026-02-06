@@ -35,10 +35,10 @@ export const Header = () => {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window === 'undefined') {
-      return 'light';
+      return 'dark';
     }
     const stored = window.localStorage.getItem('theme');
-    return stored === 'dark' ? 'dark' : 'light';
+    return stored === 'light' ? 'light' : 'dark';
   });
   const categoriesRef = useRef<HTMLDivElement | null>(null);
   const productBoardRef = useRef<HTMLDivElement | null>(null);

@@ -10,7 +10,7 @@
 }
 
 .empty {
-  color: #6b7280;
+  color: var(--muted);
 }
 
 .content {
@@ -31,10 +31,11 @@
   grid-template-columns: 80px 1fr auto auto;
   gap: 16px;
   align-items: center;
-  background: #ffffff;
+  background: var(--card);
   padding: 16px;
-  border-radius: 16px;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border);
 }
 
 .item img {
@@ -59,16 +60,19 @@
 .controls input {
   width: 80px;
   padding: 6px;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--bg-2);
+  color: var(--text);
 }
 
 .controls button {
   border: none;
-  background: #f3f4f6;
+  background: var(--bg-2);
   padding: 6px 10px;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   cursor: pointer;
+  color: var(--text);
 }
 
 .sum {
@@ -76,10 +80,12 @@
 }
 
 .summary {
-  background: #111827;
-  color: #ffffff;
+  background: var(--card);
+  color: var(--text);
   padding: 24px;
-  border-radius: 16px;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -93,8 +99,8 @@
 
 .cta {
   border: none;
-  background: #ffffff;
-  color: #111827;
+  background: var(--primary);
+  color: #ffffff;
   padding: 12px 18px;
   border-radius: 999px;
   font-weight: 600;

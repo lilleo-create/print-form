@@ -4,11 +4,12 @@
 }
 
 .card {
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
   padding: 16px;
   display: grid;
   gap: 12px;
+  background: var(--card);
 }
 
 .meta {
@@ -18,7 +19,7 @@
 }
 
 .reason {
-  color: #6b7280;
+  color: var(--muted);
   font-size: 13px;
 }
 
@@ -29,7 +30,7 @@
 
 .date {
   font-size: 12px;
-  color: #6b7280;
+  color: var(--muted);
 }
 
 .product {
@@ -59,5 +60,5 @@
 }
 
 .empty {
-  color: #6b7280;
+  color: var(--muted);
 }

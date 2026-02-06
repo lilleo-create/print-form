@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../shared/api';
 import { SellerKycSubmission } from '../../shared/types';
 import { Button } from '../../shared/ui/Button';
+import { EmptyState } from '../../shared/ui/EmptyState';
+import { Table } from '../../shared/ui/Table';
 import styles from './AdminPage.module.css';
 
 const statusOptions = ['PENDING', 'APPROVED', 'REJECTED'] as const;
@@ -106,9 +108,9 @@ export const AdminKycPage = () => {
       {loading ? (
         <p className={styles.muted}>Загрузка заявок...</p>
       ) : rows.length === 0 ? (
-        <p className={styles.muted}>Заявки не найдены.</p>
+        <EmptyState title="Нет заявок" description="Заявки в выбранном статусе не найдены." />
       ) : (
-        <div className={styles.table}>
+        <Table className={styles.table}>
           <div
             className={styles.tableHeader}
             style={{ gridTemplateColumns: 'minmax(180px, 1.4fr) 140px 140px minmax(220px, 1.6fr) 220px' }}
@@ -163,7 +165,7 @@ export const AdminKycPage = () => {
               </div>
             </div>
           ))}
-        </div>
+        </Table>
       )}
       {downloadError && <p className={styles.errorText}>{downloadError}</p>}
 
