@@ -36,19 +36,44 @@
 
 [data-theme='light'] {
   color-scheme: light;
-  --bg: #f8fafc;
-  --bg-2: #eef2ff;
+
+  --bg: #f4f7fb;          /* не белый, а мягкий */
+  --bg-2: #eef2f8;        /* секции */
   --card: #ffffff;
-  --border: rgba(15, 23, 42, 0.12);
+
+  --border: rgba(15, 23, 42, 0.08);
+
   --text: #0f172a;
-  --muted: rgba(15, 23, 42, 0.65);
-  --muted-2: rgba(15, 23, 42, 0.45);
+  --muted: rgba(15, 23, 42, 0.6);
+  --muted-2: rgba(15, 23, 42, 0.4);
+
   --primary: #2f7cff;
   --primary-2: #1e5dff;
-  --danger: #ef4444;
-  --success: #10b981;
+
+  --danger: #e5484d;
+  --success: #16a34a;
   --warning: #f59e0b;
-  --shadow-card: 0 16px 40px rgba(15, 23, 42, 0.12);
-  --shadow-control: 0 8px 18px rgba(15, 23, 42, 0.12);
-  --focus-ring: 0 0 0 3px rgba(47, 124, 255, 0.25);
+
+  --radius-card: 16px;
+  --radius-control: 12px;
+
+  --shadow-card: 0 12px 28px rgba(15, 23, 42, 0.08);
+  --shadow-control: 0 6px 14px rgba(15, 23, 42, 0.08);
+
+  --focus-ring: 0 0 0 3px rgba(47, 124, 255, 0.2);
+
+  /* semantic */
+  --color-bg: var(--bg);
+  --color-surface: var(--card);
+  --color-surface-muted: var(--bg-2);
+  --color-primary: var(--primary);
+  --color-primary-dark: var(--primary-2);
+  --color-text: var(--text);
+  --color-text-muted: var(--muted);
+  --color-border: var(--border);
+
+  --radius-md: var(--radius-control);
+  --radius-lg: var(--radius-card);
+  --shadow-sm: var(--shadow-control);
+  --shadow-md: var(--shadow-card);
 }
