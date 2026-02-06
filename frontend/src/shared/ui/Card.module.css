@@ -1,0 +1,12 @@
+.card {
+  background: var(--card);
+  border-radius: var(--radius-card);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+  padding: 20px;
+}
+
+.muted {
+  background: var(--bg-2);
+  box-shadow: none;
+}

@@ -14,8 +14,8 @@
 .scopeButton,
 .scopeActive {
   border: 1px solid transparent;
-  background: rgba(15, 23, 42, 0.08);
-  color: #0f172a;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
   border-radius: 999px;
   padding: 8px 16px;
   cursor: pointer;
@@ -23,8 +23,9 @@
 }
 
 .scopeActive {
-  border-color: #facc15;
-  background: rgba(250, 204, 21, 0.18);
+  border-color: var(--primary);
+  background: rgba(47, 124, 255, 0.2);
+  color: var(--primary);
 }
 
 .dropdown {
@@ -33,11 +34,12 @@
 
 .dropdownButton {
   border: none;
-  background: rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.08);
   border-radius: 999px;
   padding: 8px 16px;
   cursor: pointer;
   font-weight: 600;
+  color: var(--text);
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -52,10 +54,11 @@
   right: 0;
   top: calc(100% + 8px);
   min-width: 220px;
-  background: #ffffff;
-  border-radius: 16px;
+  background: var(--card);
+  border-radius: var(--radius-card);
   padding: 12px;
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.2);
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border);
   z-index: 20;
   display: grid;
   gap: 8px;
@@ -66,11 +69,11 @@
   align-items: center;
   gap: 8px;
   font-size: 14px;
-  color: #0f172a;
+  color: var(--text);
 }
 
 .dropdownItem input {
-  accent-color: #facc15;
+  accent-color: var(--primary);
 }
 
 @media (max-width: 640px) {

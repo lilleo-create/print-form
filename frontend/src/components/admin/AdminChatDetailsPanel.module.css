@@ -4,11 +4,12 @@
 }
 
 .returnPanel {
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
   padding: 12px;
   display: grid;
   gap: 8px;
+  background: var(--bg-2);
 }
 
 .photos {
@@ -45,9 +46,11 @@
 
 .controls textarea {
   min-height: 70px;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border);
   padding: 8px;
+  background: var(--bg-2);
+  color: var(--text);
 }
 
 .chatControls {
@@ -64,7 +67,7 @@
 
 .messageAdmin {
   justify-self: end;
-  background: #e0f2fe;
+  background: rgba(47, 124, 255, 0.2);
   padding: 8px 12px;
   border-radius: 12px;
   max-width: 80%;
@@ -72,7 +75,7 @@
 
 .messageUser {
   justify-self: start;
-  background: #f3f4f6;
+  background: rgba(255, 255, 255, 0.08);
   padding: 8px 12px;
   border-radius: 12px;
   max-width: 80%;
@@ -82,10 +85,10 @@
 .messageUser span {
   display: block;
   font-size: 11px;
-  color: #6b7280;
+  color: var(--muted);
   margin-top: 4px;
 }
 
 .empty {
-  color: #6b7280;
+  color: var(--muted);
 }

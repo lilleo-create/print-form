@@ -1,0 +1,13 @@
+.select {
+  padding: 10px 14px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--text);
+}
+
+.select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: var(--focus-ring);
+}

@@ -8,6 +8,7 @@ import { useAuthStore } from '../app/store/authStore';
 import { api } from '../shared/api';
 import styles from './AuthPage.module.css';
 import { OtpStep } from './OtpStep';
+import loginHero from '../shared/assets/login-hero.svg';
 
 type Purpose = 'login' | 'register' | 'seller_verify';
 
@@ -231,89 +232,102 @@ export const AuthPage = () => {
 
   return (
     <section className={styles.page}>
-      <div className={styles.card}>
-        <h1>{isRegister ? 'Регистрация' : 'Вход'}</h1>
+      <div className={styles.layout}>
+        <div className={styles.formColumn}>
+          <div className={styles.card}>
+            <div className={styles.header}>
+              <p className={styles.eyebrow}>{isRegister ? 'Создайте аккаунт' : 'Добро пожаловать'}</p>
+              <h1>{isRegister ? 'Регистрация' : 'Вход'}</h1>
+              <p className={styles.subtitle}>
+                {isRegister ? 'Начните продавать и покупать 3D печать за пару минут.' : 'Войдите, чтобы продолжить работу с заказами.'}
+              </p>
+            </div>
 
-        {otpRequired ? (
-          <OtpStep
-            purpose={otpPurpose}
-            tempToken={otpToken}
-            initialPhone={otpPhone}
-            privacyAccepted={privacyAccepted}
-            onPrivacyAcceptedChange={setPrivacyAccepted}
-            onRequestOtp={requestOtp}
-            onVerifyOtp={verifyOtp}
-            onSuccess={() => {
-              void handleRedirect();
-            }}
-            setMessage={setMessage}
-            setError={setError}
-          />
-        ) : isRegister ? (
-          <form onSubmit={registerForm.handleSubmit(onRegister)} className={styles.form}>
-            <input placeholder="Имя" {...registerForm.register('name')} />
+            {otpRequired ? (
+              <OtpStep
+                purpose={otpPurpose}
+                tempToken={otpToken}
+                initialPhone={otpPhone}
+                privacyAccepted={privacyAccepted}
+                onPrivacyAcceptedChange={setPrivacyAccepted}
+                onRequestOtp={requestOtp}
+                onVerifyOtp={verifyOtp}
+                onSuccess={() => {
+                  void handleRedirect();
+                }}
+                setMessage={setMessage}
+                setError={setError}
+              />
+            ) : isRegister ? (
+              <form onSubmit={registerForm.handleSubmit(onRegister)} className={styles.form}>
+                <input placeholder="Имя" {...registerForm.register('name')} />
 
-            <input
-              placeholder="+7 (___) ___-__-__"
-              value={registerForm.watch('phone') ?? ''}
-              inputMode="tel"
-              onFocus={() => {
-                const v = registerForm.getValues('phone') ?? '';
-                if (!v) registerForm.setValue('phone', '+7', { shouldValidate: true });
-              }}
-              onChange={(e) =>
-                registerForm.setValue('phone', formatRuPhone(e.target.value), {
-                  shouldValidate: true,
-                  shouldDirty: true
-                })
-              }
-            />
+                <input
+                  placeholder="+7 (___) ___-__-__"
+                  value={registerForm.watch('phone') ?? ''}
+                  inputMode="tel"
+                  onFocus={() => {
+                    const v = registerForm.getValues('phone') ?? '';
+                    if (!v) registerForm.setValue('phone', '+7', { shouldValidate: true });
+                  }}
+                  onChange={(e) =>
+                    registerForm.setValue('phone', formatRuPhone(e.target.value), {
+                      shouldValidate: true,
+                      shouldDirty: true
+                    })
+                  }
+                />
 
-            <input placeholder="Email" {...registerForm.register('email')} />
-            <input type="password" placeholder="Пароль" {...registerForm.register('password')} />
-            <input type="password" placeholder="Повторите пароль" {...registerForm.register('confirmPassword')} />
-            {registerForm.formState.errors.confirmPassword && (
-              <span>{registerForm.formState.errors.confirmPassword.message}</span>
+                <input placeholder="Email" {...registerForm.register('email')} />
+                <input type="password" placeholder="Пароль" {...registerForm.register('password')} />
+                <input type="password" placeholder="Повторите пароль" {...registerForm.register('confirmPassword')} />
+                {registerForm.formState.errors.confirmPassword && (
+                  <span>{registerForm.formState.errors.confirmPassword.message}</span>
+                )}
+
+                <label className={styles.consent}>
+                  <input
+                    type="checkbox"
+                    checked={privacyAccepted}
+                    onChange={(e) => setPrivacyAccepted(e.target.checked)}
+                  />
+                  <span>
+                    Я соглашаюсь на{' '}
+                    <Link to="/privacy-policy" className={styles.policyLink}>
+                      обработку персональных данных
+                    </Link>
+                  </span>
+                </label>
+
+                <Button type="submit" disabled={!privacyAccepted}>
+                  Создать аккаунт
+                </Button>
+              </form>
+            ) : (
+              <form onSubmit={loginForm.handleSubmit(onLogin)} className={styles.form}>
+                <input placeholder="Email" {...loginForm.register('email')} />
+                <input type="password" placeholder="Пароль" {...loginForm.register('password')} />
+                <Button type="submit">Войти</Button>
+
+                <Link className={styles.forgot} to="/auth/forgot-password">
+                  Забыли пароль?
+                </Link>
+              </form>
             )}
 
-            <label className={styles.consent}>
-              <input
-                type="checkbox"
-                checked={privacyAccepted}
-                onChange={(e) => setPrivacyAccepted(e.target.checked)}
-              />
-              <span>
-                Я соглашаюсь на{' '}
-                <Link to="/privacy-policy" className={styles.policyLink}>
-                  обработку персональных данных
-                </Link>
-              </span>
-            </label>
+            {error && <p className={styles.error}>{error}</p>}
+            {message && <p className={styles.success}>{message}</p>}
 
-            <Button type="submit" disabled={!privacyAccepted}>
-              Создать аккаунт
-            </Button>
-          </form>
-        ) : (
-          <form onSubmit={loginForm.handleSubmit(onLogin)} className={styles.form}>
-            <input placeholder="Email" {...loginForm.register('email')} />
-            <input type="password" placeholder="Пароль" {...loginForm.register('password')} />
-            <Button type="submit">Войти</Button>
-
-            <Link className={styles.forgot} to="/auth/forgot-password">
-              Забыли пароль?
-            </Link>
-          </form>
-        )}
-
-        {error && <p className={styles.error}>{error}</p>}
-        {message && <p className={styles.success}>{message}</p>}
-
-        {!otpRequired && (
-          <Link className={styles.switch} to={isRegister ? '/auth/login' : '/auth/register'}>
-            {isRegister ? 'Уже есть аккаунт? Войти' : 'Нет аккаунта? Зарегистрироваться'}
-          </Link>
-        )}
+            {!otpRequired && (
+              <Link className={styles.switch} to={isRegister ? '/auth/login' : '/auth/register'}>
+                {isRegister ? 'Уже есть аккаунт? Войти' : 'Нет аккаунта? Зарегистрироваться'}
+              </Link>
+            )}
+          </div>
+        </div>
+        <div className={styles.hero}>
+          <img src={loginHero} alt="3D принтер печатает модель" />
+        </div>
       </div>
     </section>
   );

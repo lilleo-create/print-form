@@ -19,7 +19,7 @@
 }
 
 .header p {
-  color: var(--color-text-muted);
+  color: var(--muted);
 }
 
 .stepper {
@@ -31,13 +31,14 @@
 
 .step,
 .stepActive {
-  background: #ffffff;
-  border-radius: 16px;
+  background: var(--card);
+  border-radius: var(--radius-card);
   padding: 14px 16px;
   display: flex;
   gap: 12px;
   align-items: center;
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border);
 }
 
 .step span,
@@ -48,20 +49,21 @@
   display: grid;
   place-items: center;
   font-weight: 700;
-  background: #e2e8f0;
-  color: #334155;
+  background: var(--bg-2);
+  color: var(--muted);
 }
 
 .stepActive span {
-  background: var(--color-primary);
+  background: var(--primary);
   color: #ffffff;
 }
 
 .card {
-  background: #ffffff;
-  border-radius: 24px;
+  background: var(--card);
+  border-radius: var(--radius-card);
   padding: 24px;
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border);
   display: grid;
   gap: 20px;
   width: 100%;
@@ -81,28 +83,29 @@
 }
 
 .notice {
-  background: #f8fafc;
-  border-radius: 16px;
+  background: var(--bg-2);
+  border-radius: var(--radius-card);
   padding: 16px;
   display: grid;
   gap: 8px;
-  color: var(--color-text-muted);
+  color: var(--muted);
+  border: 1px solid var(--border);
 }
 
 .notice a {
-  color: var(--color-primary);
+  color: var(--primary);
   font-weight: 600;
   text-decoration: none;
 }
 
 .helper {
   font-size: 12px;
-  color: var(--color-text-muted);
+  color: var(--muted);
 }
 
 .error {
   font-size: 12px;
-  color: #ef4444;
+  color: var(--danger);
 }
 
 .actions {
@@ -112,10 +115,11 @@
 }
 
 .completeCard {
-  background: #ffffff;
-  border-radius: 24px;
+  background: var(--card);
+  border-radius: var(--radius-card);
   padding: 32px;
   display: grid;
   gap: 16px;
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border);
 }
