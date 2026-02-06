@@ -26,8 +26,9 @@
   gap: 16px;
   border-radius: var(--radius-lg);
   padding: 24px;
-  box-shadow: var(--shadow-sm);
-  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+  background: var(--card);
+  border: 1px solid var(--border);
 }
 
 .form label {
@@ -38,7 +39,7 @@
 }
 
 .form span {
-  color: var(--color-danger);
+  color: var(--danger);
   font-size: 12px;
 }
 
@@ -49,7 +50,8 @@
   height: fit-content;
   border-radius: var(--radius-lg);
   padding: 24px;
-  background: var(--color-surface-muted);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
 }
 
 .summary ul {
@@ -79,21 +81,21 @@
   border-radius: 999px;
   padding: 12px 18px;
   color: #ffffff;
-  background: var(--color-primary);
+  background: var(--primary);
   font-weight: 600;
   cursor: pointer;
 }
 /* CheckoutPage.module.css */
 
 .form input:disabled {
-  border-color: #e5e7eb;
-  color: #6b7280;
-  background: #f3f4f6;
+  border-color: var(--border);
+  color: var(--muted);
+  background: var(--surface-ghost);
   cursor: not-allowed;
 }
 
 .form input:disabled::placeholder {
-  color: #9ca3af;
+  color: var(--muted-2);
 }
 
 @media (max-width: 900px) {

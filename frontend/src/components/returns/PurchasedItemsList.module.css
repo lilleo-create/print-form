@@ -5,14 +5,14 @@
 }
 
 .card {
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
   padding: 12px;
   text-decoration: none;
   color: inherit;
   display: grid;
   gap: 10px;
-  background: #fff;
+  background: var(--card);
 }
 
 .card img {
@@ -33,9 +33,9 @@
 
 .caption {
   font-size: 12px;
-  color: #6b7280;
+  color: var(--muted);
 }
 
 .empty {
-  color: #6b7280;
+  color: var(--muted);
 }

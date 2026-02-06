@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../shared/api';
 import { Review } from '../../shared/types';
 import { Button } from '../../shared/ui/Button';
+import { EmptyState } from '../../shared/ui/EmptyState';
+import { Table } from '../../shared/ui/Table';
 import styles from './AdminPage.module.css';
 
 type AdminReview = Review & {
@@ -98,9 +100,9 @@ export const AdminReviewsPage = () => {
       {loading ? (
         <p className={styles.muted}>Загрузка отзывов...</p>
       ) : rows.length === 0 ? (
-        <p className={styles.muted}>Отзывов не найдено.</p>
+        <EmptyState title="Нет отзывов" description="Отзывы в выбранном статусе отсутствуют." />
       ) : (
-        <div className={styles.table}>
+        <Table className={styles.table}>
           <div
             className={styles.tableHeader}
             style={{ gridTemplateColumns: 'minmax(200px, 1.6fr) 160px 80px 200px 140px' }}
@@ -141,7 +143,7 @@ export const AdminReviewsPage = () => {
               </div>
             </div>
           ))}
-        </div>
+        </Table>
       )}
 
       {selected && (

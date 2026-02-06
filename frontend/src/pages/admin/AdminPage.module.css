@@ -22,17 +22,19 @@
 }
 
 .select {
-  padding: 6px 10px;
-  border-radius: 10px;
-  border: 1px solid var(--color-border);
-  background: #ffffff;
+  padding: 8px 12px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--text);
 }
 
 .table {
-  background: #ffffff;
-  border-radius: 20px;
+  background: var(--card);
+  border-radius: var(--radius-card);
   padding: 16px;
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border);
   display: grid;
   gap: 12px;
 }
@@ -51,20 +53,20 @@
 
 .tableHeader {
   font-weight: 600;
-  color: var(--color-text-muted);
+  color: var(--muted);
 }
 
 .tableRow {
   padding: 12px 0;
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--border);
 }
 
 .status {
   display: inline-flex;
   padding: 4px 10px;
   border-radius: 999px;
-  background: #e2e8f0;
-  color: #0f172a;
+  background: var(--primary-soft);
+  color: var(--primary);
   font-size: 12px;
   font-weight: 600;
 }
@@ -76,13 +78,13 @@
 }
 
 .link {
-  color: var(--color-primary);
+  color: var(--primary);
   font-weight: 600;
   text-decoration: none;
 }
 
 .muted {
-  color: var(--color-text-muted);
+  color: var(--muted);
 }
 
 .cellTruncate {
@@ -95,7 +97,7 @@
 .modalOverlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.45);
+  background: var(--overlay-strong);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -104,13 +106,14 @@
 }
 
 .modal {
-  background: #ffffff;
-  border-radius: 20px;
+  background: var(--card);
+  border-radius: var(--radius-card);
   padding: 20px;
   max-width: 720px;
   width: 100%;
   max-height: 80vh;
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border);
   display: grid;
   gap: 16px;
   overflow: auto;
@@ -119,10 +122,12 @@
 .modal textarea {
   width: 100%;
   min-height: 120px;
-  border-radius: 12px;
-  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border);
   padding: 10px;
   resize: vertical;
+  background: var(--bg-2);
+  color: var(--text);
 }
 
 .modalActions {
@@ -154,11 +159,11 @@
   width: 120px;
   height: 120px;
   object-fit: cover;
-  border-radius: 12px;
+  border-radius: var(--radius-control);
 }
 
 .errorText {
-  color: #ef4444;
+  color: var(--danger);
   font-size: 12px;
 }
 

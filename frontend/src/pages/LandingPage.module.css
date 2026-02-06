@@ -26,9 +26,10 @@
   width: fit-content;
   border-radius: 999px;
   padding: 10px 20px;
-  color: #fff;
-  background: #111827;
+  color: var(--text);
+  background: var(--primary-soft);
   font-size: 15px;
+  border: 1px solid var(--primary-soft-strong);
 }
 
 .heroContent h1 {
@@ -51,36 +52,38 @@
 
 .primaryLink {
   color: #fff;
-  background: #111827;
+  background: var(--primary);
+  box-shadow: var(--shadow-control);
 }
 
 .secondaryLink {
-  border: 1px solid #e5e7eb;
-  color: #111827;
-  background: #fff;
+  border: 1px solid var(--border);
+  color: var(--text);
+  background: transparent;
 }
 
 .primaryLink:hover,
 .primaryLink:focus-visible {
-  background: #0f172a;
+  background: var(--primary-2);
 }
 
 .secondaryLink:hover,
 .secondaryLink:focus-visible {
-  border-color: #cbd5f5;
-  color: #0f172a;
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
 .heroCard {
   display: flex;
   flex-direction: column;
   gap: 22px;
-  border-radius: 24px;
+  border-radius: var(--radius-card);
   padding-block: 58px;
   padding-inline: 50px;
   max-width: 490px;
-  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.1);
-  background: #ffffff;
+  box-shadow: var(--shadow-card);
+  background: var(--card);
+  border: 1px solid var(--border);
 }
 
 .heroStats {
@@ -100,7 +103,7 @@
 
 .heroStats span {
   font-size: 14px;
-  color: #64748b;
+  color: var(--muted);
   line-height: 1.3;
   text-align: center;
 }
@@ -119,8 +122,10 @@
   gap: clamp(24px, 8vw, 120px);
   padding: 36px;
   border-radius: 28px;
-  color: #ffffff;
-  background: #0f172a;
+  color: var(--text);
+  background: var(--surface-accent);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
 }
 
 .sliderContent {
@@ -134,7 +139,7 @@
   width: fit-content;
   border-radius: 999px;
   padding: 8px 16px;
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--primary-soft);
   font-size: 14px;
 }
 
@@ -179,12 +184,12 @@
   height: 12px;
   border: none;
   border-radius: 999px;
-  background: #cbd5f5;
+  background: var(--surface-ghost-strong);
   cursor: pointer;
 }
 
 .dotActive {
-  background: #1d4ed8;
+  background: var(--primary);
 }
 
 .sectionHeader {
@@ -198,7 +203,7 @@
 }
 
 .link {
-  color: #111827;
+  color: var(--text);
   text-decoration: none;
   font-weight: 600;
 }
@@ -211,7 +216,7 @@
 
 .feedLoading {
   margin-top: 16px;
-  color: var(--color-text-muted);
+  color: var(--muted);
 }
 
 .customSection {
@@ -221,8 +226,10 @@
   gap: 24px;
   width: 100%;
   border-radius: 24px;
-  color: #ffffff;
-  background: #111827;
+  color: var(--text);
+  background: var(--surface-accent-alt);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
 }
 
 .customContent {
@@ -239,7 +246,7 @@
 }
 
 .benefits {
-  background: #f3f4f6;
+  background: transparent;
 }
 
 .benefitGrid {
@@ -257,7 +264,7 @@
 }
 
 .steps span {
-  color: #6366f1;
+  color: var(--primary);
   font-size: 24px;
   font-weight: 700;
 }

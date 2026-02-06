@@ -5,7 +5,9 @@
 
 .composer textarea {
   min-height: 80px;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border);
   padding: 10px;
+  background: var(--bg-2);
+  color: var(--text);
 }
