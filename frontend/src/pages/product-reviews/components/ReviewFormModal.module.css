@@ -142,3 +142,10 @@
   color: #fecaca;
   font-size: 13px;
 }
+
+.fieldError {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #ff6b6b;
+}
+

@@ -92,7 +92,8 @@ const reviewSchema = z.object({
   pros: z.string().min(3).max(500),
   cons: z.string().min(3).max(500),
   comment: z.string().min(10).max(1000),
-  photos: z.array(z.string().url()).optional()
+  // ✅ разрешаем и /uploads/..., и абсолютные http(s)
+  photos: z.array(mediaUrlSchema).max(5).optional()
 });
 
 const reviewListSchema = z.object({

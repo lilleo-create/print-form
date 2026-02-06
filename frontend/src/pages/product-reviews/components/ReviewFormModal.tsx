@@ -13,6 +13,8 @@ export type ReviewFormValues = {
   existingPhotos: string[];
 };
 
+type ReviewFieldKey = 'pros' | 'cons' | 'comment' | 'photos';
+
 type ReviewFormModalProps = {
   isOpen: boolean;
   onClose: () => void;
@@ -21,9 +23,16 @@ type ReviewFormModalProps = {
   onSubmit: (values: ReviewFormValues) => Promise<void>;
   submitting: boolean;
   error: string | null;
+  fieldErrors?: Partial<Record<ReviewFieldKey, string>>;
 };
 
-const ratingLabels = ['Ужасный товар', 'Плохой товар', 'Нормальный товар', 'Хороший товар', 'Отличный товар'];
+const ratingLabels = [
+  'Ужасный товар',
+  'Плохой товар',
+  'Нормальный товар',
+  'Хороший товар',
+  'Отличный товар'
+];
 
 export const ReviewFormModal = ({
   isOpen,
@@ -32,7 +41,8 @@ export const ReviewFormModal = ({
   initialReview,
   onSubmit,
   submitting,
-  error
+  error,
+  fieldErrors
 }: ReviewFormModalProps) => {
   const [rating, setRating] = useState(5);
   const [pros, setPros] = useState('');
@@ -56,9 +66,7 @@ export const ReviewFormModal = ({
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose();
-      }
+      if (event.key === 'Escape') onClose();
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => {
@@ -85,10 +93,12 @@ export const ReviewFormModal = ({
             ✕
           </button>
         </header>
+
         <div className={styles.product}>
           <img src={product.image} alt={product.title} />
           <span>{product.title}</span>
         </div>
+
         <div className={styles.ratingBlock}>
           <div className={styles.stars}>
             {[1, 2, 3, 4, 5].map((value) => (
@@ -105,24 +115,43 @@ export const ReviewFormModal = ({
           </div>
           <p className={styles.ratingLabel}>{ratingLabel}</p>
         </div>
+
         <form className={styles.form} onSubmit={handleSubmit}>
           <label>
             Достоинства
-            <input value={pros} onChange={(event) => setPros(event.target.value)} required />
+            <input
+              value={pros}
+              onChange={(event) => setPros(event.target.value)}
+              required
+              aria-invalid={Boolean(fieldErrors?.pros)}
+            />
+            {fieldErrors?.pros && <p className={styles.fieldError}>{fieldErrors.pros}</p>}
           </label>
+
           <label>
             Недостатки
-            <input value={cons} onChange={(event) => setCons(event.target.value)} required />
+            <input
+              value={cons}
+              onChange={(event) => setCons(event.target.value)}
+              required
+              aria-invalid={Boolean(fieldErrors?.cons)}
+            />
+            {fieldErrors?.cons && <p className={styles.fieldError}>{fieldErrors.cons}</p>}
           </label>
+
           <label>
             Комментарий
             <textarea
               value={comment}
               onChange={(event) => setComment(event.target.value)}
               required
+              minLength={10}
+              aria-invalid={Boolean(fieldErrors?.comment)}
               placeholder="Например, ваши ожидания, впечатления и советы другим покупателям"
             />
+            {fieldErrors?.comment && <p className={styles.fieldError}>{fieldErrors.comment}</p>}
           </label>
+
           {existingPhotos.length > 0 && (
             <div className={styles.existingPhotos}>
               {existingPhotos.map((photo) => (
@@ -138,11 +167,15 @@ export const ReviewFormModal = ({
               ))}
             </div>
           )}
+
           <div className={styles.uploader}>
             <ReturnPhotoUploader files={files} onChange={setFiles} />
+            {fieldErrors?.photos && <p className={styles.fieldError}>{fieldErrors.photos}</p>}
           </div>
+
           {error && <p className={styles.error}>{error}</p>}
-          <Button type="submit" disabled={submitting}>
+
+          <Button type="submit" disabled={submitting || comment.trim().length < 10}>
             {submitting ? 'Отправляем...' : 'Отправить'}
           </Button>
         </form>

@@ -10,11 +10,7 @@ import { ReviewsSummary } from './product-reviews/components/ReviewsSummary';
 import { ReviewsFilters } from './product-reviews/components/ReviewsFilters';
 import { ReviewsList } from './product-reviews/components/ReviewsList';
 import { ReviewFormModal, ReviewFormValues } from './product-reviews/components/ReviewFormModal';
-import {
-  ReviewFilters,
-  ReviewScope,
-  useProductReviews
-} from './product-reviews/hooks/useProductReviews';
+import { ReviewFilters, ReviewScope, useProductReviews } from './product-reviews/hooks/useProductReviews';
 import { useMyReview } from './product-reviews/hooks/useMyReview';
 import styles from './ProductReviewsPage.module.css';
 
@@ -25,6 +21,39 @@ const DEFAULT_FILTERS: ReviewFilters = {
   low: false,
   new: true
 };
+
+type ReviewFieldKey = 'pros' | 'cons' | 'comment' | 'photos';
+type ReviewFieldErrors = Partial<Record<ReviewFieldKey, string>>;
+
+function extractValidationErrors(
+  err: unknown
+): { fieldErrors: ReviewFieldErrors; message: string | null } {
+  const anyErr = err as any;
+
+  // Поддерживаем разные форматы, потому что api-клиент может класть payload по-разному
+  const payload = anyErr?.payload ?? anyErr?.response?.data ?? anyErr?.data ?? anyErr;
+  const errorObj = payload?.error;
+  const issues = errorObj?.issues;
+
+  if (errorObj?.code !== 'VALIDATION_ERROR' || !Array.isArray(issues)) {
+    return { fieldErrors: {}, message: null };
+  }
+
+  const fieldErrors: ReviewFieldErrors = {};
+
+  for (const issue of issues) {
+    const path0 = Array.isArray(issue?.path) ? issue.path[0] : undefined;
+    const msg = typeof issue?.message === 'string' ? issue.message : 'Ошибка валидации';
+
+    if (path0 === 'pros') fieldErrors.pros = msg;
+    if (path0 === 'cons') fieldErrors.cons = msg;
+    if (path0 === 'comment') fieldErrors.comment = msg;
+    if (path0 === 'photos') fieldErrors.photos = msg;
+  }
+
+  const first = issues[0]?.message;
+  return { fieldErrors, message: typeof first === 'string' ? first : null };
+}
 
 export const ProductReviewsPage = () => {
   const { id } = useParams();
@@ -38,6 +67,7 @@ export const ProductReviewsPage = () => {
   const [filters, setFilters] = useState<ReviewFilters>(DEFAULT_FILTERS);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitFieldErrors, setSubmitFieldErrors] = useState<ReviewFieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -61,15 +91,7 @@ export const ProductReviewsPage = () => {
     return Array.from(new Set([product.id, ...(variantIds ?? [])]));
   }, [product]);
 
-  const {
-    reviews,
-    summary,
-    status,
-    error,
-    hasMore,
-    loadMore,
-    refresh
-  } = useProductReviews(id, {
+  const { reviews, summary, status, error, hasMore, loadMore, refresh } = useProductReviews(id, {
     filters,
     scope,
     productIds: scopedProductIds
@@ -101,15 +123,33 @@ export const ProductReviewsPage = () => {
   const handleReviewSubmit = useCallback(
     async (payload: ReviewFormValues) => {
       if (!id || !user) return;
+
       setSubmitting(true);
       setSubmitError(null);
+      setSubmitFieldErrors({});
+
+      // Локальная проверка, чтобы не шмалять в бек без смысла
+      if (payload.comment.trim().length < 10) {
+        setSubmitting(false);
+        setSubmitFieldErrors({ comment: 'Комментарий должен быть минимум 10 символов.' });
+        setSubmitError('Проверьте поле "Комментарий".');
+        return;
+      }
+
       try {
         let uploadedPhotos: string[] = [];
+
+        // upload новых файлов (используем уже существующую механику возвратов)
         if (payload.files.length > 0) {
           const uploadResponse = await api.returns.uploadPhotos(payload.files);
           uploadedPhotos = uploadResponse.data.urls ?? [];
         }
-        const photos = [...payload.existingPhotos, ...uploadedPhotos].filter(Boolean);
+
+        // итоговые фото: старые + новые, без дублей
+        const photos = Array.from(
+          new Set([...(payload.existingPhotos ?? []), ...uploadedPhotos])
+        ).filter(Boolean);
+
         await api.createReview(id, {
           rating: payload.rating,
           pros: payload.pros,
@@ -117,12 +157,21 @@ export const ProductReviewsPage = () => {
           comment: payload.comment,
           photos: photos.length ? photos : undefined
         });
+
         await refresh();
         await refreshMyReview();
+
         setIsReviewModalOpen(false);
         setToastMessage('Отзыв отправлен на модерацию');
-      } catch {
-        setSubmitError('Не удалось отправить отзыв. Попробуйте снова.');
+      } catch (err) {
+        const extracted = extractValidationErrors(err);
+
+        if (Object.keys(extracted.fieldErrors).length > 0) {
+          setSubmitFieldErrors(extracted.fieldErrors);
+          setSubmitError(extracted.message ?? 'Проверьте поля формы.');
+        } else {
+          setSubmitError('Не удалось отправить отзыв. Попробуйте снова.');
+        }
       } finally {
         setSubmitting(false);
       }
@@ -177,12 +226,7 @@ export const ProductReviewsPage = () => {
           </aside>
 
           <div className={styles.main}>
-            <ReviewsFilters
-              scope={scope}
-              onScopeChange={setScope}
-              filters={filters}
-              onFiltersChange={setFilters}
-            />
+            <ReviewsFilters scope={scope} onScopeChange={setScope} filters={filters} onFiltersChange={setFilters} />
 
             <div className={styles.mediaStrip}>
               {(summary?.photos ?? []).length === 0 ? (
@@ -203,12 +247,7 @@ export const ProductReviewsPage = () => {
               )}
             </div>
 
-            <ReviewsList
-              reviews={reviews}
-              status={status}
-              error={error}
-              onPhotoClick={setActivePhoto}
-            />
+            <ReviewsList reviews={reviews} status={status} error={error} onPhotoClick={setActivePhoto} />
 
             {hasMore && (
               <div className={styles.loadMore}>
@@ -234,16 +273,13 @@ export const ProductReviewsPage = () => {
         onSubmit={handleReviewSubmit}
         submitting={submitting}
         error={submitError}
+        fieldErrors={submitFieldErrors}
       />
 
       {activePhoto && (
         <div className={styles.photoModal} onClick={() => setActivePhoto(null)}>
           <div className={styles.photoModalContent} onClick={(event) => event.stopPropagation()}>
-            <button
-              type="button"
-              className={styles.photoModalClose}
-              onClick={() => setActivePhoto(null)}
-            >
+            <button type="button" className={styles.photoModalClose} onClick={() => setActivePhoto(null)}>
               ✕
             </button>
             <img src={activePhoto} alt="Фото отзыва" />
