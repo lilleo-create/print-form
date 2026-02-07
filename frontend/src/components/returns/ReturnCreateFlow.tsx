@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../shared/api';
 import { normalizeApiError } from '../../shared/api/client';
+import { resolveImageUrl } from '../../shared/lib/resolveImageUrl';
 import { ReturnReason } from '../../shared/types';
 import { Button } from '../../shared/ui/Button';
 import { ReturnCandidate } from './ReturnCandidatesList';
@@ -50,6 +51,7 @@ export const ReturnCreateFlow = ({
     () => items.find((item) => item.orderItemId === selectedId) ?? null,
     [items, selectedId]
   );
+  const summaryImage = selectedItem ? resolveImageUrl(selectedItem.image) : '';
 
   useEffect(() => {
     if (!initialSelectedId) return;
@@ -241,32 +243,43 @@ export const ReturnCreateFlow = ({
         <>
           <h3>Выберите товар для возврата</h3>
           <div className={styles.list}>
-            {items.map((item) => (
-              <label key={item.orderItemId} className={styles.card}>
-                <input
-                  type="radio"
-                  name="return-item"
-                  value={item.orderItemId}
-                  checked={selectedId === item.orderItemId}
-                  onChange={() => setSelectedId(item.orderItemId)}
-                />
-                <div className={styles.cardBody}>
-                  {item.image && <img src={item.image} alt={item.title} />}
-                  <div>
-                    <p className={styles.caption}>
-                      Заказ от{' '}
-                      {new Date(item.orderDate).toLocaleDateString('ru-RU', {
-                        day: '2-digit',
-                        month: 'long',
-                        year: 'numeric'
-                      })}
-                    </p>
-                    <strong>{item.title}</strong>
-                    <p>{item.price.toLocaleString('ru-RU')} ₽</p>
-                  </div>
-                </div>
-              </label>
-            ))}
+            {items.map((item) => {
+              const imageSrc = resolveImageUrl(item.image);
+              return (
+                <label
+                  key={item.orderItemId}
+                  className={`${styles.card} ${selectedId === item.orderItemId ? styles.cardSelected : ''}`}
+                >
+                  <span className={styles.cardBody}>
+                    {imageSrc ? (
+                      <img className={styles.cardImage} src={imageSrc} alt={item.title} />
+                    ) : (
+                      <span className={styles.imagePlaceholder} aria-hidden="true" />
+                    )}
+                    <span className={styles.cardText}>
+                      <span className={styles.caption}>
+                        Заказ от{' '}
+                        {new Date(item.orderDate).toLocaleDateString('ru-RU', {
+                          day: '2-digit',
+                          month: 'long',
+                          year: 'numeric'
+                        })}
+                      </span>
+                      <strong className={styles.cardTitle}>{item.title}</strong>
+                      <span className={styles.cardPrice}>{item.price.toLocaleString('ru-RU')} ₽</span>
+                    </span>
+                  </span>
+                  <input
+                    className={styles.cardRadio}
+                    type="radio"
+                    name="return-item"
+                    value={item.orderItemId}
+                    checked={selectedId === item.orderItemId}
+                    onChange={() => setSelectedId(item.orderItemId)}
+                  />
+                </label>
+              );
+            })}
           </div>
           <Button type="button" onClick={handleContinue} disabled={!selectedId}>
             Продолжить
@@ -278,7 +291,11 @@ export const ReturnCreateFlow = ({
         <>
           <h3>Оформление возврата</h3>
           <div className={styles.summary}>
-            {selectedItem.image && <img src={selectedItem.image} alt={selectedItem.title} />}
+            {summaryImage ? (
+              <img className={styles.summaryImage} src={summaryImage} alt={selectedItem.title} />
+            ) : (
+              <div className={styles.imagePlaceholder} aria-hidden="true" />
+            )}
             <div>
               <strong>{selectedItem.title}</strong>
               <p>{selectedItem.price.toLocaleString('ru-RU')} ₽</p>

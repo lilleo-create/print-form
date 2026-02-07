@@ -1,6 +1,9 @@
 .list {
   display: grid;
   gap: 16px;
+  max-width: 920px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 .card {
@@ -39,11 +42,34 @@
   align-items: center;
 }
 
-.product img {
-  width: 64px;
-  height: 64px;
+.productImage,
+.imagePlaceholder {
+  width: 72px;
+  height: 72px;
+  flex-shrink: 0;
+  border-radius: 12px;
+}
+
+.productImage {
   object-fit: cover;
-  border-radius: 8px;
+}
+
+.imagePlaceholder {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+}
+
+.productInfo {
+  display: grid;
+  gap: 4px;
+}
+
+.productTitle {
+  line-height: 1.4;
+}
+
+.productPrice {
+  font-weight: 600;
 }
 
 .photos {
