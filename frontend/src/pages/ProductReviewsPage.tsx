@@ -91,10 +91,12 @@ export const ProductReviewsPage = () => {
     return Array.from(new Set([product.id, ...(variantIds ?? [])]));
   }, [product]);
 
+  const publicProductIds = useMemo(() => (id ? [id] : []), [id]);
+
   const { reviews, summary, status, error, hasMore, loadMore, refresh } = useProductReviews(id, {
     filters,
     scope,
-    productIds: scopedProductIds
+    productIds: publicProductIds
   });
 
   const { hasPurchased, myReview, refresh: refreshMyReview } = useMyReview({
@@ -178,6 +180,16 @@ export const ProductReviewsPage = () => {
     },
     [id, refresh, refreshMyReview, user]
   );
+
+  if (!id) {
+    return (
+      <section className={styles.page}>
+        <div className="container">
+          <p>Не удалось определить товар для отзывов.</p>
+        </div>
+      </section>
+    );
+  }
 
   if (!product) {
     return (
