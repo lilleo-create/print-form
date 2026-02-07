@@ -28,17 +28,29 @@ type Options = {
   pageSize?: number;
 };
 
+// Нормализация ответов: поддерживаем {data: ...} и {data: {data: ...}}
+function unwrap<T>(res: any): T | null {
+  const d = res?.data;
+  if (d == null) return null;
+  if (typeof d === 'object' && 'data' in d) return (d as any).data as T;
+  return d as T;
+}
+
 const applyFilters = (reviews: Review[], filters: ReviewFilters) => {
   let next = [...reviews];
+
   if (filters.withMedia) {
     next = next.filter((review) => (review.photos?.length ?? 0) > 0);
   }
+
   if (filters.high && !filters.low) {
     next = next.filter((review) => review.rating >= 4);
   }
+
   if (filters.low && !filters.high) {
     next = next.filter((review) => review.rating <= 3);
   }
+
   return next;
 };
 
@@ -51,12 +63,14 @@ const getSort = (filters: ReviewFilters) => {
 
 export const useProductReviews = (productId: string | undefined, options: Options) => {
   const { filters, scope, productIds, pageSize = 6 } = options;
+
   const [reviews, setReviews] = useState<Review[]>([]);
   const [summary, setSummary] = useState<ReviewSummary | null>(null);
   const [status, setStatus] = useState<Status>('idle');
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
+
   const requestRef = useRef(0);
 
   const reviewProductIds = scope === 'all' ? productIds : undefined;
@@ -64,9 +78,11 @@ export const useProductReviews = (productId: string | undefined, options: Option
 
   const fetchSummary = useCallback(async () => {
     if (!productId) return;
+
     try {
       const response = await api.getReviewSummary(productId, reviewProductIds);
-      setSummary(response.data.data ?? null);
+      const payload = unwrap<ReviewSummary>(response);
+      setSummary(payload ?? null);
     } catch {
       setSummary(null);
     }
@@ -75,9 +91,12 @@ export const useProductReviews = (productId: string | undefined, options: Option
   const fetchReviews = useCallback(
     async (nextPage: number, reset = false) => {
       if (!productId) return;
+
       setStatus('loading');
       setError(null);
+
       const requestId = ++requestRef.current;
+
       try {
         const response = await api.getProductReviews(
           productId,
@@ -86,18 +105,22 @@ export const useProductReviews = (productId: string | undefined, options: Option
           sort as 'helpful' | 'high' | 'low' | 'new',
           reviewProductIds
         );
+
         if (requestId !== requestRef.current) return;
-        const list = response.data.data ?? [];
+
+        const payload = unwrap<Review[]>(response);
+        const list = Array.isArray(payload) ? payload : [];
+
         setReviews((prev) => (reset ? list : [...prev, ...list]));
         setHasMore(list.length === pageSize);
         setStatus('success');
       } catch {
         if (requestId !== requestRef.current) return;
+
         setStatus('error');
         setError('Не удалось загрузить отзывы.');
-        if (reset) {
-          setReviews([]);
-        }
+
+        if (reset) setReviews([]);
         setHasMore(false);
       }
     },

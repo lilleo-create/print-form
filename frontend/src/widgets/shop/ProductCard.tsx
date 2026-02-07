@@ -1,11 +1,12 @@
-import { KeyboardEvent } from 'react';
+import { KeyboardEvent, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Product } from '../../shared/types';
 import { useCartStore } from '../../app/store/cartStore';
 import { Button } from '../../shared/ui/Button';
 import { Rating } from '../../shared/ui/Rating';
+import { resolveImageUrl } from '../../shared/lib/resolveImageUrl'; // <-- поправь путь под свой проект
 import styles from './ProductCard.module.css';
-
+import { useEffect } from 'react';
 interface ProductCardProps {
   product: Product;
 }
@@ -13,6 +14,10 @@ interface ProductCardProps {
 export const ProductCard = ({ product }: ProductCardProps) => {
   const navigate = useNavigate();
   const addItem = useCartStore((state) => state.addItem);
+
+  const [imgBroken, setImgBroken] = useState(false);
+
+  const imageSrc = useMemo(() => resolveImageUrl(product.image), [product.image]);
 
   const handleOpen = () => {
     navigate(`/product/${product.id}`);
@@ -24,7 +29,9 @@ export const ProductCard = ({ product }: ProductCardProps) => {
       handleOpen();
     }
   };
-
+useEffect(() => {
+  setImgBroken(false);
+}, [imageSrc]);
   return (
     <article
       className={styles.card}
@@ -33,22 +40,45 @@ export const ProductCard = ({ product }: ProductCardProps) => {
       onClick={handleOpen}
       onKeyDown={handleKeyDown}
     >
-      <img src={product.image} alt={product.title} className={styles.image} />
+      {imageSrc && !imgBroken ? (
+        <img
+          src={imageSrc}
+          alt={product.title}
+          className={styles.image}
+          loading="lazy"
+          onError={() => setImgBroken(true)}
+          onLoad={() => setImgBroken(false)}
+        />
+      ) : (
+        <div className={styles.imagePlaceholder}>Нет изображения</div>
+      )}
+
       <div className={styles.body}>
         <div className={styles.meta}>
           <span>{product.category}</span>
           <span>{product.material}</span>
           {product.printTime && <span>Срок: {product.printTime}</span>}
         </div>
+
         <h3 className={styles.title} title={product.title}>
           {product.title}
         </h3>
+
         <Rating value={product.ratingAvg} count={product.ratingCount} />
+
         <p className={styles.price}>{product.price.toLocaleString('ru-RU')} ₽</p>
+
         <div className={styles.actions}>
-          <Button onClick={handleOpen} aria-label={`Открыть ${product.title}`}>
+          <Button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleOpen();
+            }}
+            aria-label={`Открыть ${product.title}`}
+          >
             Подробнее
           </Button>
+
           <Button
             variant="secondary"
             onClick={(event) => {

@@ -23,7 +23,7 @@
   max-width: 1280px;
   width: 100%;
   margin: 0 auto;
-  padding: 28px 24px;
+  padding-block: 28px;
   display: grid;
   grid-template-columns: auto minmax(200px, 1fr) auto;
   align-items: center;

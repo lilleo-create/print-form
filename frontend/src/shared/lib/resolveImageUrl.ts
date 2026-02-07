@@ -1,15 +1,13 @@
-const apiBaseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
+const API_ORIGIN = import.meta.env.VITE_API_ORIGIN || 'http://localhost:4000';
 
-export const resolveImageUrl = (url?: string | null) => {
-  if (!url) return '';
+export function resolveImageUrl(value?: string | null) {
+  if (!value) return '';
 
-  // already absolute / data / blob
-  if (url.startsWith('http://') || url.startsWith('https://')) return url;
-  if (url.startsWith('blob:') || url.startsWith('data:')) return url;
+  // уже абсолютный URL
+  if (/^https?:\/\//i.test(value)) return value;
 
-  // "/uploads/..." style
-  if (url.startsWith('/')) return `${apiBaseUrl}${url}`;
-
-  // "uploads/..." or "some/path"
-  return `${apiBaseUrl}/${url}`;
-};
+  // любой относительный путь превращаем в абсолютный от API_ORIGIN
+  // "/uploads/x.jpg" -> "http://localhost:4000/uploads/x.jpg"
+  // "uploads/x.jpg"  -> "http://localhost:4000/uploads/x.jpg"
+  return new URL(value.startsWith('/') ? value : `/${value}`, API_ORIGIN).toString();
+}
