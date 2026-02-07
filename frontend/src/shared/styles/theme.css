@@ -32,6 +32,7 @@
   --surface-accent-alt: linear-gradient(135deg, rgba(15, 26, 51, 0.9), rgba(7, 11, 23, 0.9));
   --surface-hero: radial-gradient(circle at top, rgba(47, 124, 255, 0.2), rgba(7, 11, 23, 0.4));
   --shadow-card-hover: 0 20px 40px rgba(0, 0, 0, 0.45);
+  --shadow-primary: 0 12px 24px rgba(47, 124, 255, 0.35);
   --danger-focus: 0 0 0 3px rgba(255, 77, 79, 0.25);
   --star-muted: rgba(255, 255, 255, 0.2);
   --skeleton-bg: linear-gradient(90deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04));
@@ -58,15 +59,15 @@
 
 [data-theme='light'] {
   color-scheme: light;
-  --bg: #f5f6f8;
-  --bg-2: #eef1f4;
-  --card: #ffffff;
-  --border: rgba(15, 23, 42, 0.12);
+  --bg: #f6f7fb;
+  --bg-2: #eef1f6;
+  --card: #fffdf8;
+  --border: rgba(15, 23, 42, 0.1);
   --text: #0f172a;
   --muted: rgba(15, 23, 42, 0.65);
   --muted-2: rgba(15, 23, 42, 0.45);
-  --primary: #2f7cff;
-  --primary-2: #1e5dff;
+  --primary: #2667ff;
+  --primary-2: #1f4ed8;
   --danger: #ef4444;
   --success: #10b981;
   --warning: #f59e0b;
@@ -85,14 +86,15 @@
   --surface-hover: rgba(15, 23, 42, 0.04);
   --overlay: rgba(15, 23, 42, 0.2);
   --overlay-strong: rgba(15, 23, 42, 0.32);
-  --surface-accent: var(--color-surface);
-  --surface-accent-alt: var(--color-surface);
-  --surface-hero: var(--color-surface);
-  --shadow-card: 0 12px 24px rgba(15, 23, 42, 0.08);
-  --shadow-control: 0 6px 12px rgba(15, 23, 42, 0.08);
-  --focus-ring: 0 0 0 3px rgba(47, 124, 255, 0.2);
-  --shadow-card-hover: 0 16px 32px rgba(15, 23, 42, 0.16);
+  --surface-accent: var(--bg-2);
+  --surface-accent-alt: var(--bg-2);
+  --surface-hero: var(--bg-2);
+  --shadow-card: 0 16px 30px rgba(15, 23, 42, 0.1);
+  --shadow-control: 0 8px 16px rgba(15, 23, 42, 0.12);
+  --focus-ring: 0 0 0 3px rgba(38, 103, 255, 0.2);
+  --shadow-card-hover: 0 20px 36px rgba(15, 23, 42, 0.16);
   --danger-focus: 0 0 0 3px rgba(239, 68, 68, 0.2);
   --star-muted: rgba(15, 23, 42, 0.2);
   --skeleton-bg: linear-gradient(90deg, rgba(15, 23, 42, 0.04), rgba(15, 23, 42, 0.08), rgba(15, 23, 42, 0.04));
+  --shadow-primary: 0 12px 22px rgba(38, 103, 255, 0.3);
 }

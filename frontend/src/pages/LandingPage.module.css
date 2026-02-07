@@ -2,18 +2,15 @@
   display: flex;
   flex-direction: column;
   gap: 72px;
-  padding-bottom: 72px;
-  align-items: center;
+  padding: 48px 0 80px;
   width: 100%;
-  align-self: stretch;
 }
 
 .hero {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: clamp(24px, 6vw, 96px);
   align-items: center;
-  gap: 160px;
-  width: 100%;
 }
 
 .heroContent {
@@ -22,18 +19,9 @@
   gap: 20px;
 }
 
-.badge {
-  width: fit-content;
-  border-radius: 999px;
-  padding: 10px 20px;
-  color: var(--text);
-  background: var(--primary-soft);
-  font-size: 15px;
-  border: 1px solid var(--primary-soft-strong);
-}
-
 .heroContent h1 {
-  font-size: clamp(24px, 4vw, 36px);
+  font-size: clamp(30px, 4vw, 40px);
+  line-height: 1.2;
 }
 
 .heroActions {
@@ -42,236 +30,195 @@
   gap: 12px;
 }
 
-.primaryLink,
-.secondaryLink {
+.ctaButton {
   border-radius: 999px;
-  padding: 16px 32px;
-  text-decoration: none;
+  padding: 14px 28px;
   font-weight: 600;
-}
-
-.primaryLink {
+  text-decoration: none;
   color: #fff;
   background: var(--primary);
-  box-shadow: var(--shadow-control);
+  box-shadow: var(--shadow-primary);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
 }
 
-.secondaryLink {
-  border: 1px solid var(--border);
-  color: var(--text);
-  background: transparent;
-}
-
-.primaryLink:hover,
-.primaryLink:focus-visible {
+.ctaButton:hover,
+.ctaButton:focus-visible {
   background: var(--primary-2);
+  transform: translateY(-1px);
 }
 
-.secondaryLink:hover,
-.secondaryLink:focus-visible {
-  border-color: var(--primary);
-  color: var(--primary);
-}
-
-.heroCard {
-  display: flex;
-  flex-direction: column;
-  gap: 22px;
-  border-radius: var(--radius-card);
-  padding-block: 58px;
-  padding-inline: 50px;
-  max-width: 490px;
-  box-shadow: var(--shadow-card);
-  background: var(--card);
-  border: 1px solid var(--border);
-}
-
-.heroStats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(2px, 1fr));
-  gap: 20px;
-}
-.heroStats > div {
-  display: grid;
-  gap: 4px;
-}
-.heroStats strong {
-  font-size: 26px;
-  line-height: 1;
-  text-align: center;
-}
-
-.heroStats span {
-  font-size: 14px;
+.heroHint {
   color: var(--muted);
-  line-height: 1.3;
-  text-align: center;
-}
-
-.sliderSection {
-  width: 100%;
-}
-
-.slider {
-  display: grid;
-  width: 100%;
-  height: auto;
-  min-height: 420px; 
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  align-items: center;
-  gap: clamp(24px, 8vw, 120px);
-  padding: 36px;
-  border-radius: 28px;
-  color: var(--text);
-  background: var(--surface-accent);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-card);
-}
-
-.sliderContent {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding-left: 70px;
-}
-
-.sliderBadge {
-  width: fit-content;
-  border-radius: 999px;
-  padding: 8px 16px;
-  background: var(--primary-soft);
   font-size: 14px;
 }
 
-.sliderActions {
+.catalogSection {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 24px;
+  border-radius: 24px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+}
+
+.sectionHeader h2 {
+  font-size: 24px;
+}
+
+.categoryChips {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-}
-
-.sliderActions .secondaryLink {
-  display: none;
-}
-
-/* 1) Контейнер задаёт жёсткий размер */
-.sliderMedia {
-  flex: 0 0 auto; /* если это внутри flex/slider */
-  width: 490px;
-  height: 320px;
-  border-radius: 20px;
-  overflow: hidden; /* критично: обрезает лишнее */
-}
-
-/* 2) Картинка заполняет контейнер */
-.sliderMedia img {
-  display: block; /* убирает "пробел" снизу у img */
-  width: 100%;
-  height: 100%; /* критично */
-  object-fit: cover;
-  object-position: center;
-}
-
-.sliderDots {
-  display: flex;
-  justify-content: center;
-  gap: 10px;
-  margin-top: 16px;
-}
-
-.dot,
-.dotActive {
-  width: 12px;
-  height: 12px;
-  border: none;
-  border-radius: 999px;
-  background: var(--surface-ghost-strong);
-  cursor: pointer;
-}
-
-.dotActive {
-  background: var(--primary);
-}
-
-.sectionHeader {
-  display: flex;
-  width: 100%;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 24px;
-}
-
-.link {
-  color: var(--text);
-  text-decoration: none;
-  font-weight: 600;
 }
 
 .grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 32px;
+  gap: 24px;
 }
 
 .feedLoading {
-  margin-top: 16px;
   color: var(--muted);
 }
 
-.customSection {
+.uploadSection {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 32px;
   align-items: center;
-  gap: 24px;
-  width: 100%;
+  padding: 32px;
   border-radius: 24px;
-  color: var(--text);
-  background: var(--surface-accent-alt);
+  background: var(--bg-2);
   border: 1px solid var(--border);
-  box-shadow: var(--shadow-card);
 }
 
-.customContent {
+.uploadContent {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding-left: 70px;
 }
 
-.customActions {
+.uploadCard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.uploadDrop {
+  display: grid;
+  gap: 6px;
+  padding: 24px;
+  border-radius: 16px;
+  background: var(--card);
+  border: 1px dashed var(--border);
+  text-align: center;
+  cursor: pointer;
+}
+
+.uploadTitle {
+  font-weight: 600;
+}
+
+.uploadHint {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.uploadFormats {
+  color: var(--muted-2);
+  font-size: 13px;
+}
+
+.uploadInput {
+  display: none;
+}
+
+.stepsSection,
+.audienceSection,
+.trustSection,
+.finalSection {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.stepsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.stepCard {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.stepIcon {
+  font-size: 28px;
+}
+
+.audienceGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.audienceCard {
+  display: grid;
+  gap: 8px;
+}
+
+.audienceCard h3 {
+  font-size: 18px;
+}
+
+.trustGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.trustSection {
+  padding: 24px;
+  border-radius: 24px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+}
+
+.trustCard {
+  text-align: center;
+  display: grid;
+  gap: 6px;
+}
+
+.trustIcon {
+  font-size: 22px;
+}
+
+.finalCard {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 28px;
+}
+
+.finalActions {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
 }
 
-.benefits {
-  background: transparent;
-}
-
-.benefitGrid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-  margin-top: 24px;
-}
-
-.steps {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-  margin-top: 24px;
-}
-
-.steps span {
-  color: var(--primary);
-  font-size: 24px;
-  font-weight: 700;
-}
-
 @media (max-width: 1200px) {
   .grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .audienceGrid,
+  .trustGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -280,56 +227,20 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .benefitGrid,
-  .steps {
+  .stepsGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 640px) {
   .grid,
-  .benefitGrid,
-  .steps {
+  .stepsGrid,
+  .audienceGrid,
+  .trustGrid {
     grid-template-columns: 1fr;
   }
 
-  .hero {
-    display: flex;
-    flex-direction: column;
-    padding: 48px 0;
-  }
-
-  .customSection {
-    width: 100%;
-    margin: 0;
-    padding: 32px 16px;
-  }
-}
-
-@media (max-width: 768px) {
-  .slider {
-    grid-template-columns: 1fr;
+  .uploadSection {
     padding: 24px;
-  }
-
-  .sliderContent {
-    padding-left: 0;
-  }
-
-  .sliderMedia {
-    height: 180px;
-    max-height: 200px;
-    overflow: hidden;
-    width: 100%;
-  }
-
-  .sliderMedia img {
-    width: 100%;
-    height: 100%;
-    min-height: 0;
-    object-fit: cover;
-  }
-  .customContent {
-    padding-left: 0;
   }
 }
