@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ReturnRequest } from '../../shared/types';
+import { resolveImageUrl } from '../../shared/lib/resolveImageUrl';
 import { Button } from '../../shared/ui/Button';
 import styles from './ReturnCandidatesList.module.css';
 
@@ -45,10 +46,11 @@ export const ReturnCandidatesList = ({
       {safeItems.map((item) => {
         const returnRequest = returnsByOrderItemId.get(item.orderItemId);
         const threadId = returnRequest?.chatThread?.id ?? null;
+        const imageUrl = resolveImageUrl(item.image);
         return (
           <article key={item.orderItemId} className={styles.card}>
             <div className={styles.row}>
-              {item.image && <img src={item.image} alt={item.title} />}
+              {imageUrl && <img src={imageUrl} alt={item.title} />}
               <div className={styles.meta}>
                 <span className={styles.caption}>
                   Заказ от{' '}

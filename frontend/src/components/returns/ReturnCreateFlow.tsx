@@ -7,6 +7,7 @@ import { Button } from '../../shared/ui/Button';
 import { ReturnCandidate } from './ReturnCandidatesList';
 import { ReturnReasonRadioGroup } from './ReturnReasonRadioGroup';
 import { ReturnPhotoUploader } from './ReturnPhotoUploader';
+import { resolveImageUrl } from '../../shared/lib/resolveImageUrl';
 import styles from './ReturnCreateFlow.module.css';
 
 interface ReturnCreateFlowProps {
@@ -251,7 +252,7 @@ export const ReturnCreateFlow = ({
                   onChange={() => setSelectedId(item.orderItemId)}
                 />
                 <div className={styles.cardBody}>
-                  {item.image && <img src={item.image} alt={item.title} />}
+                  {item.image && <img src={resolveImageUrl(item.image)} alt={item.title} />}
                   <div>
                     <p className={styles.caption}>
                       Заказ от{' '}
@@ -278,7 +279,7 @@ export const ReturnCreateFlow = ({
         <>
           <h3>Оформление возврата</h3>
           <div className={styles.summary}>
-            {selectedItem.image && <img src={selectedItem.image} alt={selectedItem.title} />}
+            {selectedItem.image && <img src={resolveImageUrl(selectedItem.image)} alt={selectedItem.title} />}
             <div>
               <strong>{selectedItem.title}</strong>
               <p>{selectedItem.price.toLocaleString('ru-RU')} ₽</p>

@@ -2,7 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { Layout } from './widgets/layout/Layout';
 import { LandingPage } from './pages/LandingPage';
 import { CatalogPage } from './pages/CatalogPage';
-import { BuyerAccountPage } from './pages/BuyerAccountPage';
+import { BuyerAccountPage } from './pages/account/BuyerAccountPage';
 import { SellerDashboardPage } from './pages/SellerDashboardPage';
 import { AuthPage } from './pages/AuthPage';
 import { CartPage } from './pages/CartPage';

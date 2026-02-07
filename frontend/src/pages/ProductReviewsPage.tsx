@@ -5,6 +5,7 @@ import type { Product } from '../shared/types';
 import { useCartStore } from '../app/store/cartStore';
 import { useAuthStore } from '../app/store/authStore';
 import { useProductBoardStore } from '../app/store/productBoardStore';
+import { resolveImageUrl } from '../shared/lib/resolveImageUrl';
 import { ProductReviewsHeader } from './product-reviews/components/ProductReviewsHeader';
 import { ReviewsSummary } from './product-reviews/components/ReviewsSummary';
 import { ReviewsFilters } from './product-reviews/components/ReviewsFilters';
@@ -240,7 +241,7 @@ export const ProductReviewsPage = () => {
                       key={photo}
                       onClick={() => setActivePhoto(photo)}
                     >
-                      <img src={photo} alt="Фото из отзыва" />
+                      <img src={resolveImageUrl(photo)} alt="Фото из отзыва" />
                     </button>
                   ))}
                 </div>
@@ -282,7 +283,7 @@ export const ProductReviewsPage = () => {
             <button type="button" className={styles.photoModalClose} onClick={() => setActivePhoto(null)}>
               ✕
             </button>
-            <img src={activePhoto} alt="Фото отзыва" />
+            <img src={resolveImageUrl(activePhoto)} alt="Фото отзыва" />
           </div>
         </div>
       )}

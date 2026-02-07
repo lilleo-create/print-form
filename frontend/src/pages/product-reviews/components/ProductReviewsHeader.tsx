@@ -1,5 +1,6 @@
 import { Rating } from '../../../shared/ui/Rating';
 import type { Product } from '../../../shared/types';
+import { resolveImageUrl } from '../../../shared/lib/resolveImageUrl';
 import styles from './ProductReviewsHeader.module.css';
 
 type ProductReviewsHeaderProps = {
@@ -27,7 +28,7 @@ export const ProductReviewsHeader = ({
         ← Назад
       </button>
       <div className={styles.product}>
-        <img src={product.image} alt={product.title} className={styles.productImage} />
+        <img src={resolveImageUrl(product.image)} alt={product.title} className={styles.productImage} />
         <div className={styles.productInfo}>
           <h1 className={styles.title}>{product.title}</h1>
           <div className={styles.ratingRow}>

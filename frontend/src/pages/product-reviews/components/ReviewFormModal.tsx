@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import type { Product, Review } from '../../../shared/types';
 import { Button } from '../../../shared/ui/Button';
 import { ReturnPhotoUploader } from '../../../components/returns/ReturnPhotoUploader';
+import { resolveImageUrl } from '../../../shared/lib/resolveImageUrl';
 import styles from './ReviewFormModal.module.css';
 
 export type ReviewFormValues = {
@@ -95,7 +96,7 @@ export const ReviewFormModal = ({
         </header>
 
         <div className={styles.product}>
-          <img src={product.image} alt={product.title} />
+          <img src={resolveImageUrl(product.image)} alt={product.title} />
           <span>{product.title}</span>
         </div>
 
@@ -156,7 +157,7 @@ export const ReviewFormModal = ({
             <div className={styles.existingPhotos}>
               {existingPhotos.map((photo) => (
                 <div key={photo} className={styles.existingPhoto}>
-                  <img src={photo} alt="Фото отзыва" />
+                  <img src={resolveImageUrl(photo)} alt="Фото отзыва" />
                   <button
                     type="button"
                     onClick={() => setExistingPhotos((prev) => prev.filter((item) => item !== photo))}

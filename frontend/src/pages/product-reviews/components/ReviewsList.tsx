@@ -1,5 +1,6 @@
 import type { Review } from '../../../shared/types';
 import { Rating } from '../../../shared/ui/Rating';
+import { resolveImageUrl } from '../../../shared/lib/resolveImageUrl';
 import styles from './ReviewsList.module.css';
 
 type ReviewsListProps = {
@@ -58,7 +59,7 @@ export const ReviewsList = ({ reviews, status, error, onPhotoClick }: ReviewsLis
                     className={styles.photoButton}
                     onClick={() => onPhotoClick(photo)}
                   >
-                    <img src={photo} alt="Фото отзыва" />
+                    <img src={resolveImageUrl(photo)} alt="Фото отзыва" />
                   </button>
                 ))}
               </div>

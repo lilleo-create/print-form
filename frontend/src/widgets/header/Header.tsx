@@ -416,6 +416,21 @@ const openProfileMenu = () => {
                 <div className={styles.profileMenuSection}>
                   <div className={styles.profileMenuSectionLabel}>Покупки</div>
                   <Link
+                    to="/account?tab=profile"
+                    className={`${styles.profileMenuItem} ${
+                      location.pathname === '/account' &&
+                      (!searchParams.get('tab') || searchParams.get('tab') === 'profile')
+                        ? styles.profileMenuItemActive
+                        : ''
+                    }`}
+                    onClick={closeProfileMenu}
+                  >
+                    <span className={styles.profileMenuIcon} aria-hidden>
+                      👤
+                    </span>
+                    <span className={styles.profileMenuText}>Профиль</span>
+                  </Link>
+                  <Link
                     to="/orders"
                     className={`${styles.profileMenuItem} ${location.pathname === '/orders' ? styles.profileMenuItemActive : ''}`}
                     onClick={closeProfileMenu}

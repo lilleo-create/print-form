@@ -1,4 +1,5 @@
 import { ReturnRequest } from '../../shared/types';
+import { resolveImageUrl } from '../../shared/lib/resolveImageUrl';
 import styles from './ReturnList.module.css';
 
 const statusLabels: Record<ReturnRequest['status'], string> = {
@@ -57,7 +58,7 @@ export const ReturnList = ({ items, isLoading, error }: ReturnListProps) => {
             </div>
             {product && (
               <div className={styles.product}>
-                <img src={product.image} alt={product.title} />
+                <img src={resolveImageUrl(product.image)} alt={product.title} />
                 <div>
                   <p>{product.title}</p>
                   <span>{product.price.toLocaleString('ru-RU')} ₽</span>
@@ -67,7 +68,7 @@ export const ReturnList = ({ items, isLoading, error }: ReturnListProps) => {
             {requestPhotos.length > 0 && (
               <div className={styles.photos}>
                 {requestPhotos.map((photo) => (
-                  <img key={photo.id} src={photo.url} alt="Фото возврата" />
+                  <img key={photo.id} src={resolveImageUrl(photo.url)} alt="Фото возврата" />
                 ))}
               </div>
             )}
