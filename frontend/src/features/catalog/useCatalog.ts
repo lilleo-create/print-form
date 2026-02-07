@@ -48,15 +48,13 @@ export const useCatalog = (filters: CatalogFilters, enabled = true) => {
       return undefined;
     }
     let isMounted = true;
-    const sharedKey = requestKey;
-    // Reuse in-flight request for identical params to avoid duplicate fetches in StrictMode/fast navigation.
-    const entry = getCatalogRequest(sharedKey, requestFilters);
-    entry.subscribers += 1;
+    const controller = new AbortController();
     setLoading(true);
-    entry.promise
-      .then((data) => {
+    api
+      .getProducts({ ...requestFilters }, { signal: controller.signal })
+      .then((response) => {
         if (!isMounted) return;
-        setProducts(data);
+        setProducts(response.data);
         setError(null);
       })
       .catch((err) => {
@@ -76,53 +74,9 @@ export const useCatalog = (filters: CatalogFilters, enabled = true) => {
       });
     return () => {
       isMounted = false;
-      releaseCatalogRequest(sharedKey);
+      controller.abort();
     };
   }, [enabled, requestFilters, requestKey]);
 
   return { products, loading, error };
-};
-
-type CatalogEntry = {
-  controller: AbortController;
-  promise: Promise<Product[]>;
-  subscribers: number;
-  abortTimeout?: ReturnType<typeof setTimeout>;
-};
-
-const catalogRequests = new Map<string, CatalogEntry>();
-
-const getCatalogRequest = (key: string, filters: CatalogFilters) => {
-  const existing = catalogRequests.get(key);
-  if (existing) {
-    if (existing.abortTimeout) {
-      clearTimeout(existing.abortTimeout);
-      existing.abortTimeout = undefined;
-    }
-    return existing;
-  }
-  const controller = new AbortController();
-  const promise = api.getProducts({ ...filters }, { signal: controller.signal }).then((response) => response.data);
-  const entry: CatalogEntry = { controller, promise, subscribers: 0 };
-  catalogRequests.set(key, entry);
-  promise.finally(() => {
-    const current = catalogRequests.get(key);
-    if (current === entry) {
-      catalogRequests.delete(key);
-    }
-  });
-  return entry;
-};
-
-const releaseCatalogRequest = (key: string) => {
-  const entry = catalogRequests.get(key);
-  if (!entry) return;
-  entry.subscribers -= 1;
-  if (entry.subscribers <= 0) {
-    // Delay abort slightly so StrictMode remounts can reuse the same request without spam.
-    entry.abortTimeout = setTimeout(() => {
-      entry.controller.abort();
-      catalogRequests.delete(key);
-    }, 0);
-  }
 };
