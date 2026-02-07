@@ -1,20 +1,16 @@
 .page {
   display: flex;
   flex-direction: column;
-  gap: 80px;
-  padding-bottom: 80px;
-  align-items: center;
+  gap: 72px;
+  padding: 48px 0 80px;
   width: 100%;
-  align-self: stretch;
 }
 
 .hero {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: clamp(24px, 6vw, 96px);
   align-items: center;
-  gap: clamp(24px, 6vw, 120px);
-  width: 100%;
-  padding-top: 32px;
 }
 
 .heroContent {
@@ -23,18 +19,8 @@
   gap: 20px;
 }
 
-.eyebrow {
-  width: fit-content;
-  border-radius: 999px;
-  padding: 8px 16px;
-  color: var(--text);
-  background: var(--primary-soft);
-  font-size: 14px;
-  border: 1px solid var(--primary-soft-strong);
-}
-
 .heroContent h1 {
-  font-size: clamp(28px, 4vw, 40px);
+  font-size: clamp(30px, 4vw, 40px);
   line-height: 1.2;
 }
 
@@ -44,122 +30,79 @@
   gap: 12px;
 }
 
-.primaryCta,
-.secondaryCta,
-.primaryCtaSmall,
-.secondaryCtaSmall {
+.ctaButton {
   border-radius: 999px;
-  padding: 16px 32px;
-  text-decoration: none;
+  padding: 14px 28px;
   font-weight: 600;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease,
-    border-color 0.2s ease, color 0.2s ease;
-}
-
-.primaryCta {
+  text-decoration: none;
   color: #fff;
   background: var(--primary);
   box-shadow: var(--shadow-primary);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
 }
 
-.primaryCta:hover,
-.primaryCta:focus-visible {
+.ctaButton:hover,
+.ctaButton:focus-visible {
   background: var(--primary-2);
   transform: translateY(-1px);
 }
 
-.secondaryCta {
-  border: 1px solid var(--border);
-  color: var(--text);
-  background: var(--card);
-}
-
-.secondaryCta:hover,
-.secondaryCta:focus-visible {
-  border-color: var(--primary);
-  color: var(--primary);
-  background: var(--surface-ghost);
-}
-
-.heroPanel {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 28px;
-}
-
-.heroList {
-  display: grid;
-  gap: 12px;
-  padding-left: 18px;
-  color: var(--muted);
-}
-
 .heroHint {
-  font-size: 14px;
   color: var(--muted);
+  font-size: 14px;
 }
 
 .catalogSection {
-  width: 100%;
-}
-
-.sectionHeader {
   display: flex;
-  width: 100%;
+  flex-direction: column;
+  gap: 24px;
+  padding: 24px;
+  border-radius: 24px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+}
+
+.sectionHeader h2 {
+  font-size: 24px;
+}
+
+.categoryChips {
+  display: flex;
   flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-  margin-bottom: 24px;
-}
-
-.sectionLink {
-  color: var(--text);
-  text-decoration: none;
-  font-weight: 600;
-}
-
-.catalogTabs {
-  margin-bottom: 24px;
+  gap: 12px;
 }
 
 .grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 32px;
+  gap: 24px;
 }
 
 .feedLoading {
-  margin-top: 16px;
   color: var(--muted);
 }
 
 .uploadSection {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  align-items: start;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 32px;
-  width: 100%;
+  align-items: center;
+  padding: 32px;
+  border-radius: 24px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
 }
 
 .uploadContent {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
 .uploadCard {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  border-radius: var(--radius-card);
-  padding: 20px;
-  background: var(--card);
-  border: 1px dashed var(--border);
+  gap: 12px;
 }
 
 .uploadDrop {
@@ -167,8 +110,8 @@
   gap: 6px;
   padding: 24px;
   border-radius: 16px;
-  background: var(--bg-2);
-  border: 1px solid var(--border);
+  background: var(--card);
+  border: 1px dashed var(--border);
   text-align: center;
   cursor: pointer;
 }
@@ -185,81 +128,41 @@
 .uploadFormats {
   color: var(--muted-2);
   font-size: 13px;
-  letter-spacing: 0.04em;
 }
 
 .uploadInput {
   display: none;
 }
 
-.uploadActions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.primaryCtaSmall,
-.secondaryCtaSmall {
-  padding: 12px 20px;
-  font-size: 14px;
-}
-
-.primaryCtaSmall {
-  color: #fff;
-  background: var(--primary);
-  box-shadow: var(--shadow-primary);
-}
-
-.primaryCtaSmall:hover,
-.primaryCtaSmall:focus-visible {
-  background: var(--primary-2);
-  transform: translateY(-1px);
-}
-
-.secondaryCtaSmall {
-  border: 1px solid var(--border);
-  color: var(--text);
-  background: transparent;
-}
-
-.secondaryCtaSmall:hover,
-.secondaryCtaSmall:focus-visible {
-  border-color: var(--primary);
-  color: var(--primary);
-  background: var(--surface-ghost);
-}
-
 .stepsSection,
 .audienceSection,
 .trustSection,
 .finalSection {
-  width: 100%;
-}
-
-.stepsGrid,
-.audienceGrid,
-.trustGrid {
-  display: grid;
-  gap: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
 
 .stepsGrid {
+  display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
 }
 
 .stepCard {
   display: grid;
   gap: 12px;
+  align-content: start;
 }
 
-.stepCard span {
-  color: var(--primary);
-  font-size: 24px;
-  font-weight: 700;
+.stepIcon {
+  font-size: 28px;
 }
 
 .audienceGrid {
+  display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
 }
 
 .audienceCard {
@@ -267,31 +170,39 @@
   gap: 8px;
 }
 
+.audienceCard h3 {
+  font-size: 18px;
+}
+
 .trustGrid {
+  display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.trustSection {
+  padding: 24px;
+  border-radius: 24px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
 }
 
 .trustCard {
-  display: grid;
-  gap: 8px;
   text-align: center;
+  display: grid;
+  gap: 6px;
 }
 
-.trustCard strong {
-  font-size: 24px;
-}
-
-.trustCard span {
-  color: var(--muted);
+.trustIcon {
+  font-size: 22px;
 }
 
 .finalCard {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
-  gap: 24px;
-  padding: 32px;
+  flex-direction: column;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 28px;
 }
 
 .finalActions {
@@ -329,7 +240,7 @@
     grid-template-columns: 1fr;
   }
 
-  .finalCard {
-    align-items: flex-start;
+  .uploadSection {
+    padding: 24px;
   }
 }
