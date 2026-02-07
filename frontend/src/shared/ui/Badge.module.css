@@ -7,30 +7,30 @@
   font-size: 0.75rem;
   font-weight: 600;
   border: 1px solid transparent;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--surface-ghost-muted);
   color: var(--text);
 }
 
 .primary {
-  background: rgba(47, 124, 255, 0.2);
+  background: var(--primary-soft);
   color: var(--primary);
-  border-color: rgba(47, 124, 255, 0.4);
+  border-color: var(--primary-soft-strong);
 }
 
 .success {
-  background: rgba(29, 209, 161, 0.2);
+  background: var(--success-soft);
   color: var(--success);
-  border-color: rgba(29, 209, 161, 0.35);
+  border-color: var(--success-soft-strong);
 }
 
 .warning {
-  background: rgba(247, 183, 49, 0.2);
+  background: var(--warning-soft);
   color: var(--warning);
-  border-color: rgba(247, 183, 49, 0.35);
+  border-color: var(--warning-soft-strong);
 }
 
 .danger {
-  background: rgba(255, 77, 79, 0.2);
+  background: var(--danger-soft);
   color: var(--danger);
-  border-color: rgba(255, 77, 79, 0.35);
+  border-color: var(--danger-soft-strong);
 }

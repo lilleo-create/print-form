@@ -51,7 +51,7 @@
 }
 
 .navLinkActive {
-  background: rgba(47, 124, 255, 0.14);
+  background: var(--primary-soft);
   color: var(--text);
 }
 

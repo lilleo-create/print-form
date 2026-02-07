@@ -90,7 +90,7 @@
 .form input:disabled {
   border-color: var(--border);
   color: var(--muted);
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--surface-ghost);
   cursor: not-allowed;
 }
 

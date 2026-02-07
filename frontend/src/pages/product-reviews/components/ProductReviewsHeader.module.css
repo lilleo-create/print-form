@@ -14,7 +14,7 @@
 
 .backButton {
   border: none;
-  background: rgba(47, 124, 255, 0.2);
+  background: var(--primary-soft);
   color: var(--primary);
   border-radius: 999px;
   padding: 10px 16px;
@@ -88,7 +88,7 @@
   height: 44px;
   border-radius: 14px;
   border: none;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--surface-ghost-muted);
   color: var(--text);
   cursor: pointer;
   font-size: 18px;
@@ -96,7 +96,7 @@
 
 .buyNow {
   border: none;
-  background: rgba(47, 124, 255, 0.2);
+  background: var(--primary-soft);
   color: var(--primary);
   border-radius: 14px;
   padding: 10px 18px;

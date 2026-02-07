@@ -14,7 +14,7 @@
 .scopeButton,
 .scopeActive {
   border: 1px solid transparent;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--surface-ghost-muted);
   color: var(--text);
   border-radius: 999px;
   padding: 8px 16px;
@@ -24,7 +24,7 @@
 
 .scopeActive {
   border-color: var(--primary);
-  background: rgba(47, 124, 255, 0.2);
+  background: var(--primary-soft);
   color: var(--primary);
 }
 
@@ -34,7 +34,7 @@
 
 .dropdownButton {
   border: none;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--surface-ghost-muted);
   border-radius: 999px;
   padding: 8px 16px;
   cursor: pointer;

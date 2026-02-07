@@ -65,7 +65,7 @@
   display: inline-flex;
   padding: 4px 10px;
   border-radius: 999px;
-  background: rgba(47, 124, 255, 0.18);
+  background: var(--primary-soft);
   color: var(--primary);
   font-size: 12px;
   font-weight: 600;
@@ -97,7 +97,7 @@
 .modalOverlay {
   position: fixed;
   inset: 0;
-  background: rgba(7, 11, 23, 0.75);
+  background: var(--overlay-strong);
   display: flex;
   align-items: center;
   justify-content: center;

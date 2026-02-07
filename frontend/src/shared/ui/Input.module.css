@@ -31,7 +31,7 @@
 }
 
 .errorState {
-  border-color: rgba(255, 77, 79, 0.6);
+  border-color: var(--danger-soft-strong);
 }
 
 .helper {

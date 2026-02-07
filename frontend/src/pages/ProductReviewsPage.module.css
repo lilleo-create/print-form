@@ -83,7 +83,7 @@
 .photoModal {
   position: fixed;
   inset: 0;
-  background: rgba(7, 11, 23, 0.75);
+  background: var(--overlay-strong);
   display: flex;
   align-items: center;
   justify-content: center;

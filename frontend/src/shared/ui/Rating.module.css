@@ -9,11 +9,11 @@
 .stars {
   display: inline-flex;
   gap: 2px;
-  color: rgba(255, 255, 255, 0.2);
+  color: var(--star-muted);
 }
 
 .star {
-  color: rgba(255, 255, 255, 0.2);
+  color: var(--star-muted);
 }
 
 .starActive {

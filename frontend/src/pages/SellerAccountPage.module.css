@@ -57,7 +57,7 @@
 }
 
 .menuItemActive {
-  background: rgba(47, 124, 255, 0.16);
+  background: var(--primary-soft);
   color: var(--text);
 }
 

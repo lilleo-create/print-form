@@ -67,7 +67,7 @@
 
 .messageAdmin {
   justify-self: end;
-  background: rgba(47, 124, 255, 0.2);
+  background: var(--primary-soft);
   padding: 8px 12px;
   border-radius: 12px;
   max-width: 80%;
@@ -75,7 +75,7 @@
 
 .messageUser {
   justify-self: start;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--surface-ghost-muted);
   padding: 8px 12px;
   border-radius: 12px;
   max-width: 80%;

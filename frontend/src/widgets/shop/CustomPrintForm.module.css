@@ -21,7 +21,7 @@
 
 .form input:disabled,
 .form textarea:disabled {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--surface-ghost);
   color: var(--muted);
   cursor: not-allowed;
 }

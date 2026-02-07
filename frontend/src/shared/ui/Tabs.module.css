@@ -23,6 +23,6 @@
 }
 
 .active {
-  background: rgba(47, 124, 255, 0.2);
+  background: var(--primary-soft);
   color: var(--primary);
 }
