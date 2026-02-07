@@ -30,6 +30,10 @@ type Options = {
 
 const applyFilters = (reviews: Review[], filters: ReviewFilters) => {
   let next = [...reviews];
+  next = next.filter((review) => {
+    const status = review.moderationStatus ?? (review as { status?: string }).status;
+    return status ? status === 'APPROVED' : true;
+  });
   if (filters.withMedia) {
     next = next.filter((review) => (review.photos?.length ?? 0) > 0);
   }

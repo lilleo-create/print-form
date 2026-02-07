@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../app/store/authStore';
 import { useOrdersStore } from '../app/store/ordersStore';
 import { api } from '../shared/api';
@@ -21,7 +21,7 @@ export const BuyerAccountPage = () => {
   const updateProfile = useAuthStore((state) => state.updateProfile);
   const orders = useOrdersStore((state) => state.orders);
   const loadBuyerOrders = useOrdersStore((state) => state.loadBuyerOrders);
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') ?? 'profile';
   const threadIdParam = searchParams.get('threadId');
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -178,9 +178,21 @@ export const BuyerAccountPage = () => {
     );
   };
 
-  const setTab = (tab: string) => {
-    setSearchParams({ tab });
-  };
+  const isProfile = activeTab === 'profile';
+  const pageTitle = (() => {
+    switch (activeTab) {
+      case 'orders':
+        return 'Заказы';
+      case 'purchases':
+        return 'Купленные товары';
+      case 'returns':
+        return 'Возвраты';
+      case 'chats':
+        return 'Чаты';
+      default:
+        return '';
+    }
+  })();
 
   const activeOrders = orders.filter((order) => order.status !== 'DELIVERED');
   const deliveredOrders = orders.filter((order) => order.status === 'DELIVERED');
@@ -213,48 +225,26 @@ export const BuyerAccountPage = () => {
   return (
     <section className={styles.page}>
       <div className="container">
-        <div className={styles.header}>
-          <h1>Личный кабинет</h1>
-          <p>Управляйте личными данными и отзывами.</p>
-        </div>
-
-        <nav className={styles.tabs}>
-          <button
-            type="button"
-            className={activeTab === 'profile' ? styles.tabActive : styles.tab}
-            onClick={() => setTab('profile')}
-          >
-            Профиль
-          </button>
-          <button
-            type="button"
-            className={activeTab === 'orders' ? styles.tabActive : styles.tab}
-            onClick={() => setTab('orders')}
-          >
-            Заказы
-          </button>
-          <button
-            type="button"
-            className={activeTab === 'purchases' ? styles.tabActive : styles.tab}
-            onClick={() => setTab('purchases')}
-          >
-            Купленные товары
-          </button>
-          <button
-            type="button"
-            className={activeTab === 'returns' ? styles.tabActive : styles.tab}
-            onClick={() => setTab('returns')}
-          >
-            Возвраты
-          </button>
-          <button
-            type="button"
-            className={activeTab === 'chats' ? styles.tabActive : styles.tab}
-            onClick={() => setTab('chats')}
-          >
-            Чаты
-          </button>
-        </nav>
+        {isProfile ? (
+          <div className={styles.header}>
+            <h1>Личный кабинет</h1>
+            <p>Управляйте личными данными и отзывами.</p>
+          </div>
+        ) : (
+          <div className={styles.pageHeader}>
+            <Link to="/account?tab=profile" className={styles.backLink}>
+              Назад в аккаунт
+            </Link>
+            <div className={styles.pageHeading}>
+              <h1>{pageTitle}</h1>
+              {activeTab === 'returns' && (
+                <Button type="button" onClick={() => setShowReturnCreate((prev) => !prev)}>
+                  Вернуть товар
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
 
         {activeTab === 'profile' && (
           <>
@@ -421,12 +411,6 @@ export const BuyerAccountPage = () => {
 
         {activeTab === 'returns' && (
           <div className={styles.section}>
-            <div className={styles.sectionHeader}>
-              <h2>Возвраты</h2>
-              <Button type="button" onClick={() => setShowReturnCreate((prev) => !prev)}>
-                Вернуть товар
-              </Button>
-            </div>
             {showReturnCreate && (
               <ReturnCreateFlow
                 items={returnCandidates}

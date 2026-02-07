@@ -16,6 +16,31 @@
   color: var(--muted);
 }
 
+.pageHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.backLink {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.backLink:hover {
+  color: var(--text);
+}
+
+.pageHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
 .profileCard {
   background: var(--card);
   border-radius: var(--radius-card);
@@ -144,41 +169,9 @@
   color: var(--muted);
 }
 
-.tabs {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 24px;
-}
-
-.tab {
-  border: 1px solid var(--border);
-  background: var(--bg-2);
-  border-radius: 999px;
-  padding: 8px 16px;
-  cursor: pointer;
-  color: var(--text);
-}
-
-.tabActive {
-  border: 1px solid var(--primary);
-  background: var(--primary-soft);
-  color: var(--primary);
-  border-radius: 999px;
-  padding: 8px 16px;
-  cursor: pointer;
-}
-
 .section {
   display: grid;
   gap: 16px;
-}
-
-.sectionHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
 }
 
 .ordersList {
