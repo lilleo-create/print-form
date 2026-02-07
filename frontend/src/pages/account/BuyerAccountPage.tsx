@@ -1,37 +1,31 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../../app/store/authStore';
-import { useOrdersStore } from '../../app/store/ordersStore';
 import { Button } from '../../shared/ui/Button';
 import { OrdersTab } from './tabs/OrdersTab/OrdersTab';
 import { PurchasesTab } from './tabs/PurchasesTab/PurchasesTab';
 import { ReturnsTab } from './tabs/ReturnsTab/ReturnsTab';
 import { ChatsTab } from './tabs/ChatsTab/ChatsTab';
 import { ProfileTab } from './tabs/ProfileTab/ProfileTab';
+import { useBuyerOrders } from './hooks/useBuyerOrders';
 import { useMyReturns } from './hooks/useMyReturns';
 import { useMyChats } from './hooks/useMyChats';
 import styles from './BuyerAccountPage.module.css';
 
 export const BuyerAccountPage = () => {
   const user = useAuthStore((state) => state.user);
-  const orders = useOrdersStore((state) => state.orders);
-  const loadBuyerOrders = useOrdersStore((state) => state.loadBuyerOrders);
   const [searchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') ?? 'profile';
   const threadIdParam = searchParams.get('threadId');
   const [showReturnCreate, setShowReturnCreate] = useState(false);
 
   useEffect(() => {
-    if (user) {
-      loadBuyerOrders(user);
-    }
-  }, [loadBuyerOrders, user]);
-
-  useEffect(() => {
     if (activeTab !== 'returns') {
       setShowReturnCreate(false);
     }
   }, [activeTab]);
+
+  const { activeOrders, purchasedItems, returnCandidates } = useBuyerOrders(user);
 
   const { returns, isLoading: returnsLoading, error: returnsError, reload: reloadReturns } =
     useMyReturns(activeTab);
@@ -61,48 +55,6 @@ export const BuyerAccountPage = () => {
         return '';
     }
   })();
-
-  const activeOrders = useMemo(
-    () => orders.filter((order) => order.status !== 'DELIVERED'),
-    [orders]
-  );
-  const deliveredOrders = useMemo(
-    () => orders.filter((order) => order.status === 'DELIVERED'),
-    [orders]
-  );
-
-  const purchasedItems = useMemo(
-    () =>
-      deliveredOrders.flatMap((order) =>
-        (order.items ?? []).map((item) => ({
-          productId: item.productId,
-          title: item.title,
-          price: item.price,
-          image: item.image,
-          orderDate: order.statusUpdatedAt ?? order.createdAt,
-          orderId: order.id
-        }))
-      ),
-    [deliveredOrders]
-  );
-
-  const returnCandidates = useMemo(
-    () =>
-      deliveredOrders.flatMap((order) =>
-        (order.items ?? [])
-          .filter((item) => item.id)
-          .map((item) => ({
-            orderItemId: item.id as string,
-            productId: item.productId,
-            title: item.title,
-            price: item.price,
-            image: item.image,
-            orderDate: order.statusUpdatedAt ?? order.createdAt,
-            orderId: order.id
-          }))
-      ),
-    [deliveredOrders]
-  );
 
   return (
     <section className={styles.page}>
