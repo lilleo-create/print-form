@@ -38,6 +38,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
         <div className={styles.meta}>
           <span>{product.category}</span>
           <span>{product.material}</span>
+          {product.printTime && <span>Срок: {product.printTime}</span>}
         </div>
         <h3 className={styles.title} title={product.title}>
           {product.title}

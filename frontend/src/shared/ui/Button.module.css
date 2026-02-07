@@ -5,7 +5,8 @@
   font-weight: 600;
   font-size: 1rem;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease,
+    border-color 0.2s ease, color 0.2s ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -17,10 +18,17 @@
   background: var(--primary);
   color: #ffffff;
   border-color: transparent;
+  box-shadow: var(--shadow-primary);
 }
 
 .primary:hover {
   background: var(--primary-2);
+  transform: translateY(-1px);
+}
+
+.primary:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-control);
 }
 
 .secondary {
@@ -31,8 +39,12 @@
 }
 
 .secondary:hover {
+  background: var(--surface-ghost-strong);
   border-color: var(--primary);
-  color: var(--primary);
+}
+
+.secondary:active {
+  background: var(--surface-ghost-muted);
 }
 
 .ghost {
