@@ -1,3 +1,4 @@
+import { resolveImageUrl } from '../../shared/lib/resolveImageUrl';
 import { ReturnRequest } from '../../shared/types';
 import styles from './ReturnList.module.css';
 
@@ -39,6 +40,9 @@ export const ReturnList = ({ items, isLoading, error }: ReturnListProps) => {
         const requestPhotos = request.photos ?? [];
         const firstItem = requestItems[0]?.orderItem;
         const product = firstItem?.product;
+        const productTitle = product?.title ?? 'Товар';
+        const productPrice = product?.price ?? firstItem?.priceAtPurchase ?? null;
+        const productImage = resolveImageUrl(product?.image);
         return (
           <article key={request.id} className={styles.card}>
             <div className={styles.meta}>
@@ -55,19 +59,23 @@ export const ReturnList = ({ items, isLoading, error }: ReturnListProps) => {
                 })}
               </span>
             </div>
-            {product && (
-              <div className={styles.product}>
-                <img src={product.image} alt={product.title} />
-                <div>
-                  <p>{product.title}</p>
-                  <span>{product.price.toLocaleString('ru-RU')} ₽</span>
-                </div>
+            <div className={styles.product}>
+              {productImage ? (
+                <img className={styles.productImage} src={productImage} alt={productTitle} />
+              ) : (
+                <div className={styles.imagePlaceholder} aria-hidden="true" />
+              )}
+              <div className={styles.productInfo}>
+                <p className={styles.productTitle}>{productTitle}</p>
+                {typeof productPrice === 'number' && (
+                  <span className={styles.productPrice}>{productPrice.toLocaleString('ru-RU')} ₽</span>
+                )}
               </div>
-            )}
+            </div>
             {requestPhotos.length > 0 && (
               <div className={styles.photos}>
                 {requestPhotos.map((photo) => (
-                  <img key={photo.id} src={photo.url} alt="Фото возврата" />
+                  <img key={photo.id} src={resolveImageUrl(photo.url)} alt="Фото возврата" />
                 ))}
               </div>
             )}
