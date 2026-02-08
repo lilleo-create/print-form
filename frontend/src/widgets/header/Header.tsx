@@ -415,21 +415,7 @@ const openProfileMenu = () => {
               <nav className={styles.profileMenuList}>
                 <div className={styles.profileMenuSection}>
                   <div className={styles.profileMenuSectionLabel}>Покупки</div>
-                  <Link
-                    to="/account?tab=profile"
-                    className={`${styles.profileMenuItem} ${
-                      location.pathname === '/account' &&
-                      (!searchParams.get('tab') || searchParams.get('tab') === 'profile')
-                        ? styles.profileMenuItemActive
-                        : ''
-                    }`}
-                    onClick={closeProfileMenu}
-                  >
-                    <span className={styles.profileMenuIcon} aria-hidden>
-                      👤
-                    </span>
-                    <span className={styles.profileMenuText}>Профиль</span>
-                  </Link>
+                  
                   <Link
                     to="/orders"
                     className={`${styles.profileMenuItem} ${location.pathname === '/orders' ? styles.profileMenuItemActive : ''}`}
@@ -481,6 +467,21 @@ const openProfileMenu = () => {
                 </div>
                 <div className={styles.profileMenuSection}>
                   <div className={styles.profileMenuSectionLabel}>Настройки</div>
+                  <Link
+                    to="/account?tab=profile"
+                    className={`${styles.profileMenuItem} ${
+                      location.pathname === '/account' &&
+                      (!searchParams.get('tab') || searchParams.get('tab') === 'profile')
+                        ? styles.profileMenuItemActive
+                        : ''
+                    }`}
+                    onClick={closeProfileMenu}
+                  >
+                    <span className={styles.profileMenuIcon} aria-hidden>
+                      👤
+                    </span>
+                    <span className={styles.profileMenuText}>Профиль</span>
+                  </Link>
                   <button
                     type="button"
                     className={`${styles.profileMenuItem} ${styles.profileMenuToggle}`}
