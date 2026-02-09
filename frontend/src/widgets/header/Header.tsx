@@ -12,32 +12,41 @@ import {
   useNavigate,
   useSearchParams
 } from 'react-router-dom';
+
 import { useCartStore } from '../../app/store/cartStore';
 import { useAuthStore } from '../../app/store/authStore';
 import { useProductBoardStore } from '../../app/store/productBoardStore';
 import { useHeaderMenuStore } from '../../app/store/headerMenuStore';
+
 import { useIsSeller } from '../../hooks/useIsSeller';
+
 import { HeaderAddress } from '../../shared/ui/address/HeaderAddress';
 import { Rating } from '../../shared/ui/Rating';
 import { Button } from '../../shared/ui/Button';
 import { HeaderActions } from './HeaderActions';
+
 import styles from '../layout/Layout.module.css';
 
 export const Header = () => {
   const addItem = useCartStore((state) => state.addItem);
   const user = useAuthStore((state) => state.user);
   const productBoard = useProductBoardStore((state) => state.product);
+
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
+
   const [searchValue, setSearchValue] = useState(searchParams.get('q') ?? '');
   const [isCategoriesHidden, setIsCategoriesHidden] = useState(false);
   const [categoriesHeight, setCategoriesHeight] = useState(0);
   const [productBoardHeight, setProductBoardHeight] = useState(0);
+
   const isProfileMenuOpen = useHeaderMenuStore((state) => state.isProfileMenuOpen);
   const openProfileMenu = useHeaderMenuStore((state) => state.openProfileMenu);
   const closeProfileMenu = useHeaderMenuStore((state) => state.closeProfileMenu);
+
   const { isSeller, shopId } = useIsSeller();
+
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window === 'undefined') {
       return 'dark';
@@ -45,9 +54,11 @@ export const Header = () => {
     const stored = window.localStorage.getItem('theme');
     return stored === 'light' ? 'light' : 'dark';
   });
+
   const categoriesRef = useRef<HTMLDivElement | null>(null);
   const productBoardRef = useRef<HTMLDivElement | null>(null);
   const scrollStateRef = useRef({ lastY: 0, acc: 0, ticking: false });
+
   const apiBaseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
   const resolveImageUrl = (url?: string | null) => {
     if (!url) return '';
@@ -75,35 +86,39 @@ export const Header = () => {
   }, [user?.email, user?.name]);
 
   const showCatalogHeader = location.pathname === '/catalog';
-const CONTENT_MAX = 1120; // твоя max-width контейнера
-const SIDE_PAD = 16;
 
-useEffect(() => {
-  if (!isProfileMenuOpen) return;
+  // Гаттер для меню профиля, чтобы оно “прилипало” к контейнеру
+  const CONTENT_MAX = 1120;
+  const SIDE_PAD = 16;
 
-  const updateGutter = () => {
-    const w = window.innerWidth;
-    const containerWidth = Math.min(CONTENT_MAX, w);
-    const gutter =
-      Math.max(SIDE_PAD, Math.floor((w - containerWidth) / 2) - SIDE_PAD);
+  useEffect(() => {
+    if (!isProfileMenuOpen) return;
 
-    document.documentElement.style.setProperty(
-      '--container-gutter',
-      `${gutter}px`
-    );
+    const updateGutter = () => {
+      const w = window.innerWidth;
+      const containerWidth = Math.min(CONTENT_MAX, w);
+      const gutter = Math.max(SIDE_PAD, Math.floor((w - containerWidth) / 2) - SIDE_PAD);
+
+      document.documentElement.style.setProperty('--container-gutter', `${gutter}px`);
+    };
+
+    updateGutter();
+    window.addEventListener('resize', updateGutter);
+    return () => window.removeEventListener('resize', updateGutter);
+  }, [isProfileMenuOpen]);
+
+  const isMobile =
+    typeof window !== 'undefined' &&
+    window.matchMedia('(max-width: 768px)').matches;
+
+  const openProfileMenuHandler = () => {
+    if (isMobile) return;
+    openProfileMenu();
   };
 
-  updateGutter();
-  window.addEventListener('resize', updateGutter);
-  return () => window.removeEventListener('resize', updateGutter);
-}, [isProfileMenuOpen]);
-const isMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches;
-const openProfileMenuHandler = () => {
-  if (isMobile) return;
-  openProfileMenu();
-};
   useLayoutEffect(() => {
     if (!categoriesRef.current && !productBoardRef.current) return;
+
     const updateHeight = () => {
       if (categoriesRef.current) {
         setCategoriesHeight(categoriesRef.current.offsetHeight);
@@ -112,14 +127,13 @@ const openProfileMenuHandler = () => {
         setProductBoardHeight(productBoardRef.current.offsetHeight);
       }
     };
+
     updateHeight();
     const observer = new ResizeObserver(updateHeight);
-    if (categoriesRef.current) {
-      observer.observe(categoriesRef.current);
-    }
-    if (productBoardRef.current) {
-      observer.observe(productBoardRef.current);
-    }
+
+    if (categoriesRef.current) observer.observe(categoriesRef.current);
+    if (productBoardRef.current) observer.observe(productBoardRef.current);
+
     return () => observer.disconnect();
   }, [location.pathname]);
 
@@ -131,19 +145,22 @@ const openProfileMenuHandler = () => {
 
   useEffect(() => {
     if (!isProfileMenuOpen) return;
+
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         closeProfileMenu();
       }
     };
+
     document.addEventListener('keydown', handleKeyDown);
     return () => {
       document.body.style.overflow = previousOverflow;
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isProfileMenuOpen]);
+  }, [isProfileMenuOpen, closeProfileMenu]);
 
   const isHome = location.pathname === '/';
   const isProductPage = /^\/product\/[^/]+$/.test(location.pathname);
@@ -155,24 +172,31 @@ const openProfileMenuHandler = () => {
       setIsCategoriesHidden(false);
       return;
     }
+
     const threshold = 12;
     scrollStateRef.current.lastY = window.scrollY;
     scrollStateRef.current.acc = 0;
+
     const handleScroll = () => {
       if (scrollStateRef.current.ticking) return;
       scrollStateRef.current.ticking = true;
+
       requestAnimationFrame(() => {
         const currentY = window.scrollY;
         const delta = currentY - scrollStateRef.current.lastY;
         scrollStateRef.current.lastY = currentY;
         scrollStateRef.current.ticking = false;
+
         if (Math.abs(delta) < 2) return;
+
         if (currentY <= 8) {
           scrollStateRef.current.acc = 0;
           setIsCategoriesHidden(false);
           return;
         }
+
         scrollStateRef.current.acc += delta;
+
         if (scrollStateRef.current.acc > threshold) {
           setIsCategoriesHidden(true);
           scrollStateRef.current.acc = 0;
@@ -182,6 +206,7 @@ const openProfileMenuHandler = () => {
         }
       });
     };
+
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, [hideOnScroll]);
@@ -198,23 +223,21 @@ const openProfileMenuHandler = () => {
   const handleSearchUpdate = (value: string) => {
     setSearchValue(value);
     if (location.pathname !== '/catalog') return;
+
     const params = new URLSearchParams(searchParams);
-    if (value) {
-      params.set('q', value);
-    } else {
-      params.delete('q');
-    }
+    if (value) params.set('q', value);
+    else params.delete('q');
+
     setSearchParams(params);
   };
 
   const handleSearchSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
     const params = new URLSearchParams(searchParams);
-    if (searchValue) {
-      params.set('q', searchValue);
-    } else {
-      params.delete('q');
-    }
+    if (searchValue) params.set('q', searchValue);
+    else params.delete('q');
+
     if (location.pathname === '/catalog') {
       setSearchParams(params);
     } else {
@@ -224,11 +247,15 @@ const openProfileMenuHandler = () => {
 
   const showProductBoard =
     isCategoriesHidden && (isProductPage || isReviewPage) && productBoard;
+
   const ratingValue = productBoard?.ratingAvg ?? 0;
   const ratingCount = productBoard?.ratingCount ?? 0;
+
   const categoriesBarHeight = categoriesHeight || productBoardHeight;
+
   const sellLink = isSeller ? '/seller' : '/seller/onboarding';
   const shopLink = shopId ? `/shop/${shopId}` : '';
+
   const handleLogout = () => {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('auth:logout'));
@@ -247,6 +274,7 @@ const openProfileMenuHandler = () => {
             Каталог
           </Link>
         </div>
+
         <form className={styles.search} onSubmit={handleSearchSubmit}>
           <input
             type="search"
@@ -258,13 +286,16 @@ const openProfileMenuHandler = () => {
             🔍
           </button>
         </form>
+
         <HeaderActions onProfileClick={openProfileMenuHandler} />
       </div>
+
       <div className={styles.mobileHeader}>
         <div className={styles.mobileTopRow}>
           <div className={styles.mobileAddress}>
             <HeaderAddress variant="compact" />
           </div>
+
           {user && (
             <button
               type="button"
@@ -276,6 +307,7 @@ const openProfileMenuHandler = () => {
             </button>
           )}
         </div>
+
         <div className={styles.mobileSearchRow}>
           <button
             type="button"
@@ -285,6 +317,7 @@ const openProfileMenuHandler = () => {
           >
             ☰
           </button>
+
           <form className={styles.mobileSearch} onSubmit={handleSearchSubmit}>
             <input
               type="search"
@@ -298,6 +331,7 @@ const openProfileMenuHandler = () => {
           </form>
         </div>
       </div>
+
       <div
         className={`${styles.categoriesWrap} ${isCategoriesHidden ? styles.categoriesWrapHidden : ''}`}
         style={{ maxHeight: `${isCategoriesHidden ? 0 : categoriesBarHeight}px` }}
@@ -307,7 +341,9 @@ const openProfileMenuHandler = () => {
             {showCatalogHeader && (
               <div
                 ref={categoriesRef}
-                className={`${styles.categoriesInner} ${isCategoriesHidden ? styles.categoriesInnerHidden : ''}`}
+                className={`${styles.categoriesInner} ${
+                  isCategoriesHidden ? styles.categoriesInnerHidden : ''
+                }`}
               >
                 <div className={styles.categoriesMeta}>
                   <div className={styles.categoriesTitle}>Категории</div>
@@ -315,15 +351,20 @@ const openProfileMenuHandler = () => {
                     <HeaderAddress variant="compact" />
                   </div>
                 </div>
+
                 <div id="catalog-category-buttons" />
+
                 <Link to={sellLink} className={styles.sellCta}>
                   {isSeller ? 'Кабинет продавца' : 'Продавайте на PrintForm'}
                 </Link>
               </div>
             )}
+
             <div
               ref={productBoardRef}
-              className={`${styles.productBoard} ${showProductBoard ? styles.productBoardVisible : ''}`}
+              className={`${styles.productBoard} ${
+                showProductBoard ? styles.productBoardVisible : ''
+              }`}
             >
               {productBoard && (
                 <>
@@ -341,6 +382,7 @@ const openProfileMenuHandler = () => {
                       </div>
                     </div>
                   </div>
+
                   <div className={styles.productBoardActions}>
                     <Button
                       onClick={() => {
@@ -351,6 +393,7 @@ const openProfileMenuHandler = () => {
                     >
                       Купить сейчас
                     </Button>
+
                     <Button
                       variant="secondary"
                       onClick={() => {
@@ -367,6 +410,7 @@ const openProfileMenuHandler = () => {
           </div>
         </div>
       </div>
+
       {isProfileMenuOpen && (
         <div
           className={styles.profileMenuOverlay}
@@ -389,14 +433,19 @@ const openProfileMenuHandler = () => {
                 ✕
               </button>
             </div>
+
             <div className={styles.profileMenuContent}>
               <nav className={styles.profileMenuList}>
                 <div className={styles.profileMenuSection}>
                   <div className={styles.profileMenuSectionLabel}>Покупки</div>
-                  
+
                   <Link
                     to="/orders"
-                    className={`${styles.profileMenuItem} ${location.pathname === '/orders' ? styles.profileMenuItemActive : ''}`}
+                    className={`${styles.profileMenuItem} ${
+                      location.pathname === '/orders'
+                        ? styles.profileMenuItemActive
+                        : ''
+                    }`}
                     onClick={closeProfileMenu}
                   >
                     <span className={styles.profileMenuIcon} aria-hidden>
@@ -404,10 +453,12 @@ const openProfileMenuHandler = () => {
                     </span>
                     <span className={styles.profileMenuText}>Заказы</span>
                   </Link>
+
                   <Link
                     to="/account?tab=purchases"
                     className={`${styles.profileMenuItem} ${
-                      location.pathname === '/account' && searchParams.get('tab') === 'purchases'
+                      location.pathname === '/account' &&
+                      searchParams.get('tab') === 'purchases'
                         ? styles.profileMenuItemActive
                         : ''
                     }`}
@@ -418,10 +469,12 @@ const openProfileMenuHandler = () => {
                     </span>
                     <span className={styles.profileMenuText}>Купленные товары</span>
                   </Link>
+
                   <Link
                     to="/account?tab=returns"
                     className={`${styles.profileMenuItem} ${
-                      location.pathname === '/account' && searchParams.get('tab') === 'returns'
+                      location.pathname === '/account' &&
+                      searchParams.get('tab') === 'returns'
                         ? styles.profileMenuItemActive
                         : ''
                     }`}
@@ -432,9 +485,14 @@ const openProfileMenuHandler = () => {
                     </span>
                     <span className={styles.profileMenuText}>Возвраты</span>
                   </Link>
+
                   <Link
                     to="/favorites"
-                    className={`${styles.profileMenuItem} ${location.pathname === '/favorites' ? styles.profileMenuItemActive : ''}`}
+                    className={`${styles.profileMenuItem} ${
+                      location.pathname === '/favorites'
+                        ? styles.profileMenuItemActive
+                        : ''
+                    }`}
                     onClick={closeProfileMenu}
                   >
                     <span className={styles.profileMenuIcon} aria-hidden>
@@ -443,13 +501,16 @@ const openProfileMenuHandler = () => {
                     <span className={styles.profileMenuText}>Избранные</span>
                   </Link>
                 </div>
+
                 <div className={styles.profileMenuSection}>
                   <div className={styles.profileMenuSectionLabel}>Настройки</div>
+
                   <Link
                     to="/account?tab=profile"
                     className={`${styles.profileMenuItem} ${
                       location.pathname === '/account' &&
-                      (!searchParams.get('tab') || searchParams.get('tab') === 'profile')
+                      (!searchParams.get('tab') ||
+                        searchParams.get('tab') === 'profile')
                         ? styles.profileMenuItemActive
                         : ''
                     }`}
@@ -460,10 +521,13 @@ const openProfileMenuHandler = () => {
                     </span>
                     <span className={styles.profileMenuText}>Профиль</span>
                   </Link>
+
                   <button
                     type="button"
                     className={`${styles.profileMenuItem} ${styles.profileMenuToggle}`}
-                    onClick={() => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))}
+                    onClick={() =>
+                      setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))
+                    }
                   >
                     <span className={styles.profileMenuIcon} aria-hidden>
                       🎨
@@ -473,22 +537,34 @@ const openProfileMenuHandler = () => {
                       {theme === 'light' ? 'Светлая' : 'Тёмная'}
                     </span>
                   </button>
+
                   {isSeller ? (
                     <>
                       <Link
                         to="/seller"
-                        className={`${styles.profileMenuItem} ${location.pathname.startsWith('/seller') ? styles.profileMenuItemActive : ''}`}
+                        className={`${styles.profileMenuItem} ${
+                          location.pathname.startsWith('/seller')
+                            ? styles.profileMenuItemActive
+                            : ''
+                        }`}
                         onClick={closeProfileMenu}
                       >
                         <span className={styles.profileMenuIcon} aria-hidden>
                           🧑‍💼
                         </span>
-                        <span className={styles.profileMenuText}>Профиль продавца</span>
+                        <span className={styles.profileMenuText}>
+                          Профиль продавца
+                        </span>
                       </Link>
+
                       {shopLink ? (
                         <Link
                           to={shopLink}
-                          className={`${styles.profileMenuItem} ${location.pathname.startsWith('/shop') ? styles.profileMenuItemActive : ''}`}
+                          className={`${styles.profileMenuItem} ${
+                            location.pathname.startsWith('/shop')
+                              ? styles.profileMenuItemActive
+                              : ''
+                          }`}
                           onClick={closeProfileMenu}
                         >
                           <span className={styles.profileMenuIcon} aria-hidden>
@@ -497,7 +573,9 @@ const openProfileMenuHandler = () => {
                           <span className={styles.profileMenuText}>Ваш магазин</span>
                         </Link>
                       ) : (
-                        <div className={`${styles.profileMenuItem} ${styles.profileMenuItemDisabled}`}>
+                        <div
+                          className={`${styles.profileMenuItem} ${styles.profileMenuItemDisabled}`}
+                        >
                           <span className={styles.profileMenuIcon} aria-hidden>
                             🏬
                           </span>
@@ -508,19 +586,27 @@ const openProfileMenuHandler = () => {
                   ) : (
                     <Link
                       to={sellLink}
-                      className={`${styles.profileMenuItem} ${location.pathname.startsWith('/seller') ? styles.profileMenuItemActive : ''}`}
+                      className={`${styles.profileMenuItem} ${
+                        location.pathname.startsWith('/seller')
+                          ? styles.profileMenuItemActive
+                          : ''
+                      }`}
                       onClick={closeProfileMenu}
                     >
                       <span className={styles.profileMenuIcon} aria-hidden>
                         🧑‍💼
                       </span>
-                      <span className={styles.profileMenuText}>Продавайте на PrintForm</span>
+                      <span className={styles.profileMenuText}>
+                        Продавайте на PrintForm
+                      </span>
                     </Link>
                   )}
+
                   <Link
                     to="/account?tab=chats"
                     className={`${styles.profileMenuItem} ${
-                      location.pathname === '/account' && searchParams.get('tab') === 'chats'
+                      location.pathname === '/account' &&
+                      searchParams.get('tab') === 'chats'
                         ? styles.profileMenuItemActive
                         : ''
                     }`}
@@ -529,12 +615,17 @@ const openProfileMenuHandler = () => {
                     <span className={styles.profileMenuIcon} aria-hidden>
                       💬
                     </span>
-                    <span className={styles.profileMenuText}>Чаты (наше с поддержкой и продавцом)</span>
+                    <span className={styles.profileMenuText}>
+                      Чаты (наше с поддержкой и продавцом)
+                    </span>
                   </Link>
+
                   <Link
                     to="/privacy-policy"
                     className={`${styles.profileMenuItem} ${
-                      location.pathname === '/privacy-policy' ? styles.profileMenuItemActive : ''
+                      location.pathname === '/privacy-policy'
+                        ? styles.profileMenuItemActive
+                        : ''
                     }`}
                     onClick={closeProfileMenu}
                   >
@@ -544,6 +635,7 @@ const openProfileMenuHandler = () => {
                     <span className={styles.profileMenuText}>О сервисе</span>
                   </Link>
                 </div>
+
                 <div className={styles.profileMenuSection}>
                   <button
                     type="button"
