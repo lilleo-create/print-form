@@ -5,7 +5,7 @@ import { api } from '../shared/api';
 import { ReturnRequest } from '../shared/types';
 import { Button } from '../shared/ui/Button';
 import { ReturnCandidatesList, ReturnCandidate } from '../components/returns/ReturnCandidatesList';
-import { ReturnCreateFlow } from '../components/returns/ReturnCreateFlow';
+import { ReturnCreateFlow, ReturnCreateStep } from '../components/returns/ReturnCreateFlow';
 import { ReturnList } from '../components/returns/ReturnList';
 import styles from './ReturnsPage.module.css';
 
@@ -29,6 +29,8 @@ export const ReturnsPage = () => {
   const [returnsLoading, setReturnsLoading] = useState(false);
   const [returnsError, setReturnsError] = useState<string | null>(null);
   const [selectedCandidate, setSelectedCandidate] = useState<ReturnCandidate | null>(null);
+  const [isCreateFlowOpen, setIsCreateFlowOpen] = useState(false);
+  const [createStep, setCreateStep] = useState<ReturnCreateStep>('select');
 
   const loadReturns = () => {
     if (!user) return Promise.resolve();
@@ -91,6 +93,45 @@ export const ReturnsPage = () => {
     approvedOrderItemIds
   );
 
+  const openCreateFlow = (candidate?: ReturnCandidate | null) => {
+    if (candidate) {
+      setSelectedCandidate(candidate);
+      setCreateStep('form');
+    } else {
+      setSelectedCandidate(null);
+      setCreateStep('select');
+    }
+    setIsCreateFlowOpen(true);
+  };
+
+  const closeCreateFlow = () => {
+    setIsCreateFlowOpen(false);
+    setSelectedCandidate(null);
+    setCreateStep('select');
+  };
+
+  const handleBack = () => {
+    if (createStep === 'form') {
+      setCreateStep('select');
+      return;
+    }
+    closeCreateFlow();
+  };
+
+  const stepLabel = (() => {
+    switch (createStep) {
+      case 'select':
+        return 'Шаг 1 из 3';
+      case 'form':
+        return 'Шаг 2 из 3';
+      case 'success':
+      case 'exists':
+        return 'Шаг 3 из 3';
+      default:
+        return '';
+    }
+  })();
+
   if (!user) {
     return (
       <section className={styles.page}>
@@ -105,39 +146,57 @@ export const ReturnsPage = () => {
     <section className={styles.page}>
       <div className="container">
         <div className={styles.header}>
-          <h1>Возвраты</h1>
-        </div>
-        <div className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <h2>Товары для возврата</h2>
-          </div>
-          <ReturnCandidatesList
-            items={filteredCandidates}
-            returnsByOrderItemId={returnsByOrderItemId}
-            onCreate={(item) => setSelectedCandidate(item)}
-          />
-          {selectedCandidate && (
-            <ReturnCreateFlow
-              items={filteredCandidates}
-              initialSelectedId={selectedCandidate.orderItemId}
-              onCreated={async () => {
-                await loadReturns();
-                setSelectedCandidate(null);
-              }}
-              onReturnToList={() => setSelectedCandidate(null)}
-            />
+          {isCreateFlowOpen ? (
+            <div className={styles.flowHeader}>
+              <button type="button" className={styles.backButton} onClick={handleBack}>
+                ← Назад
+              </button>
+              <span className={styles.flowTitle}>Оформление возврата · {stepLabel}</span>
+            </div>
+          ) : (
+            <>
+              <h1>Возвраты</h1>
+              <Button type="button" onClick={() => openCreateFlow()}>
+                Вернуть товар
+              </Button>
+            </>
           )}
         </div>
+        {isCreateFlowOpen ? (
+          <ReturnCreateFlow
+            items={filteredCandidates}
+            initialSelectedId={selectedCandidate?.orderItemId ?? null}
+            step={createStep}
+            onStepChange={setCreateStep}
+            onCreated={async () => {
+              await loadReturns();
+            }}
+            onReturnToList={closeCreateFlow}
+          />
+        ) : (
+          <>
+            <div className={styles.section}>
+              <div className={styles.sectionHeader}>
+                <h2>Товары для возврата</h2>
+              </div>
+              <ReturnCandidatesList
+                items={filteredCandidates}
+                returnsByOrderItemId={returnsByOrderItemId}
+                onCreate={(item) => openCreateFlow(item)}
+              />
+            </div>
 
-        <div className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <h2>Мои заявки</h2>
-            <Button type="button" variant="secondary" onClick={() => loadReturns()}>
-              Обновить
-            </Button>
-          </div>
-          <ReturnList items={returns} isLoading={returnsLoading} error={returnsError} />
-        </div>
+            <div className={styles.section}>
+              <div className={styles.sectionHeader}>
+                <h2>Мои заявки</h2>
+                <Button type="button" variant="secondary" onClick={() => loadReturns()}>
+                  Обновить
+                </Button>
+              </div>
+              <ReturnList items={returns} isLoading={returnsLoading} error={returnsError} />
+            </div>
+          </>
+        )}
       </div>
     </section>
   );
