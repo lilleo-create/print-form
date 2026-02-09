@@ -115,9 +115,6 @@ export const BuyerAccountPage = () => {
               </div>
             ) : (
               <>
-                <Link to="/account?tab=profile" className={styles.backLink}>
-                  Назад в аккаунт
-                </Link>
                 <div className={styles.pageHeading}>
                   <h1>{pageTitle}</h1>
                   {isReturns && (

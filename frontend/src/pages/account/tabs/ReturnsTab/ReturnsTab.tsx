@@ -68,16 +68,6 @@ export const ReturnsTab = ({
         <>
           <div className={styles.sectionBlock}>
             <div className={styles.sectionHeader}>
-              <h2>Товары для возврата</h2>
-            </div>
-            <ReturnCandidatesList
-              items={filteredCandidates}
-              returnsByOrderItemId={returnsByOrderItemId}
-              onCreate={onOpenFromItem}
-            />
-          </div>
-          <div className={styles.sectionBlock}>
-            <div className={styles.sectionHeader}>
               <h2>Мои заявки</h2>
             </div>
             <ReturnList items={returns} isLoading={isLoading} error={error} />
