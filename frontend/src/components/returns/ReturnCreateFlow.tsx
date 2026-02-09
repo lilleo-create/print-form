@@ -11,14 +11,16 @@ import { ReturnPhotoUploader } from './ReturnPhotoUploader';
 import { StickyActionBar } from './StickyActionBar';
 import styles from './ReturnCreateFlow.module.css';
 
+export type ReturnCreateStep = 'select' | 'form' | 'success' | 'exists';
+
 interface ReturnCreateFlowProps {
   items: ReturnCandidate[];
   initialSelectedId?: string | null;
+  step?: ReturnCreateStep;
+  onStepChange?: (step: ReturnCreateStep) => void;
   onCreated?: () => void;
   onReturnToList?: () => void;
 }
-
-type Step = 'select' | 'form' | 'success' | 'exists';
 
 type FieldErrors = {
   comment?: string;
@@ -33,11 +35,13 @@ const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
 export const ReturnCreateFlow = ({
   items,
   initialSelectedId,
+  step: stepProp,
+  onStepChange,
   onCreated,
   onReturnToList
 }: ReturnCreateFlowProps) => {
   const navigate = useNavigate();
-  const [step, setStep] = useState<Step>(initialSelectedId ? 'form' : 'select');
+  const [internalStep, setInternalStep] = useState<ReturnCreateStep>(initialSelectedId ? 'form' : 'select');
   const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId ?? null);
   const [reason, setReason] = useState<ReturnReason>('NOT_FIT');
   const [comment, setComment] = useState('');
@@ -54,11 +58,25 @@ export const ReturnCreateFlow = ({
   );
   const summaryImage = selectedItem ? resolveImageUrl(selectedItem.image) : '';
 
+  const step = stepProp ?? internalStep;
+  const isStepControlled = stepProp !== undefined;
+  const setStepState = (nextStep: ReturnCreateStep) => {
+    if (isStepControlled) {
+      onStepChange?.(nextStep);
+    } else {
+      setInternalStep(nextStep);
+    }
+  };
+
   useEffect(() => {
     if (!initialSelectedId) return;
     setSelectedId(initialSelectedId);
-    setStep('form');
-  }, [initialSelectedId]);
+    if (isStepControlled) {
+      onStepChange?.('form');
+    } else {
+      setInternalStep('form');
+    }
+  }, [initialSelectedId, isStepControlled, onStepChange]);
 
   useEffect(() => {
     setShowErrors(false);
@@ -106,7 +124,7 @@ export const ReturnCreateFlow = ({
 
   const handleContinue = () => {
     if (!selectedId) return;
-    setStep('form');
+    setStepState('form');
   };
 
   const handleSubmit = async () => {
@@ -157,12 +175,12 @@ export const ReturnCreateFlow = ({
         photosUrls
       });
       setCreatedThreadId(response.data?.chatThread?.id ?? null);
-      setStep('success');
+      setStepState('success');
       onCreated?.();
     } catch (error) {
       const normalized = normalizeApiError(error);
       if (normalized.code === 'RETURN_ALREADY_EXISTS') {
-        setStep('exists');
+        setStepState('exists');
         return;
       }
       if (normalized.code === 'ORDER_ITEM_NOT_FOUND') {
@@ -241,7 +259,7 @@ export const ReturnCreateFlow = ({
     <div className={styles.flow}>
       {step === 'select' && (
         <>
-          <h3>Выберите товар для возврата</h3>
+          <h3>Что хотите вернуть?</h3>
           <div className={styles.list}>
             {items.map((item) => {
               const imageSrc = resolveImageUrl(item.image);
@@ -281,9 +299,16 @@ export const ReturnCreateFlow = ({
               );
             })}
           </div>
-          <Button type="button" onClick={handleContinue} disabled={!selectedId}>
-            Продолжить
-          </Button>
+          <StickyActionBar>
+            {selectedId && (
+              <Button type="button" onClick={handleContinue}>
+                Продолжить
+              </Button>
+            )}
+            <Button type="button" variant="secondary" onClick={onReturnToList}>
+              Отмена
+            </Button>
+          </StickyActionBar>
         </>
       )}
 
