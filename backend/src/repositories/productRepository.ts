@@ -23,23 +23,32 @@ export interface ProductInput {
 
 export const productRepository = {
   findMany: (filters: {
+    shopId?: string;
+    query?: string;
     category?: string;
     material?: string;
     size?: string;
     minPrice?: number;
     maxPrice?: number;
-    sort?: 'createdAt' | 'rating';
+    sort?: 'createdAt' | 'rating' | 'price';
     order?: 'asc' | 'desc';
     page?: number;
     limit?: number;
   }) => {
-    const sortField = filters.sort === 'rating' ? 'ratingAvg' : 'createdAt';
+    const sortField = filters.sort === 'rating' ? 'ratingAvg' : filters.sort === 'price' ? 'price' : 'createdAt';
     const orderBy = { [sortField]: filters.order ?? 'desc' } as const;
     const page = filters.page && filters.page > 0 ? filters.page : 1;
     const limit = filters.limit && filters.limit > 0 ? filters.limit : 12;
     const skip = (page - 1) * limit;
     return prisma.product.findMany({
       where: {
+        sellerId: filters.shopId,
+        title: filters.query
+          ? {
+              contains: filters.query,
+              mode: 'insensitive'
+            }
+          : undefined,
         category: filters.category,
         material: filters.material,
         size: filters.size,

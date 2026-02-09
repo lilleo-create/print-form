@@ -198,6 +198,8 @@ export interface Contact {
   createdAt: string;
 }
 
+export type { Shop, ShopLegalInfo } from './shop';
+
 export interface Address {
   id: string;
   userId: string;

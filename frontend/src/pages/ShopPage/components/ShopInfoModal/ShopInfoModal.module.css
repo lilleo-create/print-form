@@ -1,0 +1,76 @@
+.modal {
+  width: min(520px, 90vw);
+  background: var(--bg-2);
+  color: var(--text);
+  padding: 24px;
+  border-radius: 20px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.close {
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.metrics {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.metricValue {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.metricLabel {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.legal {
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+  margin-bottom: 20px;
+}
+
+.legalTitle {
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.legalList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.legalList li {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 14px;
+}
+
+.legalEmpty {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}

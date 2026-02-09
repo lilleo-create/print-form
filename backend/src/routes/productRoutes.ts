@@ -20,12 +20,14 @@ const mediaUrlSchema = z.string().refine((value) => {
 });
 
 const listSchema = z.object({
+  shopId: z.string().optional(),
+  q: z.string().optional(),
   category: z.string().optional(),
   material: z.string().optional(),
   size: z.string().optional(),
   minPrice: z.coerce.number().optional(),
   maxPrice: z.coerce.number().optional(),
-  sort: z.enum(['createdAt', 'rating']).optional(),
+  sort: z.enum(['createdAt', 'rating', 'price']).optional(),
   order: z.enum(['asc', 'desc']).optional(),
   page: z.coerce.number().int().positive().optional(),
   limit: z.coerce.number().int().positive().optional()
@@ -35,6 +37,8 @@ productRoutes.get('/', publicReadLimiter, async (req, res, next) => {
   try {
     const params = listSchema.parse(req.query);
     const products = await productUseCases.list({
+      shopId: params.shopId,
+      query: params.q,
       category: params.category,
       material: params.material,
       size: params.size,
