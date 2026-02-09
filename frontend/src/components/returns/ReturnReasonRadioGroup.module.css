@@ -4,19 +4,28 @@
 }
 
 .option {
-  display: flex;
+  display: grid;
+  grid-template-columns: 18px 1fr; /* радио + текст */
   align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  padding: 10px 12px;
-  border-radius: var(--radius-control);
-  border: 1px solid var(--border);
-  background: var(--bg-2);
+  column-gap: 12px;
+
   cursor: pointer;
+  user-select: none;
+  width: 100%;
 }
 
 .option input {
   width: 18px;
   height: 18px;
+  margin: 0;
   accent-color: var(--primary);
+
+  justify-self: start; /* прибить влево */
+}
+
+.label {
+  justify-self: start; /* текст тоже влево */
+  text-align: left;
+  line-height: 1.4;
+  font-size: 14px;
 }

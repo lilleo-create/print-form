@@ -1,3 +1,4 @@
+// frontend/src/components/returns/ReturnCreateFlow.tsx
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../shared/api';
@@ -16,8 +17,11 @@ export type ReturnCreateStep = 'select' | 'form' | 'success' | 'exists';
 interface ReturnCreateFlowProps {
   items: ReturnCandidate[];
   initialSelectedId?: string | null;
+
+  // controlled step (optional)
   step?: ReturnCreateStep;
   onStepChange?: (step: ReturnCreateStep) => void;
+
   onCreated?: () => void;
   onReturnToList?: () => void;
 }
@@ -41,7 +45,20 @@ export const ReturnCreateFlow = ({
   onReturnToList
 }: ReturnCreateFlowProps) => {
   const navigate = useNavigate();
-  const [internalStep, setInternalStep] = useState<ReturnCreateStep>(initialSelectedId ? 'form' : 'select');
+
+  // internal step (for uncontrolled mode)
+  const [internalStep, setInternalStep] = useState<ReturnCreateStep>(
+    initialSelectedId ? 'form' : 'select'
+  );
+
+  const isStepControlled = stepProp !== undefined;
+  const step: ReturnCreateStep = stepProp ?? internalStep;
+
+  const setStep = (next: ReturnCreateStep) => {
+    if (isStepControlled) onStepChange?.(next);
+    else setInternalStep(next);
+  };
+
   const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId ?? null);
   const [reason, setReason] = useState<ReturnReason>('NOT_FIT');
   const [comment, setComment] = useState('');
@@ -56,28 +73,18 @@ export const ReturnCreateFlow = ({
     () => items.find((item) => item.orderItemId === selectedId) ?? null,
     [items, selectedId]
   );
+
   const summaryImage = selectedItem ? resolveImageUrl(selectedItem.image) : '';
 
-  const step = stepProp ?? internalStep;
-  const isStepControlled = stepProp !== undefined;
-  const setStepState = (nextStep: ReturnCreateStep) => {
-    if (isStepControlled) {
-      onStepChange?.(nextStep);
-    } else {
-      setInternalStep(nextStep);
-    }
-  };
-
+  // if we came with initialSelectedId: auto-open form
   useEffect(() => {
     if (!initialSelectedId) return;
     setSelectedId(initialSelectedId);
-    if (isStepControlled) {
-      onStepChange?.('form');
-    } else {
-      setInternalStep('form');
-    }
-  }, [initialSelectedId, isStepControlled, onStepChange]);
+    setStep('form');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialSelectedId]);
 
+  // when changing selected product: reset form fields
   useEffect(() => {
     setShowErrors(false);
     setFieldErrors({});
@@ -90,15 +97,18 @@ export const ReturnCreateFlow = ({
 
   const validateForm = (): FieldErrors => {
     const errors: FieldErrors = {};
+
     if (!reason) {
       errors.reason = 'Выберите причину возврата';
     }
+
     const trimmed = comment.trim();
     if (trimmed.length < 5) {
       errors.comment = 'Опишите проблему, минимум 5 символов';
     } else if (trimmed.length > 2000) {
       errors.comment = 'Комментарий не должен превышать 2000 символов';
     }
+
     if (files.length > MAX_FILES) {
       errors.photos = 'Можно добавить не больше 10 фото';
     } else {
@@ -111,6 +121,7 @@ export const ReturnCreateFlow = ({
         errors.photos = 'Файл слишком большой. Максимум 10 МБ';
       }
     }
+
     return errors;
   };
 
@@ -124,43 +135,44 @@ export const ReturnCreateFlow = ({
 
   const handleContinue = () => {
     if (!selectedId) return;
-    setStepState('form');
+    setStep('form');
   };
 
   const handleSubmit = async () => {
     if (!selectedItem) return;
+
     setShowErrors(true);
     const nextErrors = validateForm();
     setFieldErrors(nextErrors);
-    if (Object.keys(nextErrors).length > 0) {
-      return;
-    }
+
+    if (Object.keys(nextErrors).length > 0) return;
+
     setSubmitting(true);
     setFormError(null);
+
     try {
       let photosUrls: string[] = [];
+
       if (files.length > 0) {
         try {
           const uploadResponse = await api.returns.uploadPhotos(files);
           photosUrls = uploadResponse.data.urls ?? [];
         } catch (uploadError) {
           const normalizedUpload = normalizeApiError(uploadError);
+
           if (normalizedUpload.code === 'RETURN_UPLOAD_FILE_TYPE_INVALID') {
-            setShowErrors(true);
             setFieldErrors((prev) => ({ ...prev, photos: 'Неподдерживаемый формат. Только JPG/PNG/WebP' }));
             return;
           }
           if (normalizedUpload.code === 'RETURN_UPLOAD_FILE_TOO_LARGE') {
-            setShowErrors(true);
             setFieldErrors((prev) => ({ ...prev, photos: 'Файл слишком большой. Максимум 10 МБ' }));
             return;
           }
           if (normalizedUpload.code === 'RETURN_UPLOAD_TOO_MANY_FILES') {
-            setShowErrors(true);
             setFieldErrors((prev) => ({ ...prev, photos: 'Можно добавить не больше 10 фото' }));
             return;
           }
-          setShowErrors(true);
+
           setFieldErrors((prev) => ({
             ...prev,
             photos: 'Не удалось загрузить фото. Проверьте интернет и попробуйте ещё раз'
@@ -168,19 +180,22 @@ export const ReturnCreateFlow = ({
           return;
         }
       }
+
       const response = await api.returns.create({
         orderItemId: selectedItem.orderItemId,
         reason,
         comment: comment.trim(),
         photosUrls
       });
+
       setCreatedThreadId(response.data?.chatThread?.id ?? null);
-      setStepState('success');
+      setStep('success');
       onCreated?.();
     } catch (error) {
       const normalized = normalizeApiError(error);
+
       if (normalized.code === 'RETURN_ALREADY_EXISTS') {
-        setStepState('exists');
+        setStep('exists');
         return;
       }
       if (normalized.code === 'ORDER_ITEM_NOT_FOUND') {
@@ -194,19 +209,15 @@ export const ReturnCreateFlow = ({
       if (normalized.code === 'VALIDATION_ERROR' && normalized.issues?.length) {
         const next: FieldErrors = {};
         normalized.issues.forEach((issue) => {
-          if (issue.path.includes('comment')) {
-            next.comment = issue.message;
-          } else if (issue.path.includes('reason')) {
-            next.reason = issue.message;
-          } else if (issue.path.includes('photosUrls')) {
-            next.photos = issue.message;
-          }
+          if (issue.path.includes('comment')) next.comment = issue.message;
+          else if (issue.path.includes('reason')) next.reason = issue.message;
+          else if (issue.path.includes('photosUrls')) next.photos = issue.message;
         });
-        setShowErrors(true);
         setFieldErrors(next);
         setFormError('Проверьте поля формы');
         return;
       }
+
       setFormError('Не удалось отправить заявку. Попробуйте ещё раз');
     } finally {
       setSubmitting(false);
@@ -260,9 +271,11 @@ export const ReturnCreateFlow = ({
       {step === 'select' && (
         <>
           <h3>Что хотите вернуть?</h3>
+
           <div className={styles.list}>
             {items.map((item) => {
               const imageSrc = resolveImageUrl(item.image);
+
               return (
                 <label
                   key={item.orderItemId}
@@ -274,6 +287,7 @@ export const ReturnCreateFlow = ({
                     ) : (
                       <span className={styles.imagePlaceholder} aria-hidden="true" />
                     )}
+
                     <span className={styles.cardText}>
                       <span className={styles.caption}>
                         Заказ от{' '}
@@ -287,6 +301,7 @@ export const ReturnCreateFlow = ({
                       <span className={styles.cardPrice}>{item.price.toLocaleString('ru-RU')} ₽</span>
                     </span>
                   </span>
+
                   <input
                     className={styles.cardRadio}
                     type="radio"
@@ -299,6 +314,7 @@ export const ReturnCreateFlow = ({
               );
             })}
           </div>
+
           <StickyActionBar>
             {selectedId && (
               <Button type="button" onClick={handleContinue}>
@@ -315,22 +331,26 @@ export const ReturnCreateFlow = ({
       {step === 'form' && selectedItem && (
         <>
           <h3>Оформление возврата</h3>
+
           <div className={styles.summary}>
             {summaryImage ? (
               <img className={styles.summaryImage} src={summaryImage} alt={selectedItem.title} />
             ) : (
               <div className={styles.imagePlaceholder} aria-hidden="true" />
             )}
+
             <div>
               <strong>{selectedItem.title}</strong>
               <p>{selectedItem.price.toLocaleString('ru-RU')} ₽</p>
             </div>
           </div>
+
           <div className={styles.section}>
             <p className={styles.label}>Причина возврата</p>
             <ReturnReasonRadioGroup value={reason} onChange={setReason} />
             {showErrors && fieldErrors.reason && <p className={styles.error}>{fieldErrors.reason}</p>}
           </div>
+
           <div className={styles.section}>
             <p className={styles.label}>Комментарий</p>
             <textarea
@@ -340,13 +360,14 @@ export const ReturnCreateFlow = ({
             />
             {showErrors && fieldErrors.comment && <p className={styles.error}>{fieldErrors.comment}</p>}
           </div>
+
           <div className={styles.section}>
-            <p className={styles.label}>
-              Сделайте фото в хорошем качестве, по которым можно оценить состояние товара
-            </p>
+            <p className={styles.label}>Сделайте фото в хорошем качестве, по которым можно оценить состояние товара</p>
             <ReturnPhotoUploader files={files} onChange={setFiles} error={fieldErrors.photos} />
           </div>
+
           {formError && <p className={styles.error}>{formError}</p>}
+
           <StickyActionBar>
             <Button type="button" onClick={handleSubmit} disabled={submitting || !isFormValid}>
               Продолжить

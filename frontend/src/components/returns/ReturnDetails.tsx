@@ -18,6 +18,7 @@ const formatDate = (value?: string) => {
   });
 };
 
+
 export const ReturnDetails = ({ request }: ReturnDetailsProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const requestItems = request.items ?? [];

@@ -12,7 +12,10 @@ const options: { value: ReturnReason; label: string }[] = [
   { value: 'WRONG_ITEM', label: 'Привезли не то' }
 ];
 
-export const ReturnReasonRadioGroup = ({ value, onChange }: ReturnReasonRadioGroupProps) => {
+export const ReturnReasonRadioGroup = ({
+  value,
+  onChange
+}: ReturnReasonRadioGroupProps) => {
   return (
     <div className={styles.group}>
       {options.map((option) => (
@@ -24,7 +27,7 @@ export const ReturnReasonRadioGroup = ({ value, onChange }: ReturnReasonRadioGro
             checked={value === option.value}
             onChange={() => onChange(option.value)}
           />
-          <span>{option.label}</span>
+          <span className={styles.label}>{option.label}</span>
         </label>
       ))}
     </div>

@@ -9,7 +9,7 @@ export const PHOTO = {
 
 export const photoFileSchema = z
   .custom<File>((v) => typeof File !== 'undefined' && v instanceof File, {
-    message: 'Файл не выбран'
+    message: 'Добавить фото'
   })
   .refine((f) => PHOTO.allowedMime.includes(f.type as any), {
     message: 'Разрешены только JPG/PNG/WEBP'
