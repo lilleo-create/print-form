@@ -1,0 +1,66 @@
+.section {
+  display: grid;
+  gap: 10px;
+}
+
+.title {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 10px;
+}
+
+.thumbButton {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0;
+  background: var(--card);
+  overflow: hidden;
+  cursor: pointer;
+  aspect-ratio: 1 / 1;
+  display: grid;
+  place-items: center;
+}
+
+.thumbButton img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.thumbFallback {
+  padding: 8px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.modal {
+  max-width: 680px;
+  width: 90vw;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.modalContent {
+  display: grid;
+  place-items: center;
+}
+
+.modalContent img {
+  max-width: 90vw;
+  max-height: 80vh;
+  border-radius: 16px;
+}
+
+.modalFallback {
+  padding: 24px;
+  background: var(--card);
+  border-radius: 16px;
+  border: 1px solid var(--border);
+}
