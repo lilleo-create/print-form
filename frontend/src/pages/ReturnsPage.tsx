@@ -25,9 +25,11 @@ export const ReturnsPage = () => {
   const user = useAuthStore((state) => state.user);
   const orders = useOrdersStore((state) => state.orders);
   const loadBuyerOrders = useOrdersStore((state) => state.loadBuyerOrders);
+
   const [returns, setReturns] = useState<ReturnRequest[]>([]);
   const [returnsLoading, setReturnsLoading] = useState(false);
   const [returnsError, setReturnsError] = useState<string | null>(null);
+
   const [selectedCandidate, setSelectedCandidate] = useState<ReturnCandidate | null>(null);
   const [isCreateFlowOpen, setIsCreateFlowOpen] = useState(false);
   const [createStep, setCreateStep] = useState<ReturnCreateStep>('select');
@@ -47,9 +49,7 @@ export const ReturnsPage = () => {
   };
 
   useEffect(() => {
-    if (user) {
-      loadBuyerOrders(user);
-    }
+    if (user) loadBuyerOrders(user);
   }, [loadBuyerOrders, user]);
 
   useEffect(() => {
@@ -87,21 +87,19 @@ export const ReturnsPage = () => {
       .flatMap((request) => (request.items ?? []).map((item) => item.orderItemId))
   );
 
-  const filteredCandidates = filterReturnCandidates(
-    returnCandidates,
-    returnsByOrderItemId,
-    approvedOrderItemIds
-  );
+  const filteredCandidates = filterReturnCandidates(returnCandidates, returnsByOrderItemId, approvedOrderItemIds);
 
   const openCreateFlow = (candidate?: ReturnCandidate | null) => {
+    setIsCreateFlowOpen(true);
+
     if (candidate) {
       setSelectedCandidate(candidate);
-      setCreateStep('form');
-    } else {
-      setSelectedCandidate(null);
-      setCreateStep('select');
+      setCreateStep('form'); // если нажали "вернуть" на конкретном товаре
+      return;
     }
-    setIsCreateFlowOpen(true);
+
+    setSelectedCandidate(null);
+    setCreateStep('select'); // если открыли по кнопке "Вернуть товар"
   };
 
   const closeCreateFlow = () => {
@@ -162,6 +160,7 @@ export const ReturnsPage = () => {
             </>
           )}
         </div>
+
         {isCreateFlowOpen ? (
           <ReturnCreateFlow
             items={filteredCandidates}
