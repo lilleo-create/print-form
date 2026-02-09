@@ -11,8 +11,15 @@ interface ReturnPhotoUploaderProps {
   error?: string | null;
 }
 
-export const ReturnPhotoUploader = ({ files, onChange, error }: ReturnPhotoUploaderProps) => {
-  const previews = useMemo(() => files.map((file) => URL.createObjectURL(file)), [files]);
+export const ReturnPhotoUploader = ({
+  files,
+  onChange,
+  error
+}: ReturnPhotoUploaderProps) => {
+  const previews = useMemo(
+    () => files.map((file) => URL.createObjectURL(file)),
+    [files]
+  );
   const [localError, setLocalError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -40,7 +47,11 @@ export const ReturnPhotoUploader = ({ files, onChange, error }: ReturnPhotoUploa
       }
       next.push(file);
     }
-    setLocalError(errors.length ? `${errors.length} файла(ов) не добавлены: ${errors.join('; ')}` : null);
+    setLocalError(
+      errors.length
+        ? `${errors.length} файла(ов) не добавлены: ${errors.join('; ')}`
+        : null
+    );
     onChange(next);
   };
 
@@ -52,13 +63,19 @@ export const ReturnPhotoUploader = ({ files, onChange, error }: ReturnPhotoUploa
   return (
     <div className={styles.root}>
       <input
+        id="return-photos"
         type="file"
         accept="image/jpeg,image/png,image/webp"
         multiple
+        className={styles.input}
         onChange={(event) => handleFiles(event.target.files)}
       />
-      <p className={styles.helper}>Максимум 10 файлов, jpg/png/webp, до 10MB каждый.</p>
-      {(error || localError) && <p className={styles.error}>{error ?? localError}</p>}
+      <p className={styles.helper}>
+        Максимум 10 файлов, jpg/png/webp, до 10MB каждый.
+      </p>
+      {(error || localError) && (
+        <p className={styles.error}>{error ?? localError}</p>
+      )}
       {files.length > 0 && (
         <div className={styles.grid}>
           {files.map((file, index) => (

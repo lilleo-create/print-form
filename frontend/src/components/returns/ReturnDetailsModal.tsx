@@ -24,6 +24,9 @@ export const ReturnDetailsModal = ({ request, onClose }: ReturnDetailsModalProps
   }, [request?.chatThread?.id]);
 
   if (!request) return null;
+console.log('RETURN REQUEST (details)', request);
+console.log('RETURN PHOTOS request.photos', request.photos);
+console.log('RETURN PHOTOS request.photosUrls', (request as any).photosUrls);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} className={styles.modal}>
