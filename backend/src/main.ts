@@ -18,6 +18,7 @@ import { paymentRoutes } from "./routes/paymentRoutes";
 import { returnRoutes } from "./routes/returnRoutes";
 import { chatRoutes } from "./routes/chatRoutes";
 import { adminChatRoutes } from "./routes/adminChatRoutes";
+import { shopRoutes } from "./routes/shopRoutes";
 import { errorHandler } from "./middleware/errorHandler";
 import { globalLimiter } from "./middleware/rateLimiters";
 import { clientDisconnect } from "./middleware/clientDisconnect";
@@ -73,6 +74,7 @@ app.get("/health", (_req, res) => res.json({ status: "ok", build: "server-2026-0
 
 app.use("/auth", authRoutes);
 app.use("/products", productRoutes);
+app.use("/shops", shopRoutes);
 app.use("/orders", orderRoutes);
 app.use("/custom-requests", customRequestRoutes);
 app.use("/seller", sellerRoutes);

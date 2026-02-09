@@ -23,6 +23,7 @@ import { AdminChatsPage } from './pages/admin/AdminChatsPage';
 import { FavoritesPage } from './pages/FavoritesPage';
 import { ReturnsPage } from './pages/ReturnsPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
+import { ShopPage } from './pages/ShopPage/ShopPage';
 
 const App = () => {
   return (
@@ -34,6 +35,7 @@ const App = () => {
       >
         <Route path="/" element={<LandingPage />} />
         <Route path="/catalog" element={<CatalogPage />} />
+        <Route path="/shop/:shopId" element={<ShopPage />} />
         <Route path="/product/:id" element={<ProductPage />} />
         <Route path="/product/:id/reviews" element={<ProductReviewsPage />} />
         <Route path="/categories" element={<CategoriesPage />} />

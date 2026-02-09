@@ -2,12 +2,14 @@ import { productRepository } from '../repositories/productRepository';
 
 export const productUseCases = {
   list: (filters: {
+    shopId?: string;
+    query?: string;
     category?: string;
     material?: string;
     size?: string;
     minPrice?: number;
     maxPrice?: number;
-    sort?: 'createdAt' | 'rating';
+    sort?: 'createdAt' | 'rating' | 'price';
     order?: 'asc' | 'desc';
     page?: number;
     limit?: number;
