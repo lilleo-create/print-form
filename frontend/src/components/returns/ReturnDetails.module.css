@@ -1,0 +1,117 @@
+.details {
+  display: grid;
+  gap: 16px;
+}
+
+.product {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border-radius: 16px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+}
+
+.productImage,
+.imagePlaceholder {
+  width: 84px;
+  height: 84px;
+  flex-shrink: 0;
+  border-radius: 12px;
+}
+
+.productImage {
+  object-fit: cover;
+}
+
+.imagePlaceholder {
+  background: var(--card);
+  border: 1px solid var(--border);
+}
+
+.productInfo {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.productTitle {
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.productMeta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+
+.productPrice {
+  font-weight: 600;
+}
+
+.productQuantity {
+  color: var(--muted);
+}
+
+.info {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  padding: 12px;
+  border-radius: 16px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+}
+
+.label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.value {
+  font-weight: 600;
+}
+
+.expandButton {
+  align-self: flex-start;
+  border: none;
+  background: none;
+  color: var(--primary);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.expanded {
+  display: grid;
+  gap: 16px;
+  padding: 12px;
+  border-radius: 16px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+}
+
+.detailList {
+  display: grid;
+  gap: 10px;
+}
+
+.detailRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.detailLabel {
+  color: var(--muted);
+}
+
+.detailValue {
+  text-align: right;
+  max-width: 70%;
+}

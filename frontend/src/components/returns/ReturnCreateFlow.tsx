@@ -8,6 +8,7 @@ import { Button } from '../../shared/ui/Button';
 import { ReturnCandidate } from './ReturnCandidatesList';
 import { ReturnReasonRadioGroup } from './ReturnReasonRadioGroup';
 import { ReturnPhotoUploader } from './ReturnPhotoUploader';
+import { StickyActionBar } from './StickyActionBar';
 import styles from './ReturnCreateFlow.module.css';
 
 interface ReturnCreateFlowProps {
@@ -203,17 +204,16 @@ export const ReturnCreateFlow = ({
       <div className={styles.success}>
         <h3>Заявка создана</h3>
         <div className={styles.successActions}>
-          <Button type="button" onClick={onReturnToList}>
-            Перейти на страницу возвратов
-          </Button>
           <Button
             type="button"
-            variant="secondary"
             onClick={() =>
               navigate(`/account?tab=chats${createdThreadId ? `&threadId=${createdThreadId}` : ''}`)
             }
           >
             Перейти в чат
+          </Button>
+          <Button type="button" variant="secondary" onClick={onReturnToList}>
+            Перейти на страницу возвратов
           </Button>
         </div>
       </div>
@@ -226,11 +226,11 @@ export const ReturnCreateFlow = ({
         <h3>Заявка уже создана</h3>
         <p className={styles.helper}>Откройте чат, чтобы узнать статус возврата.</p>
         <div className={styles.successActions}>
-          <Button type="button" onClick={onReturnToList}>
-            Перейти на страницу возвратов
-          </Button>
-          <Button type="button" variant="secondary" onClick={() => navigate('/account?tab=chats')}>
+          <Button type="button" onClick={() => navigate('/account?tab=chats')}>
             Перейти в чат
+          </Button>
+          <Button type="button" variant="secondary" onClick={onReturnToList}>
+            Перейти на страницу возвратов
           </Button>
         </div>
       </div>
@@ -322,18 +322,14 @@ export const ReturnCreateFlow = ({
             <ReturnPhotoUploader files={files} onChange={setFiles} error={fieldErrors.photos} />
           </div>
           {formError && <p className={styles.error}>{formError}</p>}
-          <div className={styles.actions}>
-            <Button
-              type="button"
-              onClick={handleSubmit}
-              disabled={submitting || (showErrors && !isFormValid)}
-            >
+          <StickyActionBar>
+            <Button type="button" onClick={handleSubmit} disabled={submitting || !isFormValid}>
               Продолжить
             </Button>
             <Button type="button" variant="secondary" onClick={onReturnToList}>
               Отмена
             </Button>
-          </div>
+          </StickyActionBar>
         </>
       )}
     </div>
