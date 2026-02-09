@@ -18,10 +18,14 @@ export const BuyerAccountPage = () => {
   const activeTab = searchParams.get('tab') ?? 'profile';
   const threadIdParam = searchParams.get('threadId');
   const [showReturnCreate, setShowReturnCreate] = useState(false);
+  const [returnCreateStep, setReturnCreateStep] = useState<'select' | 'form' | 'success' | 'exists'>('select');
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
 
   useEffect(() => {
     if (activeTab !== 'returns') {
       setShowReturnCreate(false);
+      setReturnCreateStep('select');
+      setSelectedCandidateId(null);
     }
   }, [activeTab]);
 
@@ -41,6 +45,7 @@ export const BuyerAccountPage = () => {
   } = useMyChats(activeTab, threadIdParam);
 
   const isProfile = activeTab === 'profile';
+  const isReturns = activeTab === 'returns';
   const pageTitle = (() => {
     switch (activeTab) {
       case 'orders':
@@ -56,22 +61,73 @@ export const BuyerAccountPage = () => {
     }
   })();
 
+  const stepLabel = (() => {
+    switch (returnCreateStep) {
+      case 'select':
+        return 'Шаг 1 из 3';
+      case 'form':
+        return 'Шаг 2 из 3';
+      case 'success':
+      case 'exists':
+        return 'Шаг 3 из 3';
+      default:
+        return '';
+    }
+  })();
+
+  const openReturnCreate = () => {
+    setSelectedCandidateId(null);
+    setReturnCreateStep('select');
+    setShowReturnCreate(true);
+  };
+
+  const openReturnFromItem = (itemId: string) => {
+    setSelectedCandidateId(itemId);
+    setReturnCreateStep('form');
+    setShowReturnCreate(true);
+  };
+
+  const closeReturnCreate = () => {
+    setShowReturnCreate(false);
+    setReturnCreateStep('select');
+    setSelectedCandidateId(null);
+  };
+
+  const handleReturnBack = () => {
+    if (returnCreateStep === 'form') {
+      setReturnCreateStep('select');
+      return;
+    }
+    closeReturnCreate();
+  };
+
   return (
     <section className={styles.page}>
       <div className="container">
         {!isProfile && (
           <div className={styles.pageHeader}>
-            <Link to="/account?tab=profile" className={styles.backLink}>
-              Назад в аккаунт
-            </Link>
-            <div className={styles.pageHeading}>
-              <h1>{pageTitle}</h1>
-              {activeTab === 'returns' && (
-                <Button type="button" onClick={() => setShowReturnCreate((prev) => !prev)}>
-                  Вернуть товар
-                </Button>
-              )}
-            </div>
+            {isReturns && showReturnCreate ? (
+              <div className={styles.flowHeader}>
+                <button type="button" className={styles.backButton} onClick={handleReturnBack}>
+                  ← Назад
+                </button>
+                <span className={styles.flowTitle}>Оформление возврата · {stepLabel}</span>
+              </div>
+            ) : (
+              <>
+                <Link to="/account?tab=profile" className={styles.backLink}>
+                  Назад в аккаунт
+                </Link>
+                <div className={styles.pageHeading}>
+                  <h1>{pageTitle}</h1>
+                  {isReturns && (
+                    <Button type="button" onClick={() => openReturnCreate()}>
+                      Вернуть товар
+                    </Button>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -84,15 +140,21 @@ export const BuyerAccountPage = () => {
         {activeTab === 'returns' && (
           <ReturnsTab
             showReturnCreate={showReturnCreate}
+            createStep={returnCreateStep}
+            selectedCandidateId={selectedCandidateId}
             returnCandidates={returnCandidates}
             returns={returns}
             isLoading={returnsLoading}
             error={returnsError}
+            onStepChange={setReturnCreateStep}
+            onOpenFromItem={(item) => {
+              openReturnFromItem(item.orderItemId);
+            }}
             onCreated={() => {
-              setShowReturnCreate(false);
+              closeReturnCreate();
               reloadReturns();
             }}
-            onReturnToList={() => setShowReturnCreate(false)}
+            onReturnToList={closeReturnCreate}
           />
         )}
 
