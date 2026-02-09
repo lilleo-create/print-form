@@ -13,7 +13,8 @@ import type {
   SellerContextResponse,
   SellerKycSubmission,
   ChatThread,
-  ChatMessage
+  ChatMessage,
+  Shop
 } from '../types';
 import { loadFromStorage } from '../lib/storage';
 import { STORAGE_KEYS } from '../constants/storageKeys';
@@ -48,10 +49,12 @@ export const api = {
     material?: string;
     price?: string;
     size?: string;
-    sort?: 'createdAt' | 'rating';
+    sort?: 'createdAt' | 'rating' | 'price';
     order?: 'asc' | 'desc';
     page?: number;
     limit?: number;
+    shopId?: string;
+    q?: string;
     cursor?: string;
     signal?: AbortSignal;
     },
@@ -66,6 +69,8 @@ export const api = {
       if (min) params.set('minPrice', min);
       if (max) params.set('maxPrice', max);
     }
+    if (filters?.shopId) params.set('shopId', filters.shopId);
+    if (filters?.q) params.set('q', filters.q);
     if (filters?.sort) params.set('sort', filters.sort);
     if (filters?.order) params.set('order', filters.order);
     if (filters?.page) params.set('page', String(filters.page));
@@ -74,6 +79,17 @@ export const api = {
     const query = params.toString();
     const signal = opts?.signal ?? filters?.signal;
     return apiClient.request<Product[]>(`/products${query ? `?${query}` : ''}`, { signal });
+  },
+
+  async getShop(shopId: string, opts?: { signal?: AbortSignal }) {
+    return apiClient.request<Shop>(`/shops/${shopId}`, { signal: opts?.signal });
+  },
+
+  async getShopFilters(shopId: string, opts?: { signal?: AbortSignal }) {
+    return apiClient.request<{ categories: string[]; materials: string[]; sizes: string[] }>(
+      `/shops/${shopId}/filters`,
+      { signal: opts?.signal }
+    );
   },
 
   async getProduct(id: string, opts?: { signal?: AbortSignal }) {

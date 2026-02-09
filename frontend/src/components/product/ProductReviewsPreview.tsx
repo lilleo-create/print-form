@@ -4,15 +4,19 @@ import type { ReviewSummary } from '../../hooks/useProductReviews';
 import { Rating } from '../../shared/ui/Rating';
 import styles from '../../pages/ProductPage.module.css';
 import { formatReviewDate, resolveImageUrl } from './utils';
+import { useProductShopBadge } from './hooks/useProductShopBadge';
+import { ProductShopBadge } from './ProductShopBadge';
 
 type ProductReviewsPreviewProps = {
   productId: string;
+  shopId?: string | null;
   reviews: Review[];
   summary: ReviewSummary | null;
 };
 
-export const ProductReviewsPreview = ({ productId, reviews, summary }: ProductReviewsPreviewProps) => {
+export const ProductReviewsPreview = ({ productId, shopId, reviews, summary }: ProductReviewsPreviewProps) => {
   const reviewsCount = summary?.total ?? 0;
+  const { shop, loading, error, disabled } = useProductShopBadge(shopId);
 
   return (
     <div className={styles.reviewsPreview}>
@@ -51,6 +55,7 @@ export const ProductReviewsPreview = ({ productId, reviews, summary }: ProductRe
               </li>
             ))}
           </ul>
+          <ProductShopBadge shopId={shopId} shop={shop} loading={loading} error={error} disabled={disabled} />
         </div>
 
         <div className={styles.reviewList}>

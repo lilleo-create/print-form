@@ -563,6 +563,12 @@
   font-weight: 600;
 }
 
+.profileMenuItemDisabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .profileMenuIcon {
   width: 20px;
   display: inline-flex;

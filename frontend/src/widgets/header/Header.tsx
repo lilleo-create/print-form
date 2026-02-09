@@ -15,13 +15,15 @@ import {
 import { useCartStore } from '../../app/store/cartStore';
 import { useAuthStore } from '../../app/store/authStore';
 import { useProductBoardStore } from '../../app/store/productBoardStore';
+import { useHeaderMenuStore } from '../../app/store/headerMenuStore';
+import { useIsSeller } from '../../hooks/useIsSeller';
 import { HeaderAddress } from '../../shared/ui/address/HeaderAddress';
 import { Rating } from '../../shared/ui/Rating';
 import { Button } from '../../shared/ui/Button';
+import { HeaderActions } from './HeaderActions';
 import styles from '../layout/Layout.module.css';
 
 export const Header = () => {
-  const cartItems = useCartStore((state) => state.items);
   const addItem = useCartStore((state) => state.addItem);
   const user = useAuthStore((state) => state.user);
   const productBoard = useProductBoardStore((state) => state.product);
@@ -32,7 +34,10 @@ export const Header = () => {
   const [isCategoriesHidden, setIsCategoriesHidden] = useState(false);
   const [categoriesHeight, setCategoriesHeight] = useState(0);
   const [productBoardHeight, setProductBoardHeight] = useState(0);
-  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const isProfileMenuOpen = useHeaderMenuStore((state) => state.isProfileMenuOpen);
+  const openProfileMenu = useHeaderMenuStore((state) => state.openProfileMenu);
+  const closeProfileMenu = useHeaderMenuStore((state) => state.closeProfileMenu);
+  const { isSeller, shopId } = useIsSeller();
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window === 'undefined') {
       return 'dark';
@@ -93,9 +98,9 @@ useEffect(() => {
   return () => window.removeEventListener('resize', updateGutter);
 }, [isProfileMenuOpen]);
 const isMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches;
-const openProfileMenu = () => {
+const openProfileMenuHandler = () => {
   if (isMobile) return;
-  setIsProfileMenuOpen(true);
+  openProfileMenu();
 };
   useLayoutEffect(() => {
     if (!categoriesRef.current && !productBoardRef.current) return;
@@ -187,8 +192,8 @@ const openProfileMenu = () => {
   }, [theme]);
 
   useEffect(() => {
-    setIsProfileMenuOpen(false);
-  }, [location.pathname, location.search]);
+    closeProfileMenu();
+  }, [closeProfileMenu, location.pathname, location.search]);
 
   const handleSearchUpdate = (value: string) => {
     setSearchValue(value);
@@ -222,9 +227,8 @@ const openProfileMenu = () => {
   const ratingValue = productBoard?.ratingAvg ?? 0;
   const ratingCount = productBoard?.ratingCount ?? 0;
   const categoriesBarHeight = categoriesHeight || productBoardHeight;
-  const isSeller = user?.role === 'seller';
   const sellLink = isSeller ? '/seller' : '/seller/onboarding';
-  const closeProfileMenu = () => setIsProfileMenuOpen(false);
+  const shopLink = shopId ? `/shop/${shopId}` : '';
   const handleLogout = () => {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('auth:logout'));
@@ -254,33 +258,7 @@ const openProfileMenu = () => {
             🔍
           </button>
         </form>
-        <div className={styles.actions}>
-          <Link to="/orders" className={styles.actionLink} aria-label="Заказы">
-            <span aria-hidden>🧾</span>
-          </Link>
-          <Link to="/favorites" className={styles.actionLink} aria-label="Избранное">
-            <span aria-hidden>❤</span>
-          </Link>
-          <Link to="/cart" className={styles.actionLink}>
-            <span aria-hidden>🛒</span>
-            <span className={styles.cartCount}>{cartItems.length}</span>
-          </Link>
-          {user ? (
-            <button
-              type="button"
-              className={styles.avatarButton}
-              onClick={openProfileMenu}
-              aria-label="Открыть меню профиля"
-            >
-              <span className={styles.avatarCircle}>{avatarText}</span>
-            </button>
-          ) : (
-            <Link to="/auth/login" className={styles.actionLink}>
-              <span aria-hidden>👤</span>
-              <span>Войти</span>
-            </Link>
-          )}
-        </div>
+        <HeaderActions onProfileClick={openProfileMenuHandler} />
       </div>
       <div className={styles.mobileHeader}>
         <div className={styles.mobileTopRow}>
@@ -291,7 +269,7 @@ const openProfileMenu = () => {
             <button
               type="button"
               className={styles.mobileAvatarButton}
-              onClick={openProfileMenu}
+              onClick={openProfileMenuHandler}
               aria-label="Открыть меню профиля"
             >
               <span className={styles.avatarCircle}>{avatarText}</span>
@@ -495,16 +473,50 @@ const openProfileMenu = () => {
                       {theme === 'light' ? 'Светлая' : 'Тёмная'}
                     </span>
                   </button>
-                  <Link
-                    to={sellLink}
-                    className={`${styles.profileMenuItem} ${location.pathname.startsWith('/seller') ? styles.profileMenuItemActive : ''}`}
-                    onClick={closeProfileMenu}
-                  >
-                    <span className={styles.profileMenuIcon} aria-hidden>
-                      🧑‍💼
-                    </span>
-                    <span className={styles.profileMenuText}>Продавайте на PrintForm</span>
-                  </Link>
+                  {isSeller ? (
+                    <>
+                      <Link
+                        to="/seller"
+                        className={`${styles.profileMenuItem} ${location.pathname.startsWith('/seller') ? styles.profileMenuItemActive : ''}`}
+                        onClick={closeProfileMenu}
+                      >
+                        <span className={styles.profileMenuIcon} aria-hidden>
+                          🧑‍💼
+                        </span>
+                        <span className={styles.profileMenuText}>Профиль продавца</span>
+                      </Link>
+                      {shopLink ? (
+                        <Link
+                          to={shopLink}
+                          className={`${styles.profileMenuItem} ${location.pathname.startsWith('/shop') ? styles.profileMenuItemActive : ''}`}
+                          onClick={closeProfileMenu}
+                        >
+                          <span className={styles.profileMenuIcon} aria-hidden>
+                            🏬
+                          </span>
+                          <span className={styles.profileMenuText}>Ваш магазин</span>
+                        </Link>
+                      ) : (
+                        <div className={`${styles.profileMenuItem} ${styles.profileMenuItemDisabled}`}>
+                          <span className={styles.profileMenuIcon} aria-hidden>
+                            🏬
+                          </span>
+                          <span className={styles.profileMenuText}>Ваш магазин</span>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <Link
+                      to={sellLink}
+                      className={`${styles.profileMenuItem} ${location.pathname.startsWith('/seller') ? styles.profileMenuItemActive : ''}`}
+                      onClick={closeProfileMenu}
+                    >
+                      <span className={styles.profileMenuIcon} aria-hidden>
+                        🧑‍💼
+                      </span>
+                      <span className={styles.profileMenuText}>Продавайте на PrintForm</span>
+                    </Link>
+                  )}
                   <Link
                     to="/account?tab=chats"
                     className={`${styles.profileMenuItem} ${

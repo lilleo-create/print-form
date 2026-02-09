@@ -60,7 +60,7 @@ export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
 
         <ProductSpecs product={product} />
 
-        <ProductReviewsPreview productId={product.id} reviews={reviews} summary={summary} />
+        <ProductReviewsPreview productId={product.id} shopId={product.sellerId} reviews={reviews} summary={summary} />
 
         <ProductFeed productId={product.id} />
       </div>
