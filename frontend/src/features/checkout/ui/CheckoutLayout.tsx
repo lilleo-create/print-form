@@ -16,12 +16,10 @@ import styles from './CheckoutLayout.module.css';
 export const CheckoutLayout = () => {
   const {
     data,
-    pickupPoints,
     error,
     isLoading,
     isSubmittingOrder,
     fetchCheckout,
-    fetchPickupPoints,
     setDeliveryMethod,
     setPickupPoint,
     updateRecipient,
@@ -61,7 +59,6 @@ export const CheckoutLayout = () => {
           {data.selectedDeliveryMethod === 'PICKUP' ? (
             <PickupPointBlock point={data.selectedPickupPoint ?? null} onOpen={() => {
               setPickupModalOpen(true);
-              void fetchPickupPoints();
             }} />
           ) : (
             <AddressBlock
@@ -101,10 +98,8 @@ export const CheckoutLayout = () => {
       <PickupPointModal
         isOpen={isPickupModalOpen}
         onClose={() => setPickupModalOpen(false)}
-        points={pickupPoints}
         selectedId={data.selectedPickupPoint?.id}
-        onFilter={(provider) => void fetchPickupPoints(provider)}
-        onConfirm={(point) => setPickupPoint(point.id, point.provider)}
+        onConfirm={(payload) => setPickupPoint(payload.pickupPointId, payload.provider)}
       />
 
       <RecipientModal
