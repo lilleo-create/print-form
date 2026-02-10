@@ -5,10 +5,14 @@ import { Footer } from './Footer';
 import { ProductModalHost } from '../shop/ProductModalHost';
 import styles from './Layout.module.css';
 
-export const Layout = () => {
+type LayoutProps = {
+  showHeader?: boolean;
+};
+
+export const Layout = ({ showHeader = true }: LayoutProps) => {
   return (
     <div className={styles.app}>
-      <Header />
+      {showHeader ? <Header /> : null}
       <main className={styles.main}>
         <Outlet />
       </main>

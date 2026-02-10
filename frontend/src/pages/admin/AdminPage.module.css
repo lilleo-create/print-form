@@ -162,6 +162,19 @@
   border-radius: var(--radius-control);
 }
 
+.imagePlaceholder {
+  width: 120px;
+  height: 120px;
+  border-radius: var(--radius-control);
+  border: 1px dashed var(--border);
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  background: var(--bg-2);
+  font-size: 12px;
+}
+
+
 .errorText {
   color: var(--danger);
   font-size: 12px;

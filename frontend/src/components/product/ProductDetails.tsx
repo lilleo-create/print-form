@@ -5,7 +5,8 @@ import { Rating } from '../../shared/ui/Rating';
 import { Button } from '../../shared/ui/Button';
 import { useCartStore } from '../../app/store/cartStore';
 import styles from '../../pages/ProductPage.module.css';
-import { formatDeliveryDate } from './utils';
+import { formatDeliveryDate } from '../../shared/lib/formatDeliveryDate';
+import { ProductActionsInline } from '../../pages/ProductPage/components/ProductActionsInline/ProductActionsInline';
 
 type ProductDetailsProps = {
   product: Product;
@@ -19,9 +20,11 @@ export const ProductDetails = ({ product, ratingCount, reviewsCount }: ProductDe
 
   const variants = useMemo<ProductVariant[]>(() => product.variants ?? [], [product.variants]);
   const [selectedVariant, setSelectedVariant] = useState<string>('');
+  const [isFavorite, setIsFavorite] = useState(false);
 
   useEffect(() => {
     setSelectedVariant('');
+    setIsFavorite(false);
   }, [product.id]);
 
   const handleVariantChange = (variantId: string) => {
@@ -35,9 +38,35 @@ export const ProductDetails = ({ product, ratingCount, reviewsCount }: ProductDe
     }
   };
 
+  const handleShare = async () => {
+    const shareData = {
+      title: product.title,
+      text: product.descriptionShort ?? product.description,
+      url: window.location.href
+    };
+
+    if (navigator.share) {
+      await navigator.share(shareData);
+      return;
+    }
+
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(shareData.url);
+    }
+  };
+
+  const deliveryLabel = formatDeliveryDate(product.deliveryDateNearest);
+
   return (
     <div className={styles.details}>
       <div className={styles.header}>
+        <ProductActionsInline
+          isFavorite={isFavorite}
+          onFavoriteClick={() => setIsFavorite((value) => !value)}
+          onShareClick={() => {
+            void handleShare().catch(() => undefined);
+          }}
+        />
         <h1>{product.title}</h1>
         <div className={styles.ratingRow}>
           <Rating value={product.ratingAvg ?? 0} count={ratingCount} size="md" />
@@ -51,9 +80,7 @@ export const ProductDetails = ({ product, ratingCount, reviewsCount }: ProductDe
         <span className={styles.price}>
           {Number((product as any).price ?? 0).toLocaleString('ru-RU')} ₽
         </span>
-        <span className={styles.delivery}>
-          Ближайшая дата доставки: {formatDeliveryDate(product.deliveryDateNearest)}
-        </span>
+        {deliveryLabel ? <span className={styles.delivery}>Ближайшая дата доставки: {deliveryLabel}</span> : null}
       </div>
 
       <div className={styles.sku}>Артикул: {(product as any).sku ?? '—'}</div>
@@ -78,6 +105,7 @@ export const ProductDetails = ({ product, ratingCount, reviewsCount }: ProductDe
 
       <div className={styles.actions}>
         <Button
+          className={styles.compactActionButton}
           onClick={() => {
             addItem(product, 1);
             navigate('/checkout');
@@ -86,12 +114,8 @@ export const ProductDetails = ({ product, ratingCount, reviewsCount }: ProductDe
           Купить сейчас
         </Button>
 
-        <Button variant="secondary" onClick={() => addItem(product, 1)}>
+        <Button variant="secondary" className={styles.compactActionButton} onClick={() => addItem(product, 1)}>
           В корзину
-        </Button>
-
-        <Button variant="ghost" onClick={() => {}}>
-          В избранное
         </Button>
       </div>
 
