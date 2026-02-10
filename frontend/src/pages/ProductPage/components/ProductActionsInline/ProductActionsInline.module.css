@@ -5,6 +5,7 @@
   font-size: 12px;
   font-weight: 500;
   flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .actionLink {

@@ -149,10 +149,6 @@
 }
 
 .compactActionButton {
-  height: 16px;
-  min-height: 16px;
-  padding: 0 10px;
-  line-height: 16px;
   font-size: 12px;
   border-radius: 10px;
 }
