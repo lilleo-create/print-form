@@ -20,6 +20,8 @@ import { HeaderAddress } from '../../shared/ui/address/HeaderAddress';
 import { Rating } from '../../shared/ui/Rating';
 import { Button } from '../../shared/ui/Button';
 import { HeaderActions } from './HeaderActions';
+import { ProfileMenu } from '../../shared/layout/ProfileMenu';
+import { useIsSeller } from '../../shared/lib/useIsSeller';
 import styles from '../layout/Layout.module.css';
 
 export const Header = () => {
@@ -225,8 +227,7 @@ const openProfileMenuHandler = () => {
   const ratingValue = productBoard?.ratingAvg ?? 0;
   const ratingCount = productBoard?.ratingCount ?? 0;
   const categoriesBarHeight = categoriesHeight || productBoardHeight;
-  const isSeller = user?.role === 'seller';
-  const sellLink = isSeller ? '/seller' : '/seller/onboarding';
+  const { isSeller, sellerCabinetLink: sellLink } = useIsSeller();
   const handleLogout = () => {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('auth:logout'));
@@ -365,166 +366,16 @@ const openProfileMenuHandler = () => {
           </div>
         </div>
       </div>
-      {isProfileMenuOpen && (
-        <div
-          className={styles.profileMenuOverlay}
-          role="dialog"
-          aria-modal="true"
-          onClick={closeProfileMenu}
-        >
-          <div
-            className={styles.profileMenuPage}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className={styles.profileMenuHeader}>
-              <span>Меню</span>
-              <button
-                type="button"
-                className={styles.profileMenuClose}
-                onClick={closeProfileMenu}
-                aria-label="Закрыть меню"
-              >
-                ✕
-              </button>
-            </div>
-            <div className={styles.profileMenuContent}>
-              <nav className={styles.profileMenuList}>
-                <div className={styles.profileMenuSection}>
-                  <div className={styles.profileMenuSectionLabel}>Покупки</div>
-                  
-                  <Link
-                    to="/orders"
-                    className={`${styles.profileMenuItem} ${location.pathname === '/orders' ? styles.profileMenuItemActive : ''}`}
-                    onClick={closeProfileMenu}
-                  >
-                    <span className={styles.profileMenuIcon} aria-hidden>
-                      🧾
-                    </span>
-                    <span className={styles.profileMenuText}>Заказы</span>
-                  </Link>
-                  <Link
-                    to="/account?tab=purchases"
-                    className={`${styles.profileMenuItem} ${
-                      location.pathname === '/account' && searchParams.get('tab') === 'purchases'
-                        ? styles.profileMenuItemActive
-                        : ''
-                    }`}
-                    onClick={closeProfileMenu}
-                  >
-                    <span className={styles.profileMenuIcon} aria-hidden>
-                      📦
-                    </span>
-                    <span className={styles.profileMenuText}>Купленные товары</span>
-                  </Link>
-                  <Link
-                    to="/account?tab=returns"
-                    className={`${styles.profileMenuItem} ${
-                      location.pathname === '/account' && searchParams.get('tab') === 'returns'
-                        ? styles.profileMenuItemActive
-                        : ''
-                    }`}
-                    onClick={closeProfileMenu}
-                  >
-                    <span className={styles.profileMenuIcon} aria-hidden>
-                      ↩️
-                    </span>
-                    <span className={styles.profileMenuText}>Возвраты</span>
-                  </Link>
-                  <Link
-                    to="/favorites"
-                    className={`${styles.profileMenuItem} ${location.pathname === '/favorites' ? styles.profileMenuItemActive : ''}`}
-                    onClick={closeProfileMenu}
-                  >
-                    <span className={styles.profileMenuIcon} aria-hidden>
-                      ❤
-                    </span>
-                    <span className={styles.profileMenuText}>Избранные</span>
-                  </Link>
-                </div>
-                <div className={styles.profileMenuSection}>
-                  <div className={styles.profileMenuSectionLabel}>Настройки</div>
-                  <Link
-                    to="/account?tab=profile"
-                    className={`${styles.profileMenuItem} ${
-                      location.pathname === '/account' &&
-                      (!searchParams.get('tab') || searchParams.get('tab') === 'profile')
-                        ? styles.profileMenuItemActive
-                        : ''
-                    }`}
-                    onClick={closeProfileMenu}
-                  >
-                    <span className={styles.profileMenuIcon} aria-hidden>
-                      👤
-                    </span>
-                    <span className={styles.profileMenuText}>Профиль</span>
-                  </Link>
-                  <button
-                    type="button"
-                    className={`${styles.profileMenuItem} ${styles.profileMenuToggle}`}
-                    onClick={() => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))}
-                  >
-                    <span className={styles.profileMenuIcon} aria-hidden>
-                      🎨
-                    </span>
-                    <span className={styles.profileMenuText}>Тема оформления</span>
-                    <span className={styles.profileMenuToggleValue}>
-                      {theme === 'light' ? 'Светлая' : 'Тёмная'}
-                    </span>
-                  </button>
-                  <Link
-                    to={sellLink}
-                    className={`${styles.profileMenuItem} ${location.pathname.startsWith('/seller') ? styles.profileMenuItemActive : ''}`}
-                    onClick={closeProfileMenu}
-                  >
-                    <span className={styles.profileMenuIcon} aria-hidden>
-                      🧑‍💼
-                    </span>
-                    <span className={styles.profileMenuText}>Продавайте на PrintForm</span>
-                  </Link>
-                  <Link
-                    to="/account?tab=chats"
-                    className={`${styles.profileMenuItem} ${
-                      location.pathname === '/account' && searchParams.get('tab') === 'chats'
-                        ? styles.profileMenuItemActive
-                        : ''
-                    }`}
-                    onClick={closeProfileMenu}
-                  >
-                    <span className={styles.profileMenuIcon} aria-hidden>
-                      💬
-                    </span>
-                    <span className={styles.profileMenuText}>Чаты (наше с поддержкой и продавцом)</span>
-                  </Link>
-                  <Link
-                    to="/privacy-policy"
-                    className={`${styles.profileMenuItem} ${
-                      location.pathname === '/privacy-policy' ? styles.profileMenuItemActive : ''
-                    }`}
-                    onClick={closeProfileMenu}
-                  >
-                    <span className={styles.profileMenuIcon} aria-hidden>
-                      ℹ️
-                    </span>
-                    <span className={styles.profileMenuText}>О сервисе</span>
-                  </Link>
-                </div>
-                <div className={styles.profileMenuSection}>
-                  <button
-                    type="button"
-                    className={`${styles.profileMenuItem} ${styles.profileMenuLogout}`}
-                    onClick={handleLogout}
-                  >
-                    <span className={styles.profileMenuIcon} aria-hidden>
-                      ⎋
-                    </span>
-                    <span className={styles.profileMenuText}>Выйти</span>
-                  </button>
-                </div>
-              </nav>
-            </div>
-          </div>
-        </div>
-      )}
+      <ProfileMenu
+        isOpen={isProfileMenuOpen}
+        pathname={location.pathname}
+        searchTab={searchParams.get('tab')}
+        onClose={closeProfileMenu}
+        onLogout={handleLogout}
+        theme={theme}
+        onToggleTheme={() => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))}
+      />
+
     </header>
   );
 };

@@ -1,17 +1,31 @@
-import { useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useHeaderMenuStore } from '../../app/store/headerMenuStore';
 import { ShopHeader } from './components/ShopHeader/ShopHeader';
 import { ShopInfoModal } from './components/ShopInfoModal/ShopInfoModal';
 import { ShopFilters } from './components/ShopFilters/ShopFilters';
 import { ShopCatalog } from './components/ShopCatalog/ShopCatalog';
 import { useShopPage } from './hooks/useShopPage';
+import { ProfileMenu } from '../../shared/layout/ProfileMenu';
 import styles from './ShopPage.module.css';
 
 export const ShopPage = () => {
   const { shopId } = useParams<{ shopId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const isProfileMenuOpen = useHeaderMenuStore((state) => state.isProfileMenuOpen);
   const openProfileMenu = useHeaderMenuStore((state) => state.openProfileMenu);
+  const closeProfileMenu = useHeaderMenuStore((state) => state.closeProfileMenu);
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    if (typeof window === 'undefined') {
+      return 'dark';
+    }
+
+    const stored = window.localStorage.getItem('theme');
+    return stored === 'light' ? 'light' : 'dark';
+  });
+
   const [isInfoOpen, setInfoOpen] = useState(false);
   const openProfileMenuHandler = () => {
     if (typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches) {
@@ -19,6 +33,32 @@ export const ShopPage = () => {
     }
     openProfileMenu();
   };
+
+  useEffect(() => {
+    if (!isProfileMenuOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onEsc = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closeProfileMenu();
+      }
+    };
+
+    document.addEventListener('keydown', onEsc);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', onEsc);
+    };
+  }, [closeProfileMenu, isProfileMenuOpen]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    window.localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  useEffect(() => {
+    closeProfileMenu();
+  }, [closeProfileMenu, location.pathname, location.search]);
 
   const {
     shop,
@@ -98,6 +138,21 @@ export const ShopPage = () => {
         isOpen={isInfoOpen}
         onClose={() => setInfoOpen(false)}
         onComplaint={() => navigate('/account?tab=chats')}
+      />
+
+      <ProfileMenu
+        isOpen={isProfileMenuOpen}
+        pathname={location.pathname}
+        searchTab={searchParams.get('tab')}
+        onClose={closeProfileMenu}
+        onLogout={() => {
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new Event('auth:logout'));
+          }
+          closeProfileMenu();
+        }}
+        theme={theme}
+        onToggleTheme={() => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))}
       />
     </section>
   );

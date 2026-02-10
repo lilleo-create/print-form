@@ -26,6 +26,17 @@ const pickupPoints = [
 
 pickupPointRoutes.get('/', requireAuth, (req, res) => {
   const provider = typeof req.query.provider === 'string' ? req.query.provider : undefined;
+  const lat = typeof req.query.lat === 'string' ? Number(req.query.lat) : undefined;
+  const lng = typeof req.query.lng === 'string' ? Number(req.query.lng) : undefined;
+  const radiusKm = typeof req.query.radiusKm === 'string' ? Number(req.query.radiusKm) : undefined;
+
   const items = provider ? pickupPoints.filter((point) => point.provider === provider) : pickupPoints;
-  res.json({ items });
+
+  res.json({
+    items,
+    meta: {
+      requestedCenter: Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null,
+      radiusKm: Number.isFinite(radiusKm) ? radiusKm : null
+    }
+  });
 });

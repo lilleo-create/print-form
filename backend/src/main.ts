@@ -91,6 +91,7 @@ app.use("/payments", paymentRoutes);
 app.use("/favorites", favoritesRoutes);
 app.use("/checkout", checkoutRoutes);
 app.use("/pickup-points", pickupPointRoutes);
+app.use("/api/pickup-points", pickupPointRoutes);
 
 app.use(errorHandler);
 

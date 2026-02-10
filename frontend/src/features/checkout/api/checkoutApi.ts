@@ -71,10 +71,10 @@ export const checkoutApi = {
   fetchPickupPoints: async (params: { provider?: PickupProvider; lat?: number; lng?: number; radiusKm?: number }, signal?: AbortSignal) => {
     const search = new URLSearchParams();
     if (params.provider) search.set('provider', params.provider);
-    if (params.lat) search.set('lat', String(params.lat));
-    if (params.lng) search.set('lng', String(params.lng));
+    if (typeof params.lat === 'number') search.set('lat', String(params.lat));
+    if (typeof params.lng === 'number') search.set('lng', String(params.lng));
     if (params.radiusKm) search.set('radiusKm', String(params.radiusKm));
-    const response = await client.request<{ items: PickupPointDto[] }>(`/pickup-points?${search.toString()}`, { signal });
+    const response = await client.request<{ items: PickupPointDto[] }>(`/api/pickup-points?${search.toString()}`, { signal });
     return response.data.items ?? [];
   },
   setPaymentMethod: async (payload: { methodCode: PaymentMethodCode; cardId?: string }, signal?: AbortSignal) => {
