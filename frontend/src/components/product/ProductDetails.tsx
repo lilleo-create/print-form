@@ -7,6 +7,8 @@ import { useCartStore } from '../../app/store/cartStore';
 import styles from '../../pages/ProductPage.module.css';
 import { formatDeliveryDate } from '../../shared/lib/formatDeliveryDate';
 import { ProductActionsInline } from '../../pages/ProductPage/components/ProductActionsInline/ProductActionsInline';
+import { useFavoritesStore } from '../../features/favorites/model/useFavoritesStore';
+import { ShareModal } from '../../features/share/ui/ShareModal';
 
 type ProductDetailsProps = {
   product: Product;
@@ -20,12 +22,15 @@ export const ProductDetails = ({ product, ratingCount, reviewsCount }: ProductDe
 
   const variants = useMemo<ProductVariant[]>(() => product.variants ?? [], [product.variants]);
   const [selectedVariant, setSelectedVariant] = useState<string>('');
-  const [isFavorite, setIsFavorite] = useState(false);
+  const [isShareOpen, setIsShareOpen] = useState(false);
+  const isFavorite = useFavoritesStore((state) => state.isFavorite(product.id));
+  const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
+  const fetchFavorites = useFavoritesStore((state) => state.fetchFavorites);
 
   useEffect(() => {
     setSelectedVariant('');
-    setIsFavorite(false);
-  }, [product.id]);
+    void fetchFavorites();
+  }, [fetchFavorites, product.id]);
 
   const handleVariantChange = (variantId: string) => {
     setSelectedVariant(variantId);
@@ -38,21 +43,8 @@ export const ProductDetails = ({ product, ratingCount, reviewsCount }: ProductDe
     }
   };
 
-  const handleShare = async () => {
-    const shareData = {
-      title: product.title,
-      text: product.descriptionShort ?? product.description,
-      url: window.location.href
-    };
-
-    if (navigator.share) {
-      await navigator.share(shareData);
-      return;
-    }
-
-    if (navigator.clipboard) {
-      await navigator.clipboard.writeText(shareData.url);
-    }
+  const openShareModal = () => {
+    setIsShareOpen(true);
   };
 
   const deliveryLabel = formatDeliveryDate(product.deliveryDateNearest);
@@ -62,10 +54,18 @@ export const ProductDetails = ({ product, ratingCount, reviewsCount }: ProductDe
       <div className={styles.header}>
         <ProductActionsInline
           isFavorite={isFavorite}
-          onFavoriteClick={() => setIsFavorite((value) => !value)}
-          onShareClick={() => {
-            void handleShare().catch(() => undefined);
+          onFavoriteClick={() => {
+            void toggleFavorite(product.id, {
+              id: product.id,
+              title: product.title,
+              price: product.price,
+              image: product.image,
+              ratingAvg: product.ratingAvg,
+              ratingCount: product.ratingCount,
+              shortSpec: product.descriptionShort
+            });
           }}
+          onShareClick={openShareModal}
         />
         <h1>{product.title}</h1>
         <div className={styles.ratingRow}>
@@ -120,6 +120,12 @@ export const ProductDetails = ({ product, ratingCount, reviewsCount }: ProductDe
       </div>
 
       <p className={styles.shortDescription}>{product.descriptionShort ?? product.description}</p>
+      <ShareModal
+        isOpen={isShareOpen}
+        onClose={() => setIsShareOpen(false)}
+        title={product.title}
+        image={product.image}
+      />
     </div>
   );
 };

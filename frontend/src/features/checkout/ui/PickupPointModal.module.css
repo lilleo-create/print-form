@@ -1,0 +1,1 @@
+.modal{width:min(760px,95vw)}.content{display:grid;gap:12px}.filters{display:flex;gap:8px}.filters button{padding:6px 10px}.list{display:grid;gap:8px;max-height:200px;overflow:auto}.row,.active{border:1px solid var(--border);border-radius:10px;padding:10px;text-align:left;background:var(--bg-2)}.active{border-color:var(--primary)}

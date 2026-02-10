@@ -1,0 +1,2 @@
+.layout{width:min(1280px,100%);margin:0 auto;padding:16px;display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px}.left,.right{min-width:0;display:grid;gap:12px;align-content:start}.block,.summary{border:1px solid var(--border);border-radius:14px;background:var(--card);padding:14px;display:grid;gap:10px}.error{color:var(--danger)}.state{padding:20px}
+@media (max-width: 960px){.layout{grid-template-columns:1fr}}
