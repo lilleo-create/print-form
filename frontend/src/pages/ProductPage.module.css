@@ -78,6 +78,17 @@
   gap: 6px;
 }
 
+.toast {
+  background: var(--card);
+  color: #ffffff;
+  padding: 10px 14px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+  font-size: 13px;
+  width: fit-content;
+}
+
 .price {
   font-size: 32px;
   font-weight: 700;
@@ -128,6 +139,30 @@
 .shortDescription {
   color: var(--muted);
   font-size: 15px;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.actionButtonCompact {
+  height: 16px;
+  min-height: 16px;
+  padding: 0 12px;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+@media (max-width: 640px) {
+  .actions {
+    flex-direction: column;
+  }
+
+  .actionButtonCompact {
+    width: 100%;
+  }
 }
 
 .sections {

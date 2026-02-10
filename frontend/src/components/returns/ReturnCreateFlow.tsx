@@ -303,7 +303,7 @@ export const ReturnCreateFlow = ({
 
           <StickyActionBar>
             {selectedId && (
-              <Button type="button" onClick={handleContinue}>
+              <Button type="button" className={styles.actionButtonCompact} onClick={handleContinue}>
                 Продолжить
               </Button>
             )}
@@ -356,7 +356,12 @@ export const ReturnCreateFlow = ({
           {formError && <p className={styles.error}>{formError}</p>}
 
           <StickyActionBar>
-            <Button type="button" onClick={handleSubmit} disabled={submitting || !isFormValid}>
+            <Button
+              type="button"
+              className={styles.actionButtonCompact}
+              onClick={handleSubmit}
+              disabled={submitting || !isFormValid}
+            >
               Продолжить
             </Button>
             <Button type="button" variant="secondary" onClick={onReturnToList}>

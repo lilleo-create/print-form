@@ -6,6 +6,9 @@ import { Button } from '../../shared/ui/Button';
 import { useCartStore } from '../../app/store/cartStore';
 import styles from '../../pages/ProductPage.module.css';
 import { formatDeliveryDate } from './utils';
+import { useFavorite } from './hooks/useFavorite';
+import { ProductActionsRow } from './ProductActionsRow';
+import { ShareModal } from './ShareModal';
 
 type ProductDetailsProps = {
   product: Product;
@@ -16,6 +19,9 @@ type ProductDetailsProps = {
 export const ProductDetails = ({ product, ratingCount, reviewsCount }: ProductDetailsProps) => {
   const navigate = useNavigate();
   const addItem = useCartStore((state) => state.addItem);
+  const { isFavorite, isLoading, toggleFavorite } = useFavorite(product.id);
+  const [isShareOpen, setShareOpen] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const variants = useMemo<ProductVariant[]>(() => product.variants ?? [], [product.variants]);
   const [selectedVariant, setSelectedVariant] = useState<string>('');
@@ -35,6 +41,21 @@ export const ProductDetails = ({ product, ratingCount, reviewsCount }: ProductDe
     }
   };
 
+  useEffect(() => {
+    if (!toastMessage) return;
+    const timer = window.setTimeout(() => setToastMessage(null), 3000);
+    return () => window.clearTimeout(timer);
+  }, [toastMessage]);
+
+  const handleToggleFavorite = async () => {
+    const result = await toggleFavorite();
+    if (!result.success) {
+      setToastMessage('Не удалось обновить избранное');
+      return;
+    }
+    setToastMessage(result.next ? 'Добавлено в избранное' : 'Удалено из избранного');
+  };
+
   return (
     <div className={styles.details}>
       <div className={styles.header}>
@@ -46,6 +67,15 @@ export const ProductDetails = ({ product, ratingCount, reviewsCount }: ProductDe
           </Link>
         </div>
       </div>
+
+      <ProductActionsRow
+        isFavorite={isFavorite}
+        isLoading={isLoading}
+        onToggleFavorite={handleToggleFavorite}
+        onShare={() => setShareOpen(true)}
+      />
+
+      {toastMessage && <div className={styles.toast}>{toastMessage}</div>}
 
       <div className={styles.priceBlock}>
         <span className={styles.price}>
@@ -78,6 +108,7 @@ export const ProductDetails = ({ product, ratingCount, reviewsCount }: ProductDe
 
       <div className={styles.actions}>
         <Button
+          className={styles.actionButtonCompact}
           onClick={() => {
             addItem(product, 1);
             navigate('/checkout');
@@ -86,16 +117,23 @@ export const ProductDetails = ({ product, ratingCount, reviewsCount }: ProductDe
           Купить сейчас
         </Button>
 
-        <Button variant="secondary" onClick={() => addItem(product, 1)}>
+        <Button
+          variant="secondary"
+          className={styles.actionButtonCompact}
+          onClick={() => addItem(product, 1)}
+        >
           В корзину
-        </Button>
-
-        <Button variant="ghost" onClick={() => {}}>
-          В избранное
         </Button>
       </div>
 
       <p className={styles.shortDescription}>{product.descriptionShort ?? product.description}</p>
+
+      <ShareModal
+        product={product}
+        isOpen={isShareOpen}
+        onClose={() => setShareOpen(false)}
+        onToast={setToastMessage}
+      />
     </div>
   );
 };
