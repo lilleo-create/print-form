@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ProductImage } from '../../shared/types';
 import styles from '../../pages/ProductPage.module.css';
-import { resolveImageUrl } from './utils';
+import { resolveImageUrl } from '../../shared/lib/resolveImageUrl';
 
 type ProductGalleryProps = {
   images: ProductImage[];

@@ -28,14 +28,9 @@ import { ShopPage } from './pages/ShopPage/ShopPage';
 const App = () => {
   return (
     <Routes>
-      <Route
-        element={
-          <Layout />
-        }
-      >
+      <Route element={<Layout />}>
         <Route path="/" element={<LandingPage />} />
         <Route path="/catalog" element={<CatalogPage />} />
-        <Route path="/shop/:shopId" element={<ShopPage />} />
         <Route path="/product/:id" element={<ProductPage />} />
         <Route path="/product/:id/reviews" element={<ProductReviewsPage />} />
         <Route path="/categories" element={<CategoriesPage />} />
@@ -80,6 +75,11 @@ const App = () => {
         <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
       </Route>
+
+      <Route element={<Layout showHeader={false} />}>
+        <Route path="/shop/:shopId" element={<ShopPage />} />
+      </Route>
+
       <Route
         path="/admin"
         element={

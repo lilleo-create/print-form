@@ -1,20 +1,33 @@
 .page {
-  padding: 64px 0 96px;
   width: 100%;
   align-self: stretch;
+  padding: 64px 0 96px;
+}
+
+.container {
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 16px;
 }
 
 .hero {
   display: grid;
-  grid-template-columns: minmax(280px, 1fr) minmax(280px, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 420px);
   gap: 36px;
   align-items: start;
   margin-bottom: 48px;
 }
 
+.leftCol,
+.rightCol {
+  min-width: 0;
+}
+
 .gallery {
   display: grid;
   gap: 16px;
+  min-width: 0;
 }
 
 .mainImage {
@@ -43,6 +56,7 @@
   height: 72px;
   object-fit: cover;
   border-radius: 10px;
+  max-width: 100%;
 }
 
 .thumbActive {
@@ -52,6 +66,7 @@
 .details {
   display: grid;
   gap: 18px;
+  min-width: 0;
 }
 
 .header {
@@ -65,6 +80,7 @@
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+  min-width: 0;
 }
 
 .reviewLink {
@@ -125,6 +141,22 @@
   font-weight: 600;
 }
 
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.compactActionButton {
+  height: 16px;
+  min-height: 16px;
+  padding: 0 10px;
+  line-height: 16px;
+  font-size: 12px;
+  border-radius: 10px;
+}
+
 .shortDescription {
   color: var(--muted);
   font-size: 15px;
@@ -132,7 +164,7 @@
 
 .sections {
   display: grid;
-  grid-template-columns: minmax(280px, 1fr) minmax(280px, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 32px;
   margin-bottom: 48px;
 }
@@ -140,27 +172,15 @@
 .description {
   display: grid;
   gap: 12px;
-}
-
-.specs ul {
-  list-style: none;
-  padding: 0;
-  margin: 16px 0 0;
-  display: grid;
-  gap: 12px;
-}
-
-.specs li {
-  display: flex;
-  justify-content: space-between;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border);
+  min-width: 0;
 }
 
 .reviewsPreview {
   display: grid;
   gap: 24px;
   margin-bottom: 48px;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .reviewsHeader {
@@ -178,8 +198,9 @@
 
 .reviewsContent {
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
   gap: 24px;
+  max-width: 100%;
 }
 
 .reviewsSummary {
@@ -190,6 +211,7 @@
   border: 1px solid var(--border);
   display: grid;
   gap: 16px;
+  min-width: 0;
 }
 
 .summaryTop {
@@ -212,7 +234,7 @@
 
 .reviewsSummary li {
   display: grid;
-  grid-template-columns: 40px 1fr 32px;
+  grid-template-columns: 40px minmax(0, 1fr) 32px;
   align-items: center;
   gap: 10px;
   font-size: 14px;
@@ -223,6 +245,8 @@
   background: var(--surface-ghost-muted);
   border-radius: 999px;
   overflow: hidden;
+  width: 100%;
+  min-width: 0;
 }
 
 .barFill {
@@ -233,6 +257,7 @@
 .reviewList {
   display: grid;
   gap: 16px;
+  min-width: 0;
 }
 
 .reviewCard {
@@ -242,6 +267,8 @@
   border: 1px solid var(--border);
   display: grid;
   gap: 12px;
+  width: 100%;
+  min-width: 0;
 }
 
 .reviewTop {
@@ -258,6 +285,7 @@
 
 .reviewBody p {
   margin-bottom: 6px;
+  overflow-wrap: anywhere;
 }
 
 .reviewPhotos {
@@ -271,6 +299,7 @@
   height: 88px;
   object-fit: cover;
   border-radius: 12px;
+  max-width: 100%;
 }
 
 .reviewsEmpty {
@@ -280,12 +309,14 @@
 .feed {
   display: grid;
   gap: 16px;
+  max-width: 100%;
 }
 
 .feedGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+  max-width: 100%;
 }
 
 .loading {

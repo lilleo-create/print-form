@@ -3,7 +3,8 @@ import type { Review } from '../../shared/types';
 import type { ReviewSummary } from '../../hooks/useProductReviews';
 import { Rating } from '../../shared/ui/Rating';
 import styles from '../../pages/ProductPage.module.css';
-import { formatReviewDate, resolveImageUrl } from './utils';
+import { formatReviewDate } from './utils';
+import { resolveImageUrl } from '../../shared/lib/resolveImageUrl';
 
 type ProductReviewsPreviewProps = {
   productId: string;

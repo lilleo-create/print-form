@@ -4,6 +4,8 @@ import { Product } from '../../shared/types';
 import { Button } from '../../shared/ui/Button';
 import { EmptyState } from '../../shared/ui/EmptyState';
 import { Table } from '../../shared/ui/Table';
+import { resolveImageUrl } from '../../shared/lib/resolveImageUrl';
+import { getProductMainImage } from '../../shared/lib/productMedia';
 import styles from './AdminPage.module.css';
 
 type AdminProduct = Product & {
@@ -20,6 +22,7 @@ export const AdminProductsPage = () => {
   const [selected, setSelected] = useState<AdminProduct | null>(null);
   const [notes, setNotes] = useState('');
   const [actionId, setActionId] = useState<string | null>(null);
+  const [isPreviewBroken, setIsPreviewBroken] = useState(false);
 
   const loadProducts = async () => {
     setLoading(true);
@@ -139,6 +142,7 @@ export const AdminProductsPage = () => {
                   onClick={() => {
                     setSelected(product);
                     setNotes(product.moderationNotes ?? '');
+                    setIsPreviewBroken(false);
                   }}
                 >
                   Подробнее
@@ -164,11 +168,19 @@ export const AdminProductsPage = () => {
               <strong>Категория:</strong> {selected.category}
             </div>
             <div className={styles.previewList}>
-              {(selected.imageUrls ?? [selected.image])
-                .filter((url): url is string => Boolean(url))
-                .map((url, index) => (
-                  <img key={`${url}-${index}`} src={url} alt={selected.title} />
-                ))}
+              {(() => {
+                const mainImage = resolveImageUrl(getProductMainImage(selected));
+                if (!mainImage || isPreviewBroken) {
+                  return <div className={styles.imagePlaceholder}>Нет изображения</div>;
+                }
+                return (
+                  <img
+                    src={mainImage}
+                    alt={selected.title}
+                    onError={() => setIsPreviewBroken(true)}
+                  />
+                );
+              })()}
             </div>
             <label>
               Примечание

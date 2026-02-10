@@ -5,7 +5,7 @@ import { ApiError } from '../shared/api/client';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
-type ReviewSummary = {
+export type ReviewSummary = {
   total: number;
   avg: number;
   counts: { rating: number; count: number }[];
