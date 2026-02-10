@@ -141,11 +141,6 @@ export const ProductReviewsPage = () => {
       </section>
     );
   }
-console.log('reviews length', reviews.length, reviews);
-console.log('summary', summary);
-console.log('status', status, 'error', error);
-console.log('productId',  'productIds', );
-
   return (
     <section className={styles.page}>
       <div className="container">
@@ -167,6 +162,7 @@ console.log('productId',  'productIds', );
         <div className={styles.layout}>
           <aside className={styles.sidebar}>
             <ReviewsSummary
+              product={product}
               summary={summary}
               total={summary?.total ?? 0}
               canReview={Boolean(user && hasPurchased)}

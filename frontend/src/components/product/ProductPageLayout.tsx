@@ -104,7 +104,7 @@ export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
           <ProductSpecs items={specs} isLoading={status === 'loading'} />
         </div>
 
-        <ProductReviewsPreview productId={product.id} reviews={reviews} summary={summary} />
+        <ProductReviewsPreview productId={product.id} product={product} reviews={reviews} summary={summary} />
 
         <ProductFeed productId={product.id} />
       </div>
