@@ -2,6 +2,8 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import type { Product, Review } from '../../../shared/types';
 import { Button } from '../../../shared/ui/Button';
 import { ReturnPhotoUploader } from '../../../components/returns/ReturnPhotoUploader';
+import { resolveImageUrl } from '../../../shared/lib/resolveImageUrl';
+import { getProductPrimaryImage } from '../../../shared/lib/getProductPrimaryImage';
 import styles from './ReviewFormModal.module.css';
 
 export type ReviewFormValues = {
@@ -59,6 +61,7 @@ export const ReviewFormModal = ({
     setComment(initialReview?.comment ?? '');
     setFiles([]);
     setExistingPhotos(initialReview?.photos ?? []);
+    setProductImageError(false);
   }, [initialReview, isOpen]);
 
   useEffect(() => {
@@ -76,6 +79,10 @@ export const ReviewFormModal = ({
   }, [isOpen, onClose]);
 
   const ratingLabel = useMemo(() => ratingLabels[rating - 1] ?? '', [rating]);
+  const [productImageError, setProductImageError] = useState(false);
+
+  const productImageSrc = resolveImageUrl(getProductPrimaryImage(product));
+  const showProductImage = Boolean(productImageSrc) && !productImageError;
 
   if (!isOpen) return null;
 
@@ -95,8 +102,17 @@ export const ReviewFormModal = ({
         </header>
 
         <div className={styles.product}>
-          <img src={product.image} alt={product.title} />
-          <span>{product.title}</span>
+          {showProductImage ? (
+            <img src={productImageSrc} alt={product.title} onError={() => setProductImageError(true)} />
+          ) : (
+            <div className={styles.productImagePlaceholder}>Нет изображения</div>
+          )}
+          <div>
+            <span>{product.title}</span>
+            {typeof product.price === 'number' ? (
+              <p className={styles.productPrice}>{product.price.toLocaleString('ru-RU')} ₽</p>
+            ) : null}
+          </div>
         </div>
 
         <div className={styles.ratingBlock}>
@@ -156,7 +172,7 @@ export const ReviewFormModal = ({
             <div className={styles.existingPhotos}>
               {existingPhotos.map((photo) => (
                 <div key={photo} className={styles.existingPhoto}>
-                  <img src={photo} alt="Фото отзыва" />
+                  <img src={resolveImageUrl(photo)} alt="Фото отзыва" />
                   <button
                     type="button"
                     onClick={() => setExistingPhotos((prev) => prev.filter((item) => item !== photo))}

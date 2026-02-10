@@ -214,6 +214,41 @@
   min-width: 0;
 }
 
+.reviewProductPreview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.reviewProductImage,
+.reviewProductPlaceholder {
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+}
+
+.reviewProductImage {
+  object-fit: cover;
+}
+
+.reviewProductPlaceholder {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 11px;
+  text-align: center;
+  padding: 4px;
+}
+
+.reviewProductTitle {
+  margin: 0;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .summaryTop {
   display: flex;
   flex-direction: column;
@@ -252,6 +287,47 @@
 .barFill {
   height: 100%;
   background: var(--warning);
+}
+
+.shopBadge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: inherit;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  border-radius: 14px;
+  padding: 10px 12px;
+}
+
+.shopBadgeDisabled {
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.shopBadgeAvatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--surface-ghost-strong);
+  display: grid;
+  place-items: center;
+}
+
+.shopBadgeTitle,
+.shopBadgeMeta {
+  margin: 0;
+}
+
+.shopBadgeTitle {
+  font-weight: 600;
+}
+
+.shopBadgeMeta {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .reviewList {

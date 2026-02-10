@@ -1,14 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../../shared/api';
 import { Review } from '../../shared/types';
 import { Button } from '../../shared/ui/Button';
 import { EmptyState } from '../../shared/ui/EmptyState';
 import { Table } from '../../shared/ui/Table';
+import { resolveImageUrl } from '../../shared/lib/resolveImageUrl';
 import styles from './AdminPage.module.css';
 
 type AdminReview = Review & {
   user?: { id: string; name: string; email?: string } | null;
   product?: { id: string; title: string; image?: string } | null;
+  photosUrls?: string[];
+  images?: string[];
 };
 
 const statusOptions = ['PENDING', 'NEEDS_EDIT', 'REJECTED', 'APPROVED'] as const;
@@ -72,6 +76,11 @@ export const AdminReviewsPage = () => {
 
   const rows = useMemo(() => reviews, [reviews]);
 
+  const getReviewPhotos = (review: AdminReview) => {
+    const raw = review.photosUrls ?? review.photos ?? review.images ?? [];
+    return raw.map((item) => resolveImageUrl(item)).filter(Boolean);
+  };
+
   return (
     <div className={styles.page}>
       <div className={styles.header}>
@@ -122,6 +131,11 @@ export const AdminReviewsPage = () => {
               <div>
                 <strong>{review.product?.title ?? review.productId ?? '—'}</strong>
                 <div className={styles.muted}>{new Date(review.createdAt).toLocaleDateString('ru-RU')}</div>
+                {review.productId ? (
+                  <Link to={`/product/${review.productId}`} target="_blank" rel="noreferrer" className={styles.link}>
+                    Открыть товар
+                  </Link>
+                ) : null}
               </div>
               <div>
                 <div className={styles.cellTruncate}>{review.user?.name ?? '—'}</div>
@@ -153,6 +167,13 @@ export const AdminReviewsPage = () => {
             <p>
               <strong>Товар:</strong> {selected.product?.title ?? selected.productId}
             </p>
+            {selected.productId ? (
+              <p>
+                <Link to={`/product/${selected.productId}`} target="_blank" rel="noreferrer" className={styles.link}>
+                  Открыть товар
+                </Link>
+              </p>
+            ) : null}
             <p>
               <strong>Автор:</strong> {selected.user?.name ?? '—'} {selected.user?.email ? `(${selected.user.email})` : ''}
             </p>
@@ -160,10 +181,12 @@ export const AdminReviewsPage = () => {
               <strong>Рейтинг:</strong> {selected.rating}
             </p>
             <p>{selected.comment}</p>
-            {selected.photos?.length ? (
+            {getReviewPhotos(selected).length ? (
               <div className={styles.previewList}>
-                {selected.photos.map((url, index) => (
-                  <img key={`${url}-${index}`} src={url} alt="Review" />
+                {getReviewPhotos(selected).map((url, index) => (
+                  <a key={`${url}-${index}`} href={url} target="_blank" rel="noreferrer" className={styles.previewLink}>
+                    <img src={url} alt={`Review ${index + 1}`} />
+                  </a>
                 ))}
               </div>
             ) : null}

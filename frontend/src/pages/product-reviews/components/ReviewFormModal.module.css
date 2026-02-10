@@ -54,6 +54,25 @@
   background: var(--bg-2);
 }
 
+.productImagePlaceholder {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  border: 1px dashed var(--border);
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 10px;
+  text-align: center;
+  padding: 4px;
+}
+
+.productPrice {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .ratingBlock {
   display: grid;
   gap: 8px;
@@ -150,4 +169,3 @@
   font-size: 12px;
   color: #ff6b6b;
 }
-
