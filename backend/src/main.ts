@@ -19,6 +19,9 @@ import { returnRoutes } from "./routes/returnRoutes";
 import { chatRoutes } from "./routes/chatRoutes";
 import { adminChatRoutes } from "./routes/adminChatRoutes";
 import { shopRoutes } from "./routes/shopRoutes";
+import { favoritesRoutes } from "./routes/favoritesRoutes";
+import { checkoutRoutes } from "./routes/checkoutRoutes";
+import { pickupPointRoutes } from "./routes/pickupPointRoutes";
 import { errorHandler } from "./middleware/errorHandler";
 import { globalLimiter } from "./middleware/rateLimiters";
 import { clientDisconnect } from "./middleware/clientDisconnect";
@@ -85,6 +88,9 @@ app.use("/chats", chatRoutes);
 app.use("/admin", adminRoutes);
 app.use("/admin/chats", adminChatRoutes);
 app.use("/payments", paymentRoutes);
+app.use("/favorites", favoritesRoutes);
+app.use("/checkout", checkoutRoutes);
+app.use("/pickup-points", pickupPointRoutes);
 
 app.use(errorHandler);
 

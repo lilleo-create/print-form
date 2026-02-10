@@ -1,0 +1,62 @@
+.modal {
+  width: min(520px, 94vw);
+  padding: 0;
+}
+
+.content {
+  position: relative;
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+}
+
+.close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 28px;
+  cursor: pointer;
+}
+
+.header {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 12px;
+  align-items: center;
+}
+
+.image {
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+  object-fit: cover;
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.actions a,
+.actions button {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  text-align: center;
+  background: var(--bg-2);
+  text-decoration: none;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.toast {
+  border-radius: 10px;
+  background: var(--surface-ghost);
+  border: 1px solid var(--border);
+  padding: 10px;
+  text-align: center;
+}
