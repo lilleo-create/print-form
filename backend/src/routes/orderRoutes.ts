@@ -1,154 +1,132 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { authenticate, AuthRequest } from '../middleware/authMiddleware';
-import { orderUseCases } from '../usecases/orderUseCases';
 import { writeLimiter } from '../middleware/rateLimiters';
 import { prisma } from '../lib/prisma';
-import { orderDeliveryService, type OrderDeliveryData } from '../services/orderDeliveryService';
-import { shipmentService } from '../services/shipmentService';
+import { orderUseCases } from '../usecases/orderUseCases';
+import { yandexDeliveryService } from '../services/yandexDeliveryService';
 
 export const orderRoutes = Router();
 
-const legacyOrderSchema = z.object({
-  contactId: z.string().optional(),
-  shippingAddressId: z.string().optional(),
+const yaPvzSelectionSchema = z.object({
+  provider: z.literal('YANDEX_NDD'),
+  pvzId: z.string().min(1),
+  addressFull: z.string().optional(),
+  country: z.string().optional(),
+  locality: z.string().optional(),
+  street: z.string().optional(),
+  house: z.string().optional(),
+  comment: z.string().optional(),
+  raw: z.unknown()
+});
+
+const createOrderSchema = z.object({
+  buyerPickupPvz: yaPvzSelectionSchema,
   items: z
     .array(
       z.object({
         productId: z.string(),
         variantId: z.string().optional(),
-        quantity: z.number().min(1)
+        quantity: z.number().int().min(1)
       })
     )
     .min(1)
 });
 
-const checkoutOrderSchema = z.object({
-  delivery: z.object({
-    deliveryProvider: z.string(),
-    deliveryMethod: z.enum(['COURIER', 'PICKUP_POINT']),
-    courierAddress: z
-      .object({
-        line1: z.string().optional(),
-        city: z.string().optional(),
-        postalCode: z.string().optional(),
-        country: z.string().optional(),
-        apartment: z.string().nullable().optional(),
-        floor: z.string().nullable().optional(),
-        comment: z.string().nullable().optional()
-      })
-      .optional(),
-    pickupPoint: z
-      .object({
-        id: z.string(),
-        fullAddress: z.string(),
-        country: z.string().optional(),
-        locality: z.string().optional(),
-        street: z.string().optional(),
-        house: z.string().optional(),
-        comment: z.string().optional(),
-        position: z.record(z.unknown()).optional(),
-        type: z.string().optional(),
-        paymentMethods: z.array(z.string()).optional()
-      })
-      .optional(),
-    deliveryMeta: z.record(z.unknown()).optional()
-  }),
-  recipient: z.object({
-    name: z.string(),
-    phone: z.string(),
-    email: z.string().email()
-  }),
-  payment: z.object({
-    method: z.enum(['CARD', 'SBP']),
-    cardId: z.string().optional()
-  }),
-  items: z
-    .array(
-      z.object({
-        productId: z.string(),
-        quantity: z.number().min(1),
-        variantId: z.string().optional()
-      })
-    )
-    .min(1)
-});
+const buildYandexPayload = (order: any) => {
+  const barcode = `PF-${order.id}`;
+  const invalidItem = order.items.find(
+    (item: any) =>
+      item.product.weightGrossG == null ||
+      item.product.dxCm == null ||
+      item.product.dyCm == null ||
+      item.product.dzCm == null
+  );
+  if (invalidItem) {
+    throw new Error('PRODUCT_DIMENSIONS_REQUIRED');
+  }
 
-const attachDeliveryData = async <T extends { id: string }>(orders: T[]) => {
-  const map = await orderDeliveryService.getByOrderIds(orders.map((order) => order.id));
-  const shipments = await shipmentService.getByOrderIds(orders.map((order) => order.id));
-  return orders.map((order) => ({
-    ...order,
-    delivery: map.get(order.id) ?? null,
-    shipment: shipments.get(order.id) ?? null
-  }));
+  const weight = order.items.reduce((sum: number, item: any) => sum + (item.product.weightGrossG ?? 0) * item.quantity, 0);
+  const dx = Math.max(...order.items.map((item: any) => item.product.dxCm ?? 0));
+  const dy = Math.max(...order.items.map((item: any) => item.product.dyCm ?? 0));
+  const dz = Math.max(...order.items.map((item: any) => item.product.dzCm ?? 0));
+
+  return {
+    items: order.items.map((item: any) => ({
+      article: item.variant?.sku ?? item.product.sku,
+      name: item.product.title,
+      count: item.quantity,
+      place_barcode: barcode,
+      billing_details: {
+        unit_price: item.priceAtPurchase,
+        assessed_unit_price: item.priceAtPurchase,
+        nds: -1
+      },
+      physical_dims: {
+        dx: item.product.dxCm,
+        dy: item.product.dyCm,
+        dz: item.product.dzCm,
+        weight_gross: item.product.weightGrossG
+      }
+    })),
+    places: [
+      {
+        barcode,
+        physical_dims: {
+          dx,
+          dy,
+          dz,
+          weight_gross: weight
+        }
+      }
+    ],
+    last_mile_policy: 'self_pickup',
+    source: { platform_station: { platform_id: order.sellerDropoffPvzId } },
+    destination: { type: 'platform_station', platform_station: { platform_id: order.buyerPickupPvzId } },
+    recipient_info: {
+      first_name: order.buyer.name.split(' ')[0] ?? 'Покупатель',
+      last_name: order.buyer.name.split(' ').slice(1).join(' ') || '-',
+      phone: order.contact?.phone ?? order.buyer.phone ?? '',
+      email: order.contact?.email ?? order.buyer.email
+    },
+    operator_request_id: order.id
+  };
 };
 
 orderRoutes.post('/', authenticate, writeLimiter, async (req: AuthRequest, res, next) => {
   try {
-    const parsedLegacy = legacyOrderSchema.safeParse(req.body);
-    const payload = parsedLegacy.success
-      ? parsedLegacy.data
-      : checkoutOrderSchema.parse(req.body);
+    const payload = createOrderSchema.parse(req.body);
 
-    if ('recipient' in payload) {
-      const existingContact = await prisma.contact.findFirst({ where: { userId: req.user!.userId }, orderBy: { createdAt: 'desc' } });
-      if (existingContact) {
-        await prisma.contact.update({
-          where: { id: existingContact.id },
-          data: {
-            name: payload.recipient.name,
-            phone: payload.recipient.phone,
-            email: payload.recipient.email
-          }
-        });
-      } else {
-        await prisma.contact.create({
-          data: {
-            userId: req.user!.userId,
-            name: payload.recipient.name,
-            phone: payload.recipient.phone,
-            email: payload.recipient.email
-          }
-        });
-      }
+    const product = await prisma.product.findFirst({
+      where: { id: payload.items[0]?.productId },
+      select: { sellerId: true }
+    });
+
+    if (!product) {
+      return res.status(404).json({ error: { code: 'PRODUCT_NOT_FOUND' } });
     }
 
-    if ('contactId' in payload && payload.contactId) {
-      const contact = await prisma.contact.findFirst({
-        where: { id: payload.contactId, userId: req.user!.userId }
-      });
-      if (!contact) {
-        return res.status(404).json({ error: { code: 'CONTACT_NOT_FOUND' } });
-      }
-    }
-
-    if ('shippingAddressId' in payload && payload.shippingAddressId) {
-      const address = await prisma.address.findFirst({
-        where: { id: payload.shippingAddressId, userId: req.user!.userId }
-      });
-      if (!address) {
-        return res.status(404).json({ error: { code: 'ADDRESS_NOT_FOUND' } });
-      }
+    const sellerSettings = await prisma.sellerSettings.findUnique({ where: { sellerId: product.sellerId } });
+    if (!sellerSettings?.defaultDropoffPvzId) {
+      return res.status(400).json({ error: { code: 'SELLER_DROPOFF_PVZ_REQUIRED', message: 'Seller has no dropoff PVZ' } });
     }
 
     const order = await orderUseCases.create({
       buyerId: req.user!.userId,
-      contactId: 'contactId' in payload ? payload.contactId : undefined,
-      shippingAddressId: 'shippingAddressId' in payload ? payload.shippingAddressId : undefined,
-      items: payload.items
+      items: payload.items,
+      buyerPickupPvz: {
+        ...payload.buyerPickupPvz,
+        raw: payload.buyerPickupPvz.raw ?? {}
+      },
+      sellerDropoffPvz: {
+        provider: 'YANDEX_NDD',
+        pvzId: sellerSettings.defaultDropoffPvzId,
+        raw: sellerSettings.defaultDropoffPvzMeta ?? {},
+        addressFull: typeof sellerSettings.defaultDropoffPvzMeta === 'object' && sellerSettings.defaultDropoffPvzMeta
+          ? String((sellerSettings.defaultDropoffPvzMeta as Record<string, unknown>).addressFull ?? '')
+          : undefined
+      }
     });
-
-    if ('delivery' in payload) {
-      const deliveryPayload: OrderDeliveryData = {
-        deliveryProvider: payload.delivery.deliveryProvider,
-        deliveryMethod: payload.delivery.deliveryMethod,
-        courierAddress: payload.delivery.deliveryMethod === 'COURIER' ? payload.delivery.courierAddress ?? null : null,
-        pickupPoint: payload.delivery.deliveryMethod === 'PICKUP_POINT' ? payload.delivery.pickupPoint ?? null : null,
-        deliveryMeta: payload.delivery.deliveryMeta ?? {}
-      };
-      await orderDeliveryService.upsert(order.id, deliveryPayload);
-    }
 
     return res.status(201).json({ data: order, orderId: order.id });
   } catch (error) {
@@ -156,24 +134,148 @@ orderRoutes.post('/', authenticate, writeLimiter, async (req: AuthRequest, res, 
   }
 });
 
+orderRoutes.post('/:id/pay', authenticate, writeLimiter, async (req: AuthRequest, res, next) => {
+  try {
+    const order = await prisma.order.findFirst({
+      where: { id: req.params.id, buyerId: req.user!.userId },
+      include: {
+        buyer: true,
+        contact: true,
+        items: { include: { product: true, variant: true } }
+      }
+    });
+
+    if (!order) {
+      return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND' } });
+    }
+
+    const payload = buildYandexPayload(order);
+
+    let requestId: string | null = null;
+    let offerId: string | null = null;
+    try {
+      const offers = await yandexDeliveryService.createOffers(payload);
+      const list = Array.isArray((offers as Record<string, unknown>).offers)
+        ? ((offers as Record<string, unknown>).offers as Record<string, unknown>[])
+        : [];
+      const bestOffer = [...list].sort((a, b) => Number((a.pricing_total as number) ?? Number.MAX_SAFE_INTEGER) - Number((b.pricing_total as number) ?? Number.MAX_SAFE_INTEGER))[0];
+      if (bestOffer?.offer_id) {
+        offerId = String(bestOffer.offer_id);
+        const confirmed = await yandexDeliveryService.confirmOffer(offerId);
+        requestId = String((confirmed as Record<string, unknown>).request_id ?? '');
+      }
+    } catch (_error) {
+      const created = await yandexDeliveryService.createRequest(payload);
+      requestId = String((created as Record<string, unknown>).request_id ?? '');
+    }
+
+    if (!requestId) {
+      return res.status(400).json({ error: { code: 'YANDEX_REQUEST_FAILED' } });
+    }
+
+    const info = await yandexDeliveryService.getRequestInfo(requestId);
+
+    const updated = await prisma.order.update({
+      where: { id: order.id },
+      data: {
+        status: 'PAID',
+        yandexOfferId: offerId,
+        yandexRequestId: requestId,
+        yandexStatus: (info as Record<string, unknown> | null)?.status as string | undefined,
+        yandexSharingUrl: (info as Record<string, unknown> | null)?.sharing_url as string | undefined,
+        yandexCourierOrderId: (info as Record<string, unknown> | null)?.courier_order_id as string | undefined,
+        yandexSelfPickupCode: (info as Record<string, unknown> | null)?.self_pickup_node_code as object | undefined
+      }
+    });
+
+    return res.json({ data: updated, trackingUrl: updated.yandexSharingUrl });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'PRODUCT_DIMENSIONS_REQUIRED') {
+      return res.status(400).json({ error: { code: 'PRODUCT_DIMENSIONS_REQUIRED', message: 'Продавец не указал габариты/вес товара' } });
+    }
+    return next(error);
+  }
+});
+
+orderRoutes.post('/:id/ready-for-shipment', authenticate, writeLimiter, async (req: AuthRequest, res, next) => {
+  try {
+    const order = await prisma.order.findFirst({
+      where: {
+        id: req.params.id,
+        status: 'PAID',
+        items: { some: { product: { sellerId: req.user!.userId } } }
+      }
+    });
+
+    if (!order) {
+      return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND' } });
+    }
+
+    const now = new Date();
+    const updated = await prisma.order.update({
+      where: { id: order.id },
+      data: {
+        status: 'READY_FOR_SHIPMENT',
+        readyForShipmentAt: now,
+        dropoffDeadlineAt: new Date(now.getTime() + 24 * 60 * 60 * 1000)
+      }
+    });
+    return res.json({ data: updated });
+  } catch (error) {
+    return next(error);
+  }
+});
+
 orderRoutes.get('/me', authenticate, async (req: AuthRequest, res, next) => {
   try {
-    const orders = await orderUseCases.listByBuyer(req.user!.userId);
-    const enriched = await attachDeliveryData(orders);
-    res.json({ data: enriched });
+    const orders = await prisma.order.findMany({
+      where: { buyerId: req.user!.userId },
+      include: { items: { include: { product: true, variant: true } }, deliveryEvents: { orderBy: { createdAt: 'desc' } } },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json({ data: orders });
   } catch (error) {
     next(error);
   }
 });
 
-orderRoutes.get('/:id', authenticate, async (req, res, next) => {
+orderRoutes.get('/:id/delivery/history', authenticate, async (req: AuthRequest, res, next) => {
   try {
-    const order = await orderUseCases.get(req.params.id);
+    const order = await prisma.order.findFirst({
+      where: {
+        id: req.params.id,
+        OR: [{ buyerId: req.user!.userId }, { items: { some: { product: { sellerId: req.user!.userId } } } }]
+      },
+      include: { deliveryEvents: { orderBy: { createdAt: 'desc' } } }
+    });
     if (!order) {
       return res.status(404).json({ error: { code: 'NOT_FOUND' } });
     }
-    const [enriched] = await attachDeliveryData([order]);
-    return res.json({ data: enriched });
+    return res.json({ data: order.deliveryEvents });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+orderRoutes.get('/:id', authenticate, async (req, res, next) => {
+  try {
+    const order = await prisma.order.findFirst({
+      where: {
+        id: req.params.id,
+        OR: [{ buyerId: req.user!.userId }, { items: { some: { product: { sellerId: req.user!.userId } } } }]
+      },
+      include: {
+        items: { include: { product: true, variant: true } },
+        contact: true,
+        shippingAddress: true,
+        buyer: true,
+        deliveryEvents: { orderBy: { createdAt: 'desc' } }
+      }
+    });
+    if (!order) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND' } });
+    }
+    return res.json({ data: order });
   } catch (error) {
     return next(error);
   }

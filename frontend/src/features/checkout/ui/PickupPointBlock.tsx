@@ -6,6 +6,6 @@ type Props = { point?: PickupPoint | null; onOpen: () => void };
 export const PickupPointBlock = ({ point, onOpen }: Props) => (
   <button type="button" className={styles.block} onClick={onOpen}>
     <strong>Пункт выдачи</strong>
-    <span>{point ? `${point.fullAddress} (ID: ${point.id})` : 'Выберите пункт выдачи'}</span>
+    <span>{point ? `${point.addressFull ?? 'Адрес не указан'} (ID: ${point.pvzId})` : 'Выберите пункт выдачи'}</span>
   </button>
 );

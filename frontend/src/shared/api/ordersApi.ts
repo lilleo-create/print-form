@@ -115,5 +115,16 @@ export const ordersApi = {
   },
   downloadShippingLabel: async (orderId: string) => {
     return api.downloadShippingLabel(orderId);
+  },
+  downloadYandexHandoverAct: async (payload: {
+    mode?: 'new_requests' | 'by_request_ids' | 'by_date_range';
+    request_ids?: string[];
+    editable_format?: boolean;
+    created_since?: number;
+    created_until?: number;
+    created_since_utc?: string;
+    created_until_utc?: string;
+  }) => {
+    return api.downloadYandexHandoverAct(payload);
   }
 };

@@ -1,7 +1,17 @@
 export type MaterialType = 'PLA' | 'ABS' | 'PETG' | 'RESIN';
 export type TechnologyType = 'FDM' | 'SLA';
 export type Role = 'buyer' | 'seller' | 'admin';
-export type OrderStatus = 'CREATED' | 'PRINTING' | 'HANDED_TO_DELIVERY' | 'IN_TRANSIT' | 'DELIVERED';
+export type OrderStatus =
+  | 'CREATED'
+  | 'PAID'
+  | 'READY_FOR_SHIPMENT'
+  | 'PRINTING'
+  | 'HANDED_TO_DELIVERY'
+  | 'IN_TRANSIT'
+  | 'DELIVERED'
+  | 'CANCELLED'
+  | 'RETURNED'
+  | 'EXPIRED';
 export type ProductModerationStatus = 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'NEEDS_EDIT' | 'ARCHIVED';
 export type ReviewModerationStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'NEEDS_EDIT';
 export type ReturnStatus = 'CREATED' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED' | 'REFUNDED';
@@ -38,6 +48,10 @@ export interface Product {
   deliveryDateEstimated?: string;
   imageUrls?: string[];
   videoUrls?: string[];
+  weightGrossG?: number;
+  dxCm?: number;
+  dyCm?: number;
+  dzCm?: number;
   moderationStatus?: ProductModerationStatus;
   moderationNotes?: string | null;
   publishedAt?: string | null;
@@ -222,8 +236,8 @@ export interface Order {
 export interface SellerDeliveryProfile {
   id: string;
   sellerId: string;
-  dropoffStationId: string;
-  dropoffStationMeta?: Record<string, unknown> | null;
+  defaultDropoffPvzId?: string | null;
+  defaultDropoffPvzMeta?: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
 }

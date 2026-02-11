@@ -27,12 +27,17 @@ const menuItems = [
 ] as const;
 
 const statusFlow: OrderStatus[] = ['CREATED', 'PRINTING', 'HANDED_TO_DELIVERY', 'IN_TRANSIT', 'DELIVERED'];
-const statusLabels: Record<OrderStatus, string> = {
+const statusLabels: Partial<Record<OrderStatus, string>> = {
   CREATED: 'Создается',
+  PAID: 'Оплачен',
+  READY_FOR_SHIPMENT: 'Готов к отгрузке',
   PRINTING: 'Модель печатается',
   HANDED_TO_DELIVERY: 'Передано в доставку',
   IN_TRANSIT: 'В пути',
-  DELIVERED: 'Доставлено'
+  DELIVERED: 'Доставлено',
+  CANCELLED: 'Отменен',
+  RETURNED: 'Возврат',
+  EXPIRED: 'Просрочен'
 };
 
 const formatCurrency = (value: number) => value.toLocaleString('ru-RU');
@@ -136,7 +141,7 @@ export const SellerDashboardPage = () => {
         return next;
       });
       const profileResponse = await api.getSellerDeliveryProfile();
-      setDropoffStationId(profileResponse.data?.dropoffStationId ?? '');
+      setDropoffStationId(profileResponse.data?.defaultDropoffPvzId ?? '');
     } catch (error) {
       setOrders([]);
       setOrdersView([]);
@@ -367,7 +372,14 @@ export const SellerDashboardPage = () => {
     setDeliverySettingsMessage(null);
     setDeliverySettingsError(null);
     try {
-      await api.updateSellerDeliveryProfile({ dropoffStationId: dropoffStationId.trim() });
+      await api.updateSellerDeliveryProfile({
+        dropoffPvz: {
+          provider: 'YANDEX_NDD',
+          pvzId: dropoffStationId.trim(),
+          raw: { addressFull: dropoffStationId.trim() },
+          addressFull: dropoffStationId.trim()
+        }
+      });
       setDeliverySettingsMessage('Станция отгрузки сохранена.');
     } catch {
       setDeliverySettingsError('Не удалось сохранить станцию отгрузки.');
@@ -404,6 +416,21 @@ export const SellerDashboardPage = () => {
       }
     } catch {
       setOrderUpdateError('Не удалось скачать ярлык.');
+    }
+  };
+
+  const handleDownloadHandoverAct = async () => {
+    setOrderUpdateError(null);
+    try {
+      const result = await ordersApi.downloadYandexHandoverAct({ mode: 'new_requests', editable_format: false });
+      const url = URL.createObjectURL(result.blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `handover_act_${Date.now()}.pdf`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setOrderUpdateError('Не удалось скачать акт приёма-передачи.');
     }
   };
 
@@ -945,6 +972,9 @@ export const SellerDashboardPage = () => {
                   <p className={styles.muted}>Используется для создания заявок NDD «Доставка в другой день».</p>
                   <Button type="button" onClick={handleSaveDeliveryProfile} disabled={!dropoffStationId.trim()}>
                     Сохранить доставку
+                  </Button>
+                  <Button type="button" variant="secondary" onClick={handleDownloadHandoverAct}>
+                    Скачать акт приёма-передачи
                   </Button>
                   {deliverySettingsMessage && <p className={styles.muted}>{deliverySettingsMessage}</p>}
                   {deliverySettingsError && <p className={styles.error}>{deliverySettingsError}</p>}

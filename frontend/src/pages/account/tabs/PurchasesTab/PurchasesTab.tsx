@@ -5,7 +5,7 @@ interface PurchasedItem {
   productId: string;
   title: string;
   price: number;
-  image?: string | null;
+  image?: string;
   orderDate: string;
   orderId: string;
 }

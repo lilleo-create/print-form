@@ -13,6 +13,7 @@ import { writeLimiter } from '../middleware/rateLimiters';
 import { sellerDeliveryProfileService } from '../services/sellerDeliveryProfileService';
 import { yandexNddShipmentOrchestrator } from '../services/yandexNddShipmentOrchestrator';
 import { shipmentService } from '../services/shipmentService';
+import { yandexDeliveryService } from '../services/yandexDeliveryService';
 
 export const sellerRoutes = Router();
 
@@ -455,24 +456,103 @@ const sellerOrderStatusSchema = z.object({
 });
 
 const sellerDeliveryProfileSchema = z.object({
-  dropoffStationId: z.string().min(3),
-  dropoffStationMeta: z.record(z.unknown()).optional()
+  dropoffPvz: z.object({
+    provider: z.literal('YANDEX_NDD'),
+    pvzId: z.string().min(2),
+    raw: z.unknown(),
+    addressFull: z.string().optional(),
+    country: z.string().optional(),
+    locality: z.string().optional(),
+    street: z.string().optional(),
+    house: z.string().optional(),
+    comment: z.string().optional()
+  })
 });
 
-sellerRoutes.get('/delivery-profile', async (req: AuthRequest, res, next) => {
+sellerRoutes.get('/settings', async (req: AuthRequest, res, next) => {
   try {
-    const profile = await sellerDeliveryProfileService.getBySellerId(req.user!.userId);
-    res.json({ data: profile });
+    const settings = await prisma.sellerSettings.findUnique({ where: { sellerId: req.user!.userId } });
+    res.json({ data: settings });
   } catch (error) {
     next(error);
   }
 });
 
-sellerRoutes.put('/delivery-profile', writeLimiter, async (req: AuthRequest, res, next) => {
+sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest, res, next) => {
   try {
     const payload = sellerDeliveryProfileSchema.parse(req.body);
-    const profile = await sellerDeliveryProfileService.upsert(req.user!.userId, payload);
-    res.json({ data: profile });
+    const settings = await prisma.sellerSettings.upsert({
+      where: { sellerId: req.user!.userId },
+      create: {
+        sellerId: req.user!.userId,
+        defaultDropoffPvzId: payload.dropoffPvz.pvzId,
+        defaultDropoffPvzMeta: payload.dropoffPvz as unknown as object
+      },
+      update: {
+        defaultDropoffPvzId: payload.dropoffPvz.pvzId,
+        defaultDropoffPvzMeta: payload.dropoffPvz as unknown as object
+      }
+    });
+    res.json({ data: settings });
+  } catch (error) {
+    next(error);
+  }
+});
+
+sellerRoutes.post('/orders/:id/yandex/labels', writeLimiter, async (req: AuthRequest, res, next) => {
+  try {
+    const order = await prisma.order.findFirst({
+      where: { id: req.params.id, items: { some: { product: { sellerId: req.user!.userId } } } },
+      select: { id: true, yandexRequestId: true }
+    });
+    if (!order?.yandexRequestId) {
+      return res.status(400).json({ error: { code: 'YANDEX_REQUEST_ID_REQUIRED' } });
+    }
+    const file = await yandexDeliveryService.generateLabels([order.yandexRequestId], 'one', 'ru');
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="label_${order.id}.pdf"`);
+    res.send(file.buffer);
+  } catch (error) {
+    next(error);
+  }
+});
+
+const handoverSchema = z.object({
+  mode: z.enum(['new_requests', 'by_request_ids', 'by_date_range']).default('new_requests'),
+  request_ids: z.array(z.string()).optional(),
+  created_since: z.number().optional(),
+  created_until: z.number().optional(),
+  created_since_utc: z.string().optional(),
+  created_until_utc: z.string().optional(),
+  editable_format: z.boolean().optional()
+});
+
+sellerRoutes.post('/yandex/handover-act', writeLimiter, async (req: AuthRequest, res, next) => {
+  try {
+    const payload = handoverSchema.parse(req.body);
+    const params: Record<string, unknown> = { editable_format: payload.editable_format ?? false };
+    let body: Record<string, unknown> = {};
+
+    if (payload.mode === 'new_requests') {
+      params.new_requests = true;
+    } else if (payload.mode === 'by_request_ids') {
+      body = { request_ids: payload.request_ids ?? [] };
+    } else {
+      if (payload.created_since !== undefined) params.created_since = payload.created_since;
+      if (payload.created_until !== undefined) params.created_until = payload.created_until;
+      if (payload.created_since_utc) params.created_since_utc = payload.created_since_utc;
+      if (payload.created_until_utc) params.created_until_utc = payload.created_until_utc;
+    }
+
+    const file = await yandexDeliveryService.getHandoverAct(params, body);
+    const ext = payload.editable_format ? 'docx' : 'pdf';
+    const contentType = payload.editable_format
+      ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      : 'application/pdf';
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="handover_act_${Date.now()}.${ext}"`);
+    res.send(file.buffer);
   } catch (error) {
     next(error);
   }

@@ -89,6 +89,10 @@ export const sellerProductSchema = z.object({
   printTime: z.string().min(2),
   color: z.string().min(2),
   deliveryDateEstimated: z.string().datetime().optional(),
+  weightGrossG: z.number().int().positive(),
+  dxCm: z.number().int().positive(),
+  dyCm: z.number().int().positive(),
+  dzCm: z.number().int().positive(),
 });
 
 const reviewSchema = z.object({

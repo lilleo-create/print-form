@@ -9,6 +9,10 @@ export const sellerProductsApi = {
   create: async (product: Product) => {
     const result = await api.createSellerProduct({
       ...product,
+      weightGrossG: product.weightGrossG ?? 0,
+      dxCm: product.dxCm ?? 0,
+      dyCm: product.dyCm ?? 0,
+      dzCm: product.dzCm ?? 0,
       imageUrls: product.imageUrls ?? [],
       videoUrls: product.videoUrls ?? [],
     });

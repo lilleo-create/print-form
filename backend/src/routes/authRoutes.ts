@@ -108,8 +108,7 @@ authRoutes.post('/register', authLimiter, async (req, res, next) => {
       payload.email,
       payload.password,
       payload.role,
-      phone,
-      payload.address
+      phone
     );
     const tempToken = authService.issueOtpToken(result.user);
     res.json({
