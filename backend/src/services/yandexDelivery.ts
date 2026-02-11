@@ -209,8 +209,6 @@ const filterByQuery = (points: NormalizedPvzPoint[], query?: string) => {
 const listStationsFromB2b = async (city: string): Promise<JsonRecord[]> => {
   const bounds = toBounds(MOSCOW_CENTER.lat, MOSCOW_CENTER.lng, MOSCOW_RADIUS_KM);
 
-  // ВАЖНО: endpoint оставляем как в твоём коде
-  // Если у Яндекса другой контракт — адаптируем payload, но path не меняем без нужды.
   const payload: JsonRecord = {
     city,
     bounds,
@@ -235,8 +233,6 @@ const getPvzPointsFromB2b = async (city: string) => {
 
 const canUseDevFallback = () => process.env.NODE_ENV !== 'production';
 
-// DEV только, чтобы UI не умер в ноль, если B2B не отвечает или прав нет.
-// В PROD возвращаем ошибку.
 const devFallbackPoints: NormalizedPvzPoint[] = [
   {
     id: 'dev-pvz-лесная-5',
@@ -263,7 +259,9 @@ export const fetchYandexPvz = async (params: { city: string; query?: string }) =
 
     if (canUseDevFallback()) return filterByQuery(devFallbackPoints, params.query);
 
-    throw new Error('PVZ unavailable via B2B API. Check token/permissions and endpoint /api/b2b/platform/stations/list.');
+    throw new Error(
+      'PVZ unavailable via B2B API. Check token/permissions and endpoint /api/b2b/platform/stations/list.'
+    );
   } catch (e) {
     if (canUseDevFallback()) return filterByQuery(devFallbackPoints, params.query);
     throw e;
