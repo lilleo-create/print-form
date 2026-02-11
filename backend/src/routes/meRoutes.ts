@@ -6,6 +6,8 @@ import { orderUseCases } from '../usecases/orderUseCases';
 import { reviewService } from '../services/reviewService';
 import { writeLimiter } from '../middleware/rateLimiters';
 import { prisma } from '../lib/prisma';
+import { orderDeliveryService } from '../services/orderDeliveryService';
+import { shipmentService } from '../services/shipmentService';
 
 export const meRoutes = Router();
 
@@ -226,7 +228,15 @@ meRoutes.patch('/contacts/:id', requireAuth, writeLimiter, async (req: AuthReque
 meRoutes.get('/orders', requireAuth, async (req: AuthRequest, res, next) => {
   try {
     const orders = await orderUseCases.listByBuyer(req.user!.userId);
-    res.json({ data: orders });
+    const deliveries = await orderDeliveryService.getByOrderIds(orders.map((order) => order.id));
+    const shipments = await shipmentService.getByOrderIds(orders.map((order) => order.id));
+    res.json({
+      data: orders.map((order) => ({
+        ...order,
+        delivery: deliveries.get(order.id) ?? null,
+        shipment: shipments.get(order.id) ?? null
+      }))
+    });
   } catch (error) {
     next(error);
   }

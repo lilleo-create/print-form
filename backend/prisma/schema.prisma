@@ -30,6 +30,7 @@ model User {
   reviewedKycSubmissions SellerKycSubmission[] @relation("KycReviewer")
   sellerKycSubmissions   SellerKycSubmission[]
   sellerProfile          SellerProfile?
+  sellerDeliveryProfile  SellerDeliveryProfile?
   moderatedProducts      Product[]             @relation("ProductModerator")
   moderatedReviews       Review[]              @relation("ReviewModerator")
 }
@@ -174,6 +175,46 @@ model Order {
   shippingAddress   Address?    @relation("OrderShippingAddress", fields: [shippingAddressId], references: [id])
   items             OrderItem[]
   payments          Payment[]
+  shipment          OrderShipment?
+}
+
+model SellerDeliveryProfile {
+  id                 String   @id @default(cuid())
+  sellerId           String   @unique
+  dropoffStationId   String
+  dropoffStationMeta Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  seller             User     @relation(fields: [sellerId], references: [id])
+}
+
+model OrderShipment {
+  id                          String                       @id @default(cuid())
+  orderId                     String                       @unique
+  provider                    String
+  deliveryMethod              String
+  sourceStationId             String
+  sourceStationSnapshot       Json?
+  destinationStationId        String
+  destinationStationSnapshot  Json?
+  offerPayload                String?
+  requestId                   String?
+  status                      String
+  statusRaw                   Json?
+  lastSyncAt                  DateTime?
+  createdAt                   DateTime                     @default(now())
+  updatedAt                   DateTime                     @updatedAt
+  order                       Order                        @relation(fields: [orderId], references: [id])
+  statusHistory               OrderShipmentStatusHistory[]
+}
+
+model OrderShipmentStatusHistory {
+  id         String       @id @default(cuid())
+  shipmentId String
+  status     String
+  payloadRaw Json?
+  createdAt  DateTime     @default(now())
+  shipment   OrderShipment @relation(fields: [shipmentId], references: [id])
 }
 
 model OrderItem {

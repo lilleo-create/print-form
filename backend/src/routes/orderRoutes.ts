@@ -5,6 +5,7 @@ import { orderUseCases } from '../usecases/orderUseCases';
 import { writeLimiter } from '../middleware/rateLimiters';
 import { prisma } from '../lib/prisma';
 import { orderDeliveryService, type OrderDeliveryData } from '../services/orderDeliveryService';
+import { shipmentService } from '../services/shipmentService';
 
 export const orderRoutes = Router();
 
@@ -75,9 +76,11 @@ const checkoutOrderSchema = z.object({
 
 const attachDeliveryData = async <T extends { id: string }>(orders: T[]) => {
   const map = await orderDeliveryService.getByOrderIds(orders.map((order) => order.id));
+  const shipments = await shipmentService.getByOrderIds(orders.map((order) => order.id));
   return orders.map((order) => ({
     ...order,
-    delivery: map.get(order.id) ?? null
+    delivery: map.get(order.id) ?? null,
+    shipment: shipments.get(order.id) ?? null
   }));
 };
 

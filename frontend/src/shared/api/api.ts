@@ -11,6 +11,7 @@ import type {
   ReturnReason,
   ReturnStatus,
   SellerContextResponse,
+  SellerDeliveryProfile,
   SellerKycSubmission,
   ChatThread,
   ChatMessage,
@@ -223,6 +224,44 @@ export const api = {
 
   async updateSellerOrderStatus(id: string, payload: { status: OrderStatus; trackingNumber?: string; carrier?: string }) {
     return apiClient.request<Order>(`/seller/orders/${id}/status`, { method: 'PATCH', body: payload });
+  },
+
+  async getSellerDeliveryProfile() {
+    return apiClient.request<SellerDeliveryProfile | null>('/seller/delivery-profile');
+  },
+
+  async updateSellerDeliveryProfile(payload: { dropoffStationId: string; dropoffStationMeta?: Record<string, unknown> }) {
+    return apiClient.request<SellerDeliveryProfile>('/seller/delivery-profile', { method: 'PUT', body: payload });
+  },
+
+  async readyToShip(orderId: string) {
+    return apiClient.request<{ id: string; requestId?: string | null; status: string }>(`/seller/orders/${orderId}/ready-to-ship`, {
+      method: 'POST'
+    });
+  },
+
+  async downloadShippingLabel(orderId: string) {
+    const response = await fetch(`${baseUrl}/seller/orders/${orderId}/shipping-label`, {
+      method: 'GET',
+      headers: {
+        ...(authHeaders() ?? {})
+      }
+    });
+    if (!response.ok) {
+      throw new Error(`LABEL_DOWNLOAD_FAILED_${response.status}`);
+    }
+    const contentType = response.headers.get('content-type') ?? '';
+    if (contentType.includes('application/pdf')) {
+      return {
+        type: 'pdf' as const,
+        blob: await response.blob()
+      };
+    }
+    const json = (await response.json()) as { data?: { url?: string | null } };
+    return {
+      type: 'url' as const,
+      url: json.data?.url ?? null
+    };
   },
 
   async getSellerPayments() {

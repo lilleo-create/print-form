@@ -67,6 +67,12 @@ export const OrdersPage = () => {
                   <div className={styles.total}>{order.total.toLocaleString('ru-RU')} ₽</div>
                 </div>
                 {deliveryLabel(order) ? <p>{deliveryLabel(order)}</p> : null}
+                {order.shipment ? (
+                  <p>
+                    Статус доставки: {order.shipment.status}
+                    {order.shipment.requestId ? ` · трек: ${order.shipment.requestId}` : ''}
+                  </p>
+                ) : null}
                 <ul className={styles.items}>
                   {order.items.map((item) => (
                     <li key={`${order.id}-${item.productId}`} className={styles.item}>

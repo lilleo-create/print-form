@@ -10,6 +10,9 @@ import { productUseCases } from '../usecases/productUseCases';
 import { orderUseCases } from '../usecases/orderUseCases';
 import { sellerProductSchema } from './productRoutes';
 import { writeLimiter } from '../middleware/rateLimiters';
+import { sellerDeliveryProfileService } from '../services/sellerDeliveryProfileService';
+import { yandexNddShipmentOrchestrator } from '../services/yandexNddShipmentOrchestrator';
+import { shipmentService } from '../services/shipmentService';
 
 export const sellerRoutes = Router();
 
@@ -451,6 +454,30 @@ const sellerOrderStatusSchema = z.object({
   carrier: z.string().min(2).optional()
 });
 
+const sellerDeliveryProfileSchema = z.object({
+  dropoffStationId: z.string().min(3),
+  dropoffStationMeta: z.record(z.unknown()).optional()
+});
+
+sellerRoutes.get('/delivery-profile', async (req: AuthRequest, res, next) => {
+  try {
+    const profile = await sellerDeliveryProfileService.getBySellerId(req.user!.userId);
+    res.json({ data: profile });
+  } catch (error) {
+    next(error);
+  }
+});
+
+sellerRoutes.put('/delivery-profile', writeLimiter, async (req: AuthRequest, res, next) => {
+  try {
+    const payload = sellerDeliveryProfileSchema.parse(req.body);
+    const profile = await sellerDeliveryProfileService.upsert(req.user!.userId, payload);
+    res.json({ data: profile });
+  } catch (error) {
+    next(error);
+  }
+});
+
 sellerRoutes.get('/orders', async (req: AuthRequest, res, next) => {
   try {
     const query = sellerOrdersQuerySchema.parse(req.query);
@@ -459,7 +486,43 @@ sellerRoutes.get('/orders', async (req: AuthRequest, res, next) => {
       offset: query.offset,
       limit: query.limit
     });
-    res.json({ data: orders });
+    const shipments = await shipmentService.getByOrderIds(orders.map((order) => order.id));
+    res.json({ data: orders.map((order) => ({ ...order, shipment: shipments.get(order.id) ?? null })) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+sellerRoutes.post('/orders/:orderId/ready-to-ship', writeLimiter, async (req: AuthRequest, res, next) => {
+  try {
+    const shipment = await yandexNddShipmentOrchestrator.readyToShip(req.user!.userId, req.params.orderId);
+    res.json({ data: shipment });
+  } catch (error) {
+    next(error);
+  }
+});
+
+sellerRoutes.get('/orders/:orderId/shipping-label', async (req: AuthRequest, res, next) => {
+  try {
+    const order = await prisma.order.findFirst({
+      where: {
+        id: req.params.orderId,
+        items: { some: { product: { sellerId: req.user!.userId } } }
+      },
+      select: { id: true }
+    });
+    if (!order) {
+      return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND' } });
+    }
+
+    const result = await yandexNddShipmentOrchestrator.generateLabel(order.id);
+    if (result.pdfBuffer) {
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="shipping-label-${order.id}.pdf"`);
+      return res.send(result.pdfBuffer);
+    }
+
+    return res.json({ data: { url: result.url, raw: result.raw } });
   } catch (error) {
     next(error);
   }

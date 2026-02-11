@@ -208,6 +208,24 @@ export interface Order {
   buyer?: { id: string; name: string; email: string; phone?: string | null } | null;
   items: OrderItem[];
   delivery?: OrderDelivery | null;
+  shipment?: {
+    id: string;
+    provider: string;
+    status: string;
+    requestId?: string | null;
+    sourceStationId: string;
+    lastSyncAt?: string | null;
+    statusRaw?: Record<string, unknown> | null;
+  } | null;
+}
+
+export interface SellerDeliveryProfile {
+  id: string;
+  sellerId: string;
+  dropoffStationId: string;
+  dropoffStationMeta?: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface User {
