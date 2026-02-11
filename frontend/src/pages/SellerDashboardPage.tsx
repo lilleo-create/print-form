@@ -69,6 +69,9 @@ export const SellerDashboardPage = () => {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [paymentsLoading, setPaymentsLoading] = useState(true);
   const [paymentsError, setPaymentsError] = useState<string | null>(null);
+  const [dropoffStationId, setDropoffStationId] = useState('');
+  const [deliverySettingsMessage, setDeliverySettingsMessage] = useState<string | null>(null);
+  const [deliverySettingsError, setDeliverySettingsError] = useState<string | null>(null);
   const canSell = kycSubmission?.status === 'APPROVED';
   const userId = useAuthStore((state) => state.user?.id);
   const { authStatus, status: contextStatus, context, error: sellerContextError, reload } = useSellerContext();
@@ -132,6 +135,8 @@ export const SellerDashboardPage = () => {
         });
         return next;
       });
+      const profileResponse = await api.getSellerDeliveryProfile();
+      setDropoffStationId(profileResponse.data?.dropoffStationId ?? '');
     } catch (error) {
       setOrders([]);
       setOrdersView([]);
@@ -355,6 +360,50 @@ export const SellerDashboardPage = () => {
       setOrderUpdateError('Не удалось обновить статус заказа.');
     } finally {
       setOrderUpdateId(null);
+    }
+  };
+
+  const handleSaveDeliveryProfile = async () => {
+    setDeliverySettingsMessage(null);
+    setDeliverySettingsError(null);
+    try {
+      await api.updateSellerDeliveryProfile({ dropoffStationId: dropoffStationId.trim() });
+      setDeliverySettingsMessage('Станция отгрузки сохранена.');
+    } catch {
+      setDeliverySettingsError('Не удалось сохранить станцию отгрузки.');
+    }
+  };
+
+  const handleReadyToShip = async (orderId: string) => {
+    setOrderUpdateError(null);
+    try {
+      await ordersApi.readyToShip(orderId);
+      await loadOrders();
+    } catch {
+      setOrderUpdateError('Не удалось создать заявку доставки. Проверьте станцию отгрузки и данные ПВЗ.');
+    }
+  };
+
+  const handleDownloadLabel = async (orderId: string) => {
+    setOrderUpdateError(null);
+    try {
+      const result = await ordersApi.downloadShippingLabel(orderId);
+      if (result.type === 'pdf') {
+        const url = URL.createObjectURL(result.blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `shipping-label-${orderId}.pdf`;
+        link.click();
+        URL.revokeObjectURL(url);
+        return;
+      }
+      if (result.url) {
+        window.open(result.url, '_blank', 'noopener,noreferrer');
+      } else {
+        setOrderUpdateError('API не вернуло файл ярлыка.');
+      }
+    } catch {
+      setOrderUpdateError('Не удалось скачать ярлык.');
     }
   };
 
@@ -665,6 +714,15 @@ export const SellerDashboardPage = () => {
                               {orderUpdateId === order.id && <p className={styles.muted}>Обновляем...</p>}
                             </div>
                             <div className={styles.deliveryInputs}>
+                              <p className={styles.muted}>Метод: {order.delivery?.deliveryMethod ?? '—'}</p>
+                              <p className={styles.muted}>ПВЗ: {order.delivery?.pickupPoint?.fullAddress ?? '—'}</p>
+                              <p className={styles.muted}>source_platform_station: {dropoffStationId || 'не задана'}</p>
+                              <p className={styles.muted}>
+                                Статус доставки: {order.shipment?.status ?? 'не создана'}
+                                {order.shipment?.lastSyncAt
+                                  ? ` · обновлено ${new Date(order.shipment.lastSyncAt).toLocaleString('ru-RU')}`
+                                  : ''}
+                              </p>
                               <input
                                 className={styles.input}
                                 placeholder="Трек-номер"
@@ -693,6 +751,25 @@ export const SellerDashboardPage = () => {
                                   }))
                                 }
                               />
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                onClick={() => handleReadyToShip(order.id)}
+                                disabled={!dropoffStationId || Boolean(order.shipment?.requestId)}
+                              >
+                                Готов к отгрузке
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={() => handleDownloadLabel(order.id)}
+                                disabled={!order.shipment?.requestId}
+                              >
+                                Скачать ярлык
+                              </Button>
+                              {!order.shipment?.requestId && (
+                                <p className={styles.muted}>Сначала нажмите «Готов к отгрузке».</p>
+                              )}
                             </div>
                           </div>
                         );
@@ -854,6 +931,23 @@ export const SellerDashboardPage = () => {
                     <p className={styles.muted}>Профиль продавца не найден.</p>
                   )}
                   <p className={styles.muted}>Редактирование профиля доступно через форму подключения продавца.</p>
+                  <div className={styles.settingsGrid}>
+                    <div>
+                      <span className={styles.muted}>Станция отгрузки (source_platform_station)</span>
+                      <input
+                        className={styles.input}
+                        value={dropoffStationId}
+                        onChange={(event) => setDropoffStationId(event.target.value)}
+                        placeholder="GUID станции"
+                      />
+                    </div>
+                  </div>
+                  <p className={styles.muted}>Используется для создания заявок NDD «Доставка в другой день».</p>
+                  <Button type="button" onClick={handleSaveDeliveryProfile} disabled={!dropoffStationId.trim()}>
+                    Сохранить доставку
+                  </Button>
+                  {deliverySettingsMessage && <p className={styles.muted}>{deliverySettingsMessage}</p>}
+                  {deliverySettingsError && <p className={styles.error}>{deliverySettingsError}</p>}
                 </div>
               )}
 

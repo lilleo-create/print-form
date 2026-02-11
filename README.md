@@ -102,3 +102,24 @@ SMS_PROVIDER=console
 - Chosen Express for backend to keep the stack lightweight while still enforcing layered architecture.
 - Frontend uses feature-based layering (ui/features/entities/shared) and keeps business logic in hooks/services.
 - Frontend data flows through the backend API with token-based authentication and refresh handling.
+
+## NDD Delivery test (tst)
+1. Задайте env в `backend/.env`:
+   ```env
+   YANDEX_NDD_BASE_URL=https://b2b.taxi.tst.yandex.net
+   YANDEX_NDD_TOKEN=<ваш токен>
+   YANDEX_NDD_LANG=ru
+   ```
+2. Создайте заказ через checkout с `deliveryMethod=PICKUP_POINT` и валидным `pickupPoint.id` (станция назначения).
+3. В ЛК продавца откройте `Настройки` и сохраните `dropoffStationId` (GUID станции отгрузки `source_platform_station`).
+4. В ЛК продавца в разделе `Заказы` нажмите **Готов к отгрузке** — создастся заявка NDD.
+5. Проверьте БД:
+   - `order_shipments` (request_id, status, status_raw)
+   - `order_shipment_status_history`
+   - `seller_delivery_profile`
+6. Для ручной синхронизации статусов:
+   - endpoint: `POST /internal/jobs/shipments-sync`
+   - либо script: `cd backend && npm run shipments:sync`
+7. Для ярлыка в заказе продавца нажмите **Скачать ярлык** (или вызовите `GET /seller/orders/:orderId/shipping-label`).
+
+> Подсказка для tst-контура: используйте тестовые станции и ПВЗ в Москве/МО (Москва-only ограничения Яндекс NDD).

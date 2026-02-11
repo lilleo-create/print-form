@@ -28,6 +28,7 @@ type ApiOrder = {
   contact?: Order['contact'];
   shippingAddress?: Order['shippingAddress'];
   delivery?: Order['delivery'] | null;
+  shipment?: Order['shipment'] | null;
   items?: ApiOrderItem[];
 };
 
@@ -64,6 +65,7 @@ const mapOrder = (order: ApiOrder): Order => ({
   shippingAddress: order.shippingAddress ?? null,
   buyer: order.buyer ?? null,
   delivery: order.delivery ?? null,
+  shipment: order.shipment ?? null,
   items: (order.items ?? []).map((item) => ({
     id: item.id,
     productId: item.productId,
@@ -106,5 +108,12 @@ export const ordersApi = {
       }))
     });
     return mapOrder(result.data as unknown as ApiOrder);
+  },
+  readyToShip: async (orderId: string) => {
+    const result = await api.readyToShip(orderId);
+    return result.data;
+  },
+  downloadShippingLabel: async (orderId: string) => {
+    return api.downloadShippingLabel(orderId);
   }
 };

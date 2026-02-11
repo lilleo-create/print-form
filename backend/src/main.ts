@@ -24,6 +24,11 @@ import { checkoutRoutes } from "./routes/checkoutRoutes";
 import { errorHandler } from "./middleware/errorHandler";
 import { globalLimiter } from "./middleware/rateLimiters";
 import { clientDisconnect } from "./middleware/clientDisconnect";
+import { internalRoutes } from './routes/internalRoutes';
+import { orderDeliveryService } from './services/orderDeliveryService';
+import { sellerDeliveryProfileService } from './services/sellerDeliveryProfileService';
+import { shipmentService } from './services/shipmentService';
+import { startShipmentsSyncJob } from './jobs/shipmentsSyncJob';
 
 const app = express();
 const uploadsDir = path.join(process.cwd(), "uploads");
@@ -89,12 +94,21 @@ app.use("/admin/chats", adminChatRoutes);
 app.use("/payments", paymentRoutes);
 app.use("/favorites", favoritesRoutes);
 app.use("/checkout", checkoutRoutes);
+app.use('/internal', internalRoutes);
 
 app.use(errorHandler);
 
 app.listen(env.port, () => {
   console.log(`API running on ${env.port}`);
 });
+
+void Promise.all([orderDeliveryService.ensure(), sellerDeliveryProfileService.ensure(), shipmentService.ensure()])
+  .then(() => {
+    startShipmentsSyncJob();
+  })
+  .catch((error) => {
+    console.error('Delivery tables init failed', error);
+  });
 
 
 process.on('unhandledRejection', (reason) => {
