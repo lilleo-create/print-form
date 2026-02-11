@@ -25,6 +25,7 @@ import { errorHandler } from "./middleware/errorHandler";
 import { globalLimiter } from "./middleware/rateLimiters";
 import { clientDisconnect } from "./middleware/clientDisconnect";
 import { internalRoutes } from './routes/internalRoutes';
+import { yandexDeliveryRoutes } from './routes/yandexDeliveryRoutes';
 import { orderDeliveryService } from './services/orderDeliveryService';
 import { sellerDeliveryProfileService } from './services/sellerDeliveryProfileService';
 import { shipmentService } from './services/shipmentService';
@@ -95,6 +96,7 @@ app.use("/payments", paymentRoutes);
 app.use("/favorites", favoritesRoutes);
 app.use("/checkout", checkoutRoutes);
 app.use('/internal', internalRoutes);
+app.use('/api/yandex-delivery', yandexDeliveryRoutes);
 
 app.use(errorHandler);
 
