@@ -5,24 +5,19 @@ const client = createFetchClient(baseUrl);
 
 export type DeliveryMethodCode = 'COURIER' | 'PICKUP_POINT';
 export type PaymentMethodCode = 'CARD' | 'SBP';
-export type DeliveryProvider = string;
-
-export type PickupPoint = {
-  id: string;
-  fullAddress: string;
+export type YaPvzSelection = {
+  provider: 'YANDEX_NDD';
+  pvzId: string;
+  addressFull?: string;
   country?: string;
   locality?: string;
   street?: string;
   house?: string;
   comment?: string;
-  position?: {
-    lat?: number;
-    lng?: number;
-    [key: string]: unknown;
-  };
-  type?: string;
-  paymentMethods?: string[];
+  raw: unknown;
 };
+
+export type PickupPoint = YaPvzSelection;
 
 export type CheckoutDto = {
   recipient: { name: string; phone: string; email: string };
@@ -35,7 +30,7 @@ export type CheckoutDto = {
     floor?: string | null;
     comment?: string | null;
   } | null;
-  selectedPickupPoint?: PickupPoint | null;
+  selectedPickupPoint?: YaPvzSelection | null;
   selectedDeliveryMethod?: DeliveryMethodCode;
   selectedDeliverySubType?: string | null;
   selectedPaymentMethod?: PaymentMethodCode;
@@ -63,7 +58,7 @@ export const checkoutApi = {
   setDeliveryMethod: async (payload: { methodCode: DeliveryMethodCode; subType?: string }, signal?: AbortSignal) => {
     await client.request('/checkout/delivery-method', { method: 'PUT', body: payload, signal });
   },
-  setPickupPoint: async (payload: { pickupPoint: PickupPoint; provider: DeliveryProvider }, signal?: AbortSignal) => {
+  setPickupPoint: async (payload: { pickupPoint: YaPvzSelection }, signal?: AbortSignal) => {
     await client.request('/checkout/pickup', { method: 'PUT', body: payload, signal });
   },
   updateRecipient: async (payload: { name: string; phone: string; email: string }, signal?: AbortSignal) => {
@@ -88,17 +83,22 @@ export const checkoutApi = {
   },
   placeOrder: async (payload: {
     delivery: {
-      deliveryProvider: DeliveryProvider;
       deliveryMethod: DeliveryMethodCode;
       courierAddress?: CheckoutDto['address'];
-      pickupPoint?: PickupPoint;
-      deliveryMeta?: Record<string, unknown>;
+      buyerPickupPvz?: YaPvzSelection;
     };
     recipient: CheckoutDto['recipient'];
     payment: { method: PaymentMethodCode; cardId?: string };
     items: Array<{ productId: string; quantity: number }>;
   }, signal?: AbortSignal) => {
-    const response = await client.request<{ orderId: string }>('/orders', { method: 'POST', body: payload, signal });
+    const response = await client.request<{ orderId: string }>('/orders', {
+      method: 'POST',
+      body: {
+        buyerPickupPvz: payload.delivery.buyerPickupPvz,
+        items: payload.items
+      },
+      signal
+    });
     return response.data;
   }
 };

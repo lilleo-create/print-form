@@ -8,6 +8,8 @@ export const orderUseCases = {
     buyerId: string;
     contactId?: string;
     shippingAddressId?: string;
+    buyerPickupPvz?: { provider: 'YANDEX_NDD'; pvzId: string; raw: unknown; addressFull?: string };
+    sellerDropoffPvz?: { provider: 'YANDEX_NDD'; pvzId: string; raw: unknown; addressFull?: string };
     items: { productId: string; variantId?: string; quantity: number }[];
   }) => {
     const order = await orderRepository.create(data);

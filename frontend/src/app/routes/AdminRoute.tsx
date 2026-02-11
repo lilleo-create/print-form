@@ -28,12 +28,13 @@ export const AdminRoute = ({ children }: AdminRouteProps) => {
       .me()
       .then((response) => {
         if (!active) return;
-        const role = normalizeRole(response.data.role);
+        const profile = response.data as typeof response.data & { phone?: string | null; address?: string | null };
+        const role = normalizeRole(profile.role);
         const user: User = {
-          ...response.data,
+          ...profile,
           role,
-          phone: response.data.phone ?? null,
-          address: response.data.address ?? null
+          phone: profile.phone ?? null,
+          address: profile.address ?? null
         };
         setUser(user);
         if (role !== 'admin') {

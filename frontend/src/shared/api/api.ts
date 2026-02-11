@@ -182,6 +182,10 @@ export const api = {
     printTime: string;
     color: string;
     description: string;
+    weightGrossG?: number;
+    dxCm?: number;
+    dyCm?: number;
+    dzCm?: number;
     imageUrls: string[];
     videoUrls?: string[];
     deliveryDateEstimated?: string;
@@ -201,6 +205,10 @@ export const api = {
       printTime?: string;
       color?: string;
       description?: string;
+      weightGrossG?: number;
+      dxCm?: number;
+      dyCm?: number;
+      dzCm?: number;
       imageUrls?: string[];
       videoUrls?: string[];
       deliveryDateEstimated?: string;
@@ -227,11 +235,11 @@ export const api = {
   },
 
   async getSellerDeliveryProfile() {
-    return apiClient.request<SellerDeliveryProfile | null>('/seller/delivery-profile');
+    return apiClient.request<SellerDeliveryProfile | null>('/seller/settings');
   },
 
-  async updateSellerDeliveryProfile(payload: { dropoffStationId: string; dropoffStationMeta?: Record<string, unknown> }) {
-    return apiClient.request<SellerDeliveryProfile>('/seller/delivery-profile', { method: 'PUT', body: payload });
+  async updateSellerDeliveryProfile(payload: { dropoffPvz: Record<string, unknown> }) {
+    return apiClient.request<SellerDeliveryProfile>('/seller/settings/dropoff-pvz', { method: 'PUT', body: payload });
   },
 
   async readyToShip(orderId: string) {
@@ -241,8 +249,8 @@ export const api = {
   },
 
   async downloadShippingLabel(orderId: string) {
-    const response = await fetch(`${baseUrl}/seller/orders/${orderId}/shipping-label`, {
-      method: 'GET',
+    const response = await fetch(`${baseUrl}/seller/orders/${orderId}/yandex/labels`, {
+      method: 'POST',
       headers: {
         ...(authHeaders() ?? {})
       }
@@ -261,6 +269,32 @@ export const api = {
     return {
       type: 'url' as const,
       url: json.data?.url ?? null
+    };
+  },
+
+  async downloadYandexHandoverAct(payload: {
+    mode?: 'new_requests' | 'by_request_ids' | 'by_date_range';
+    request_ids?: string[];
+    editable_format?: boolean;
+    created_since?: number;
+    created_until?: number;
+    created_since_utc?: string;
+    created_until_utc?: string;
+  }) {
+    const response = await fetch(`${baseUrl}/seller/yandex/handover-act`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authHeaders() ?? {})
+      },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+      throw new Error(`HANDOVER_ACT_DOWNLOAD_FAILED_${response.status}`);
+    }
+    return {
+      blob: await response.blob(),
+      contentType: response.headers.get('content-type') ?? 'application/pdf'
     };
   },
 

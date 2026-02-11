@@ -18,6 +18,10 @@ export interface ProductInput {
   printTime: string;
   color: string;
   deliveryDateEstimated?: Date | string | null;
+  weightGrossG?: number;
+  dxCm?: number;
+  dyCm?: number;
+  dzCm?: number;
   sellerId: string;
 }
 

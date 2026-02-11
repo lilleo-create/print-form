@@ -43,6 +43,10 @@ const productSchema = z.object({
     .refine((value) => isDeliveryDateValid(value), {
       message: 'Дата должна быть не раньше сегодня и не позже конца года'
     }),
+  weightGrossG: z.number().int().positive('Укажите вес (г)'),
+  dxCm: z.number().int().positive('Укажите длину (см)'),
+  dyCm: z.number().int().positive('Укажите ширину (см)'),
+  dzCm: z.number().int().positive('Укажите высоту (см)'),
 });
 
 type ProductFormValues = z.infer<typeof productSchema>;
@@ -61,6 +65,10 @@ export interface SellerProductPayload {
   imageUrls: string[];
   videoUrls: string[];
   deliveryDateEstimated?: string;
+  weightGrossG: number;
+  dxCm: number;
+  dyCm: number;
+  dzCm: number;
 }
 
 interface SellerProductModalProps {
@@ -107,6 +115,10 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
         color: product.color,
         description: product.description,
         deliveryDateEstimated: product.deliveryDateEstimated?.slice(0, 10) ?? '',
+        weightGrossG: product.weightGrossG ?? 0,
+        dxCm: product.dxCm ?? 0,
+        dyCm: product.dyCm ?? 0,
+        dzCm: product.dzCm ?? 0,
       });
     } else {
       reset({
@@ -120,6 +132,10 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
         color: '',
         description: '',
         deliveryDateEstimated: '',
+        weightGrossG: 0,
+        dxCm: 0,
+        dyCm: 0,
+        dzCm: 0,
       });
     }
   }, [product, reset]);
@@ -238,6 +254,10 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
       imageUrls,
       videoUrls,
       deliveryDateEstimated: values.deliveryDateEstimated ? new Date(values.deliveryDateEstimated).toISOString() : undefined,
+      weightGrossG: values.weightGrossG,
+      dxCm: values.dxCm,
+      dyCm: values.dyCm,
+      dzCm: values.dzCm,
     };
 
     await onSubmit(payload);
@@ -322,6 +342,26 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
               {...register('description')}
             />
             {errors.description && <span className={styles.errorText}>{errors.description.message}</span>}
+          </label>
+          <label>
+            Вес брутто (г)
+            <input type="number" min={1} className={errors.weightGrossG ? styles.inputError : styles.input} {...register('weightGrossG', { valueAsNumber: true })} />
+            {errors.weightGrossG && <span className={styles.errorText}>{errors.weightGrossG.message}</span>}
+          </label>
+          <label>
+            Длина (см)
+            <input type="number" min={1} className={errors.dxCm ? styles.inputError : styles.input} {...register('dxCm', { valueAsNumber: true })} />
+            {errors.dxCm && <span className={styles.errorText}>{errors.dxCm.message}</span>}
+          </label>
+          <label>
+            Ширина (см)
+            <input type="number" min={1} className={errors.dyCm ? styles.inputError : styles.input} {...register('dyCm', { valueAsNumber: true })} />
+            {errors.dyCm && <span className={styles.errorText}>{errors.dyCm.message}</span>}
+          </label>
+          <label>
+            Высота (см)
+            <input type="number" min={1} className={errors.dzCm ? styles.inputError : styles.input} {...register('dzCm', { valueAsNumber: true })} />
+            {errors.dzCm && <span className={styles.errorText}>{errors.dzCm.message}</span>}
           </label>
           <label>
             Медиа товара

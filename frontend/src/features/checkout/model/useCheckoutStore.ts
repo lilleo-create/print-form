@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { checkoutApi, type CheckoutDto, type DeliveryMethodCode, type DeliveryProvider, type PaymentMethodCode, type PickupPoint } from '../api/checkoutApi';
+import { checkoutApi, type CheckoutDto, type DeliveryMethodCode, type PaymentMethodCode, type YaPvzSelection } from '../api/checkoutApi';
 
 type CheckoutState = {
   data: CheckoutDto | null;
@@ -8,7 +8,7 @@ type CheckoutState = {
   isSubmittingOrder: boolean;
   fetchCheckout: () => Promise<void>;
   setDeliveryMethod: (methodCode: DeliveryMethodCode, subType?: string) => Promise<void>;
-  setPickupPoint: (pickupPoint: PickupPoint, provider: DeliveryProvider) => Promise<void>;
+  setPickupPoint: (pickupPoint: YaPvzSelection) => Promise<void>;
   updateRecipient: (payload: CheckoutDto['recipient']) => Promise<void>;
   updateAddress: (payload: NonNullable<CheckoutDto['address']>) => Promise<void>;
   setPaymentMethod: (methodCode: PaymentMethodCode, cardId?: string) => Promise<void>;
@@ -52,9 +52,9 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     }
   },
 
-  setPickupPoint: async (pickupPoint, provider) => {
+  setPickupPoint: async (pickupPoint) => {
     try {
-      await withRefetch(() => checkoutApi.setPickupPoint({ pickupPoint, provider }), get().fetchCheckout);
+      await withRefetch(() => checkoutApi.setPickupPoint({ pickupPoint }), get().fetchCheckout);
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Не удалось выбрать ПВЗ.' });
     }
@@ -108,10 +108,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     try {
       const response = await checkoutApi.placeOrder({
         delivery: {
-          deliveryProvider: 'yandex_delivery',
-          deliveryMethod: data.selectedDeliveryMethod ?? 'COURIER',
-          courierAddress: data.address ?? undefined,
-          pickupPoint: data.selectedPickupPoint ?? undefined
+          deliveryMethod: 'PICKUP_POINT',
+          buyerPickupPvz: data.selectedPickupPoint ?? undefined
         },
         recipient: data.recipient,
         payment: {

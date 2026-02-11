@@ -6,6 +6,8 @@ export const orderRepository = {
     buyerId: string;
     contactId?: string;
     shippingAddressId?: string;
+    buyerPickupPvz?: { provider: 'YANDEX_NDD'; pvzId: string; raw: unknown; addressFull?: string };
+    sellerDropoffPvz?: { provider: 'YANDEX_NDD'; pvzId: string; raw: unknown; addressFull?: string };
     items: { productId: string; variantId?: string; quantity: number }[];
   }) =>
     prisma.$transaction(async (tx) => {
@@ -44,6 +46,10 @@ export const orderRepository = {
           buyerId: data.buyerId,
           contactId: data.contactId,
           shippingAddressId: data.shippingAddressId,
+          buyerPickupPvzId: data.buyerPickupPvz?.pvzId,
+          buyerPickupPvzMeta: (data.buyerPickupPvz as unknown as object | undefined) ?? undefined,
+          sellerDropoffPvzId: data.sellerDropoffPvz?.pvzId,
+          sellerDropoffPvzMeta: (data.sellerDropoffPvz as unknown as object | undefined) ?? undefined,
           total,
           items: {
             create: itemsWithPrice

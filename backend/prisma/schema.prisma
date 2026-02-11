@@ -30,6 +30,7 @@ model User {
   reviewedKycSubmissions SellerKycSubmission[] @relation("KycReviewer")
   sellerKycSubmissions   SellerKycSubmission[]
   sellerProfile          SellerProfile?
+  sellerSettings         SellerSettings?
   sellerDeliveryProfile  SellerDeliveryProfile?
   moderatedProducts      Product[]             @relation("ProductModerator")
   moderatedReviews       Review[]              @relation("ReviewModerator")
@@ -80,6 +81,10 @@ model Product {
   printTime             String
   color                 String
   deliveryDateEstimated DateTime?
+  weightGrossG          Int?
+  dxCm                  Int?
+  dyCm                  Int?
+  dzCm                  Int?
   sellerId              String
   moderationStatus      ProductModerationStatus @default(PENDING)
   moderationNotes       String?
@@ -170,12 +175,53 @@ model Order {
   shippingAddressId String?
   trackingNumber    String?
   carrier           String?
+  buyerPickupPvzId       String?
+  buyerPickupPvzMeta     Json?
+  sellerDropoffPvzId     String?
+  sellerDropoffPvzMeta   Json?
+  yandexOfferId          String?
+  yandexRequestId        String?
+  yandexStatus           String?
+  yandexSharingUrl       String?
+  yandexCourierOrderId   String?
+  yandexSelfPickupCode   Json?
+  yandexActualInfo       Json?
+  payoutStatus           String      @default("HOLD")
+  readyForShipmentAt     DateTime?
+  dropoffDeadlineAt      DateTime?
   buyer             User        @relation(fields: [buyerId], references: [id])
   contact           Contact?    @relation("OrderContact", fields: [contactId], references: [id])
   shippingAddress   Address?    @relation("OrderShippingAddress", fields: [shippingAddressId], references: [id])
   items             OrderItem[]
   payments          Payment[]
   shipment          OrderShipment?
+  deliveryEvents    OrderDeliveryEvent[]
+}
+
+model SellerSettings {
+  id                    String   @id @default(cuid())
+  sellerId              String   @unique
+  defaultDropoffPvzId   String?
+  defaultDropoffPvzMeta Json?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  seller                User     @relation(fields: [sellerId], references: [id])
+}
+
+model OrderDeliveryEvent {
+  id            String   @id @default(cuid())
+  orderId       String
+  provider      String
+  status        String
+  description   String?
+  reason        String?
+  timestampUnix Int?
+  timestampUtc  String?
+  raw           Json
+  createdAt     DateTime @default(now())
+  order         Order    @relation(fields: [orderId], references: [id])
+
+  @@index([orderId, createdAt])
 }
 
 model SellerDeliveryProfile {
@@ -444,10 +490,15 @@ enum ProductModerationStatus {
 
 enum OrderStatus {
   CREATED
+  PAID
+  READY_FOR_SHIPMENT
   PRINTING
   HANDED_TO_DELIVERY
   IN_TRANSIT
   DELIVERED
+  CANCELLED
+  RETURNED
+  EXPIRED
 }
 
 enum ReviewStatus {
