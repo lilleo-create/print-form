@@ -35,3 +35,5 @@ export const otpVerifyLimiter = createLimiter({
 });
 export const writeLimiter = createLimiter({ windowMs: 5 * 60 * 1000, max: 60 });
 export const publicReadLimiter = createLimiter({ windowMs: 60 * 1000, max: 120 });
+
+export const pvzLimiter = createLimiter({ windowMs: 2 * 1000, max: 1 });

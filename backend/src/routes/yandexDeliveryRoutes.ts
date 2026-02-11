@@ -1,11 +1,12 @@
 import { Router } from 'express';
+import { pvzLimiter } from '../middleware/rateLimiters';
 import { fetchYandexPvz } from '../services/yandexDelivery';
 
 export const yandexDeliveryRoutes = Router();
 
 const isMoscow = (city: string) => /москва/i.test(city);
 
-yandexDeliveryRoutes.get('/pvz', async (req, res, next) => {
+yandexDeliveryRoutes.get('/pvz', pvzLimiter, async (req, res, next) => {
   try {
     const city = typeof req.query.city === 'string' ? req.query.city.trim() : '';
     const query = typeof req.query.query === 'string' ? req.query.query.trim() : '';
