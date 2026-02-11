@@ -1,6 +1,36 @@
 import { Order, OrderItem, OrderStatus } from '../types';
 import { api } from './index';
 
+type ApiOrderItem = {
+  id: string;
+  productId: string;
+  priceAtPurchase: number;
+  quantity: number;
+  product?: {
+    title?: string;
+    sellerId?: string;
+    image?: string;
+  };
+};
+
+type ApiOrder = {
+  id: string;
+  buyerId: string;
+  buyer?: { id: string; name: string; email: string; phone?: string | null };
+  contactId?: string | null;
+  shippingAddressId?: string | null;
+  status?: string;
+  statusUpdatedAt?: string;
+  total: number;
+  createdAt: string;
+  trackingNumber?: string | null;
+  carrier?: string | null;
+  contact?: Order['contact'];
+  shippingAddress?: Order['shippingAddress'];
+  delivery?: Order['delivery'] | null;
+  items?: ApiOrderItem[];
+};
+
 const mapStatus = (status?: string): OrderStatus => {
   switch (status) {
     case 'CREATED':
@@ -18,7 +48,7 @@ const mapStatus = (status?: string): OrderStatus => {
   }
 };
 
-const mapOrder = (order: any): Order => ({
+const mapOrder = (order: ApiOrder): Order => ({
   id: order.id,
   buyerId: order.buyerId,
   buyerEmail: order.buyer?.email ?? '',
@@ -33,7 +63,8 @@ const mapOrder = (order: any): Order => ({
   contact: order.contact ?? null,
   shippingAddress: order.shippingAddress ?? null,
   buyer: order.buyer ?? null,
-  items: (order.items ?? []).map((item: any) => ({
+  delivery: order.delivery ?? null,
+  items: (order.items ?? []).map((item) => ({
     id: item.id,
     productId: item.productId,
     title: item.product?.title ?? '',
@@ -48,11 +79,13 @@ const mapOrder = (order: any): Order => ({
 export const ordersApi = {
   listByBuyer: async (buyerId: string) => {
     const result = await api.getOrders();
-    return (result.data ?? []).map(mapOrder).filter((order) => order.buyerId === buyerId);
+    const raw = result.data as unknown as ApiOrder[];
+    return (raw ?? []).map(mapOrder).filter((order) => order.buyerId === buyerId);
   },
   listBySeller: async (sellerId: string, status?: OrderStatus) => {
     const result = await api.getSellerOrders(status ? { status } : undefined);
-    return (result.data ?? [])
+    const raw = result.data as unknown as ApiOrder[];
+    return (raw ?? [])
       .map(mapOrder)
       .filter((order) => order.items.some((item) => item.sellerId === sellerId));
   },
@@ -72,6 +105,6 @@ export const ordersApi = {
         quantity: item.qty
       }))
     });
-    return mapOrder(result.data);
+    return mapOrder(result.data as unknown as ApiOrder);
   }
 };

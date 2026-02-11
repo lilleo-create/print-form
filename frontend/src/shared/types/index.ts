@@ -162,6 +162,35 @@ export interface ChatThread {
   user?: { id: string; name: string; email: string } | null;
 }
 
+export interface PickupPointDelivery {
+  id: string;
+  fullAddress: string;
+  country?: string;
+  locality?: string;
+  street?: string;
+  house?: string;
+  comment?: string;
+  position?: Record<string, unknown>;
+  type?: string;
+  paymentMethods?: string[];
+}
+
+export interface OrderDelivery {
+  deliveryProvider: string;
+  deliveryMethod: 'COURIER' | 'PICKUP_POINT';
+  courierAddress?: {
+    line1?: string;
+    city?: string;
+    postalCode?: string;
+    country?: string;
+    apartment?: string | null;
+    floor?: string | null;
+    comment?: string | null;
+  } | null;
+  pickupPoint?: PickupPointDelivery | null;
+  deliveryMeta?: Record<string, unknown>;
+}
+
 export interface Order {
   id: string;
   buyerId: string;
@@ -178,6 +207,7 @@ export interface Order {
   shippingAddress?: Address | null;
   buyer?: { id: string; name: string; email: string; phone?: string | null } | null;
   items: OrderItem[];
+  delivery?: OrderDelivery | null;
 }
 
 export interface User {

@@ -22,13 +22,32 @@ const addressSchema = z.object({
   comment: z.string().optional()
 });
 
+const pickupPointSchema = z.object({
+  id: z.string().min(1),
+  fullAddress: z.string().min(1),
+  country: z.string().optional(),
+  locality: z.string().optional(),
+  street: z.string().optional(),
+  house: z.string().optional(),
+  comment: z.string().optional(),
+  position: z
+    .object({
+      lat: z.number().optional(),
+      lng: z.number().optional()
+    })
+    .passthrough()
+    .optional(),
+  type: z.string().optional(),
+  paymentMethods: z.array(z.string()).optional()
+});
+
 const pickupSchema = z.object({
-  pickupPointId: z.string().min(1),
-  provider: z.enum(['CDEK', 'YANDEX'])
+  pickupPoint: pickupPointSchema,
+  provider: z.string().min(1)
 });
 
 const deliveryMethodSchema = z.object({
-  methodCode: z.enum(['ADDRESS', 'PICKUP']),
+  methodCode: z.enum(['ADDRESS', 'PICKUP', 'COURIER', 'PICKUP_POINT']),
   subType: z.string().optional()
 });
 
@@ -52,14 +71,21 @@ const ensureCheckoutTables = async () => {
       prisma.$executeRawUnsafe(`
         CREATE TABLE IF NOT EXISTS user_checkout_preferences (
           user_id TEXT PRIMARY KEY,
-          delivery_method TEXT NOT NULL DEFAULT 'ADDRESS',
+          delivery_method TEXT NOT NULL DEFAULT 'COURIER',
           delivery_sub_type TEXT,
+          delivery_provider TEXT,
           payment_method TEXT NOT NULL DEFAULT 'CARD',
           selected_card_id TEXT,
           pickup_point_id TEXT,
           pickup_provider TEXT,
+          pickup_point_json JSONB,
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
+      `),
+      prisma.$executeRawUnsafe(`
+        ALTER TABLE user_checkout_preferences
+          ADD COLUMN IF NOT EXISTS delivery_provider TEXT,
+          ADD COLUMN IF NOT EXISTS pickup_point_json JSONB
       `),
       prisma.$executeRawUnsafe(`
         CREATE TABLE IF NOT EXISTS user_saved_cards (
@@ -79,12 +105,14 @@ const ensureCheckoutTables = async () => {
 
 type PreferencesRow = {
   user_id: string;
-  delivery_method: 'ADDRESS' | 'PICKUP';
+  delivery_method: 'ADDRESS' | 'PICKUP' | 'COURIER' | 'PICKUP_POINT';
   delivery_sub_type: string | null;
+  delivery_provider: string | null;
   payment_method: 'CARD' | 'SBP';
   selected_card_id: string | null;
   pickup_point_id: string | null;
-  pickup_provider: 'CDEK' | 'YANDEX' | null;
+  pickup_provider: string | null;
+  pickup_point_json: unknown;
 };
 
 type CardRow = {
@@ -96,14 +124,20 @@ type CardRow = {
 };
 
 const DELIVERY_METHODS = [
-  { id: 'address', code: 'ADDRESS', title: 'По адресу', description: 'Курьером до двери' },
-  { id: 'pickup', code: 'PICKUP', title: 'В пункт выдачи', description: 'Самовывоз из ПВЗ' }
-];
+  { id: 'courier', code: 'COURIER', title: 'Курьером', description: 'Курьером до двери' },
+  { id: 'pickup_point', code: 'PICKUP_POINT', title: 'Самовывоз', description: 'Пункт выдачи или постамат' }
+] as const;
 
 const PAYMENT_METHODS = [
   { id: 'card', code: 'CARD', title: 'Банковской картой' },
   { id: 'sbp', code: 'SBP', title: 'СБП' }
-];
+] as const;
+
+const normalizeDeliveryMethod = (method: PreferencesRow['delivery_method'] | undefined | null) => {
+  if (method === 'ADDRESS') return 'COURIER';
+  if (method === 'PICKUP') return 'PICKUP_POINT';
+  return method ?? 'COURIER';
+};
 
 const getBrand = (cardNumber: string) => {
   if (cardNumber.startsWith('4')) return 'VISA';
@@ -111,27 +145,6 @@ const getBrand = (cardNumber: string) => {
   if (cardNumber.startsWith('2')) return 'МИР';
   return 'CARD';
 };
-
-const pickupPoints = [
-  {
-    id: 'cdek-1',
-    provider: 'CDEK',
-    address: 'Москва, Поликарпова, 23А к38',
-    lat: 55.754,
-    lng: 37.556,
-    title: 'СДЭК Поликарпова',
-    workHours: '09:00–21:00'
-  },
-  {
-    id: 'ya-1',
-    provider: 'YANDEX',
-    address: 'Москва, Ленинградский проспект, 31',
-    lat: 55.782,
-    lng: 37.576,
-    title: 'Яндекс Маркет ПВЗ',
-    workHours: '10:00–22:00'
-  }
-] as const;
 
 const getCheckoutData = async (userId: string) => {
   await ensureCheckoutTables();
@@ -168,9 +181,7 @@ const getCheckoutData = async (userId: string) => {
     }
   });
 
-  const selectedPickup = prefs?.pickup_point_id
-    ? pickupPoints.find((point) => point.id === prefs.pickup_point_id)
-    : null;
+  const parsedPickupPoint = pickupPointSchema.safeParse(prefs?.pickup_point_json);
 
   return {
     recipient: {
@@ -189,8 +200,8 @@ const getCheckoutData = async (userId: string) => {
           comment: defaultAddress.courierComment ?? null
         }
       : null,
-    selectedPickupPoint: selectedPickup ?? null,
-    selectedDeliveryMethod: prefs?.delivery_method ?? 'ADDRESS',
+    selectedPickupPoint: parsedPickupPoint.success ? parsedPickupPoint.data : null,
+    selectedDeliveryMethod: normalizeDeliveryMethod(prefs?.delivery_method),
     selectedDeliverySubType: prefs?.delivery_sub_type ?? null,
     selectedPaymentMethod: prefs?.payment_method ?? 'CARD',
     selectedCardId: prefs?.selected_card_id ?? null,
@@ -287,17 +298,20 @@ checkoutRoutes.put('/pickup', requireAuth, writeLimiter, async (req: AuthRequest
     await ensureCheckoutTables();
     await prisma.$executeRawUnsafe(
       `
-        INSERT INTO user_checkout_preferences (user_id, pickup_point_id, pickup_provider, updated_at)
-        VALUES ($1, $2, $3, NOW())
+        INSERT INTO user_checkout_preferences (user_id, pickup_point_id, pickup_provider, pickup_point_json, delivery_provider, updated_at)
+        VALUES ($1, $2, $3, $4::jsonb, $3, NOW())
         ON CONFLICT (user_id)
         DO UPDATE SET pickup_point_id = EXCLUDED.pickup_point_id,
           pickup_provider = EXCLUDED.pickup_provider,
-          delivery_method = 'PICKUP',
+          pickup_point_json = EXCLUDED.pickup_point_json,
+          delivery_provider = EXCLUDED.delivery_provider,
+          delivery_method = 'PICKUP_POINT',
           updated_at = NOW()
       `,
       req.user!.userId,
-      payload.pickupPointId,
-      payload.provider
+      payload.pickupPoint.id,
+      payload.provider,
+      JSON.stringify(payload.pickupPoint)
     );
     res.json({ ok: true });
   } catch (error) {
@@ -308,6 +322,7 @@ checkoutRoutes.put('/pickup', requireAuth, writeLimiter, async (req: AuthRequest
 checkoutRoutes.put('/delivery-method', requireAuth, writeLimiter, async (req: AuthRequest, res, next) => {
   try {
     const payload = deliveryMethodSchema.parse(req.body);
+    const normalizedMethod = normalizeDeliveryMethod(payload.methodCode);
     await ensureCheckoutTables();
     await prisma.$executeRawUnsafe(
       `
@@ -316,10 +331,13 @@ checkoutRoutes.put('/delivery-method', requireAuth, writeLimiter, async (req: Au
         ON CONFLICT (user_id)
         DO UPDATE SET delivery_method = EXCLUDED.delivery_method,
           delivery_sub_type = EXCLUDED.delivery_sub_type,
+          pickup_point_id = CASE WHEN EXCLUDED.delivery_method = 'COURIER' THEN NULL ELSE user_checkout_preferences.pickup_point_id END,
+          pickup_provider = CASE WHEN EXCLUDED.delivery_method = 'COURIER' THEN NULL ELSE user_checkout_preferences.pickup_provider END,
+          pickup_point_json = CASE WHEN EXCLUDED.delivery_method = 'COURIER' THEN NULL ELSE user_checkout_preferences.pickup_point_json END,
           updated_at = NOW()
       `,
       req.user!.userId,
-      payload.methodCode,
+      normalizedMethod,
       payload.subType ?? null
     );
     res.json({ ok: true });
@@ -349,12 +367,6 @@ checkoutRoutes.put('/payment-method', requireAuth, writeLimiter, async (req: Aut
   } catch (error) {
     next(error);
   }
-});
-
-checkoutRoutes.get('/pickup-points', requireAuth, async (req, res) => {
-  const provider = typeof req.query.provider === 'string' ? req.query.provider : undefined;
-  const items = provider ? pickupPoints.filter((point) => point.provider === provider) : pickupPoints;
-  res.json({ items });
 });
 
 checkoutRoutes.get('/cards', requireAuth, async (req: AuthRequest, res, next) => {
