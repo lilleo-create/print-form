@@ -37,7 +37,6 @@ const getYandexDeliveryConfig = () => {
   const hostFromEnv = process.env.YANDEX_DELIVERY_HOST?.trim();
 
   const host = (hostFromEnv || (mode === 'PROD' ? DEFAULT_PROD_HOST : DEFAULT_TEST_HOST)).replace(/\/$/, '');
-
   return { mode, token, host };
 };
 
@@ -60,28 +59,41 @@ export const requestYandex = async <T>(path: string, options: RequestYandexOptio
     throw new Error(`[YANDEX_DELIVERY] ${method} ${path} failed with ${response.status}: ${rawBody}`);
   }
 
-  if (!rawBody) {
-    return {} as T;
-  }
-
+  if (!rawBody) return {} as T;
   return JSON.parse(rawBody) as T;
 };
 
 const toBounds = (lat: number, lng: number, km = 15) => {
   const latDelta = km / 111;
   const lngDelta = km / (111 * Math.cos((lat * Math.PI) / 180));
-
   return {
     latitude: { from: lat - latDelta, to: lat + latDelta },
     longitude: { from: lng - lngDelta, to: lng + lngDelta }
   };
 };
 
-const asArray = (value: unknown): unknown[] => {
-  if (!value) return [];
-  if (Array.isArray(value)) return value;
-  return [];
+const pvzCache = new Map<string, PvzCacheEntry>();
+const PVZ_CACHE_TTL_MS = 10 * 60_000;
+const MOSCOW_RADIUS_KM = 15;
+
+const createCityCacheKey = (city: string) => city.trim().toLowerCase();
+
+const getCachedCityPvz = (key: string): NormalizedPvzPoint[] | null => {
+  const cached = pvzCache.get(key);
+  if (!cached) return null;
+  if (Date.now() > cached.expiresAt) {
+    pvzCache.delete(key);
+    return null;
+  }
+  return cached.points;
 };
+
+const setCachedCityPvz = (key: string, points: NormalizedPvzPoint[]) => {
+  pvzCache.set(key, { points, expiresAt: Date.now() + PVZ_CACHE_TTL_MS });
+};
+
+const asArray = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
+const toStringValue = (value: unknown) => (typeof value === 'string' ? value : null);
 
 const toNumber = (value: unknown) => {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
@@ -92,13 +104,8 @@ const toNumber = (value: unknown) => {
   return null;
 };
 
-const toStringValue = (value: unknown) => (typeof value === 'string' ? value : null);
-
 const extractStationsFromPayload = (payload: unknown): JsonRecord[] => {
-  if (!payload || typeof payload !== 'object') {
-    return [];
-  }
-
+  if (!payload || typeof payload !== 'object') return [];
   const record = payload as JsonRecord;
   const result = record.result as JsonRecord | undefined;
   const data = record.data as JsonRecord | undefined;
@@ -120,9 +127,7 @@ const extractStationsFromPayload = (payload: unknown): JsonRecord[] => {
 
   for (const candidate of candidates) {
     const rows = asArray(candidate).filter((row): row is JsonRecord => typeof row === 'object' && row !== null);
-    if (rows.length > 0) {
-      return rows;
-    }
+    if (rows.length > 0) return rows;
   }
 
   return [];
@@ -130,27 +135,27 @@ const extractStationsFromPayload = (payload: unknown): JsonRecord[] => {
 
 const normalizePaymentMethods = (station: JsonRecord): string[] => {
   const methods = asArray(station.payment_methods)
-    .map((method) => toStringValue(method))
-    .filter((method): method is string => Boolean(method));
+    .map((m) => toStringValue(m))
+    .filter((m): m is string => Boolean(m));
 
-  if (methods.length > 0) {
-    return methods;
-  }
+  if (methods.length > 0) return methods;
 
   const payment = station.payment as JsonRecord | undefined;
   return asArray(payment?.methods)
-    .map((method) => toStringValue(method))
-    .filter((method): method is string => Boolean(method));
+    .map((m) => toStringValue(m))
+    .filter((m): m is string => Boolean(m));
 };
 
 const normalizePvzPoint = (station: JsonRecord): NormalizedPvzPoint | null => {
   const position = (station.position as JsonRecord | undefined) ?? {};
-  const latitude =
+
+  const lat =
     toNumber(position.lat) ??
     toNumber(position.latitude) ??
     toNumber(station.lat) ??
     toNumber(station.latitude);
-  const longitude =
+
+  const lng =
     toNumber(position.lng) ??
     toNumber(position.lon) ??
     toNumber(position.longitude) ??
@@ -158,27 +163,23 @@ const normalizePvzPoint = (station: JsonRecord): NormalizedPvzPoint | null => {
     toNumber(station.lon) ??
     toNumber(station.longitude);
 
-  if (latitude === null || longitude === null) {
-    return null;
-  }
+  if (lat === null || lng === null) return null;
 
-  const addressRecord = (station.address as JsonRecord | undefined) ?? {};
+  const address = (station.address as JsonRecord | undefined) ?? {};
   const fullAddress =
     toStringValue(station.full_address) ??
-    toStringValue(addressRecord.full_address) ??
-    toStringValue(addressRecord.address) ??
+    toStringValue(address.full_address) ??
+    toStringValue(address.address) ??
     toStringValue(station.name) ??
     '';
 
-  if (!fullAddress) {
-    return null;
-  }
+  if (!fullAddress) return null;
 
   const id =
     toStringValue(station.id) ??
     toStringValue(station.station_id) ??
     toStringValue(station.platform_station_id) ??
-    `${latitude}:${longitude}:${fullAddress}`;
+    `${lat}:${lng}:${fullAddress}`;
 
   const platformStationId =
     toStringValue(station.platform_station_id) ??
@@ -194,7 +195,7 @@ const normalizePvzPoint = (station: JsonRecord): NormalizedPvzPoint | null => {
     fullAddress,
     type,
     paymentMethods: normalizePaymentMethods(station),
-    position: { lat: latitude, lng: longitude }
+    position: { lat, lng }
   };
 };
 
@@ -202,65 +203,14 @@ const filterByQuery = (points: NormalizedPvzPoint[], query?: string) => {
   if (!query) return points;
   const lowered = query.trim().toLowerCase();
   if (!lowered) return points;
-  return points.filter((point) => point.fullAddress.toLowerCase().includes(lowered));
+  return points.filter((p) => p.fullAddress.toLowerCase().includes(lowered));
 };
-
-const pvzCache = new Map<string, PvzCacheEntry>();
-const PVZ_CACHE_TTL_MS = 10 * 60_000;
-const MOSCOW_RADIUS_KM = 15;
-
-const createCityCacheKey = (city: string) => city.trim().toLowerCase();
-
-const getCachedCityPvz = (key: string): NormalizedPvzPoint[] | null => {
-  const cached = pvzCache.get(key);
-  if (!cached) {
-    return null;
-  }
-
-  if (Date.now() > cached.expiresAt) {
-    pvzCache.delete(key);
-    return null;
-  }
-
-  return cached.points;
-};
-
-const setCachedCityPvz = (key: string, points: NormalizedPvzPoint[]) => {
-  pvzCache.set(key, {
-    points,
-    expiresAt: Date.now() + PVZ_CACHE_TTL_MS
-  });
-};
-
-const devFallbackPoints: NormalizedPvzPoint[] = [
-  {
-    id: 'dev-pvz-1',
-    platformStationId: 'dev-pvz-1',
-    fullAddress: 'Москва, Лесная улица, 5',
-    type: 'pickup_point',
-    paymentMethods: ['already_paid'],
-    position: { lat: 55.77841, lng: 37.58931 }
-  },
-  {
-    id: 'dev-pvz-2',
-    platformStationId: 'dev-pvz-2',
-    fullAddress: 'Москва, 1-я Тверская-Ямская улица, 2с1',
-    type: 'pickup_point',
-    paymentMethods: ['already_paid'],
-    position: { lat: 55.77372, lng: 37.59296 }
-  },
-  {
-    id: 'dev-pvz-3',
-    platformStationId: 'dev-pvz-3',
-    fullAddress: 'Москва, Новослободская улица, 4',
-    type: 'pickup_point',
-    paymentMethods: ['already_paid'],
-    position: { lat: 55.78173, lng: 37.5986 }
-  }
-];
 
 const listStationsFromB2b = async (city: string): Promise<JsonRecord[]> => {
   const bounds = toBounds(MOSCOW_CENTER.lat, MOSCOW_CENTER.lng, MOSCOW_RADIUS_KM);
+
+  // ВАЖНО: endpoint оставляем как в твоём коде
+  // Если у Яндекса другой контракт — адаптируем payload, но path не меняем без нужды.
   const payload: JsonRecord = {
     city,
     bounds,
@@ -278,38 +228,44 @@ const listStationsFromB2b = async (city: string): Promise<JsonRecord[]> => {
 
 const getPvzPointsFromB2b = async (city: string) => {
   const stations = await listStationsFromB2b(city);
-
   return stations
-    .map((station) => normalizePvzPoint(station))
-    .filter((point): point is NormalizedPvzPoint => point !== null);
+    .map((s) => normalizePvzPoint(s))
+    .filter((p): p is NormalizedPvzPoint => p !== null);
 };
 
 const canUseDevFallback = () => process.env.NODE_ENV !== 'production';
 
+// DEV только, чтобы UI не умер в ноль, если B2B не отвечает или прав нет.
+// В PROD возвращаем ошибку.
+const devFallbackPoints: NormalizedPvzPoint[] = [
+  {
+    id: 'dev-pvz-лесная-5',
+    platformStationId: 'dev-pvz-лесная-5',
+    fullAddress: 'Москва, Лесная улица, 5',
+    type: 'pickup_point',
+    paymentMethods: ['already_paid'],
+    position: { lat: 55.77841, lng: 37.58931 }
+  }
+];
+
 export const fetchYandexPvz = async (params: { city: string; query?: string }) => {
   const cacheKey = createCityCacheKey(params.city);
-  const cachedCityPoints = getCachedCityPvz(cacheKey);
-  if (cachedCityPoints) {
-    return filterByQuery(cachedCityPoints, params.query);
-  }
+  const cached = getCachedCityPvz(cacheKey);
+  if (cached) return filterByQuery(cached, params.query);
 
   try {
     const points = await getPvzPointsFromB2b(params.city);
+
     if (points.length > 0) {
       setCachedCityPvz(cacheKey, points);
       return filterByQuery(points, params.query);
     }
 
-    if (canUseDevFallback()) {
-      return filterByQuery(devFallbackPoints, params.query);
-    }
+    if (canUseDevFallback()) return filterByQuery(devFallbackPoints, params.query);
 
-    throw new Error('PVZ unavailable, check integration');
-  } catch {
-    if (canUseDevFallback()) {
-      return filterByQuery(devFallbackPoints, params.query);
-    }
-
-    throw new Error('PVZ unavailable, check integration');
+    throw new Error('PVZ unavailable via B2B API. Check token/permissions and endpoint /api/b2b/platform/stations/list.');
+  } catch (e) {
+    if (canUseDevFallback()) return filterByQuery(devFallbackPoints, params.query);
+    throw e;
   }
 };
