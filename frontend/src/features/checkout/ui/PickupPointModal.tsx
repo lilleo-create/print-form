@@ -1,43 +1,30 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Modal } from '../../../shared/ui/Modal';
 import { Button } from '../../../shared/ui/Button';
-import type { PickupProvider } from '../api/checkoutApi';
-import { PickupMap } from './PickupMap';
+import type { DeliveryProvider, PickupPoint } from '../api/checkoutApi';
 import styles from './PickupPointModal.module.css';
 import { useModalFocus } from '../../../shared/lib/useModalFocus';
-import { usePickupPoints } from '../hooks/usePickupPoints';
+import { DeliveryPickupWidget } from './DeliveryPickupWidget';
 
 type Props = {
   isOpen: boolean;
   onClose: () => void;
-  selectedId?: string;
-  onConfirm: (payload: { pickupPointId: string; provider: PickupProvider }) => Promise<void>;
+  selectedPoint?: PickupPoint | null;
+  onConfirm: (payload: { pickupPoint: PickupPoint; provider: DeliveryProvider }) => Promise<void>;
 };
 
-export const PickupPointModal = ({ isOpen, onClose, selectedId, onConfirm }: Props) => {
+export const PickupPointModal = ({ isOpen, onClose, selectedPoint, onConfirm }: Props) => {
   const ref = useRef<HTMLDivElement>(null);
   useModalFocus(isOpen, onClose, ref);
-
-  const [currentId, setCurrentId] = useState<string | undefined>(selectedId);
-  const { points, center, isLoading, error, abort } = usePickupPoints({ isOpen, radiusKm: 10 });
+  const [point, setPoint] = useState<PickupPoint | null>(selectedPoint ?? null);
 
   useEffect(() => {
-    if (!isOpen) {
-      abort();
+    if (isOpen) {
+      setPoint(selectedPoint ?? null);
     }
-  }, [abort, isOpen]);
-
-  useEffect(() => {
-    setCurrentId(selectedId);
-  }, [selectedId, isOpen]);
-
-  const selectedPoint = useMemo(
-    () => points.find((point) => point.id === currentId),
-    [currentId, points]
-  );
+  }, [isOpen, selectedPoint]);
 
   const handleClose = () => {
-    abort();
     onClose();
   };
 
@@ -46,28 +33,20 @@ export const PickupPointModal = ({ isOpen, onClose, selectedId, onConfirm }: Pro
       <div ref={ref} className={styles.content}>
         <header>
           <h3 className={styles.title}>Пункт выдачи</h3>
-          <p className={styles.subtitle}>Нажмите на метку на карте, чтобы выбрать пункт</p>
+          <p className={styles.subtitle}>Выберите пункт на карте виджета</p>
         </header>
 
         <div className={styles.status}>
-          {selectedPoint ? `Выбран пункт: ${selectedPoint.address}` : 'Пункт не выбран'}
+          {point ? `Выбран пункт: ${point.fullAddress}` : 'Пункт не выбран'}
         </div>
 
-        {error ? <p className={styles.error}>{error}</p> : null}
-
-        <PickupMap
-          points={points}
-          selectedId={currentId}
-          center={center}
-          isLoading={isLoading}
-          onSelect={setCurrentId}
-        />
+        <DeliveryPickupWidget onSelected={setPoint} />
 
         <footer className={styles.footer}>
           <Button variant="ghost" onClick={handleClose}>Отмена</Button>
           <Button
-            disabled={!selectedPoint}
-            onClick={() => selectedPoint && void onConfirm({ pickupPointId: selectedPoint.id, provider: selectedPoint.provider }).then(handleClose)}
+            disabled={!point}
+            onClick={() => point && void onConfirm({ pickupPoint: point, provider: 'yandex_delivery' }).then(handleClose)}
           >
             Выбрать
           </Button>

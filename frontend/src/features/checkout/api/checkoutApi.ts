@@ -3,9 +3,26 @@ import { createFetchClient } from '../../../shared/api/client';
 const baseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
 const client = createFetchClient(baseUrl);
 
-export type DeliveryMethodCode = 'ADDRESS' | 'PICKUP';
+export type DeliveryMethodCode = 'COURIER' | 'PICKUP_POINT';
 export type PaymentMethodCode = 'CARD' | 'SBP';
-export type PickupProvider = 'CDEK' | 'YANDEX';
+export type DeliveryProvider = string;
+
+export type PickupPoint = {
+  id: string;
+  fullAddress: string;
+  country?: string;
+  locality?: string;
+  street?: string;
+  house?: string;
+  comment?: string;
+  position?: {
+    lat?: number;
+    lng?: number;
+    [key: string]: unknown;
+  };
+  type?: string;
+  paymentMethods?: string[];
+};
 
 export type CheckoutDto = {
   recipient: { name: string; phone: string; email: string };
@@ -18,7 +35,7 @@ export type CheckoutDto = {
     floor?: string | null;
     comment?: string | null;
   } | null;
-  selectedPickupPoint?: PickupPointDto | null;
+  selectedPickupPoint?: PickupPoint | null;
   selectedDeliveryMethod?: DeliveryMethodCode;
   selectedDeliverySubType?: string | null;
   selectedPaymentMethod?: PaymentMethodCode;
@@ -38,16 +55,6 @@ export type CheckoutDto = {
   }>;
 };
 
-export type PickupPointDto = {
-  id: string;
-  provider: PickupProvider;
-  address: string;
-  lat: number;
-  lng: number;
-  title?: string;
-  workHours?: string;
-};
-
 export const checkoutApi = {
   fetchCheckout: async (signal?: AbortSignal) => {
     const response = await client.request<CheckoutDto>('/checkout', { signal });
@@ -56,7 +63,7 @@ export const checkoutApi = {
   setDeliveryMethod: async (payload: { methodCode: DeliveryMethodCode; subType?: string }, signal?: AbortSignal) => {
     await client.request('/checkout/delivery-method', { method: 'PUT', body: payload, signal });
   },
-  setPickupPoint: async (payload: { pickupPointId: string; provider: PickupProvider }, signal?: AbortSignal) => {
+  setPickupPoint: async (payload: { pickupPoint: PickupPoint; provider: DeliveryProvider }, signal?: AbortSignal) => {
     await client.request('/checkout/pickup', { method: 'PUT', body: payload, signal });
   },
   updateRecipient: async (payload: { name: string; phone: string; email: string }, signal?: AbortSignal) => {
@@ -67,15 +74,6 @@ export const checkoutApi = {
     signal?: AbortSignal
   ) => {
     await client.request('/checkout/address', { method: 'PUT', body: payload, signal });
-  },
-  fetchPickupPoints: async (params: { provider?: PickupProvider; lat?: number; lng?: number; radiusKm?: number }, signal?: AbortSignal) => {
-    const search = new URLSearchParams();
-    if (params.provider) search.set('provider', params.provider);
-    if (typeof params.lat === 'number') search.set('lat', String(params.lat));
-    if (typeof params.lng === 'number') search.set('lng', String(params.lng));
-    if (params.radiusKm) search.set('radiusKm', String(params.radiusKm));
-    const response = await client.request<{ items: PickupPointDto[] }>(`/api/pickup-points?${search.toString()}`, { signal });
-    return response.data.items ?? [];
   },
   setPaymentMethod: async (payload: { methodCode: PaymentMethodCode; cardId?: string }, signal?: AbortSignal) => {
     await client.request('/checkout/payment-method', { method: 'PUT', body: payload, signal });
@@ -89,7 +87,13 @@ export const checkoutApi = {
     return response.data;
   },
   placeOrder: async (payload: {
-    delivery: { method: DeliveryMethodCode; address?: CheckoutDto['address']; pickupPointId?: string; provider?: PickupProvider };
+    delivery: {
+      deliveryProvider: DeliveryProvider;
+      deliveryMethod: DeliveryMethodCode;
+      courierAddress?: CheckoutDto['address'];
+      pickupPoint?: PickupPoint;
+      deliveryMeta?: Record<string, unknown>;
+    };
     recipient: CheckoutDto['recipient'];
     payment: { method: PaymentMethodCode; cardId?: string };
     items: Array<{ productId: string; quantity: number }>;

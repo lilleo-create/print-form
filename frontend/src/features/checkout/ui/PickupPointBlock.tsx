@@ -1,11 +1,11 @@
-import type { PickupPointDto } from '../api/checkoutApi';
+import type { PickupPoint } from '../api/checkoutApi';
 import styles from './PickupPointBlock.module.css';
 
-type Props = { point?: PickupPointDto | null; onOpen: () => void };
+type Props = { point?: PickupPoint | null; onOpen: () => void };
 
 export const PickupPointBlock = ({ point, onOpen }: Props) => (
   <button type="button" className={styles.block} onClick={onOpen}>
     <strong>Пункт выдачи</strong>
-    <span>{point ? `${point.title ?? point.provider}: ${point.address}` : 'Выберите пункт выдачи'}</span>
+    <span>{point ? `${point.fullAddress} (ID: ${point.id})` : 'Выберите пункт выдачи'}</span>
   </button>
 );

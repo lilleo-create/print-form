@@ -1,16 +1,14 @@
 import { create } from 'zustand';
-import { checkoutApi, type CheckoutDto, type DeliveryMethodCode, type PaymentMethodCode, type PickupPointDto, type PickupProvider } from '../api/checkoutApi';
+import { checkoutApi, type CheckoutDto, type DeliveryMethodCode, type DeliveryProvider, type PaymentMethodCode, type PickupPoint } from '../api/checkoutApi';
 
 type CheckoutState = {
   data: CheckoutDto | null;
-  pickupPoints: PickupPointDto[];
   isLoading: boolean;
   error: string | null;
   isSubmittingOrder: boolean;
   fetchCheckout: () => Promise<void>;
-  fetchPickupPoints: (provider?: PickupProvider) => Promise<void>;
   setDeliveryMethod: (methodCode: DeliveryMethodCode, subType?: string) => Promise<void>;
-  setPickupPoint: (pickupPointId: string, provider: PickupProvider) => Promise<void>;
+  setPickupPoint: (pickupPoint: PickupPoint, provider: DeliveryProvider) => Promise<void>;
   updateRecipient: (payload: CheckoutDto['recipient']) => Promise<void>;
   updateAddress: (payload: NonNullable<CheckoutDto['address']>) => Promise<void>;
   setPaymentMethod: (methodCode: PaymentMethodCode, cardId?: string) => Promise<void>;
@@ -27,7 +25,6 @@ const withRefetch = async (fn: () => Promise<void>, fetchCheckout: () => Promise
 
 export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   data: null,
-  pickupPoints: [],
   isLoading: false,
   error: null,
   isSubmittingOrder: false,
@@ -47,15 +44,6 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     }
   },
 
-  fetchPickupPoints: async (provider) => {
-    try {
-      const items = await checkoutApi.fetchPickupPoints({ provider, radiusKm: 5 });
-      set({ pickupPoints: items });
-    } catch (error) {
-      set({ error: error instanceof Error ? error.message : 'Не удалось загрузить пункты выдачи.' });
-    }
-  },
-
   setDeliveryMethod: async (methodCode, subType) => {
     try {
       await withRefetch(() => checkoutApi.setDeliveryMethod({ methodCode, subType }), get().fetchCheckout);
@@ -64,9 +52,9 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     }
   },
 
-  setPickupPoint: async (pickupPointId, provider) => {
+  setPickupPoint: async (pickupPoint, provider) => {
     try {
-      await withRefetch(() => checkoutApi.setPickupPoint({ pickupPointId, provider }), get().fetchCheckout);
+      await withRefetch(() => checkoutApi.setPickupPoint({ pickupPoint, provider }), get().fetchCheckout);
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Не удалось выбрать ПВЗ.' });
     }
@@ -120,10 +108,10 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     try {
       const response = await checkoutApi.placeOrder({
         delivery: {
-          method: data.selectedDeliveryMethod ?? 'ADDRESS',
-          address: data.address ?? undefined,
-          pickupPointId: data.selectedPickupPoint?.id,
-          provider: data.selectedPickupPoint?.provider
+          deliveryProvider: 'yandex_delivery',
+          deliveryMethod: data.selectedDeliveryMethod ?? 'COURIER',
+          courierAddress: data.address ?? undefined,
+          pickupPoint: data.selectedPickupPoint ?? undefined
         },
         recipient: data.recipient,
         payment: {

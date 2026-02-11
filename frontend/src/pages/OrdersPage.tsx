@@ -5,6 +5,20 @@ import { useOrdersStore } from '../app/store/ordersStore';
 import { PaymentIntent } from '../shared/types';
 import styles from './OrdersPage.module.css';
 
+const deliveryLabel = (order: { delivery?: { deliveryMethod: 'COURIER' | 'PICKUP_POINT'; courierAddress?: { line1?: string; city?: string } | null; pickupPoint?: { id: string; fullAddress: string } | null } | null }) => {
+  if (!order.delivery) return null;
+  if (order.delivery.deliveryMethod === 'COURIER') {
+    const line = [order.delivery.courierAddress?.line1, order.delivery.courierAddress?.city].filter(Boolean).join(', ');
+    return `Курьер: ${line || 'адрес уточняется'}`;
+  }
+
+  if (order.delivery.pickupPoint) {
+    return `ПВЗ: ${order.delivery.pickupPoint.fullAddress} (ID: ${order.delivery.pickupPoint.id})`;
+  }
+
+  return 'ПВЗ: не выбран';
+};
+
 export const OrdersPage = () => {
   const user = useAuthStore((state) => state.user);
   const orders = useOrdersStore((state) => state.orders);
@@ -52,6 +66,7 @@ export const OrdersPage = () => {
                   </div>
                   <div className={styles.total}>{order.total.toLocaleString('ru-RU')} ₽</div>
                 </div>
+                {deliveryLabel(order) ? <p>{deliveryLabel(order)}</p> : null}
                 <ul className={styles.items}>
                   {order.items.map((item) => (
                     <li key={`${order.id}-${item.productId}`} className={styles.item}>

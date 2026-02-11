@@ -52,11 +52,11 @@ export const CheckoutLayout = () => {
           <h2>Доставка</h2>
           <DeliveryMethodSelector
             methods={data.deliveryMethods}
-            selected={data.selectedDeliveryMethod ?? 'ADDRESS'}
+            selected={data.selectedDeliveryMethod ?? 'COURIER'}
             onSelect={(code) => void setDeliveryMethod(code)}
           />
 
-          {data.selectedDeliveryMethod === 'PICKUP' ? (
+          {data.selectedDeliveryMethod === 'PICKUP_POINT' ? (
             <PickupPointBlock point={data.selectedPickupPoint ?? null} onOpen={() => {
               setPickupModalOpen(true);
             }} />
@@ -98,8 +98,8 @@ export const CheckoutLayout = () => {
       <PickupPointModal
         isOpen={isPickupModalOpen}
         onClose={() => setPickupModalOpen(false)}
-        selectedId={data.selectedPickupPoint?.id}
-        onConfirm={(payload) => setPickupPoint(payload.pickupPointId, payload.provider)}
+        selectedPoint={data.selectedPickupPoint ?? null}
+        onConfirm={(payload) => setPickupPoint(payload.pickupPoint, payload.provider)}
       />
 
       <RecipientModal

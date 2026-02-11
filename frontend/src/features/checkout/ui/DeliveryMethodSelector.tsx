@@ -4,7 +4,7 @@ import styles from './DeliveryMethodSelector.module.css';
 type Props = {
   methods: CheckoutDto['deliveryMethods'];
   selected: string;
-  onSelect: (code: 'ADDRESS' | 'PICKUP') => void;
+  onSelect: (code: 'COURIER' | 'PICKUP_POINT') => void;
 };
 
 export const DeliveryMethodSelector = ({ methods, selected, onSelect }: Props) => (
