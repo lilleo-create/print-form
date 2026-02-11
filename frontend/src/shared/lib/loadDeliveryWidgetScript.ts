@@ -11,20 +11,19 @@ declare global {
   }
 }
 
-export const loadDeliveryWidgetScript = () => {
-  if (window.YaDelivery) {
-    return Promise.resolve();
-  }
-
-  if (scriptPromise) {
-    return scriptPromise;
-  }
+export const loadDeliveryWidgetScript = (): Promise<void> => {
+  if (window.YaDelivery) return Promise.resolve();
+  if (scriptPromise) return scriptPromise;
 
   scriptPromise = new Promise<void>((resolve, reject) => {
     const existing = document.getElementById(SCRIPT_ID) as HTMLScriptElement | null;
+
     if (existing) {
+      // если скрипт уже в DOM, но YaDelivery ещё не появился
       existing.addEventListener('load', () => resolve(), { once: true });
-      existing.addEventListener('error', () => reject(new Error('Не удалось загрузить виджет доставки.')), { once: true });
+      existing.addEventListener('error', () => reject(new Error('Не удалось загрузить виджет доставки.')), {
+        once: true
+      });
       return;
     }
 
@@ -32,8 +31,10 @@ export const loadDeliveryWidgetScript = () => {
     script.id = SCRIPT_ID;
     script.src = DELIVERY_WIDGET_SCRIPT_SRC;
     script.async = true;
+
     script.onload = () => resolve();
     script.onerror = () => reject(new Error('Не удалось загрузить виджет доставки.'));
+
     document.body.appendChild(script);
   });
 

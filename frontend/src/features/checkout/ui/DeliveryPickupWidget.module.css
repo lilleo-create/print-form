@@ -1,8 +1,8 @@
 .widgetContainer {
+  width: 100%;
   min-height: 450px;
 }
 
 .error {
-  margin: 0;
-  color: var(--danger);
+  padding: 12px;
 }
