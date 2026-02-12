@@ -56,6 +56,8 @@ export const YaPvzPickerModal = ({
 }: YaPvzPickerModalProps) => {
   const containerId = useMemo(() => `ya-pvz-picker-${Math.random().toString(16).slice(2)}`, []);
   const createdForCurrentOpenRef = useRef(false);
+  const latestSelectionHandlersRef = useRef({ onSelect, onClose });
+  const mergedParamsRef = useRef<Record<string, unknown>>({});
 
   const mergedParams = useMemo(() => {
     const base = deepMerge(DEFAULT_WIDGET_PARAMS, {
@@ -64,6 +66,14 @@ export const YaPvzPickerModal = ({
 
     return widgetParams ? deepMerge(base, widgetParams) : base;
   }, [city, widgetParams]);
+
+  useEffect(() => {
+    latestSelectionHandlersRef.current = { onSelect, onClose };
+  }, [onClose, onSelect]);
+
+  useEffect(() => {
+    mergedParamsRef.current = mergedParams;
+  }, [mergedParams]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -85,26 +95,36 @@ export const YaPvzPickerModal = ({
 
       const address = isObject(detail.address) ? detail.address : undefined;
 
-      onSelect({
+      latestSelectionHandlersRef.current.onSelect({
         pvzId: String(detail.id),
         addressFull: typeof address?.full_address === 'string' ? address.full_address : undefined,
         raw: detail
       });
-      onClose();
+      latestSelectionHandlersRef.current.onClose();
     };
 
     const initWidget = async () => {
       await ensureYaNddWidgetLoaded();
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
       if (isCancelled || createdForCurrentOpenRef.current) {
         return;
       }
 
+      const container = document.getElementById(containerId);
+      if (!container) {
+        return;
+      }
+
       window.YaDelivery?.createWidget({
         containerId,
-        params: mergedParams
+        params: mergedParamsRef.current
       });
       createdForCurrentOpenRef.current = true;
+
+      requestAnimationFrame(() => {
+        window.dispatchEvent(new Event('resize'));
+      });
     };
 
     document.addEventListener('YaNddWidgetPointSelected', handlePointSelected);
@@ -118,13 +138,13 @@ export const YaPvzPickerModal = ({
         container.innerHTML = '';
       }
     };
-  }, [containerId, isOpen, mergedParams, onClose, onSelect]);
+  }, [containerId, isOpen]);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} role="dialog" aria-modal="true">
       <div>
         <h3>{title}</h3>
-        <div id={containerId} />
+        <div id={containerId} style={{ width: '100%', height: 420 }} />
       </div>
     </Modal>
   );
