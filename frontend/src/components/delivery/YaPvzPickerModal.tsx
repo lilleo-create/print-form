@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
-import ReactDOM from "react-dom";
-import { ensureYaNddWidgetLoaded } from "../../shared/lib/yaNddWidget";
+import { useEffect, useMemo, useRef, useState } from 'react';
+import ReactDOM from 'react-dom';
+import { ensureYaNddWidgetLoaded } from '../../shared/lib/yaNddWidget';
 
 export type YaPvzSelection = {
   pvzId: string;
@@ -12,36 +12,24 @@ type YaNddPvzModalProps = {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (sel: YaPvzSelection) => void;
-
   title?: string;
-
-  // Город можно менять
   city?: string;
-
-  // Важно: станция отгрузки продавца (GUID).
-  // Если не передашь, виджет часто работает плохо/не показывает расчет и часть точек.
   sourcePlatformStationId?: string;
-
-  // Вес, если нужно фильтровать точки по допустимому весу
   weightGrossG?: number;
-
-  // Хочешь постаматы тоже? тогда includeTerminals=true
   includeTerminals?: boolean;
-
-  // Параметры фильтра оплаты (можно выключить)
-  paymentMethods?: Array<"already_paid" | "cash_on_receipt" | "card_on_receipt">;
+  paymentMethods?: Array<'already_paid' | 'cash_on_receipt' | 'card_on_receipt'>;
 };
 
 export const YaNddPvzModal = ({
   isOpen,
   onClose,
   onSelect,
-  title = "Выберите ПВЗ получения",
-  city = "Москва",
+  title = 'Выберите ПВЗ получения',
+  city = 'Москва',
   sourcePlatformStationId,
   weightGrossG = 10000,
   includeTerminals = true,
-  paymentMethods = ["already_paid", "card_on_receipt"],
+  paymentMethods = ['already_paid', 'card_on_receipt']
 }: YaNddPvzModalProps) => {
   const containerId = useMemo(
     () => `ya-ndd-widget-${Math.random().toString(16).slice(2)}`,
@@ -49,13 +37,21 @@ export const YaNddPvzModal = ({
   );
 
   const portalRoot = useMemo(() => {
-    const el = document.createElement("div");
-    el.setAttribute("data-ya-ndd-portal-root", "true");
+    const el = document.createElement('div');
+    el.setAttribute('data-ya-ndd-portal-root', 'true');
     return el;
   }, []);
 
+  const onCloseRef = useRef(onClose);
+  const onSelectRef = useRef(onSelect);
+
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string>("");
+  const [error, setError] = useState<string>('');
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+    onSelectRef.current = onSelect;
+  }, [onClose, onSelect]);
 
   useEffect(() => {
     document.body.appendChild(portalRoot);
@@ -66,157 +62,146 @@ export const YaNddPvzModal = ({
     if (!isOpen) return;
 
     let cancelled = false;
+    let cleanup: (() => void) | undefined;
+
+    const onPointSelected = (evt: Event) => {
+      const detail = (evt as CustomEvent).detail as {
+        id?: string | number;
+        address?: { full_address?: string };
+      };
+
+      if (!detail?.id) {
+        return;
+      }
+
+      onSelectRef.current({
+        pvzId: String(detail.id),
+        addressFull: detail.address?.full_address,
+        raw: detail
+      });
+
+      onCloseRef.current();
+    };
 
     const init = async () => {
       setLoading(true);
-      setError("");
+      setError('');
 
       try {
         await ensureYaNddWidgetLoaded();
         if (cancelled) return;
 
-        // Небольшая проверка: если нет станции отгрузки, виджет может работать,
-        // но часто это не то поведение, которое тебе нужно в проде.
-        // Пока не блочим жестко, но предупреждаем.
-        if (!sourcePlatformStationId) {
-          console.warn(
-            "[YaNddPvzModal] sourcePlatformStationId is missing. " +
-              "Widget may show incomplete results."
-          );
-        }
+        document.addEventListener('YaNddWidgetPointSelected', onPointSelected);
 
-        // 1) Подписываемся на событие выбора точки
-        const onPointSelected = (evt: any) => {
-          const d = evt?.detail;
-          if (!d?.id) return;
-
-          onSelect({
-            pvzId: String(d.id),
-            addressFull: d?.address?.full_address,
-            raw: d,
-          });
-
-          onClose();
-        };
-
-        document.addEventListener("YaNddWidgetPointSelected", onPointSelected);
-
-        // 2) Создаем виджет
-        // Важно: контейнер должен существовать в DOM
         const container = document.getElementById(containerId);
         if (!container) return;
 
-        // иногда виджет не любит повторный createWidget в тот же контейнер
-        container.innerHTML = "";
+        container.innerHTML = '';
 
-        (window as any).YaDelivery.createWidget({
+        const yaDelivery = (window as Window & { YaDelivery?: { createWidget: (config: unknown) => void } }).YaDelivery;
+        yaDelivery?.createWidget({
           containerId,
           params: {
             city,
-            size: { width: "100%", height: "100%" },
-
-            // расчет и фильтрация по весу
+            size: { width: '100%', height: '100%' },
             physical_dims_weight_gross: weightGrossG,
-
-            // если есть станция отгрузки (ПВЗ продавца) - передаем
             ...(sourcePlatformStationId
               ? { source_platform_station: sourcePlatformStationId }
               : {}),
-
             show_select_button: true,
-
             filter: {
-              type: includeTerminals ? ["pickup_point", "terminal"] : ["pickup_point"],
+              type: includeTerminals
+                ? ['pickup_point', 'terminal']
+                : ['pickup_point'],
               is_yandex_branded: false,
               payment_methods: paymentMethods,
-              payment_methods_filter: "or",
-            },
-          },
+              payment_methods_filter: 'or'
+            }
+          }
         });
 
-        // 3) Cleanup
-        return () => {
-          document.removeEventListener("YaNddWidgetPointSelected", onPointSelected);
+        cleanup = () => {
+          document.removeEventListener(
+            'YaNddWidgetPointSelected',
+            onPointSelected
+          );
         };
-      } catch (e: any) {
-        setError(e?.message || "Ошибка инициализации виджета ПВЗ");
+      } catch (error: unknown) {
+        setError(error instanceof Error ? error.message : 'Ошибка инициализации виджета ПВЗ');
       } finally {
         setLoading(false);
       }
     };
 
-    let cleanup: any;
-    init().then((c) => (cleanup = c));
+    void init();
 
     return () => {
       cancelled = true;
-      if (typeof cleanup === "function") cleanup();
+      cleanup?.();
     };
   }, [
     isOpen,
     city,
     containerId,
-    onClose,
-    onSelect,
     sourcePlatformStationId,
     weightGrossG,
     includeTerminals,
-    paymentMethods,
+    paymentMethods
   ]);
 
   if (!isOpen) return null;
 
   const modal = (
     <div
-      onClick={onClose}
+      onClick={() => onCloseRef.current()}
       style={{
-        position: "fixed",
+        position: 'fixed',
         inset: 0,
         zIndex: 9999,
-        background: "rgba(0,0,0,0.55)",
-        backdropFilter: "blur(6px)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 24,
+        background: 'rgba(0,0,0,0.55)',
+        backdropFilter: 'blur(6px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24
       }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: "min(1100px, 96vw)",
-          height: "min(720px, 90vh)",
-          background: "#0b1630",
+          width: 'min(1100px, 96vw)',
+          height: 'min(720px, 90vh)',
+          background: '#0b1630',
           borderRadius: 16,
-          border: "1px solid rgba(255,255,255,0.08)",
-          boxShadow: "0 24px 80px rgba(0,0,0,0.45)",
-          overflow: "hidden",
-          display: "grid",
-          gridTemplateRows: "56px 1fr",
+          border: '1px solid rgba(255,255,255,0.08)',
+          boxShadow: '0 24px 80px rgba(0,0,0,0.45)',
+          overflow: 'hidden',
+          display: 'grid',
+          gridTemplateRows: '56px 1fr'
         }}
       >
         <div
           style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "0 16px",
-            borderBottom: "1px solid rgba(255,255,255,0.08)",
-            color: "#fff",
-            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0 16px',
+            borderBottom: '1px solid rgba(255,255,255,0.08)',
+            color: '#fff',
+            fontWeight: 600
           }}
         >
           <span>{title}</span>
           <button
-            onClick={onClose}
+            onClick={() => onCloseRef.current()}
             style={{
-              cursor: "pointer",
-              background: "transparent",
+              cursor: 'pointer',
+              background: 'transparent',
               border: 0,
-              color: "inherit",
+              color: 'inherit',
               fontSize: 22,
               lineHeight: 1,
-              padding: 8,
+              padding: 8
             }}
             aria-label="Закрыть"
           >
@@ -224,28 +209,28 @@ export const YaNddPvzModal = ({
           </button>
         </div>
 
-        <div style={{ position: "relative", height: "100%" }}>
+        <div style={{ position: 'relative', height: '100%' }}>
           <div
             id={containerId}
             style={{
-              width: "100%",
-              height: "100%",
-              background: "rgba(255,255,255,0.06)",
+              width: '100%',
+              height: '100%',
+              background: 'rgba(255,255,255,0.06)'
             }}
           />
 
           {loading && (
             <div
               style={{
-                position: "absolute",
+                position: 'absolute',
                 left: 12,
                 right: 12,
                 bottom: 12,
                 padding: 10,
                 borderRadius: 10,
-                background: "rgba(0,0,0,0.35)",
-                color: "#fff",
-                fontSize: 13,
+                background: 'rgba(0,0,0,0.35)',
+                color: '#fff',
+                fontSize: 13
               }}
             >
               Загружаю виджет ПВЗ…
@@ -255,17 +240,17 @@ export const YaNddPvzModal = ({
           {error && (
             <div
               style={{
-                position: "absolute",
+                position: 'absolute',
                 left: 12,
                 right: 12,
                 bottom: 12,
                 padding: 10,
                 borderRadius: 10,
-                background: "rgba(255, 0, 0, 0.18)",
-                border: "1px solid rgba(255, 0, 0, 0.35)",
-                color: "#fff",
+                background: 'rgba(255, 0, 0, 0.18)',
+                border: '1px solid rgba(255, 0, 0, 0.35)',
+                color: '#fff',
                 fontSize: 13,
-                whiteSpace: "pre-wrap",
+                whiteSpace: 'pre-wrap'
               }}
             >
               {error}

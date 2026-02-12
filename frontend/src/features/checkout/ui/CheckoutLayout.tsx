@@ -29,7 +29,7 @@ export const CheckoutLayout = () => {
     placeOrder
   } = useCheckoutStore();
 
-  const [isPickupModalOpen, setPickupModalOpen] = useState(false);
+  const [isPvzOpen, setPvzOpen] = useState(false);
   const [isRecipientOpen, setRecipientOpen] = useState(false);
   const [isAddCardOpen, setAddCardOpen] = useState(false);
 
@@ -68,7 +68,7 @@ export const CheckoutLayout = () => {
             <PickupPointBlock
               point={data.selectedPickupPoint ?? null}
               onOpen={() => {
-                setPickupModalOpen(true);
+                setPvzOpen(true);
               }}
             />
           ) : (
@@ -122,11 +122,15 @@ export const CheckoutLayout = () => {
         isOpen={isPvzOpen}
         onClose={() => setPvzOpen(false)}
         onSelect={(sel) => {
-          // тут сохраняешь sel.pvzId и sel.addressFull в стор/checkout
-          console.log('SELECTED PVZ', sel);
+          void setPickupPoint({
+            pvzId: sel.pvzId,
+            addressFull: sel.addressFull ?? ''
+          });
+          setPvzOpen(false);
         }}
-        city="Москва"
-        sourcePlatformStationId={sellerDropoffStationId} // вот это важно
+        city={data.address?.city ?? 'Москва'}
+        sourcePlatformStationId={data.sellerDropoffStationId ?? undefined}
+        weightGrossG={10000}
       />
 
       <RecipientModal
