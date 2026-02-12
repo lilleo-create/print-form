@@ -6,15 +6,9 @@ const client = createFetchClient(baseUrl);
 export type DeliveryMethodCode = 'COURIER' | 'PICKUP_POINT';
 export type PaymentMethodCode = 'CARD' | 'SBP';
 export type YaPvzSelection = {
-  provider: 'YANDEX_NDD';
   pvzId: string;
   addressFull?: string;
-  country?: string;
-  locality?: string;
-  street?: string;
-  house?: string;
-  comment?: string;
-  raw: unknown;
+  raw?: unknown;
 };
 
 export type PickupPoint = YaPvzSelection;

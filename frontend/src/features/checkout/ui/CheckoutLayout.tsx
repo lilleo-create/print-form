@@ -4,7 +4,7 @@ import { useCheckoutStore } from '../model/useCheckoutStore';
 import { DeliveryMethodSelector } from './DeliveryMethodSelector';
 import { AddressBlock } from './AddressBlock';
 import { PickupPointBlock } from './PickupPointBlock';
-import { PickupPointModal } from './PickupPointModal';
+import { YaPvzPickerModal } from '../../../components/delivery/YaPvzPickerModal';
 import { RecipientModal } from './RecipientModal';
 import { DeliveryDatesSection } from './DeliveryDatesSection';
 import { CheckoutItemsList } from './CheckoutItemsList';
@@ -95,11 +95,17 @@ export const CheckoutLayout = () => {
         </div>
       </aside>
 
-      <PickupPointModal
+      <YaPvzPickerModal
         isOpen={isPickupModalOpen}
         onClose={() => setPickupModalOpen(false)}
-        selectedPoint={data.selectedPickupPoint ?? null}
-        onConfirm={(payload) => setPickupPoint(payload)}
+        title="Выберите ПВЗ получения"
+        city={data.address?.city ?? 'Москва'}
+        widgetParams={{
+          selected_point_id: data.selectedPickupPoint?.pvzId
+        }}
+        onSelect={(payload) => {
+          void setPickupPoint(payload);
+        }}
       />
 
       <RecipientModal

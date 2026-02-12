@@ -10,6 +10,7 @@ import { SellerActions } from '../components/seller/SellerActions';
 import { SellerErrorState } from '../components/seller/SellerErrorState';
 import { SellerHeader } from '../components/seller/SellerHeader';
 import { SellerStatsCard } from '../components/seller/SellerStatsCard';
+import { YaPvzPickerModal, type YaPvzSelection } from '../components/delivery/YaPvzPickerModal';
 import { SellerProductModal, SellerProductPayload } from '../widgets/seller/SellerProductModal';
 import styles from './SellerAccountPage.module.css';
 
@@ -75,6 +76,8 @@ export const SellerDashboardPage = () => {
   const [paymentsLoading, setPaymentsLoading] = useState(true);
   const [paymentsError, setPaymentsError] = useState<string | null>(null);
   const [dropoffStationId, setDropoffStationId] = useState('');
+  const [dropoffStationAddress, setDropoffStationAddress] = useState('');
+  const [isDropoffModalOpen, setDropoffModalOpen] = useState(false);
   const [deliverySettingsMessage, setDeliverySettingsMessage] = useState<string | null>(null);
   const [deliverySettingsError, setDeliverySettingsError] = useState<string | null>(null);
   const canSell = kycSubmission?.status === 'APPROVED';
@@ -374,16 +377,21 @@ export const SellerDashboardPage = () => {
     try {
       await api.updateSellerDeliveryProfile({
         dropoffPvz: {
-          provider: 'YANDEX_NDD',
           pvzId: dropoffStationId.trim(),
-          raw: { addressFull: dropoffStationId.trim() },
-          addressFull: dropoffStationId.trim()
+          raw: { addressFull: dropoffStationAddress || dropoffStationId.trim() },
+          addressFull: dropoffStationAddress || dropoffStationId.trim()
         }
       });
       setDeliverySettingsMessage('Станция отгрузки сохранена.');
     } catch {
       setDeliverySettingsError('Не удалось сохранить станцию отгрузки.');
     }
+  };
+
+
+  const handleDropoffSelect = (selection: YaPvzSelection) => {
+    setDropoffStationId(selection.pvzId);
+    setDropoffStationAddress(selection.addressFull ?? '');
   };
 
   const handleReadyToShip = async (orderId: string) => {
@@ -967,6 +975,10 @@ export const SellerDashboardPage = () => {
                         onChange={(event) => setDropoffStationId(event.target.value)}
                         placeholder="GUID станции"
                       />
+                      {dropoffStationAddress ? <p className={styles.muted}>{dropoffStationAddress}</p> : null}
+                      <Button type="button" variant="secondary" onClick={() => setDropoffModalOpen(true)}>
+                        Выбрать ПВЗ сдачи через карту
+                      </Button>
                     </div>
                   </div>
                   <p className={styles.muted}>Используется для создания заявок NDD «Доставка в другой день».</p>
@@ -978,6 +990,16 @@ export const SellerDashboardPage = () => {
                   </Button>
                   {deliverySettingsMessage && <p className={styles.muted}>{deliverySettingsMessage}</p>}
                   {deliverySettingsError && <p className={styles.error}>{deliverySettingsError}</p>}
+                  <YaPvzPickerModal
+                    isOpen={isDropoffModalOpen}
+                    onClose={() => setDropoffModalOpen(false)}
+                    title="Выберите ПВЗ сдачи отправления"
+                    city={sellerProfile?.city ?? 'Москва'}
+                    widgetParams={{
+                      selected_point_id: dropoffStationId
+                    }}
+                    onSelect={handleDropoffSelect}
+                  />
                 </div>
               )}
 
