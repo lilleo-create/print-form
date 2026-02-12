@@ -199,8 +199,7 @@ model Order {
 }
 
 model SellerSettings {
-  id                    String   @id @default(cuid())
-  sellerId              String   @unique
+  sellerId              String   @id
   defaultDropoffPvzId   String?
   defaultDropoffPvzMeta Json?
   createdAt             DateTime @default(now())
