@@ -119,14 +119,17 @@ export const CheckoutLayout = () => {
       </aside>
 
       <YaNddPvzModal
-        isOpen={isPvzOpen}
-        onClose={() => setPvzOpen(false)}
+        isOpen={isPickupModalOpen}
+        onClose={() => setPickupModalOpen(false)}
         onSelect={(sel) => {
-          // тут сохраняешь sel.pvzId и sel.addressFull в стор/checkout
-          console.log('SELECTED PVZ', sel);
+          void setPickupPoint({
+            pvzId: sel.pvzId,
+            addressFull: sel.addressFull ?? '',
+            raw: sel.raw
+          });
+          setPickupModalOpen(false);
         }}
         city="Москва"
-        sourcePlatformStationId={sellerDropoffStationId} // вот это важно
       />
 
       <RecipientModal
