@@ -8,17 +8,17 @@ datasource db {
 }
 
 model User {
-  id                     String                @id @default(cuid())
-  email                  String                @unique
+  id                     String                 @id @default(cuid())
+  email                  String                 @unique
   passwordHash           String
   name                   String
-  phone                  String?               @unique
+  phone                  String?                @unique
   phoneVerifiedAt        DateTime?
   emailVerifiedAt        DateTime?
   address                String?
-  role                   Role                  @default(BUYER)
-  createdAt              DateTime              @default(now())
-  updatedAt              DateTime              @updatedAt
+  role                   Role                   @default(BUYER)
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
   addresses              Address[]
   contacts               Contact[]
   orders                 Order[]
@@ -27,13 +27,13 @@ model User {
   products               Product[]
   refreshTokens          RefreshToken[]
   reviews                Review[]
-  reviewedKycSubmissions SellerKycSubmission[] @relation("KycReviewer")
+  reviewedKycSubmissions SellerKycSubmission[]  @relation("KycReviewer")
   sellerKycSubmissions   SellerKycSubmission[]
   sellerProfile          SellerProfile?
   sellerSettings         SellerSettings?
   sellerDeliveryProfile  SellerDeliveryProfile?
-  moderatedProducts      Product[]             @relation("ProductModerator")
-  moderatedReviews       Review[]              @relation("ReviewModerator")
+  moderatedProducts      Product[]              @relation("ProductModerator")
+  moderatedReviews       Review[]               @relation("ReviewModerator")
 }
 
 model SellerProfile {
@@ -62,18 +62,18 @@ model City {
 }
 
 model Product {
-  id                    String           @id @default(cuid())
+  id                    String                  @id @default(cuid())
   title                 String
   descriptionShort      String
   descriptionFull       String
-  sku                   String           @unique
+  sku                   String                  @unique
   price                 Int
-  currency              String           @default("RUB")
-  ratingAvg             Float            @default(0)
-  ratingCount           Int              @default(0)
+  currency              String                  @default("RUB")
+  ratingAvg             Float                   @default(0)
+  ratingCount           Int                     @default(0)
   category              String
   image                 String
-  videoUrls             String[]         @default([])
+  videoUrls             String[]                @default([])
   description           String
   material              String
   size                  String
@@ -91,11 +91,11 @@ model Product {
   publishedAt           DateTime?
   moderatedAt           DateTime?
   moderatedById         String?
-  createdAt             DateTime         @default(now())
-  updatedAt             DateTime         @updatedAt
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
   orderItems            OrderItem[]
-  seller                User             @relation(fields: [sellerId], references: [id])
-  moderatedBy           User?            @relation("ProductModerator", fields: [moderatedById], references: [id])
+  seller                User                    @relation(fields: [sellerId], references: [id])
+  moderatedBy           User?                   @relation("ProductModerator", fields: [moderatedById], references: [id])
   images                ProductImage[]
   specs                 ProductSpec[]
   variants              ProductVariant[]
@@ -135,27 +135,27 @@ model ProductSpec {
 }
 
 model Review {
-  id            String       @id @default(cuid())
-  productId     String
-  userId        String?
-  rating        Int
-  pros          String
-  cons          String
-  comment       String
-  photos        String[]     @default([])
-  likesCount    Int          @default(0)
-  dislikesCount Int          @default(0)
-  isPublic      Boolean      @default(true)
-  status        ReviewStatus @default(PENDING)
+  id               String                 @id @default(cuid())
+  productId        String
+  userId           String?
+  rating           Int
+  pros             String
+  cons             String
+  comment          String
+  photos           String[]               @default([])
+  likesCount       Int                    @default(0)
+  dislikesCount    Int                    @default(0)
+  isPublic         Boolean                @default(true)
+  status           ReviewStatus           @default(PENDING)
   moderationStatus ReviewModerationStatus @default(PENDING)
   moderationNotes  String?
   moderatedAt      DateTime?
   moderatedById    String?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-  product       Product      @relation(fields: [productId], references: [id])
-  user          User?        @relation(fields: [userId], references: [id])
-  moderatedBy   User?        @relation("ReviewModerator", fields: [moderatedById], references: [id])
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  product          Product                @relation(fields: [productId], references: [id])
+  user             User?                  @relation(fields: [userId], references: [id])
+  moderatedBy      User?                  @relation("ReviewModerator", fields: [moderatedById], references: [id])
 
   @@index([productId])
   @@index([createdAt])
@@ -163,39 +163,39 @@ model Review {
 }
 
 model Order {
-  id                String      @id @default(cuid())
-  buyerId           String
-  status            OrderStatus @default(CREATED)
-  statusUpdatedAt   DateTime    @default(now())
-  total             Int
-  currency          String      @default("RUB")
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
-  contactId         String?
-  shippingAddressId String?
-  trackingNumber    String?
-  carrier           String?
-  buyerPickupPvzId       String?
-  buyerPickupPvzMeta     Json?
-  sellerDropoffPvzId     String?
-  sellerDropoffPvzMeta   Json?
-  yandexOfferId          String?
-  yandexRequestId        String?
-  yandexStatus           String?
-  yandexSharingUrl       String?
-  yandexCourierOrderId   String?
-  yandexSelfPickupCode   Json?
-  yandexActualInfo       Json?
-  payoutStatus           String      @default("HOLD")
-  readyForShipmentAt     DateTime?
-  dropoffDeadlineAt      DateTime?
-  buyer             User        @relation(fields: [buyerId], references: [id])
-  contact           Contact?    @relation("OrderContact", fields: [contactId], references: [id])
-  shippingAddress   Address?    @relation("OrderShippingAddress", fields: [shippingAddressId], references: [id])
-  items             OrderItem[]
-  payments          Payment[]
-  shipment          OrderShipment?
-  deliveryEvents    OrderDeliveryEvent[]
+  id                   String               @id @default(cuid())
+  buyerId              String
+  status               OrderStatus          @default(CREATED)
+  statusUpdatedAt      DateTime             @default(now())
+  total                Int
+  currency             String               @default("RUB")
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  contactId            String?
+  shippingAddressId    String?
+  trackingNumber       String?
+  carrier              String?
+  buyerPickupPvzId     String?
+  buyerPickupPvzMeta   Json?
+  sellerDropoffPvzId   String?
+  sellerDropoffPvzMeta Json?
+  yandexOfferId        String?
+  yandexRequestId      String?
+  yandexStatus         String?
+  yandexSharingUrl     String?
+  yandexCourierOrderId String?
+  yandexSelfPickupCode Json?
+  yandexActualInfo     Json?
+  payoutStatus         String               @default("HOLD")
+  readyForShipmentAt   DateTime?
+  dropoffDeadlineAt    DateTime?
+  buyer                User                 @relation(fields: [buyerId], references: [id])
+  contact              Contact?             @relation("OrderContact", fields: [contactId], references: [id])
+  shippingAddress      Address?             @relation("OrderShippingAddress", fields: [shippingAddressId], references: [id])
+  items                OrderItem[]
+  payments             Payment[]
+  shipment             OrderShipment?
+  deliveryEvents       OrderDeliveryEvent[]
 }
 
 model SellerSettings {
@@ -234,31 +234,31 @@ model SellerDeliveryProfile {
 }
 
 model OrderShipment {
-  id                          String                       @id @default(cuid())
-  orderId                     String                       @unique
-  provider                    String
-  deliveryMethod              String
-  sourceStationId             String
-  sourceStationSnapshot       Json?
-  destinationStationId        String
-  destinationStationSnapshot  Json?
-  offerPayload                String?
-  requestId                   String?
-  status                      String
-  statusRaw                   Json?
-  lastSyncAt                  DateTime?
-  createdAt                   DateTime                     @default(now())
-  updatedAt                   DateTime                     @updatedAt
-  order                       Order                        @relation(fields: [orderId], references: [id])
-  statusHistory               OrderShipmentStatusHistory[]
+  id                         String                       @id @default(cuid())
+  orderId                    String                       @unique
+  provider                   String
+  deliveryMethod             String
+  sourceStationId            String
+  sourceStationSnapshot      Json?
+  destinationStationId       String
+  destinationStationSnapshot Json?
+  offerPayload               String?
+  requestId                  String?
+  status                     String
+  statusRaw                  Json?
+  lastSyncAt                 DateTime?
+  createdAt                  DateTime                     @default(now())
+  updatedAt                  DateTime                     @updatedAt
+  order                      Order                        @relation(fields: [orderId], references: [id])
+  statusHistory              OrderShipmentStatusHistory[]
 }
 
 model OrderShipmentStatusHistory {
-  id         String       @id @default(cuid())
+  id         String        @id @default(cuid())
   shipmentId String
   status     String
   payloadRaw Json?
-  createdAt  DateTime     @default(now())
+  createdAt  DateTime      @default(now())
   shipment   OrderShipment @relation(fields: [shipmentId], references: [id])
 }
 
@@ -403,19 +403,19 @@ model Contact {
 }
 
 model SellerKycSubmission {
-  id          String           @id @default(cuid())
-  userId      String
-  status      KycStatus        @default(PENDING)
-  submittedAt DateTime?
-  reviewedAt  DateTime?
-  reviewerId  String?
+  id              String           @id @default(cuid())
+  userId          String
+  status          KycStatus        @default(PENDING)
+  submittedAt     DateTime?
+  reviewedAt      DateTime?
+  reviewerId      String?
   moderationNotes String?
-  notes       String?
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  documents   SellerDocument[]
-  reviewer    User?            @relation("KycReviewer", fields: [reviewerId], references: [id])
-  user        User             @relation(fields: [userId], references: [id])
+  notes           String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  documents       SellerDocument[]
+  reviewer        User?            @relation("KycReviewer", fields: [reviewerId], references: [id])
+  user            User             @relation(fields: [userId], references: [id])
 
   @@index([userId, status])
 }
