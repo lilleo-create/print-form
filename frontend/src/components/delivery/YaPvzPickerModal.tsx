@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef } from 'react';
-import { Modal } from '../../shared/ui/Modal';
-import { ensureYaNddWidgetLoaded } from '../../shared/lib/yaNddWidget';
+import { useEffect, useMemo, useState } from "react";
+import ReactDOM from "react-dom";
+import { ensureYaNddWidgetLoaded } from "../../shared/lib/yaNddWidget";
 
 export type YaPvzSelection = {
   pvzId: string;
@@ -8,146 +8,273 @@ export type YaPvzSelection = {
   raw?: unknown;
 };
 
-type YaPvzPickerModalProps = {
+type YaNddPvzModalProps = {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (sel: YaPvzSelection) => void;
+
   title?: string;
+
+  // Город можно менять
   city?: string;
-  widgetParams?: Record<string, unknown>;
+
+  // Важно: станция отгрузки продавца (GUID).
+  // Если не передашь, виджет часто работает плохо/не показывает расчет и часть точек.
+  sourcePlatformStationId?: string;
+
+  // Вес, если нужно фильтровать точки по допустимому весу
+  weightGrossG?: number;
+
+  // Хочешь постаматы тоже? тогда includeTerminals=true
+  includeTerminals?: boolean;
+
+  // Параметры фильтра оплаты (можно выключить)
+  paymentMethods?: Array<"already_paid" | "cash_on_receipt" | "card_on_receipt">;
 };
 
-const DEFAULT_WIDGET_PARAMS: Record<string, unknown> = {
-  city: 'Москва',
-  size: { width: '100%', height: '420px' },
-  show_select_button: true,
-  filter: {
-    type: ['pickup_point', 'terminal'],
-    is_yandex_branded: false,
-    payment_methods: ['already_paid', 'card_on_receipt'],
-    payment_methods_filter: 'or'
-  }
-};
-
-const isObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
-
-const deepMerge = (base: Record<string, unknown>, override: Record<string, unknown>) => {
-  const result: Record<string, unknown> = { ...base };
-
-  Object.entries(override).forEach(([key, value]) => {
-    if (isObject(value) && isObject(result[key])) {
-      result[key] = deepMerge(result[key] as Record<string, unknown>, value);
-      return;
-    }
-    result[key] = value;
-  });
-
-  return result;
-};
-
-export const YaPvzPickerModal = ({
+export const YaNddPvzModal = ({
   isOpen,
   onClose,
   onSelect,
-  title = 'Выбор ПВЗ',
-  city,
-  widgetParams
-}: YaPvzPickerModalProps) => {
-  const containerId = useMemo(() => `ya-pvz-picker-${Math.random().toString(16).slice(2)}`, []);
-  const createdForCurrentOpenRef = useRef(false);
-  const latestSelectionHandlersRef = useRef({ onSelect, onClose });
-  const mergedParamsRef = useRef<Record<string, unknown>>({});
+  title = "Выберите ПВЗ получения",
+  city = "Москва",
+  sourcePlatformStationId,
+  weightGrossG = 10000,
+  includeTerminals = true,
+  paymentMethods = ["already_paid", "card_on_receipt"],
+}: YaNddPvzModalProps) => {
+  const containerId = useMemo(
+    () => `ya-ndd-widget-${Math.random().toString(16).slice(2)}`,
+    []
+  );
 
-  const mergedParams = useMemo(() => {
-    const base = deepMerge(DEFAULT_WIDGET_PARAMS, {
-      city: city ?? 'Москва'
-    });
+  const portalRoot = useMemo(() => {
+    const el = document.createElement("div");
+    el.setAttribute("data-ya-ndd-portal-root", "true");
+    return el;
+  }, []);
 
-    return widgetParams ? deepMerge(base, widgetParams) : base;
-  }, [city, widgetParams]);
-
-  useEffect(() => {
-    latestSelectionHandlersRef.current = { onSelect, onClose };
-  }, [onClose, onSelect]);
-
-  useEffect(() => {
-    mergedParamsRef.current = mergedParams;
-  }, [mergedParams]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string>("");
 
   useEffect(() => {
-    if (!isOpen) {
-      createdForCurrentOpenRef.current = false;
-      const container = document.getElementById(containerId);
-      if (container) {
-        container.innerHTML = '';
+    document.body.appendChild(portalRoot);
+    return () => portalRoot.remove();
+  }, [portalRoot]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let cancelled = false;
+
+    const init = async () => {
+      setLoading(true);
+      setError("");
+
+      try {
+        await ensureYaNddWidgetLoaded();
+        if (cancelled) return;
+
+        // Небольшая проверка: если нет станции отгрузки, виджет может работать,
+        // но часто это не то поведение, которое тебе нужно в проде.
+        // Пока не блочим жестко, но предупреждаем.
+        if (!sourcePlatformStationId) {
+          console.warn(
+            "[YaNddPvzModal] sourcePlatformStationId is missing. " +
+              "Widget may show incomplete results."
+          );
+        }
+
+        // 1) Подписываемся на событие выбора точки
+        const onPointSelected = (evt: any) => {
+          const d = evt?.detail;
+          if (!d?.id) return;
+
+          onSelect({
+            pvzId: String(d.id),
+            addressFull: d?.address?.full_address,
+            raw: d,
+          });
+
+          onClose();
+        };
+
+        document.addEventListener("YaNddWidgetPointSelected", onPointSelected);
+
+        // 2) Создаем виджет
+        // Важно: контейнер должен существовать в DOM
+        const container = document.getElementById(containerId);
+        if (!container) return;
+
+        // иногда виджет не любит повторный createWidget в тот же контейнер
+        container.innerHTML = "";
+
+        (window as any).YaDelivery.createWidget({
+          containerId,
+          params: {
+            city,
+            size: { width: "100%", height: "100%" },
+
+            // расчет и фильтрация по весу
+            physical_dims_weight_gross: weightGrossG,
+
+            // если есть станция отгрузки (ПВЗ продавца) - передаем
+            ...(sourcePlatformStationId
+              ? { source_platform_station: sourcePlatformStationId }
+              : {}),
+
+            show_select_button: true,
+
+            filter: {
+              type: includeTerminals ? ["pickup_point", "terminal"] : ["pickup_point"],
+              is_yandex_branded: false,
+              payment_methods: paymentMethods,
+              payment_methods_filter: "or",
+            },
+          },
+        });
+
+        // 3) Cleanup
+        return () => {
+          document.removeEventListener("YaNddWidgetPointSelected", onPointSelected);
+        };
+      } catch (e: any) {
+        setError(e?.message || "Ошибка инициализации виджета ПВЗ");
+      } finally {
+        setLoading(false);
       }
-      return;
-    }
-
-    let isCancelled = false;
-
-    const handlePointSelected = (event: Event) => {
-      const detail = (event as CustomEvent<Record<string, unknown> | undefined>).detail;
-      if (!detail?.id) {
-        return;
-      }
-
-      const address = isObject(detail.address) ? detail.address : undefined;
-
-      latestSelectionHandlersRef.current.onSelect({
-        pvzId: String(detail.id),
-        addressFull: typeof address?.full_address === 'string' ? address.full_address : undefined,
-        raw: detail
-      });
-      latestSelectionHandlersRef.current.onClose();
     };
 
-    const initWidget = async () => {
-      await ensureYaNddWidgetLoaded();
-      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-
-      if (isCancelled || createdForCurrentOpenRef.current) {
-        return;
-      }
-
-      const container = document.getElementById(containerId);
-      if (!container) {
-        return;
-      }
-
-      window.YaDelivery?.createWidget({
-        containerId,
-        params: mergedParamsRef.current
-      });
-      createdForCurrentOpenRef.current = true;
-
-      requestAnimationFrame(() => {
-        window.dispatchEvent(new Event('resize'));
-      });
-    };
-
-    document.addEventListener('YaNddWidgetPointSelected', handlePointSelected);
-    void initWidget();
+    let cleanup: any;
+    init().then((c) => (cleanup = c));
 
     return () => {
-      isCancelled = true;
-      document.removeEventListener('YaNddWidgetPointSelected', handlePointSelected);
-      const container = document.getElementById(containerId);
-      if (container) {
-        container.innerHTML = '';
-      }
+      cancelled = true;
+      if (typeof cleanup === "function") cleanup();
     };
-  }, [containerId, isOpen]);
+  }, [
+    isOpen,
+    city,
+    containerId,
+    onClose,
+    onSelect,
+    sourcePlatformStationId,
+    weightGrossG,
+    includeTerminals,
+    paymentMethods,
+  ]);
 
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} role="dialog" aria-modal="true">
-      <div>
-        <h3>{title}</h3>
-        <div id={containerId} style={{ width: '100%', height: 420 }} />
+  if (!isOpen) return null;
+
+  const modal = (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 9999,
+        background: "rgba(0,0,0,0.55)",
+        backdropFilter: "blur(6px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 24,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "min(1100px, 96vw)",
+          height: "min(720px, 90vh)",
+          background: "#0b1630",
+          borderRadius: 16,
+          border: "1px solid rgba(255,255,255,0.08)",
+          boxShadow: "0 24px 80px rgba(0,0,0,0.45)",
+          overflow: "hidden",
+          display: "grid",
+          gridTemplateRows: "56px 1fr",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "0 16px",
+            borderBottom: "1px solid rgba(255,255,255,0.08)",
+            color: "#fff",
+            fontWeight: 600,
+          }}
+        >
+          <span>{title}</span>
+          <button
+            onClick={onClose}
+            style={{
+              cursor: "pointer",
+              background: "transparent",
+              border: 0,
+              color: "inherit",
+              fontSize: 22,
+              lineHeight: 1,
+              padding: 8,
+            }}
+            aria-label="Закрыть"
+          >
+            ×
+          </button>
+        </div>
+
+        <div style={{ position: "relative", height: "100%" }}>
+          <div
+            id={containerId}
+            style={{
+              width: "100%",
+              height: "100%",
+              background: "rgba(255,255,255,0.06)",
+            }}
+          />
+
+          {loading && (
+            <div
+              style={{
+                position: "absolute",
+                left: 12,
+                right: 12,
+                bottom: 12,
+                padding: 10,
+                borderRadius: 10,
+                background: "rgba(0,0,0,0.35)",
+                color: "#fff",
+                fontSize: 13,
+              }}
+            >
+              Загружаю виджет ПВЗ…
+            </div>
+          )}
+
+          {error && (
+            <div
+              style={{
+                position: "absolute",
+                left: 12,
+                right: 12,
+                bottom: 12,
+                padding: 10,
+                borderRadius: 10,
+                background: "rgba(255, 0, 0, 0.18)",
+                border: "1px solid rgba(255, 0, 0, 0.35)",
+                color: "#fff",
+                fontSize: 13,
+                whiteSpace: "pre-wrap",
+              }}
+            >
+              {error}
+            </div>
+          )}
+        </div>
       </div>
-    </Modal>
+    </div>
   );
-};
 
-export type { YaPvzPickerModalProps };
+  return ReactDOM.createPortal(modal, portalRoot);
+};

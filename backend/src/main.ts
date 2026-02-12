@@ -26,6 +26,7 @@ import { globalLimiter } from "./middleware/rateLimiters";
 import { clientDisconnect } from "./middleware/clientDisconnect";
 import { internalRoutes } from './routes/internalRoutes';
 import { startShipmentsSyncJob } from './jobs/shipmentsSyncJob';
+import { nddRoutes } from "./routes/nddRoutes";
 
 const app = express();
 const uploadsDir = path.join(process.cwd(), "uploads");
@@ -92,7 +93,7 @@ app.use("/payments", paymentRoutes);
 app.use("/favorites", favoritesRoutes);
 app.use("/checkout", checkoutRoutes);
 app.use('/internal', internalRoutes);
-
+app.use("/api/ndd", nddRoutes);
 app.use(errorHandler);
 
 app.listen(env.port, () => {

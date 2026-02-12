@@ -107,3 +107,34 @@ html,
 body {
   overflow-x: hidden;
 }
+/* Ya Delivery widget layout patch: не даём карте схлопнуться */
+#ydw-widget-section .widget__wrapper {
+  width: 100%;
+}
+
+/* Если у виджета есть контент-обёртка, делаем flex */
+#ydw-widget-section .widget__content_transition,
+#ydw-widget-section .widget__content {
+  display: flex !important;
+  gap: 16px;
+  height: 600px;
+  align-items: stretch;
+}
+
+/* Левая панель фиксированная */
+#ydw-widget-section .widget__filters-wrapper,
+#ydw-widget-section .widget__filters {
+  flex: 0 0 360px !important;
+  min-width: 360px !important;
+  max-width: 360px !important;
+  height: 100% !important;
+  overflow: auto;
+}
+
+/* Карта занимает остаток */
+#ydw-widget-section .widget__map {
+  flex: 1 1 auto !important;
+  width: auto !important;
+  min-width: 300px !important;
+  height: 100% !important;
+}

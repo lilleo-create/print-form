@@ -4,14 +4,26 @@ import { useAuthStore } from '../app/store/authStore';
 import { api } from '../shared/api';
 import { ordersApi } from '../shared/api/ordersApi';
 import { useSellerContext } from '../hooks/seller/useSellerContext';
-import { Order, OrderStatus, Payment, Product, SellerKycSubmission } from '../shared/types';
+import {
+  Order,
+  OrderStatus,
+  Payment,
+  Product,
+  SellerKycSubmission
+} from '../shared/types';
 import { Button } from '../shared/ui/Button';
 import { SellerActions } from '../components/seller/SellerActions';
 import { SellerErrorState } from '../components/seller/SellerErrorState';
 import { SellerHeader } from '../components/seller/SellerHeader';
 import { SellerStatsCard } from '../components/seller/SellerStatsCard';
-import { YaPvzPickerModal, type YaPvzSelection } from '../components/delivery/YaPvzPickerModal';
-import { SellerProductModal, SellerProductPayload } from '../widgets/seller/SellerProductModal';
+import {
+  YaNddPvzModal,
+  type YaPvzSelection
+} from '../components/delivery/YaPvzPickerModal';
+import {
+  SellerProductModal,
+  SellerProductPayload
+} from '../widgets/seller/SellerProductModal';
 import styles from './SellerAccountPage.module.css';
 
 const menuItems = [
@@ -27,7 +39,13 @@ const menuItems = [
   'Настройки'
 ] as const;
 
-const statusFlow: OrderStatus[] = ['CREATED', 'PRINTING', 'HANDED_TO_DELIVERY', 'IN_TRANSIT', 'DELIVERED'];
+const statusFlow: OrderStatus[] = [
+  'CREATED',
+  'PRINTING',
+  'HANDED_TO_DELIVERY',
+  'IN_TRANSIT',
+  'DELIVERED'
+];
 const statusLabels: Partial<Record<OrderStatus, string>> = {
   CREATED: 'Создается',
   PAID: 'Оплачен',
@@ -43,16 +61,27 @@ const statusLabels: Partial<Record<OrderStatus, string>> = {
 
 const formatCurrency = (value: number) => value.toLocaleString('ru-RU');
 const formatDate = (value: string) =>
-  new Date(value).toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric' });
-const getErrorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error));
+  new Date(value).toLocaleDateString('ru-RU', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric'
+  });
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : String(error);
 const isAccessError = (error: unknown) => {
   const message = getErrorMessage(error).toLowerCase();
-  return message.includes('forbidden') || message.includes('unauthorized') || message.includes('401') || message.includes('403');
+  return (
+    message.includes('forbidden') ||
+    message.includes('unauthorized') ||
+    message.includes('401') ||
+    message.includes('403')
+  );
 };
 
 export const SellerDashboardPage = () => {
   const navigate = useNavigate();
-  const [activeItem, setActiveItem] = useState<(typeof menuItems)[number]>('Сводка');
+  const [activeItem, setActiveItem] =
+    useState<(typeof menuItems)[number]>('Сводка');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [isProductsLoading, setIsProductsLoading] = useState(true);
@@ -66,8 +95,11 @@ export const SellerDashboardPage = () => {
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'ALL'>('ALL');
   const [orderUpdateId, setOrderUpdateId] = useState<string | null>(null);
   const [orderUpdateError, setOrderUpdateError] = useState<string | null>(null);
-  const [trackingDrafts, setTrackingDrafts] = useState<Record<string, { trackingNumber: string; carrier: string }>>({});
-  const [kycSubmission, setKycSubmission] = useState<SellerKycSubmission | null>(null);
+  const [trackingDrafts, setTrackingDrafts] = useState<
+    Record<string, { trackingNumber: string; carrier: string }>
+  >({});
+  const [kycSubmission, setKycSubmission] =
+    useState<SellerKycSubmission | null>(null);
   const [kycLoading, setKycLoading] = useState(false);
   const [isKycUploading, setIsKycUploading] = useState(false);
   const [kycMessage, setKycMessage] = useState<string | null>(null);
@@ -78,24 +110,43 @@ export const SellerDashboardPage = () => {
   const [dropoffStationId, setDropoffStationId] = useState('');
   const [dropoffStationAddress, setDropoffStationAddress] = useState('');
   const [isDropoffModalOpen, setDropoffModalOpen] = useState(false);
-  const [deliverySettingsMessage, setDeliverySettingsMessage] = useState<string | null>(null);
-  const [deliverySettingsError, setDeliverySettingsError] = useState<string | null>(null);
+  const [deliverySettingsMessage, setDeliverySettingsMessage] = useState<
+    string | null
+  >(null);
+  const [deliverySettingsError, setDeliverySettingsError] = useState<
+    string | null
+  >(null);
   const canSell = kycSubmission?.status === 'APPROVED';
   const userId = useAuthStore((state) => state.user?.id);
-  const { authStatus, status: contextStatus, context, error: sellerContextError, reload } = useSellerContext();
+  const {
+    authStatus,
+    status: contextStatus,
+    context,
+    error: sellerContextError,
+    reload
+  } = useSellerContext();
   const sellerProfile = context?.profile ?? null;
-  const isSellerReady = authStatus === 'authorized' && contextStatus === 'success' && Boolean(sellerProfile);
+  const isSellerReady =
+    authStatus === 'authorized' &&
+    contextStatus === 'success' &&
+    Boolean(sellerProfile);
   const isAuthLoading = authStatus === 'loading' || contextStatus === 'loading';
 
   useEffect(() => {
     if (!sellerContextError) {
       return;
     }
-    if (sellerContextError.code === 'SELLER_PROFILE_MISSING' || sellerContextError.status === 409) {
+    if (
+      sellerContextError.code === 'SELLER_PROFILE_MISSING' ||
+      sellerContextError.status === 409
+    ) {
       navigate('/seller/onboarding', { replace: true });
       return;
     }
-    if (sellerContextError.status === 403 || sellerContextError.code === 'FORBIDDEN') {
+    if (
+      sellerContextError.status === 403 ||
+      sellerContextError.code === 'FORBIDDEN'
+    ) {
       navigate('/', { replace: true });
     }
   }, [navigate, sellerContextError]);
@@ -132,12 +183,17 @@ export const SellerDashboardPage = () => {
       }
       const data = await ordersApi.listBySeller(userId);
       setOrders(data);
-      setOrdersView(statusFilter === 'ALL' ? data : data.filter((order) => order.status === statusFilter));
+      setOrdersView(
+        statusFilter === 'ALL'
+          ? data
+          : data.filter((order) => order.status === statusFilter)
+      );
       setTrackingDrafts((prev) => {
         const next = { ...prev };
         data.forEach((order) => {
           next[order.id] = {
-            trackingNumber: order.trackingNumber ?? next[order.id]?.trackingNumber ?? '',
+            trackingNumber:
+              order.trackingNumber ?? next[order.id]?.trackingNumber ?? '',
             carrier: order.carrier ?? next[order.id]?.carrier ?? ''
           };
         });
@@ -176,7 +232,8 @@ export const SellerDashboardPage = () => {
         const next = { ...prev };
         data.forEach((order) => {
           next[order.id] = {
-            trackingNumber: order.trackingNumber ?? next[order.id]?.trackingNumber ?? '',
+            trackingNumber:
+              order.trackingNumber ?? next[order.id]?.trackingNumber ?? '',
             carrier: order.carrier ?? next[order.id]?.carrier ?? ''
           };
         });
@@ -338,12 +395,17 @@ export const SellerDashboardPage = () => {
 
   const handleStatusChange = async (order: Order, status: OrderStatus) => {
     setOrderUpdateError(null);
-    const draft = trackingDrafts[order.id] ?? { trackingNumber: '', carrier: '' };
+    const draft = trackingDrafts[order.id] ?? {
+      trackingNumber: '',
+      carrier: ''
+    };
     const trackingNumber = draft.trackingNumber || order.trackingNumber || '';
     const carrier = draft.carrier || order.carrier || '';
     if (['HANDED_TO_DELIVERY', 'IN_TRANSIT', 'DELIVERED'].includes(status)) {
       if (!trackingNumber || !carrier) {
-        setOrderUpdateError('Для доставки укажите номер отправления и службу доставки.');
+        setOrderUpdateError(
+          'Для доставки укажите номер отправления и службу доставки.'
+        );
         return;
       }
     }
@@ -355,12 +417,17 @@ export const SellerDashboardPage = () => {
         carrier: carrier || undefined
       });
       const updated = response.data;
-      setOrders((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
-      setOrdersView((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+      setOrders((prev) =>
+        prev.map((item) => (item.id === updated.id ? updated : item))
+      );
+      setOrdersView((prev) =>
+        prev.map((item) => (item.id === updated.id ? updated : item))
+      );
       setTrackingDrafts((prev) => ({
         ...prev,
         [updated.id]: {
-          trackingNumber: updated.trackingNumber ?? prev[updated.id]?.trackingNumber ?? '',
+          trackingNumber:
+            updated.trackingNumber ?? prev[updated.id]?.trackingNumber ?? '',
           carrier: updated.carrier ?? prev[updated.id]?.carrier ?? ''
         }
       }));
@@ -378,7 +445,9 @@ export const SellerDashboardPage = () => {
       await api.updateSellerDeliveryProfile({
         dropoffPvz: {
           pvzId: dropoffStationId.trim(),
-          raw: { addressFull: dropoffStationAddress || dropoffStationId.trim() },
+          raw: {
+            addressFull: dropoffStationAddress || dropoffStationId.trim()
+          },
           addressFull: dropoffStationAddress || dropoffStationId.trim()
         }
       });
@@ -387,7 +456,6 @@ export const SellerDashboardPage = () => {
       setDeliverySettingsError('Не удалось сохранить станцию отгрузки.');
     }
   };
-
 
   const handleDropoffSelect = (selection: YaPvzSelection) => {
     setDropoffStationId(selection.pvzId);
@@ -400,7 +468,9 @@ export const SellerDashboardPage = () => {
       await ordersApi.readyToShip(orderId);
       await loadOrders();
     } catch {
-      setOrderUpdateError('Не удалось создать заявку доставки. Проверьте станцию отгрузки и данные ПВЗ.');
+      setOrderUpdateError(
+        'Не удалось создать заявку доставки. Проверьте станцию отгрузки и данные ПВЗ.'
+      );
     }
   };
 
@@ -430,7 +500,10 @@ export const SellerDashboardPage = () => {
   const handleDownloadHandoverAct = async () => {
     setOrderUpdateError(null);
     try {
-      const result = await ordersApi.downloadYandexHandoverAct({ mode: 'new_requests', editable_format: false });
+      const result = await ordersApi.downloadYandexHandoverAct({
+        mode: 'new_requests',
+        editable_format: false
+      });
       const url = URL.createObjectURL(result.blob);
       const link = document.createElement('a');
       link.href = url;
@@ -446,13 +519,18 @@ export const SellerDashboardPage = () => {
     const totalProducts = products.length;
     const totalOrders = orders.length;
     const revenue = orders.reduce(
-      (sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + item.lineTotal, 0),
+      (sum, order) =>
+        sum +
+        order.items.reduce((itemSum, item) => itemSum + item.lineTotal, 0),
       0
     );
-    const statusCounts = statusFlow.reduce<Record<OrderStatus, number>>((acc, status) => {
-      acc[status] = orders.filter((order) => order.status === status).length;
-      return acc;
-    }, {} as Record<OrderStatus, number>);
+    const statusCounts = statusFlow.reduce<Record<OrderStatus, number>>(
+      (acc, status) => {
+        acc[status] = orders.filter((order) => order.status === status).length;
+        return acc;
+      },
+      {} as Record<OrderStatus, number>
+    );
 
     return { totalProducts, totalOrders, revenue, statusCounts };
   }, [orders, products.length]);
@@ -464,13 +542,20 @@ export const SellerDashboardPage = () => {
       const date = new Date(now);
       date.setDate(now.getDate() - (days - 1 - index));
       const dateKey = date.toISOString().split('T')[0];
-      const ordersForDay = orders.filter((order) => order.createdAt.startsWith(dateKey));
+      const ordersForDay = orders.filter((order) =>
+        order.createdAt.startsWith(dateKey)
+      );
       const revenue = ordersForDay.reduce(
-        (sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + item.lineTotal, 0),
+        (sum, order) =>
+          sum +
+          order.items.reduce((itemSum, item) => itemSum + item.lineTotal, 0),
         0
       );
       return {
-        date: date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }),
+        date: date.toLocaleDateString('ru-RU', {
+          day: '2-digit',
+          month: '2-digit'
+        }),
         orders: ordersForDay.length,
         revenue
       };
@@ -495,10 +580,16 @@ export const SellerDashboardPage = () => {
   return (
     <section className={styles.page}>
       <div className={styles.shell}>
-        <aside className={`${styles.sidebar} ${isMenuOpen ? styles.sidebarOpen : ''}`}>
+        <aside
+          className={`${styles.sidebar} ${isMenuOpen ? styles.sidebarOpen : ''}`}
+        >
           <div className={styles.sidebarHeader}>
             <h2>Кабинет продавца</h2>
-            <button type="button" className={styles.closeMenu} onClick={() => setIsMenuOpen(false)}>
+            <button
+              type="button"
+              className={styles.closeMenu}
+              onClick={() => setIsMenuOpen(false)}
+            >
               ✕
             </button>
           </div>
@@ -507,7 +598,9 @@ export const SellerDashboardPage = () => {
               <button
                 key={item}
                 type="button"
-                className={item === activeItem ? styles.menuItemActive : styles.menuItem}
+                className={
+                  item === activeItem ? styles.menuItemActive : styles.menuItem
+                }
                 onClick={() => {
                   setActiveItem(item);
                   setIsMenuOpen(false);
@@ -520,7 +613,10 @@ export const SellerDashboardPage = () => {
         </aside>
 
         <div className={styles.content}>
-          <SellerHeader title={activeItem} onMenuOpen={() => setIsMenuOpen(true)} />
+          <SellerHeader
+            title={activeItem}
+            onMenuOpen={() => setIsMenuOpen(true)}
+          />
 
           {isAuthLoading && (
             <div className={styles.section}>
@@ -532,26 +628,44 @@ export const SellerDashboardPage = () => {
             <div className={styles.section}>
               <div className={styles.infoCard}>
                 <h2>Войдите в аккаунт</h2>
-                <p className={styles.muted}>Авторизуйтесь, чтобы получить доступ к кабинету продавца.</p>
-                <Link className={styles.linkButton} to="/auth/login?redirectTo=/seller">
+                <p className={styles.muted}>
+                  Авторизуйтесь, чтобы получить доступ к кабинету продавца.
+                </p>
+                <Link
+                  className={styles.linkButton}
+                  to="/auth/login?redirectTo=/seller"
+                >
                   Войти
                 </Link>
               </div>
             </div>
           )}
 
-          {shouldShowSellerError && sellerContextError && <SellerErrorState message={sellerContextError.message} />}
+          {shouldShowSellerError && sellerContextError && (
+            <SellerErrorState message={sellerContextError.message} />
+          )}
 
           {isSellerReady && (
             <>
               {activeItem === 'Сводка' && (
                 <div className={styles.section}>
                   <div className={styles.statsGrid}>
-                    <SellerStatsCard title="Заказы" value={`${summary.totalOrders} всего`} />
-                    <SellerStatsCard title="Выручка" value={`${formatCurrency(summary.revenue)} ₽`} />
-                    <SellerStatsCard title="Товары" value={`${summary.totalProducts} в каталоге`} />
+                    <SellerStatsCard
+                      title="Заказы"
+                      value={`${summary.totalOrders} всего`}
+                    />
+                    <SellerStatsCard
+                      title="Выручка"
+                      value={`${formatCurrency(summary.revenue)} ₽`}
+                    />
+                    <SellerStatsCard
+                      title="Товары"
+                      value={`${summary.totalProducts} в каталоге`}
+                    />
                   </div>
-                  {!hasSummaryData && <p className={styles.muted}>Данных пока нет.</p>}
+                  {!hasSummaryData && (
+                    <p className={styles.muted}>Данных пока нет.</p>
+                  )}
                   <div className={styles.statusList}>
                     {statusFlow.map((status) => (
                       <div key={status} className={styles.statusRow}>
@@ -577,18 +691,26 @@ export const SellerDashboardPage = () => {
                     <div className={styles.kycPanel}>
                       <div className={styles.kycRow}>
                         <span className={styles.kycLabel}>Статус:</span>
-                        <strong>{kycSubmission?.status ?? 'Не отправлено'}</strong>
+                        <strong>
+                          {kycSubmission?.status ?? 'Не отправлено'}
+                        </strong>
                       </div>
-                      {(kycSubmission?.moderationNotes || kycSubmission?.notes) && (
+                      {(kycSubmission?.moderationNotes ||
+                        kycSubmission?.notes) && (
                         <p className={styles.kycNotes}>
-                          Комментарий: {kycSubmission.moderationNotes ?? kycSubmission.notes}
+                          Комментарий:{' '}
+                          {kycSubmission.moderationNotes ?? kycSubmission.notes}
                         </p>
                       )}
                       {kycSubmission?.documents?.length ? (
                         <ul className={styles.kycDocs}>
                           {kycSubmission.documents.map((doc) => (
                             <li key={doc.id}>
-                              <a href={doc.url} target="_blank" rel="noreferrer">
+                              <a
+                                href={doc.url}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
                                 {doc.originalName}
                               </a>
                             </li>
@@ -606,14 +728,22 @@ export const SellerDashboardPage = () => {
                             onChange={handleKycUpload}
                             disabled={isKycUploading}
                           />
-                          {isKycUploading ? 'Загрузка...' : 'Загрузить документы'}
+                          {isKycUploading
+                            ? 'Загрузка...'
+                            : 'Загрузить документы'}
                         </label>
-                        <Button type="button" onClick={handleKycSubmit} disabled={!kycSubmission?.documents?.length}>
+                        <Button
+                          type="button"
+                          onClick={handleKycSubmit}
+                          disabled={!kycSubmission?.documents?.length}
+                        >
                           Отправить на проверку
                         </Button>
                       </div>
                       {kycError && <p className={styles.error}>{kycError}</p>}
-                      {kycMessage && <p className={styles.kycMessage}>{kycMessage}</p>}
+                      {kycMessage && (
+                        <p className={styles.kycMessage}>{kycMessage}</p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -624,7 +754,9 @@ export const SellerDashboardPage = () => {
                   <div className={styles.sectionHeader}>
                     <div>
                       <h2>Товары продавца</h2>
-                      <p>Создавайте и редактируйте карточки с описанием и фото.</p>
+                      <p>
+                        Создавайте и редактируйте карточки с описанием и фото.
+                      </p>
                     </div>
                     <SellerActions
                       canSell={canSell}
@@ -657,9 +789,12 @@ export const SellerDashboardPage = () => {
                             <span>{product.category}</span>
                             <span>
                               <strong>{product.moderationStatus ?? '—'}</strong>
-                              {product.moderationStatus === 'NEEDS_EDIT' && product.moderationNotes && (
-                                <span className={styles.moderationNote}>{product.moderationNotes}</span>
-                              )}
+                              {product.moderationStatus === 'NEEDS_EDIT' &&
+                                product.moderationNotes && (
+                                  <span className={styles.moderationNote}>
+                                    {product.moderationNotes}
+                                  </span>
+                                )}
                             </span>
                             <button
                               type="button"
@@ -692,7 +827,11 @@ export const SellerDashboardPage = () => {
                         <select
                           className={styles.select}
                           value={statusFilter}
-                          onChange={(event) => setStatusFilter(event.target.value as OrderStatus | 'ALL')}
+                          onChange={(event) =>
+                            setStatusFilter(
+                              event.target.value as OrderStatus | 'ALL'
+                            )
+                          }
                         >
                           <option value="ALL">Все</option>
                           {statusFlow.map((status) => (
@@ -723,37 +862,78 @@ export const SellerDashboardPage = () => {
                       {ordersView.map((order) => {
                         const currentIndex = statusFlow.indexOf(order.status);
                         const nextStatus = statusFlow[currentIndex + 1];
-                        const draft = trackingDrafts[order.id] ?? { trackingNumber: '', carrier: '' };
-                        const total = order.items.reduce((sum, item) => sum + item.lineTotal, 0);
+                        const draft = trackingDrafts[order.id] ?? {
+                          trackingNumber: '',
+                          carrier: ''
+                        };
+                        const total = order.items.reduce(
+                          (sum, item) => sum + item.lineTotal,
+                          0
+                        );
                         return (
                           <div key={order.id} className={styles.ordersRow}>
                             <div className={styles.cellTruncate}>
                               <strong>№{order.id}</strong>
-                              <p className={styles.muted}>{formatDate(order.createdAt)}</p>
+                              <p className={styles.muted}>
+                                {formatDate(order.createdAt)}
+                              </p>
                             </div>
                             <div className={styles.cellTruncate}>
-                              <p>{order.contact?.name ?? order.buyer?.name ?? '—'}</p>
-                              <p className={styles.muted}>{order.contact?.phone ?? order.buyer?.email ?? ''}</p>
+                              <p>
+                                {order.contact?.name ??
+                                  order.buyer?.name ??
+                                  '—'}
+                              </p>
+                              <p className={styles.muted}>
+                                {order.contact?.phone ??
+                                  order.buyer?.email ??
+                                  ''}
+                              </p>
                             </div>
                             <div>{formatCurrency(total)} ₽</div>
                             <div>
                               <select
                                 className={styles.select}
                                 value={order.status}
-                                disabled={!nextStatus || orderUpdateId === order.id}
-                                onChange={(event) => handleStatusChange(order, event.target.value as OrderStatus)}
+                                disabled={
+                                  !nextStatus || orderUpdateId === order.id
+                                }
+                                onChange={(event) =>
+                                  handleStatusChange(
+                                    order,
+                                    event.target.value as OrderStatus
+                                  )
+                                }
                               >
-                                <option value={order.status}>{statusLabels[order.status]}</option>
-                                {nextStatus && <option value={nextStatus}>{statusLabels[nextStatus]}</option>}
+                                <option value={order.status}>
+                                  {statusLabels[order.status]}
+                                </option>
+                                {nextStatus && (
+                                  <option value={nextStatus}>
+                                    {statusLabels[nextStatus]}
+                                  </option>
+                                )}
                               </select>
-                              {orderUpdateId === order.id && <p className={styles.muted}>Обновляем...</p>}
+                              {orderUpdateId === order.id && (
+                                <p className={styles.muted}>Обновляем...</p>
+                              )}
                             </div>
                             <div className={styles.deliveryInputs}>
-                              <p className={styles.muted}>Метод: {order.delivery?.deliveryMethod ?? '—'}</p>
-                              <p className={styles.muted}>ПВЗ: {order.delivery?.pickupPoint?.fullAddress ?? '—'}</p>
-                              <p className={styles.muted}>source_platform_station: {dropoffStationId || 'не задана'}</p>
                               <p className={styles.muted}>
-                                Статус доставки: {order.shipment?.status ?? 'не создана'}
+                                Метод: {order.delivery?.deliveryMethod ?? '—'}
+                              </p>
+                              <p className={styles.muted}>
+                                ПВЗ:{' '}
+                                {order.delivery?.pickupPoint?.fullAddress ??
+                                  '—'}
+                              </p>
+                              <p className={styles.muted}>
+                                source_platform_station:{' '}
+                                {dropoffStationId || 'не задана'}
+                              </p>
+                              <p className={styles.muted}>
+                                Статус доставки:{' '}
+                                {order.shipment?.status ?? 'не создана'}
                                 {order.shipment?.lastSyncAt
                                   ? ` · обновлено ${new Date(order.shipment.lastSyncAt).toLocaleString('ru-RU')}`
                                   : ''}
@@ -780,7 +960,8 @@ export const SellerDashboardPage = () => {
                                   setTrackingDrafts((prev) => ({
                                     ...prev,
                                     [order.id]: {
-                                      trackingNumber: prev[order.id]?.trackingNumber ?? '',
+                                      trackingNumber:
+                                        prev[order.id]?.trackingNumber ?? '',
                                       carrier: event.target.value
                                     }
                                   }))
@@ -790,7 +971,10 @@ export const SellerDashboardPage = () => {
                                 type="button"
                                 variant="secondary"
                                 onClick={() => handleReadyToShip(order.id)}
-                                disabled={!dropoffStationId || Boolean(order.shipment?.requestId)}
+                                disabled={
+                                  !dropoffStationId ||
+                                  Boolean(order.shipment?.requestId)
+                                }
                               >
                                 Готов к отгрузке
                               </Button>
@@ -803,7 +987,9 @@ export const SellerDashboardPage = () => {
                                 Скачать ярлык
                               </Button>
                               {!order.shipment?.requestId && (
-                                <p className={styles.muted}>Сначала нажмите «Готов к отгрузке».</p>
+                                <p className={styles.muted}>
+                                  Сначала нажмите «Готов к отгрузке».
+                                </p>
                               )}
                             </div>
                           </div>
@@ -811,7 +997,9 @@ export const SellerDashboardPage = () => {
                       })}
                     </div>
                   )}
-                  {orderUpdateError && <p className={styles.error}>{orderUpdateError}</p>}
+                  {orderUpdateError && (
+                    <p className={styles.error}>{orderUpdateError}</p>
+                  )}
                 </div>
               )}
 
@@ -834,17 +1022,23 @@ export const SellerDashboardPage = () => {
                         <span>Доставка</span>
                       </div>
                       {logisticsOrders.map((order) => (
-                          <div key={order.id} className={styles.ordersRow}>
-                            <div className={styles.cellTruncate}>
-                              <strong>№{order.id}</strong>
-                              <p className={styles.muted}>{formatDate(order.createdAt)}</p>
-                            </div>
-                            <div className={styles.cellTruncate}>{order.shippingAddress?.addressText ?? '—'}</div>
-                            <div>{statusLabels[order.status]}</div>
-                            <div className={styles.cellTruncate}>
-                              <p>{order.trackingNumber ?? '—'}</p>
-                              <p className={styles.muted}>{order.carrier ?? '—'}</p>
-                            </div>
+                        <div key={order.id} className={styles.ordersRow}>
+                          <div className={styles.cellTruncate}>
+                            <strong>№{order.id}</strong>
+                            <p className={styles.muted}>
+                              {formatDate(order.createdAt)}
+                            </p>
+                          </div>
+                          <div className={styles.cellTruncate}>
+                            {order.shippingAddress?.addressText ?? '—'}
+                          </div>
+                          <div>{statusLabels[order.status]}</div>
+                          <div className={styles.cellTruncate}>
+                            <p>{order.trackingNumber ?? '—'}</p>
+                            <p className={styles.muted}>
+                              {order.carrier ?? '—'}
+                            </p>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -867,7 +1061,9 @@ export const SellerDashboardPage = () => {
                   ) : paymentsError ? (
                     <p className={styles.error}>{paymentsError}</p>
                   ) : payments.length === 0 ? (
-                    <p className={styles.muted}>Данные о выплатах пока отсутствуют.</p>
+                    <p className={styles.muted}>
+                      Данные о выплатах пока отсутствуют.
+                    </p>
                   ) : (
                     <div className={styles.ordersTable}>
                       <div className={styles.ordersHeader}>
@@ -879,7 +1075,9 @@ export const SellerDashboardPage = () => {
                       {payments.map((payment) => (
                         <div key={payment.id} className={styles.ordersRow}>
                           <span>{formatDate(payment.createdAt)}</span>
-                          <span className={styles.cellTruncate}>№{payment.orderId}</span>
+                          <span className={styles.cellTruncate}>
+                            №{payment.orderId}
+                          </span>
                           <span>
                             {formatCurrency(payment.amount)} {payment.currency}
                           </span>
@@ -965,40 +1163,68 @@ export const SellerDashboardPage = () => {
                   ) : (
                     <p className={styles.muted}>Профиль продавца не найден.</p>
                   )}
-                  <p className={styles.muted}>Редактирование профиля доступно через форму подключения продавца.</p>
+                  <p className={styles.muted}>
+                    Редактирование профиля доступно через форму подключения
+                    продавца.
+                  </p>
                   <div className={styles.settingsGrid}>
                     <div>
-                      <span className={styles.muted}>Станция отгрузки (source_platform_station)</span>
+                      <span className={styles.muted}>
+                        Станция отгрузки (source_platform_station)
+                      </span>
                       <input
                         className={styles.input}
                         value={dropoffStationId}
-                        onChange={(event) => setDropoffStationId(event.target.value)}
+                        onChange={(event) =>
+                          setDropoffStationId(event.target.value)
+                        }
                         placeholder="GUID станции"
                       />
-                      {dropoffStationAddress ? <p className={styles.muted}>{dropoffStationAddress}</p> : null}
-                      <Button type="button" variant="secondary" onClick={() => setDropoffModalOpen(true)}>
+                      {dropoffStationAddress ? (
+                        <p className={styles.muted}>{dropoffStationAddress}</p>
+                      ) : null}
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => setDropoffModalOpen(true)}
+                      >
                         Выбрать ПВЗ сдачи через карту
                       </Button>
                     </div>
                   </div>
-                  <p className={styles.muted}>Используется для создания заявок NDD «Доставка в другой день».</p>
-                  <Button type="button" onClick={handleSaveDeliveryProfile} disabled={!dropoffStationId.trim()}>
+                  <p className={styles.muted}>
+                    Используется для создания заявок NDD «Доставка в другой
+                    день».
+                  </p>
+                  <Button
+                    type="button"
+                    onClick={handleSaveDeliveryProfile}
+                    disabled={!dropoffStationId.trim()}
+                  >
                     Сохранить доставку
                   </Button>
-                  <Button type="button" variant="secondary" onClick={handleDownloadHandoverAct}>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={handleDownloadHandoverAct}
+                  >
                     Скачать акт приёма-передачи
                   </Button>
-                  {deliverySettingsMessage && <p className={styles.muted}>{deliverySettingsMessage}</p>}
-                  {deliverySettingsError && <p className={styles.error}>{deliverySettingsError}</p>}
-                  <YaPvzPickerModal
-                    isOpen={isDropoffModalOpen}
-                    onClose={() => setDropoffModalOpen(false)}
-                    title="Выберите ПВЗ сдачи отправления"
-                    city={sellerProfile?.city ?? 'Москва'}
-                    widgetParams={{
-                      selected_point_id: dropoffStationId
+                  {deliverySettingsMessage && (
+                    <p className={styles.muted}>{deliverySettingsMessage}</p>
+                  )}
+                  {deliverySettingsError && (
+                    <p className={styles.error}>{deliverySettingsError}</p>
+                  )}
+                  <YaNddPvzModal
+                    isOpen={isPvzOpen}
+                    onClose={() => setPvzOpen(false)}
+                    onSelect={(sel) => {
+                      // тут сохраняешь sel.pvzId и sel.addressFull в стор/checkout
+                      console.log('SELECTED PVZ', sel);
                     }}
-                    onSelect={handleDropoffSelect}
+                    city="Москва"
+                    sourcePlatformStationId={sellerDropoffStationId} // вот это важно
                   />
                 </div>
               )}

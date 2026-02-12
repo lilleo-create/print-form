@@ -4,7 +4,7 @@ import { useCheckoutStore } from '../model/useCheckoutStore';
 import { DeliveryMethodSelector } from './DeliveryMethodSelector';
 import { AddressBlock } from './AddressBlock';
 import { PickupPointBlock } from './PickupPointBlock';
-import { YaPvzPickerModal } from '../../../components/delivery/YaPvzPickerModal';
+import { YaNddPvzModal } from '../../../components/delivery/YaPvzPickerModal';
 import { RecipientModal } from './RecipientModal';
 import { DeliveryDatesSection } from './DeliveryDatesSection';
 import { CheckoutItemsList } from './CheckoutItemsList';
@@ -38,12 +38,20 @@ export const CheckoutLayout = () => {
   }, [fetchCheckout]);
 
   const total = useMemo(
-    () => data?.cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0) ?? 0,
+    () =>
+      data?.cartItems.reduce(
+        (sum, item) => sum + item.price * item.quantity,
+        0
+      ) ?? 0,
     [data?.cartItems]
   );
 
-  if (isLoading && !data) return <p className={styles.state}>Загрузка checkout…</p>;
-  if (!data) return <p className={styles.state}>{error ?? 'Не удалось загрузить checkout'}</p>;
+  if (isLoading && !data)
+    return <p className={styles.state}>Загрузка checkout…</p>;
+  if (!data)
+    return (
+      <p className={styles.state}>{error ?? 'Не удалось загрузить checkout'}</p>
+    );
 
   return (
     <div className={styles.layout}>
@@ -57,21 +65,31 @@ export const CheckoutLayout = () => {
           />
 
           {data.selectedDeliveryMethod === 'PICKUP_POINT' ? (
-            <PickupPointBlock point={data.selectedPickupPoint ?? null} onOpen={() => {
-              setPickupModalOpen(true);
-            }} />
+            <PickupPointBlock
+              point={data.selectedPickupPoint ?? null}
+              onOpen={() => {
+                setPickupModalOpen(true);
+              }}
+            />
           ) : (
             <AddressBlock
               address={data.address}
               onEdit={() => {
                 void updateAddress(
-                  data.address ?? { line1: '', city: 'Москва', postalCode: '125040', country: 'Россия' }
+                  data.address ?? {
+                    line1: '',
+                    city: 'Москва',
+                    postalCode: '125040',
+                    country: 'Россия'
+                  }
                 );
               }}
             />
           )}
 
-          <Button variant="ghost" onClick={() => setRecipientOpen(true)}>Получатель: {data.recipient.name || 'Указать'}</Button>
+          <Button variant="ghost" onClick={() => setRecipientOpen(true)}>
+            Получатель: {data.recipient.name || 'Указать'}
+          </Button>
         </section>
 
         <DeliveryDatesSection items={data.cartItems} />
@@ -82,30 +100,33 @@ export const CheckoutLayout = () => {
       <aside className={styles.right}>
         <PaymentMethodSelector
           data={data}
-          onSelectMethod={(method, cardId) => void setPaymentMethod(method, cardId)}
+          onSelectMethod={(method, cardId) =>
+            void setPaymentMethod(method, cardId)
+          }
           onOpenAddCard={() => setAddCardOpen(true)}
         />
 
         <div className={styles.summary}>
           <div>Итого: {total.toLocaleString('ru-RU')} ₽</div>
-          <Button isLoading={isSubmittingOrder} onClick={() => void placeOrder()}>
+          <Button
+            isLoading={isSubmittingOrder}
+            onClick={() => void placeOrder()}
+          >
             Пополнить и оплатить
           </Button>
           {error ? <p className={styles.error}>{error}</p> : null}
         </div>
       </aside>
 
-      <YaPvzPickerModal
-        isOpen={isPickupModalOpen}
-        onClose={() => setPickupModalOpen(false)}
-        title="Выберите ПВЗ получения"
-        city={data.address?.city ?? 'Москва'}
-        widgetParams={{
-          selected_point_id: data.selectedPickupPoint?.pvzId
+      <YaNddPvzModal
+        isOpen={isPvzOpen}
+        onClose={() => setPvzOpen(false)}
+        onSelect={(sel) => {
+          // тут сохраняешь sel.pvzId и sel.addressFull в стор/checkout
+          console.log('SELECTED PVZ', sel);
         }}
-        onSelect={(payload) => {
-          void setPickupPoint(payload);
-        }}
+        city="Москва"
+        sourcePlatformStationId={sellerDropoffStationId} // вот это важно
       />
 
       <RecipientModal

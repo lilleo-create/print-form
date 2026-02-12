@@ -7,12 +7,13 @@
   align-items: center;
   justify-content: center;
   padding: 24px;
-  z-index: 80;
+  z-index: 9999;
 }
 
+/* твой дефолт */
 .modal {
-  width: min(720px, 92vw);
-  max-height: 80vh;
+  width: min(1100px, 95vw);
+  max-height: 90vh;
   overflow: auto;
   background: var(--card);
   border-radius: var(--radius-card);
@@ -21,4 +22,21 @@
   padding: 24px;
   display: grid;
   gap: 16px;
+}
+
+/* 🔥 фикс для узких экранов */
+@media (max-width: 640px) {
+  .overlay {
+    padding: 0;
+    align-items: stretch;
+    justify-content: stretch;
+  }
+
+  .modal {
+    width: 100vw;
+    height: 100vh;
+    max-height: 100vh;
+    border-radius: 0;
+    padding: 16px;
+  }
 }
