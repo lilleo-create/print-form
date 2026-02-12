@@ -124,7 +124,8 @@ export const CheckoutLayout = () => {
         onSelect={(sel) => {
           void setPickupPoint({
             pvzId: sel.pvzId,
-            addressFull: sel.addressFull ?? ''
+            addressFull: sel.addressFull ?? '',
+            raw: sel.raw
           });
           setPvzOpen(false);
         }}
