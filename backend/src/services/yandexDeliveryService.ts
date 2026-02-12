@@ -1,43 +1,34 @@
-import axios, { AxiosError, type AxiosInstance } from 'axios';
+import axios, { AxiosError, type AxiosInstance } from "axios";
 
-const TEST_HOST = 'https://b2b.taxi.tst.yandex.net';
-const PROD_HOST = 'https://b2b-authproxy.taxi.yandex.net';
-
-type RetryableConfig = {
-  retries?: number;
-  responseType?: 'arraybuffer';
-  params?: Record<string, unknown>;
-};
-
-export type YaPvzSelection = {
-  provider: 'YANDEX_NDD';
-  pvzId: string;
-  addressFull?: string;
-  country?: string;
-  locality?: string;
-  street?: string;
-  house?: string;
-  comment?: string;
-  raw: unknown;
-};
+const TEST_HOST = "https://b2b.taxi.tst.yandex.net";
+const PROD_HOST = "https://b2b-authproxy.taxi.yandex.net";
 
 class YandexDeliveryService {
   private readonly client: AxiosInstance;
 
   constructor() {
-    const token = process.env.YD_TOKEN;
+    const token =
+      process.env.YANDEX_DELIVERY_TOKEN ||
+      process.env.YD_TOKEN ||
+      process.env.YANDEX_NDD_TOKEN; // если вдруг раньше так называли
+
     if (!token) {
-      throw new Error('YD_TOKEN_MISSING');
+      throw new Error("YD_TOKEN_MISSING");
     }
-    const env = process.env.YD_ENV === 'prod' ? 'prod' : 'test';
-    const baseURL = env === 'prod' ? PROD_HOST : TEST_HOST;
+
+    const envRaw =
+      process.env.YANDEX_DELIVERY_ENV || process.env.YD_ENV || "test";
+    const env = envRaw === "prod" ? "prod" : "test";
+
+    const baseURL = env === "prod" ? PROD_HOST : TEST_HOST;
+
     this.client = axios.create({
       baseURL,
       headers: {
         Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
+        "Content-Type": "application/json",
       },
-      timeout: 15000
+      timeout: 15000,
     });
   }
 
@@ -48,29 +39,35 @@ class YandexDeliveryService {
         return await fn();
       } catch (error) {
         lastError = error;
-        if (attempt === retries) {
-          throw error;
-        }
+        if (attempt === retries) throw error;
       }
     }
     throw lastError;
   }
 
   async listPickupPoints(payload: Record<string, unknown>) {
-    const { data } = await this.withRetry(() => this.client.post('/api/b2b/platform/pickup-points/list', payload));
+    const { data } = await this.withRetry(() =>
+      this.client.post("/api/b2b/platform/pickup-points/list", payload),
+    );
     return data;
   }
 
   async createOffers(payload: Record<string, unknown>) {
     try {
       const { data } = await this.withRetry(() =>
-        this.client.post('/api/b2b/platform/offers/create?send_unix=true', payload)
+        this.client.post(
+          "/api/b2b/platform/offers/create?send_unix=true",
+          payload,
+        ),
       );
       return data;
     } catch (error) {
       const axiosError = error as AxiosError<{ code?: string }>;
-      if (axiosError.response?.status === 400 && axiosError.response.data?.code === 'no_delivery_options') {
-        throw new Error('NO_DELIVERY_OPTIONS');
+      if (
+        axiosError.response?.status === 400 &&
+        axiosError.response.data?.code === "no_delivery_options"
+      ) {
+        throw new Error("NO_DELIVERY_OPTIONS");
       }
       throw error;
     }
@@ -78,14 +75,19 @@ class YandexDeliveryService {
 
   async confirmOffer(offerId: string) {
     const { data } = await this.withRetry(() =>
-      this.client.post('/api/b2b/platform/offers/confirm', { offer_id: offerId })
+      this.client.post("/api/b2b/platform/offers/confirm", {
+        offer_id: offerId,
+      }),
     );
     return data;
   }
 
   async createRequest(payload: Record<string, unknown>) {
     const { data } = await this.withRetry(() =>
-      this.client.post('/api/b2b/platform/request/create?send_unix=true', payload)
+      this.client.post(
+        "/api/b2b/platform/request/create?send_unix=true",
+        payload,
+      ),
     );
     return data;
   }
@@ -93,14 +95,14 @@ class YandexDeliveryService {
   async getRequestInfo(requestId: string) {
     try {
       const { data } = await this.withRetry(() =>
-        this.client.get('/api/b2b/platform/request/info', { params: { request_id: requestId } })
+        this.client.get("/api/b2b/platform/request/info", {
+          params: { request_id: requestId },
+        }),
       );
       return data;
     } catch (error) {
       const axiosError = error as AxiosError;
-      if (axiosError.response?.status === 404) {
-        return null;
-      }
+      if (axiosError.response?.status === 404) return null;
       throw error;
     }
   }
@@ -108,14 +110,14 @@ class YandexDeliveryService {
   async getRequestHistory(requestId: string) {
     try {
       const { data } = await this.withRetry(() =>
-        this.client.get('/api/b2b/platform/request/history', { params: { request_id: requestId } })
+        this.client.get("/api/b2b/platform/request/history", {
+          params: { request_id: requestId },
+        }),
       );
       return data;
     } catch (error) {
       const axiosError = error as AxiosError;
-      if (axiosError.response?.status === 404) {
-        return null;
-      }
+      if (axiosError.response?.status === 404) return null;
       throw error;
     }
   }
@@ -123,46 +125,68 @@ class YandexDeliveryService {
   async getActualInfo(requestId: string) {
     try {
       const { data } = await this.withRetry(() =>
-        this.client.get('/api/b2b/platform/request/actual_info', { params: { request_id: requestId } })
+        this.client.get("/api/b2b/platform/request/actual_info", {
+          params: { request_id: requestId },
+        }),
       );
       return data;
     } catch (error) {
       const axiosError = error as AxiosError;
-      if (axiosError.response?.status === 404) {
-        return null;
-      }
+      if (axiosError.response?.status === 404) return null;
       throw error;
     }
   }
 
   async cancelRequest(requestId: string) {
-    const { data } = await this.withRetry(() => this.client.post('/api/b2b/platform/request/cancel', { request_id: requestId }));
+    const { data } = await this.withRetry(() =>
+      this.client.post("/api/b2b/platform/request/cancel", {
+        request_id: requestId,
+      }),
+    );
     return data;
   }
 
-  async generateLabels(requestIds: string[], generateType: 'one' | 'many' = 'one', language = 'ru') {
+  async generateLabels(
+    requestIds: string[],
+    generateType: "one" | "many" = "one",
+    language = "ru",
+  ) {
     const response = await this.withRetry(() =>
-      this.client.post('/api/b2b/platform/request/generate-labels', {
-        request_ids: requestIds,
-        generate_type: generateType,
-        language
-      }, { responseType: 'arraybuffer' })
+      this.client.post(
+        "/api/b2b/platform/request/generate-labels",
+        { request_ids: requestIds, generate_type: generateType, language },
+        { responseType: "arraybuffer" },
+      ),
     );
 
     return {
       buffer: Buffer.from(response.data),
-      contentType: String(response.headers['content-type'] ?? 'application/pdf')
+      contentType: String(
+        response.headers["content-type"] ?? "application/pdf",
+      ),
     };
   }
 
-  async getHandoverAct(params: Record<string, unknown>, body?: Record<string, unknown>) {
+  async getHandoverAct(
+    params: Record<string, unknown>,
+    body?: Record<string, unknown>,
+  ) {
     const response = await this.withRetry(() =>
-      this.client.post('/api/b2b/platform/request/get-handover-act', body ?? {}, { params, responseType: 'arraybuffer' })
+      this.client.post(
+        "/api/b2b/platform/request/get-handover-act",
+        body ?? {},
+        {
+          params,
+          responseType: "arraybuffer",
+        },
+      ),
     );
 
     return {
       buffer: Buffer.from(response.data),
-      contentType: String(response.headers['content-type'] ?? 'application/pdf')
+      contentType: String(
+        response.headers["content-type"] ?? "application/pdf",
+      ),
     };
   }
 }

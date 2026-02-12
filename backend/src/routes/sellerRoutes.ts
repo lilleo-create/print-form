@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { Response, Router } from 'express';
 import { z } from 'zod';
 import multer from 'multer';

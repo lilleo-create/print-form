@@ -1,30 +1,19 @@
-const DEFAULT_BASE_URL = 'https://b2b.taxi.tst.yandex.net';
-const DEFAULT_LANG = 'ru';
-
-const readRequired = (key: string) => {
-  const value = process.env[key]?.trim();
-  if (!value) {
-    throw new Error(`[YANDEX_NDD] Missing required env: ${key}`);
-  }
-  return value;
+export type YandexNddConfig = {
+  enabled: boolean;
+  baseUrl: string;
+  token?: string;
+  lang: string;
 };
 
-export const getYandexNddConfig = () => {
-  const nodeEnv = process.env.NODE_ENV ?? 'development';
-  const isDev = nodeEnv !== 'production';
+export const getYandexNddConfig = (): YandexNddConfig => {
+  const baseUrl = process.env.YANDEX_NDD_BASE_URL || 'https://b2b.taxi.tst.yandex.net';
+  const token = process.env.YANDEX_NDD_TOKEN || '';
+  const lang = process.env.YANDEX_NDD_LANG || 'ru';
 
-  const baseUrl = (process.env.YANDEX_NDD_BASE_URL ?? DEFAULT_BASE_URL).trim().replace(/\/$/, '');
-  const lang = (process.env.YANDEX_NDD_LANG ?? DEFAULT_LANG).trim() || DEFAULT_LANG;
-  const token = process.env.YANDEX_NDD_TOKEN?.trim();
-
-  if (!token && isDev) {
-    throw new Error('[YANDEX_NDD] Set YANDEX_NDD_TOKEN in .env to enable NDD delivery API integration.');
+  // Никаких падений сервера из-за пустого токена
+  if (!token) {
+    return { enabled: false, baseUrl, lang };
   }
 
-  return {
-    baseUrl,
-    lang,
-    token: token ?? readRequired('YANDEX_NDD_TOKEN')
-  };
+  return { enabled: true, baseUrl, token, lang };
 };
-

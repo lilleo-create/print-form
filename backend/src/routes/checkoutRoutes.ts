@@ -63,46 +63,6 @@ const cardSchema = z.object({
   cvv: z.string().min(3).max(4)
 });
 
-let setupPromise: Promise<void> | null = null;
-
-const ensureCheckoutTables = async () => {
-  if (!setupPromise) {
-    setupPromise = Promise.all([
-      prisma.$executeRawUnsafe(`
-        CREATE TABLE IF NOT EXISTS user_checkout_preferences (
-          user_id TEXT PRIMARY KEY,
-          delivery_method TEXT NOT NULL DEFAULT 'COURIER',
-          delivery_sub_type TEXT,
-          delivery_provider TEXT,
-          payment_method TEXT NOT NULL DEFAULT 'CARD',
-          selected_card_id TEXT,
-          pickup_point_id TEXT,
-          pickup_provider TEXT,
-          pickup_point_json JSONB,
-          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-        )
-      `),
-      prisma.$executeRawUnsafe(`
-        ALTER TABLE user_checkout_preferences
-          ADD COLUMN IF NOT EXISTS delivery_provider TEXT,
-          ADD COLUMN IF NOT EXISTS pickup_point_json JSONB
-      `),
-      prisma.$executeRawUnsafe(`
-        CREATE TABLE IF NOT EXISTS user_saved_cards (
-          id TEXT PRIMARY KEY,
-          user_id TEXT NOT NULL,
-          brand TEXT NOT NULL,
-          last4 TEXT NOT NULL,
-          exp_month INT NOT NULL,
-          exp_year INT NOT NULL,
-          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-        )
-      `)
-    ]).then(() => undefined);
-  }
-  return setupPromise;
-};
-
 type PreferencesRow = {
   user_id: string;
   delivery_method: 'ADDRESS' | 'PICKUP' | 'COURIER' | 'PICKUP_POINT';
@@ -132,6 +92,50 @@ const PAYMENT_METHODS = [
   { id: 'card', code: 'CARD', title: 'Банковской картой' },
   { id: 'sbp', code: 'SBP', title: 'СБП' }
 ] as const;
+
+let setupPromise: Promise<void> | null = null;
+
+const ensureCheckoutTables = async () => {
+  if (!setupPromise) {
+    setupPromise = (async () => {
+      // ✅ строго последовательно, никаких Promise.all
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS user_checkout_preferences (
+          user_id TEXT PRIMARY KEY,
+          delivery_method TEXT NOT NULL DEFAULT 'COURIER',
+          delivery_sub_type TEXT,
+          delivery_provider TEXT,
+          payment_method TEXT NOT NULL DEFAULT 'CARD',
+          selected_card_id TEXT,
+          pickup_point_id TEXT,
+          pickup_provider TEXT,
+          pickup_point_json JSONB,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `);
+
+      await prisma.$executeRawUnsafe(`
+        ALTER TABLE user_checkout_preferences
+          ADD COLUMN IF NOT EXISTS delivery_provider TEXT,
+          ADD COLUMN IF NOT EXISTS pickup_point_json JSONB
+      `);
+
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS user_saved_cards (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          brand TEXT NOT NULL,
+          last4 TEXT NOT NULL,
+          exp_month INT NOT NULL,
+          exp_year INT NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `);
+    })().then(() => undefined);
+  }
+
+  return setupPromise;
+};
 
 const normalizeDeliveryMethod = (method: PreferencesRow['delivery_method'] | undefined | null) => {
   if (method === 'ADDRESS') return 'COURIER';
@@ -239,7 +243,10 @@ checkoutRoutes.get('/', requireAuth, async (req: AuthRequest, res, next) => {
 checkoutRoutes.put('/recipient', requireAuth, writeLimiter, async (req: AuthRequest, res, next) => {
   try {
     const payload = recipientSchema.parse(req.body);
-    const existing = await prisma.contact.findFirst({ where: { userId: req.user!.userId }, orderBy: { createdAt: 'desc' } });
+    const existing = await prisma.contact.findFirst({
+      where: { userId: req.user!.userId },
+      orderBy: { createdAt: 'desc' }
+    });
 
     if (existing) {
       await prisma.contact.update({
@@ -296,6 +303,7 @@ checkoutRoutes.put('/pickup', requireAuth, writeLimiter, async (req: AuthRequest
   try {
     const payload = pickupSchema.parse(req.body);
     await ensureCheckoutTables();
+
     await prisma.$executeRawUnsafe(
       `
         INSERT INTO user_checkout_preferences (user_id, pickup_point_id, pickup_provider, pickup_point_json, delivery_provider, updated_at)
@@ -313,6 +321,7 @@ checkoutRoutes.put('/pickup', requireAuth, writeLimiter, async (req: AuthRequest
       payload.provider,
       JSON.stringify(payload.pickupPoint)
     );
+
     res.json({ ok: true });
   } catch (error) {
     next(error);
@@ -324,6 +333,7 @@ checkoutRoutes.put('/delivery-method', requireAuth, writeLimiter, async (req: Au
     const payload = deliveryMethodSchema.parse(req.body);
     const normalizedMethod = normalizeDeliveryMethod(payload.methodCode);
     await ensureCheckoutTables();
+
     await prisma.$executeRawUnsafe(
       `
         INSERT INTO user_checkout_preferences (user_id, delivery_method, delivery_sub_type, updated_at)
@@ -340,6 +350,7 @@ checkoutRoutes.put('/delivery-method', requireAuth, writeLimiter, async (req: Au
       normalizedMethod,
       payload.subType ?? null
     );
+
     res.json({ ok: true });
   } catch (error) {
     next(error);
@@ -350,6 +361,7 @@ checkoutRoutes.put('/payment-method', requireAuth, writeLimiter, async (req: Aut
   try {
     const payload = paymentMethodSchema.parse(req.body);
     await ensureCheckoutTables();
+
     await prisma.$executeRawUnsafe(
       `
         INSERT INTO user_checkout_preferences (user_id, payment_method, selected_card_id, updated_at)
@@ -363,6 +375,7 @@ checkoutRoutes.put('/payment-method', requireAuth, writeLimiter, async (req: Aut
       payload.methodCode,
       payload.cardId ?? null
     );
+
     res.json({ ok: true });
   } catch (error) {
     next(error);
@@ -372,8 +385,12 @@ checkoutRoutes.put('/payment-method', requireAuth, writeLimiter, async (req: Aut
 checkoutRoutes.get('/cards', requireAuth, async (req: AuthRequest, res, next) => {
   try {
     await ensureCheckoutTables();
+
     const cards = await prisma.$queryRawUnsafe<CardRow[]>(
-      `SELECT id, brand, last4, exp_month, exp_year FROM user_saved_cards WHERE user_id = $1 ORDER BY created_at DESC`,
+      `SELECT id, brand, last4, exp_month, exp_year
+       FROM user_saved_cards
+       WHERE user_id = $1
+       ORDER BY created_at DESC`,
       req.user!.userId
     );
 
