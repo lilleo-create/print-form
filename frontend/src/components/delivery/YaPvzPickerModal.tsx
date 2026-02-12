@@ -1,81 +1,133 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { Modal } from '../../shared/ui/Modal';
-import { loadScriptOnce } from '../../shared/lib/loadScriptOnce';
+import { ensureYaNddWidgetLoaded } from '../../shared/lib/yaNddWidget';
 
-type YaPvzSelection = {
-  provider: 'YANDEX_NDD';
+export type YaPvzSelection = {
   pvzId: string;
   addressFull?: string;
-  country?: string;
-  locality?: string;
-  street?: string;
-  house?: string;
-  comment?: string;
-  raw: unknown;
+  raw?: unknown;
 };
 
-type Props = {
+type YaPvzPickerModalProps = {
   isOpen: boolean;
   onClose: () => void;
-  onSelect: (value: YaPvzSelection) => void;
-  params?: Record<string, unknown>;
-  containerIdPrefix: string;
+  onSelect: (sel: YaPvzSelection) => void;
+  title?: string;
+  city?: string;
+  widgetParams?: Record<string, unknown>;
 };
 
-declare global {
-  interface Window {
-    YaDelivery?: {
-      createWidget: (params: { containerId: string; params: Record<string, unknown> }) => void;
-    };
+const DEFAULT_WIDGET_PARAMS: Record<string, unknown> = {
+  city: 'Москва',
+  size: { width: '100%', height: '420px' },
+  show_select_button: true,
+  filter: {
+    type: ['pickup_point', 'terminal'],
+    is_yandex_branded: false,
+    payment_methods: ['already_paid', 'card_on_receipt'],
+    payment_methods_filter: 'or'
   }
-}
+};
 
-const SCRIPT_URL = 'https://ndd-widget.landpro.site/widget.js';
+const isObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
 
-export const YaPvzPickerModal = ({ isOpen, onClose, onSelect, params, containerIdPrefix }: Props) => {
-  const containerId = useMemo(() => `${containerIdPrefix}-${Math.random().toString(16).slice(2)}`, [containerIdPrefix]);
+const deepMerge = (base: Record<string, unknown>, override: Record<string, unknown>) => {
+  const result: Record<string, unknown> = { ...base };
+
+  Object.entries(override).forEach(([key, value]) => {
+    if (isObject(value) && isObject(result[key])) {
+      result[key] = deepMerge(result[key] as Record<string, unknown>, value);
+      return;
+    }
+    result[key] = value;
+  });
+
+  return result;
+};
+
+export const YaPvzPickerModal = ({
+  isOpen,
+  onClose,
+  onSelect,
+  title = 'Выбор ПВЗ',
+  city,
+  widgetParams
+}: YaPvzPickerModalProps) => {
+  const containerId = useMemo(() => `ya-pvz-picker-${Math.random().toString(16).slice(2)}`, []);
+  const createdForCurrentOpenRef = useRef(false);
+
+  const mergedParams = useMemo(() => {
+    const base = deepMerge(DEFAULT_WIDGET_PARAMS, {
+      city: city ?? 'Москва'
+    });
+
+    return widgetParams ? deepMerge(base, widgetParams) : base;
+  }, [city, widgetParams]);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      createdForCurrentOpenRef.current = false;
+      const container = document.getElementById(containerId);
+      if (container) {
+        container.innerHTML = '';
+      }
+      return;
+    }
 
-    let mounted = true;
-    const onPoint = (event: Event) => {
-      const detail = (event as CustomEvent<Record<string, unknown>>).detail;
-      if (!detail) return;
+    let isCancelled = false;
+
+    const handlePointSelected = (event: Event) => {
+      const detail = (event as CustomEvent<Record<string, unknown> | undefined>).detail;
+      if (!detail?.id) {
+        return;
+      }
+
+      const address = isObject(detail.address) ? detail.address : undefined;
+
       onSelect({
-        provider: 'YANDEX_NDD',
-        pvzId: String(detail.id ?? ''),
-        addressFull: String(((detail.address as Record<string, unknown> | undefined)?.full_address as string | undefined) ?? ''),
-        country: (detail.address as Record<string, unknown> | undefined)?.country as string | undefined,
-        locality: (detail.address as Record<string, unknown> | undefined)?.locality as string | undefined,
-        street: (detail.address as Record<string, unknown> | undefined)?.street as string | undefined,
-        house: (detail.address as Record<string, unknown> | undefined)?.house as string | undefined,
-        comment: (detail.address as Record<string, unknown> | undefined)?.comment as string | undefined,
+        pvzId: String(detail.id),
+        addressFull: typeof address?.full_address === 'string' ? address.full_address : undefined,
         raw: detail
       });
       onClose();
     };
 
-    document.addEventListener('YaNddWidgetPointSelected', onPoint);
-    void loadScriptOnce(SCRIPT_URL).then(() => {
-      if (!mounted || !window.YaDelivery) return;
-      window.YaDelivery.createWidget({ containerId, params: params ?? {} });
-    });
+    const initWidget = async () => {
+      await ensureYaNddWidgetLoaded();
+
+      if (isCancelled || createdForCurrentOpenRef.current) {
+        return;
+      }
+
+      window.YaDelivery?.createWidget({
+        containerId,
+        params: mergedParams
+      });
+      createdForCurrentOpenRef.current = true;
+    };
+
+    document.addEventListener('YaNddWidgetPointSelected', handlePointSelected);
+    void initWidget();
 
     return () => {
-      mounted = false;
-      document.removeEventListener('YaNddWidgetPointSelected', onPoint);
+      isCancelled = true;
+      document.removeEventListener('YaNddWidgetPointSelected', handlePointSelected);
+      const container = document.getElementById(containerId);
+      if (container) {
+        container.innerHTML = '';
+      }
     };
-  }, [isOpen, onClose, onSelect, params, containerId]);
+  }, [containerId, isOpen, mergedParams, onClose, onSelect]);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} role="dialog" aria-modal="true">
       <div>
-        <h3>Выбор ПВЗ</h3>
-        <div id={containerId} style={{ minHeight: 500 }} />
+        <h3>{title}</h3>
+        <div id={containerId} />
       </div>
     </Modal>
   );
 };
 
-export type { YaPvzSelection };
+export type { YaPvzPickerModalProps };
