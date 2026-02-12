@@ -12,11 +12,23 @@ type YaNddPvzModalProps = {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (sel: YaPvzSelection) => void;
+
   title?: string;
+
+  // Город можно менять
   city?: string;
+
+  // Важно: станция отгрузки продавца (GUID).
+  // Если не передашь, виджет может показывать неполные результаты/не считать маршруты.
   sourcePlatformStationId?: string;
+
+  // Вес, если нужно фильтровать точки по допустимому весу
   weightGrossG?: number;
+
+  // Хочешь постаматы тоже? тогда includeTerminals=true
   includeTerminals?: boolean;
+
+  // Параметры фильтра оплаты (можно выключить)
   paymentMethods?: Array<'already_paid' | 'cash_on_receipt' | 'card_on_receipt'>;
 };
 
@@ -62,7 +74,6 @@ export const YaNddPvzModal = ({
     if (!isOpen) return;
 
     let cancelled = false;
-    let cleanup: (() => void) | undefined;
 
     const onPointSelected = (evt: Event) => {
       const detail = (evt as CustomEvent).detail as {
@@ -70,9 +81,7 @@ export const YaNddPvzModal = ({
         address?: { full_address?: string };
       };
 
-      if (!detail?.id) {
-        return;
-      }
+      if (!detail?.id) return;
 
       onSelectRef.current({
         pvzId: String(detail.id),
@@ -91,43 +100,51 @@ export const YaNddPvzModal = ({
         await ensureYaNddWidgetLoaded();
         if (cancelled) return;
 
+        if (!sourcePlatformStationId) {
+          console.warn(
+            '[YaNddPvzModal] sourcePlatformStationId is missing. Widget may show incomplete results.'
+          );
+        }
+
         document.addEventListener('YaNddWidgetPointSelected', onPointSelected);
 
         const container = document.getElementById(containerId);
         if (!container) return;
 
+        // на всякий: виджет не любит повторный createWidget в том же контейнере
         container.innerHTML = '';
 
-        const yaDelivery = (window as Window & { YaDelivery?: { createWidget: (config: unknown) => void } }).YaDelivery;
-        yaDelivery?.createWidget({
+        const yaDelivery = (window as Window & {
+          YaDelivery?: { createWidget: (config: any) => void };
+        }).YaDelivery;
+
+        if (!yaDelivery?.createWidget) {
+          throw new Error('YaDelivery.createWidget не найден. Виджет не загрузился.');
+        }
+
+        yaDelivery.createWidget({
           containerId,
           params: {
             city,
             size: { width: '100%', height: '100%' },
             physical_dims_weight_gross: weightGrossG,
+
             ...(sourcePlatformStationId
               ? { source_platform_station: sourcePlatformStationId }
               : {}),
+
             show_select_button: true,
+
             filter: {
-              type: includeTerminals
-                ? ['pickup_point', 'terminal']
-                : ['pickup_point'],
+              type: includeTerminals ? ['pickup_point', 'terminal'] : ['pickup_point'],
               is_yandex_branded: false,
               payment_methods: paymentMethods,
               payment_methods_filter: 'or'
             }
           }
         });
-
-        cleanup = () => {
-          document.removeEventListener(
-            'YaNddWidgetPointSelected',
-            onPointSelected
-          );
-        };
-      } catch (error: unknown) {
-        setError(error instanceof Error ? error.message : 'Ошибка инициализации виджета ПВЗ');
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Ошибка инициализации виджета ПВЗ');
       } finally {
         setLoading(false);
       }
@@ -137,17 +154,9 @@ export const YaNddPvzModal = ({
 
     return () => {
       cancelled = true;
-      cleanup?.();
+      document.removeEventListener('YaNddWidgetPointSelected', onPointSelected);
     };
-  }, [
-    isOpen,
-    city,
-    containerId,
-    sourcePlatformStationId,
-    weightGrossG,
-    includeTerminals,
-    paymentMethods
-  ]);
+  }, [isOpen, city, containerId, sourcePlatformStationId, weightGrossG, includeTerminals, paymentMethods]);
 
   if (!isOpen) return null;
 
