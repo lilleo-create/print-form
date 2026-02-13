@@ -59,6 +59,12 @@ describe('useCheckoutStore.placeOrder payload', () => {
     expect(result?.orderId).toBe('order-1');
     expect(checkoutApi.startPayment).toHaveBeenCalledWith(
       expect.objectContaining({
+        recipient: {
+          name: 'Иван',
+          phone: '+79990000000',
+          email: 'ivan@test.dev'
+        },
+        packagesCount: 1,
         buyerPickupPvz: expect.objectContaining({
           provider: 'YANDEX_NDD',
           pvzId: 'pvz-123'

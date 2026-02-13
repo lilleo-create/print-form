@@ -6,6 +6,12 @@ import { yandexDeliveryService } from './yandexDeliveryService';
 type StartPaymentInput = {
   buyerId: string;
   paymentAttemptKey: string;
+  recipient: {
+    name: string;
+    phone: string;
+    email?: string | null;
+  };
+  packagesCount?: number;
   items: { productId: string; variantId?: string; quantity: number }[];
   buyerPickupPvz: {
     provider: 'YANDEX_NDD';
@@ -16,6 +22,18 @@ type StartPaymentInput = {
 };
 
 const buildPaymentUrl = (paymentId: string) => `https://payment.local/checkout/${paymentId}`;
+
+const buildOrderLabels = (orderId: string, packagesCount: number) => {
+  const shortId = orderId.replace(/[^a-zA-Z0-9]/g, '').slice(-7).toUpperCase();
+  return Array.from({ length: packagesCount }, (_, index) => {
+    const packageNo = index + 1;
+    const base = `PF-${shortId}-${packageNo}`;
+    return {
+      packageNo,
+      code: base.slice(0, 15)
+    };
+  });
+};
 
 const buildYandexPayload = (order: any) => {
   const barcode = `PF-${order.id}`;
@@ -144,7 +162,7 @@ export const paymentFlowService = {
         throw new Error('SELLER_DROPOFF_PVZ_REQUIRED');
       }
 
-      order = await orderUseCases.create({
+      const createdOrder = await orderUseCases.create({
         buyerId: input.buyerId,
         paymentAttemptKey: input.paymentAttemptKey,
         buyerPickupPvz: {
@@ -160,12 +178,38 @@ export const paymentFlowService = {
               ? String((sellerSettings.defaultDropoffPvzMeta as Record<string, unknown>).addressFull ?? '')
               : undefined
         },
+        recipient: {
+          name: input.recipient.name,
+          phone: input.recipient.phone,
+          email: input.recipient.email ?? null
+        },
+        packagesCount: input.packagesCount ?? 1,
+        orderLabels: [],
         items: input.items
       });
+      order = createdOrder;
+
+      const labels = buildOrderLabels(createdOrder.id, createdOrder.packagesCount ?? input.packagesCount ?? 1);
+      order = await prisma.order.update({ where: { id: createdOrder.id }, data: { orderLabels: labels } });
     }
 
     if (!order) {
       throw new Error('ORDER_CREATE_FAILED');
+    }
+
+    const shouldRefreshLabels = !order.orderLabels || !Array.isArray(order.orderLabels) || order.orderLabels.length === 0;
+    const shouldUpdateRecipient = !order.recipientName || !order.recipientPhone;
+    if (shouldRefreshLabels || shouldUpdateRecipient) {
+      const labels = shouldRefreshLabels ? buildOrderLabels(order.id, order.packagesCount ?? input.packagesCount ?? 1) : order.orderLabels;
+      order = await prisma.order.update({
+        where: { id: order.id },
+        data: {
+          orderLabels: labels as Prisma.InputJsonValue,
+          recipientName: shouldUpdateRecipient ? input.recipient.name : order.recipientName,
+          recipientPhone: shouldUpdateRecipient ? input.recipient.phone : order.recipientPhone,
+          recipientEmail: shouldUpdateRecipient ? input.recipient.email ?? null : order.recipientEmail
+        }
+      });
     }
 
     const existingPayment = await prisma.payment.findFirst({

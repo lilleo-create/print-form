@@ -15,6 +15,7 @@ import { sellerDeliveryProfileService } from '../services/sellerDeliveryProfileS
 import { yandexNddShipmentOrchestrator } from '../services/yandexNddShipmentOrchestrator';
 import { shipmentService } from '../services/shipmentService';
 import { yandexDeliveryService } from '../services/yandexDeliveryService';
+import { sellerOrderDocumentsService } from '../services/sellerOrderDocumentsService';
 
 export const sellerRoutes = Router();
 
@@ -606,6 +607,54 @@ sellerRoutes.get('/orders/:orderId/shipping-label', async (req: AuthRequest, res
     return res.json({ data: { url: result.url, raw: result.raw } });
   } catch (error) {
     next(error);
+  }
+});
+
+const loadSellerOrderForDocuments = async (sellerId: string, orderId: string) =>
+  prisma.order.findFirst({
+    where: { id: orderId, items: { some: { product: { sellerId } } } },
+    include: { items: { include: { product: true } } }
+  });
+
+sellerRoutes.get('/orders/:orderId/documents/packing-slip.pdf', async (req: AuthRequest, res, next) => {
+  try {
+    const order = await loadSellerOrderForDocuments(req.user!.userId, req.params.orderId);
+    if (!order) return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND' } });
+
+    const pdf = await sellerOrderDocumentsService.buildPackingSlip(order);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="packing-slip-${order.id}.pdf"`);
+    return res.status(200).send(pdf);
+  } catch (error) {
+    return next(error);
+  }
+});
+
+sellerRoutes.get('/orders/:orderId/documents/labels.pdf', async (req: AuthRequest, res, next) => {
+  try {
+    const order = await loadSellerOrderForDocuments(req.user!.userId, req.params.orderId);
+    if (!order) return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND' } });
+
+    const pdf = await sellerOrderDocumentsService.buildLabels(order);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="labels-${order.id}.pdf"`);
+    return res.status(200).send(pdf);
+  } catch (error) {
+    return next(error);
+  }
+});
+
+sellerRoutes.get('/orders/:orderId/documents/handover-act.pdf', async (req: AuthRequest, res, next) => {
+  try {
+    const order = await loadSellerOrderForDocuments(req.user!.userId, req.params.orderId);
+    if (!order) return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND' } });
+
+    const pdf = await sellerOrderDocumentsService.buildHandoverAct(order);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="handover-act-${order.id}.pdf"`);
+    return res.status(200).send(pdf);
+  } catch (error) {
+    return next(error);
   }
 });
 

@@ -578,6 +578,25 @@ export const SellerDashboardPage = () => {
     }
   };
 
+  const handleDownloadSellerDocument = async (
+    orderId: string,
+    type: 'packing-slip' | 'labels' | 'handover-act',
+    fileName: string
+  ) => {
+    setOrderUpdateError(null);
+    try {
+      const blob = await ordersApi.downloadSellerDocument(orderId, type);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setOrderUpdateError('Не удалось скачать документ.');
+    }
+  };
+
   const summary = useMemo(() => {
     const totalProducts = products.length;
     const totalOrders = orders.length;
@@ -1031,6 +1050,67 @@ export const SellerDashboardPage = () => {
                                 disabled={!dropoffStationId || Boolean(order.shipment?.requestId)}
                               >
                                 Готов к отгрузке
+                              </Button>
+
+                              <details>
+                                <summary>Данные для доставки</summary>
+                                <p className={styles.muted}>ФИО: {order.recipientName ?? '—'}</p>
+                                <p className={styles.muted}>Телефон: {order.recipientPhone ?? '—'}</p>
+                                <p className={styles.muted}>Email: {order.recipientEmail ?? '—'}</p>
+                                <p className={styles.muted}>
+                                  ПВЗ покупателя: {order.buyerPickupPvzMeta?.addressFull ?? '—'}
+                                </p>
+                                <p className={styles.muted}>
+                                  ПВЗ сдачи: {order.sellerDropoffPvzMeta?.addressFull ?? '—'}
+                                </p>
+                                <p className={styles.muted}>Грузомест: {order.packagesCount ?? 1}</p>
+                                <p className={styles.muted}>Сумма: {formatCurrency(total)} ₽</p>
+                                <p className={styles.muted}>
+                                  Товары:{' '}
+                                  {order.items.map((item) => `${item.title} ×${item.qty}`).join(', ') || '—'}
+                                </p>
+                              </details>
+
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={() =>
+                                  handleDownloadSellerDocument(
+                                    order.id,
+                                    'packing-slip',
+                                    `packing-slip-${order.id}.pdf`
+                                  )
+                                }
+                              >
+                                Скачать PDF
+                              </Button>
+
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={() =>
+                                  handleDownloadSellerDocument(
+                                    order.id,
+                                    'labels',
+                                    `labels-${order.id}.pdf`
+                                  )
+                                }
+                              >
+                                Ярлыки
+                              </Button>
+
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={() =>
+                                  handleDownloadSellerDocument(
+                                    order.id,
+                                    'handover-act',
+                                    `handover-act-${order.id}.pdf`
+                                  )
+                                }
+                              >
+                                Акт
                               </Button>
 
                               <Button

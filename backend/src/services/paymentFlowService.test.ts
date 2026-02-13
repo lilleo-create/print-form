@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { paymentFlowService } from './paymentFlowService';
 import { prisma } from '../lib/prisma';
+import { orderUseCases } from '../usecases/orderUseCases';
 
 test('startPayment is idempotent by buyerId + paymentAttemptKey', async () => {
   let createdPayments = 0;
@@ -17,6 +18,7 @@ test('startPayment is idempotent by buyerId + paymentAttemptKey', async () => {
   const first = await paymentFlowService.startPayment({
     buyerId: 'buyer-1',
     paymentAttemptKey: 'attempt-1',
+    recipient: { name: 'Иван Иванов', phone: '+79990000000', email: 'ivan@test.dev' },
     buyerPickupPvz: { provider: 'YANDEX_NDD', pvzId: 'pvz-1' },
     items: [{ productId: 'product-1', quantity: 1 }]
   });
@@ -26,6 +28,7 @@ test('startPayment is idempotent by buyerId + paymentAttemptKey', async () => {
   const second = await paymentFlowService.startPayment({
     buyerId: 'buyer-1',
     paymentAttemptKey: 'attempt-1',
+    recipient: { name: 'Иван Иванов', phone: '+79990000000', email: 'ivan@test.dev' },
     buyerPickupPvz: { provider: 'YANDEX_NDD', pvzId: 'pvz-1' },
     items: [{ productId: 'product-1', quantity: 1 }]
   });
@@ -57,6 +60,38 @@ test('webhook fail/cancel does not downgrade PAID order', async () => {
 });
 
 import { yandexDeliveryService } from './yandexDeliveryService';
+
+test('startPayment stores recipient and default packagesCount=1', async () => {
+  (prisma.order.findFirst as any) = async () => null;
+  (prisma.product.findFirst as any) = async () => ({ sellerId: 'seller-1' });
+  (prisma.sellerSettings.findUnique as any) = async () => ({
+    defaultDropoffPvzId: 'dropoff-1',
+    defaultDropoffPvzMeta: { addressFull: 'Dropoff' }
+  });
+
+  let createPayload: any = null;
+  (orderUseCases as any).create = async (payload: any) => {
+    createPayload = payload;
+    return { id: 'order-2', total: 500, currency: 'RUB', packagesCount: 1, orderLabels: [] };
+  };
+
+  (prisma.order.update as any) = async ({ data }: any) => ({ id: 'order-2', total: 500, currency: 'RUB', ...data });
+  (prisma.payment.findFirst as any) = async () => null;
+  (prisma.payment.create as any) = async () => ({ id: 'pay-2', provider: 'manual' });
+  (prisma.payment.update as any) = async () => ({});
+
+  await paymentFlowService.startPayment({
+    buyerId: 'buyer-2',
+    paymentAttemptKey: 'attempt-2',
+    recipient: { name: 'Петр Петров', phone: '+79998887766' },
+    buyerPickupPvz: { provider: 'YANDEX_NDD', pvzId: 'pvz-2' },
+    items: [{ productId: 'product-1', quantity: 1 }]
+  });
+
+  assert.equal(createPayload.recipient.name, 'Петр Петров');
+  assert.equal(createPayload.recipient.phone, '+79998887766');
+  assert.equal(createPayload.packagesCount, 1);
+});
 
 test('webhook success marks PAID and creates delivery only once', async () => {
   (prisma.payment.findUnique as any) = async () => ({ id: 'pay-1', provider: 'manual', orderId: 'order-1', order: { id: 'order-1' } });

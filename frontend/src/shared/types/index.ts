@@ -214,6 +214,13 @@ export interface Order {
   status: OrderStatus;
   statusUpdatedAt?: string;
   total: number;
+  recipientName?: string | null;
+  recipientPhone?: string | null;
+  recipientEmail?: string | null;
+  packagesCount?: number;
+  buyerPickupPvzMeta?: { addressFull?: string } | null;
+  sellerDropoffPvzMeta?: { addressFull?: string } | null;
+  orderLabels?: Array<{ packageNo: number; code: string }>;
   createdAt: string;
   trackingNumber?: string | null;
   carrier?: string | null;

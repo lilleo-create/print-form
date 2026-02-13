@@ -8,6 +8,12 @@ export const paymentRoutes = Router();
 
 const startSchema = z.object({
   paymentAttemptKey: z.string().min(6),
+  recipient: z.object({
+    name: z.string().trim().min(1),
+    phone: z.string().trim().min(1),
+    email: z.string().email().optional().nullable()
+  }),
+  packagesCount: z.number().int().min(1).default(1),
   buyerPickupPvz: z.object({
     provider: z.literal('YANDEX_NDD'),
     pvzId: z.string().min(1),
@@ -37,6 +43,8 @@ paymentRoutes.post('/start', authenticate, writeLimiter, async (req: AuthRequest
     const data = await paymentFlowService.startPayment({
       buyerId: req.user!.userId,
       paymentAttemptKey: payload.paymentAttemptKey,
+      recipient: payload.recipient,
+      packagesCount: payload.packagesCount,
       items: payload.items,
       buyerPickupPvz: payload.buyerPickupPvz
     });

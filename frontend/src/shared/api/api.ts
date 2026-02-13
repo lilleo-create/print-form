@@ -305,6 +305,18 @@ export const api = {
     };
   },
 
+  async downloadSellerOrderDocument(orderId: string, type: 'packing-slip' | 'labels' | 'handover-act') {
+    const response = await fetch(`${baseUrl}/seller/orders/${orderId}/documents/${type}.pdf`, {
+      headers: {
+        ...(authHeaders() ?? {})
+      }
+    });
+    if (!response.ok) {
+      throw new Error(`ORDER_DOCUMENT_DOWNLOAD_FAILED_${response.status}`);
+    }
+    return await response.blob();
+  },
+
   async getSellerPayments() {
     return apiClient.request<Payment[]>('/seller/payments');
   },
