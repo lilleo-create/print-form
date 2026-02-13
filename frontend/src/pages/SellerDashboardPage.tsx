@@ -17,7 +17,7 @@ import { SellerErrorState } from '../components/seller/SellerErrorState';
 import { SellerHeader } from '../components/seller/SellerHeader';
 import { SellerStatsCard } from '../components/seller/SellerStatsCard';
 import {
-  YaNddPvzModal,
+  YaPvzPickerModal,
   type YaPvzSelection
 } from '../components/delivery/YaPvzPickerModal';
 import {
@@ -1216,7 +1216,7 @@ export const SellerDashboardPage = () => {
                   {deliverySettingsError && (
                     <p className={styles.error}>{deliverySettingsError}</p>
                   )}
-                  <YaNddPvzModal
+                  <YaPvzPickerModal
                     isOpen={isPvzOpen}
                     onClose={() => setPvzOpen(false)}
                     onSelect={(sel) => {
