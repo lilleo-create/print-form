@@ -26,7 +26,7 @@ if (jwtSecret.length < 32 || jwtRefreshSecret.length < 32 || otpPepper.length < 
   throw new Error('JWT secrets and OTP_HASH_PEPPER must be at least 32 characters long');
 }
 
-const smsProvider = process.env.SMS_PROVIDER ?? 'mock';
+const smsProvider = process.env.SMS_PROVIDER ?? 'console';
 if (smsProvider === 'twilio') {
   requireEnv('TWILIO_ACCOUNT_SID');
   requireEnv('TWILIO_AUTH_TOKEN');

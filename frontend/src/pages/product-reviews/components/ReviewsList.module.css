@@ -1,0 +1,74 @@
+.list {
+  display: grid;
+  gap: 16px;
+}
+
+.card {
+  padding: 18px;
+  border-radius: var(--radius-card);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  display: grid;
+  gap: 12px;
+}
+
+.top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.date {
+  color: var(--muted);
+  font-size: 13px;
+  display: block;
+}
+
+.body p {
+  margin-bottom: 6px;
+}
+
+.photos {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.photoButton {
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
+.photoButton img {
+  width: 96px;
+  height: 96px;
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+.actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.actions button {
+  border: none;
+  background: transparent;
+  color: var(--primary);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.reaction {
+  display: flex;
+  gap: 12px;
+  color: var(--muted);
+}
+
+.empty {
+  color: var(--muted);
+}

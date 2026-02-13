@@ -1,3 +1,5 @@
+import { STORAGE_KEYS } from '../constants/storageKeys';
+
 export const loadFromStorage = <T>(key: string, fallback: T): T => {
   if (typeof window === 'undefined') {
     return fallback;
@@ -25,4 +27,12 @@ export const removeFromStorage = (key: string) => {
     return;
   }
   window.localStorage.removeItem(key);
+};
+
+export const setAccessToken = (token: string | null) => {
+  if (!token) {
+    removeFromStorage(STORAGE_KEYS.accessToken);
+    return;
+  }
+  saveToStorage(STORAGE_KEYS.accessToken, token);
 };

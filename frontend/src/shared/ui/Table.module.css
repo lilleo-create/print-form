@@ -1,0 +1,9 @@
+.table {
+  background: var(--card);
+  border-radius: var(--radius-card);
+  border: 1px solid var(--border);
+  padding: 16px;
+  box-shadow: var(--shadow-card);
+  display: grid;
+  gap: 12px;
+}

@@ -1,7 +1,7 @@
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(17, 24, 39, 0.5);
+  background: var(--overlay-strong);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -10,15 +10,16 @@
 }
 
 .modal {
-  background: #ffffff;
-  border-radius: 16px;
+  background: var(--card);
+  border-radius: var(--radius-card);
   width: min(720px, 100%);
   max-height: 90vh;
   display: flex;
   flex-direction: column;
   gap: 16px;
   padding: 24px;
-  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.2);
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border);
   overflow: hidden;
 }
 
@@ -43,9 +44,9 @@
 }
 
 .listItem {
-  background: var(--color-surface-muted);
+  background: var(--bg-2);
   border: none;
-  border-radius: 16px;
+  border-radius: var(--radius-card);
   padding: 16px;
   display: grid;
   grid-template-columns: auto 1fr auto auto;
@@ -64,7 +65,7 @@
 }
 
 .selected {
-  color: var(--color-primary);
+  color: var(--primary);
   font-size: 12px;
 }
 
@@ -75,10 +76,11 @@
 
 .iconButton {
   border: none;
-  background: #ffffff;
-  border-radius: 10px;
+  background: var(--bg-2);
+  border-radius: var(--radius-control);
   padding: 6px 8px;
   cursor: pointer;
+  color: var(--text);
 }
 
 .addButton {
@@ -86,11 +88,12 @@
 }
 
 .empty {
-  background: var(--color-surface-muted);
-  border-radius: 16px;
+  background: var(--bg-2);
+  border-radius: var(--radius-card);
   padding: 16px;
   text-align: center;
-  color: var(--color-text-muted);
+  color: var(--muted);
+  border: 1px dashed var(--border);
 }
 
 .form {
@@ -101,32 +104,32 @@
 }
 
 .hint {
-  color: var(--color-text-muted);
+  color: var(--muted);
   font-size: 14px;
 }
 
 .map {
   height: 420px;
-  border-radius: 16px;
-  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  border: 1px solid var(--border);
   overflow: hidden;
-  background: #f3f4f6;
+  background: var(--bg-2);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .mapLoading {
-  color: var(--color-text-muted);
+  color: var(--muted);
   font-size: 13px;
 }
 
 .mapFallback {
-  border: 1px dashed var(--color-border);
-  background: #f9fafb;
+  border: 1px dashed var(--border);
+  background: var(--bg-2);
   padding: 16px;
-  border-radius: 12px;
-  color: var(--color-text-muted);
+  border-radius: var(--radius-control);
+  color: var(--muted);
 }
 
 .fields {
@@ -143,7 +146,7 @@
 }
 
 .fields span {
-  color: var(--color-danger);
+  color: var(--danger);
   font-size: 12px;
 }
 
@@ -154,9 +157,9 @@
 }
 
 .secondaryButton {
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border);
   background: transparent;
-  color: var(--color-primary);
+  color: var(--primary);
   padding: 10px 14px;
   border-radius: 999px;
   font-weight: 600;

@@ -1,9 +1,17 @@
+import { OrderStatus } from '@prisma/client';
 import { orderRepository } from '../repositories/orderRepository';
 import { userRepository } from '../repositories/userRepository';
 import { sheetsService } from '../services/sheetsService';
 
 export const orderUseCases = {
-  create: async (data: { buyerId: string; items: { productId: string; variantId?: string; quantity: number }[] }) => {
+  create: async (data: {
+    buyerId: string;
+    contactId?: string;
+    shippingAddressId?: string;
+    buyerPickupPvz?: { provider: 'YANDEX_NDD'; pvzId: string; raw: unknown; addressFull?: string };
+    sellerDropoffPvz?: { provider: 'YANDEX_NDD'; pvzId: string; raw: unknown; addressFull?: string };
+    items: { productId: string; variantId?: string; quantity: number }[];
+  }) => {
     const order = await orderRepository.create(data);
     const buyer = await userRepository.findById(data.buyerId);
 
@@ -34,5 +42,6 @@ export const orderUseCases = {
   },
   listByBuyer: orderRepository.findByBuyer,
   get: orderRepository.findById,
-  listBySeller: orderRepository.findSellerOrders
+  listBySeller: (sellerId: string, options?: { status?: OrderStatus; offset?: number; limit?: number }) =>
+    orderRepository.findSellerOrders(sellerId, options)
 };

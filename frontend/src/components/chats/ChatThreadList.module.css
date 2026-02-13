@@ -1,0 +1,48 @@
+.section {
+  display: grid;
+  gap: 12px;
+}
+
+.list {
+  display: grid;
+  gap: 8px;
+}
+
+.item {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  padding: 12px;
+  text-align: left;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--card);
+  cursor: pointer;
+}
+
+.itemActive {
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-control);
+  padding: 12px;
+  text-align: left;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--bg-2);
+  cursor: pointer;
+}
+
+.preview {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.date {
+  font-size: 12px;
+  color: var(--muted-2);
+}
+
+.empty {
+  color: var(--muted);
+}

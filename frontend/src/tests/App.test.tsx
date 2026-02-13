@@ -10,6 +10,6 @@ describe('App', () => {
       </BrowserRouter>
     );
 
-    expect(screen.getByText(/Покупайте и печатайте/i)).toBeInTheDocument();
+    expect(screen.getByText(/3D-печать и готовые модели/i)).toBeInTheDocument();
   });
 });

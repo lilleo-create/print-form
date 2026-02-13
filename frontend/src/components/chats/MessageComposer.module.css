@@ -1,0 +1,13 @@
+.composer {
+  display: grid;
+  gap: 8px;
+}
+
+.composer textarea {
+  min-height: 80px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border);
+  padding: 10px;
+  background: var(--bg-2);
+  color: var(--text);
+}

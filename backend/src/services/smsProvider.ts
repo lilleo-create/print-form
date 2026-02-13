@@ -4,9 +4,9 @@ export interface SmsProvider {
   sendOtp(phoneE164: string, message: string): Promise<void>;
 }
 
-class MockSmsProvider implements SmsProvider {
+class ConsoleSmsProvider implements SmsProvider {
   async sendOtp(phoneE164: string, message: string) {
-    console.log(`[SMS MOCK] ${phoneE164}: ${message}`);
+    console.log(`[SMS] ${phoneE164}: ${message}`);
   }
 }
 
@@ -37,4 +37,4 @@ class TwilioSmsProvider implements SmsProvider {
 }
 
 export const smsProvider: SmsProvider =
-  env.smsProvider === 'twilio' ? new TwilioSmsProvider() : new MockSmsProvider();
+  env.smsProvider === 'twilio' ? new TwilioSmsProvider() : new ConsoleSmsProvider();
