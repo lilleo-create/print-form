@@ -144,7 +144,7 @@ export const CheckoutLayout = () => {
           setPvzOpen(false);
         }}
         city={data.address?.city ?? 'Москва'}
-        source_platform_station={data.sellerDropoffStationId}
+        source_platform_station={data.sellerDropoffStationId ?? ''}
         physical_dims_weight_gross={10000}
       />
 
