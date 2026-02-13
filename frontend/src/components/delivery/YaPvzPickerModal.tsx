@@ -1,5 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import styles from './YaPvzPickerModal.module.css';
+
+const YA_NDD_WIDGET_SRC = 'https://ndd-widget.landpro.site/widget.js';
+const YA_NDD_WIDGET_SCRIPT_ID = 'ya-ndd-widget';
+const isDev = import.meta.env.DEV;
 
 export type YaPvzSelection = {
   pvzId: string;
@@ -11,18 +15,46 @@ type Props = {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (sel: YaPvzSelection) => void;
-
   city?: string;
-  source_platform_station: string;        // по доке, обязательный если считаем доставку
-  physical_dims_weight_gross?: number;    // по доке, граммы
+  source_platform_station: string;
+  physical_dims_weight_gross?: number;
 };
 
 declare global {
   interface Window {
     YaDelivery?: {
-      createWidget: (args: { containerId: string; params: any }) => void;
+      createWidget: (args: {
+        containerId: string;
+        params: Record<string, unknown>;
+      }) => void;
+      setParams?: (params: Record<string, unknown>) => void;
     };
   }
+}
+
+const debugLog = (...args: unknown[]) => {
+  if (isDev) {
+    console.debug('[YaPvzPickerModal]', ...args);
+  }
+};
+
+function ensureWidgetScriptLoaded() {
+  if (window.YaDelivery?.createWidget) {
+    debugLog('script already available on window');
+    return;
+  }
+
+  if (!document.getElementById(YA_NDD_WIDGET_SCRIPT_ID)) {
+    const script = document.createElement('script');
+    script.id = YA_NDD_WIDGET_SCRIPT_ID;
+    script.src = YA_NDD_WIDGET_SRC;
+    script.async = true;
+    document.head.appendChild(script);
+    debugLog('script appended', YA_NDD_WIDGET_SRC);
+    return;
+  }
+
+  debugLog('script tag already exists');
 }
 
 export function YaPvzPickerModal({
@@ -34,30 +66,21 @@ export function YaPvzPickerModal({
   physical_dims_weight_gross = 10000
 }: Props) {
   const containerIdRef = useRef(`delivery-widget-${Math.random().toString(16).slice(2)}`);
-  const mountedRef = useRef(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  const onSelectRef = useRef(onSelect);
+  const selectedOnceRef = useRef(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // 1) Подписка на событие выбора (строго по доке)
   useEffect(() => {
-    const handler = (data: any) => {
-      const d = data?.detail;
-      if (!d?.id) return;
-
-      onSelect({
-        pvzId: String(d.id),
-        addressFull: d?.address?.full_address,
-        raw: d
-      });
-
-      onClose();
-    };
-
-    document.addEventListener('YaNddWidgetPointSelected', handler);
-    return () => document.removeEventListener('YaNddWidgetPointSelected', handler);
+    onCloseRef.current = onClose;
+    onSelectRef.current = onSelect;
   }, [onClose, onSelect]);
 
-  // 2) Создание виджета (строго по доке)
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      return;
+    }
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -72,7 +95,9 @@ export function YaPvzPickerModal({
   }, [isOpen]);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      return;
+    }
 
     const container = containerRef.current;
     if (!container) {
@@ -80,85 +105,144 @@ export function YaPvzPickerModal({
       return;
     }
 
-    selectedRef.current = false;
     setError(null);
+    selectedOnceRef.current = false;
     container.innerHTML = '';
 
-    if (!source_platform_station?.trim()) {
+    if (!source_platform_station.trim()) {
       setError('Не задан source_platform_station. Укажите станцию отгрузки продавца.');
       return;
     }
 
-    let cancelled = false;
+    ensureWidgetScriptLoaded();
 
-    function startWidget() {
-      if (cancelled) return;
-      if (!window.YaDelivery?.createWidget) return;
+    let cancelled = false;
+    let rafId: number | null = null;
+    let timeoutId: number | null = null;
+    let widthResolved = false;
+
+    const startWidget = () => {
+      if (cancelled || !window.YaDelivery?.createWidget) {
+        return;
+      }
+
+      debugLog('createWidget called', {
+        city,
+        source_platform_station,
+        physical_dims_weight_gross
+      });
 
       window.YaDelivery.createWidget({
         containerId: containerIdRef.current,
         params: {
           city,
           size: {
-            height: '780px', // дока: только px
-            width: '100%'    // дока: % или px
+            width: '100%',
+            height: '780px'
           },
           source_platform_station,
           physical_dims_weight_gross,
-          delivery_price: 'от 100',
-          delivery_term: 'от 1 дня',
-          show_select_button: true,
-          filter: {
-            type: ['pickup_point', 'terminal'],
-            is_yandex_branded: false,
-            payment_methods: ['already_paid', 'card_on_receipt'],
-            payment_methods_filter: 'or'
-          }
+          show_select_button: true
         }
       });
-    }
+    };
 
-    // ВАЖНО: ждём нормальную ширину контейнера до старта,
-    // иначе виджет стартует в "мобильном" режиме (1 колонка).
-    async function startWhenWide() {
-      const el = document.getElementById(containerIdRef.current);
-      if (!el) return;
-
-      const start = performance.now();
-      while (!cancelled) {
-        const w = el.getBoundingClientRect().width;
-        // порог можно чуть менять, но 900 обычно достаточно для desktop-layout
-        if (w >= 900) break;
-        if (performance.now() - start > 2500) break; // не зависаем вечно
-        await new Promise((r) => requestAnimationFrame(r));
+    const onPointSelected = (event: Event) => {
+      if (cancelled || selectedOnceRef.current) {
+        return;
       }
 
-      // запускаем строго как в доке
-      if (window.YaDelivery) startWidget();
-      else document.addEventListener('YaNddWidgetLoad', startWidget, { once: true });
-    }
+      const detail = (event as CustomEvent<Record<string, unknown>>).detail;
+      const id = detail?.id;
 
-    // чистим контейнер перед стартом (чтобы рестарт был чистым)
-    const el = document.getElementById(containerIdRef.current);
-    if (el) el.innerHTML = '';
+      if (!id) {
+        return;
+      }
 
-    startWhenWide();
+      selectedOnceRef.current = true;
+      const addressFull =
+        ((detail?.address as { full_address?: string } | undefined)?.full_address ??
+          (detail?.full_address as string | undefined));
+
+      debugLog('YaNddWidgetPointSelected', {
+        id,
+        addressFull,
+        keys: detail ? Object.keys(detail) : []
+      });
+
+      onSelectRef.current({
+        pvzId: String(id),
+        addressFull,
+        raw: detail
+      });
+      onCloseRef.current();
+    };
+
+    document.addEventListener('YaNddWidgetPointSelected', onPointSelected as EventListener);
+
+    const tryStartWhenWide = (startTs: number) => {
+      if (cancelled || widthResolved) {
+        return;
+      }
+
+      const width = container.getBoundingClientRect().width;
+      const elapsed = performance.now() - startTs;
+      if (width >= 900 || elapsed > 2500) {
+        widthResolved = true;
+
+        if (window.YaDelivery?.createWidget) {
+          debugLog('script found on window, starting widget', { width, elapsed });
+          startWidget();
+        } else {
+          debugLog('waiting for YaNddWidgetLoad before start', { width, elapsed });
+          document.addEventListener('YaNddWidgetLoad', startWidget, { once: true });
+        }
+
+        return;
+      }
+
+      rafId = requestAnimationFrame(() => tryStartWhenWide(startTs));
+    };
+
+    rafId = requestAnimationFrame(() => tryStartWhenWide(performance.now()));
+
+    timeoutId = window.setTimeout(() => {
+      if (cancelled || widthResolved) {
+        return;
+      }
+      widthResolved = true;
+
+      if (window.YaDelivery?.createWidget) {
+        debugLog('timeout fallback start');
+        startWidget();
+      } else {
+        debugLog('timeout fallback waiting YaNddWidgetLoad');
+        document.addEventListener('YaNddWidgetLoad', startWidget, { once: true });
+      }
+    }, 3000);
 
     return () => {
       cancelled = true;
-      document.removeEventListener('YaNddWidgetPointSelected', onPointSelected);
+      selectedOnceRef.current = false;
+      document.removeEventListener('YaNddWidgetPointSelected', onPointSelected as EventListener);
       document.removeEventListener('YaNddWidgetLoad', startWidget);
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+      }
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
       container.innerHTML = '';
     };
-  }, [isOpen, city, source_platform_station, physical_dims_weight_gross]);
+  }, [city, isOpen, physical_dims_weight_gross, source_platform_station]);
 
-  // 3) Не рендерим ничего, если закрыто
-  if (!isOpen) return null;
+  if (!isOpen) {
+    return null;
+  }
 
-  // 4) Модалка
   return (
     <div className={styles.overlay} onClick={onClose}>
-      <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+      <div className={styles.modal} onClick={(event) => event.stopPropagation()}>
         <div className={styles.header}>
           <span>Выберите пункт выдачи</span>
           <button className={styles.closeButton} onClick={onClose} aria-label="Закрыть">
@@ -167,9 +251,17 @@ export function YaPvzPickerModal({
         </div>
 
         <div className={styles.body}>
-          <div id={containerIdRef.current} className={styles.widget} />
+          {error ? <div className={styles.error}>{error}</div> : null}
+          <div
+            id={containerIdRef.current}
+            ref={containerRef}
+            className={styles.widget}
+            aria-hidden={Boolean(error)}
+          />
         </div>
       </div>
     </div>
   );
 }
+
+export { YaPvzPickerModal as YaNddPvzModal };

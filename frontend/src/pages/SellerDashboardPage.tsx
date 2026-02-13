@@ -1217,8 +1217,8 @@ export const SellerDashboardPage = () => {
                     <p className={styles.error}>{deliverySettingsError}</p>
                   )}
                   <YaPvzPickerModal
-                    isOpen={isPvzOpen}
-                    onClose={() => setPvzOpen(false)}
+                    isOpen={isDropoffModalOpen}
+                    onClose={() => setDropoffModalOpen(false)}
                     onSelect={(sel) => {
                       handleDropoffSelect(sel);
                       setDropoffModalOpen(false);
