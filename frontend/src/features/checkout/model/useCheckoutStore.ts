@@ -32,7 +32,7 @@ type CheckoutState = {
     expYear: string;
     cvv: string;
   }) => Promise<void>;
-  placeOrder: () => Promise<{ orderId: string; paymentUrl: string } | null>;
+  placeOrder: () => Promise<{ orderId: string; paymentId: string; paymentUrl: string } | null>;
 };
 
 let fetchController: AbortController | null = null;
@@ -217,7 +217,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       });
 
       set({ isSubmittingOrder: false });
-      return { orderId: response.orderId, paymentUrl: response.paymentUrl };
+      return { orderId: response.orderId, paymentId: response.paymentId, paymentUrl: response.paymentUrl };
     } catch (error) {
       set({
         isSubmittingOrder: false,

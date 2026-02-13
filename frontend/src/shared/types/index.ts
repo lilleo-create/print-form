@@ -213,6 +213,7 @@ export interface Order {
   shippingAddressId: string;
   status: OrderStatus;
   statusUpdatedAt?: string;
+  paidAt?: string | null;
   total: number;
   recipientName?: string | null;
   recipientPhone?: string | null;

@@ -43,7 +43,7 @@ export const yandexNddShipmentOrchestrator = {
       throw new Error('ORDER_NOT_FOUND');
     }
 
-    if (order.status !== 'PAID' || !order.paidAt) {
+    if (!order.paidAt && order.status !== 'PAID') {
       throw new Error('PAYMENT_REQUIRED');
     }
 

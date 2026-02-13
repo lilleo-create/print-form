@@ -203,5 +203,11 @@ export const checkoutApi = {
       signal
     });
     return response.data.data;
+  },
+  mockSuccess: async (paymentId: string, signal?: AbortSignal) => {
+    await client.request(`/payments/${paymentId}/mock-success`, {
+      method: 'POST',
+      signal
+    });
   }
 };
