@@ -1,0 +1,1 @@
+.modal{max-width:520px}.content{display:grid;gap:10px}.row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}p{font-size:13px;color:var(--muted)}

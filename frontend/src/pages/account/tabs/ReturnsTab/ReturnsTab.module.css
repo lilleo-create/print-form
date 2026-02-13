@@ -1,0 +1,16 @@
+.section {
+  display: grid;
+  gap: 16px;
+}
+
+.sectionBlock {
+  display: grid;
+  gap: 16px;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}

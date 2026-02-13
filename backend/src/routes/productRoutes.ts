@@ -3,26 +3,42 @@ import { z } from 'zod';
 import { productUseCases } from '../usecases/productUseCases';
 import { reviewService } from '../services/reviewService';
 import { authenticate, AuthRequest } from '../middleware/authMiddleware';
-import { writeLimiter } from '../middleware/rateLimiters';
+import { publicReadLimiter, writeLimiter } from '../middleware/rateLimiters';
 
 export const productRoutes = Router();
 
+const mediaUrlSchema = z.string().refine((value) => {
+  if (value.startsWith('/uploads/')) {
+    return true;
+  }
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+});
+
 const listSchema = z.object({
+  shopId: z.string().optional(),
+  q: z.string().optional(),
   category: z.string().optional(),
   material: z.string().optional(),
   size: z.string().optional(),
   minPrice: z.coerce.number().optional(),
   maxPrice: z.coerce.number().optional(),
-  sort: z.enum(['createdAt', 'rating']).optional(),
+  sort: z.enum(['createdAt', 'rating', 'price']).optional(),
   order: z.enum(['asc', 'desc']).optional(),
   page: z.coerce.number().int().positive().optional(),
   limit: z.coerce.number().int().positive().optional()
 });
 
-productRoutes.get('/', async (req, res, next) => {
+productRoutes.get('/', publicReadLimiter, async (req, res, next) => {
   try {
     const params = listSchema.parse(req.query);
     const products = await productUseCases.list({
+      shopId: params.shopId,
+      query: params.q,
       category: params.category,
       material: params.material,
       size: params.size,
@@ -39,7 +55,7 @@ productRoutes.get('/', async (req, res, next) => {
   }
 });
 
-productRoutes.get('/:id', async (req, res, next) => {
+productRoutes.get('/:id', publicReadLimiter, async (req, res, next) => {
   try {
     const product = await productUseCases.get(req.params.id);
     if (!product) {
@@ -55,9 +71,13 @@ productRoutes.get('/:id', async (req, res, next) => {
 export const sellerProductSchema = z.object({
   title: z.string().min(2),
   category: z.string().min(2),
-  price: z.number().min(1),
-  image: z.string().url().optional(),
-  imageUrls: z.array(z.string().url()).optional(),
+  price: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() !== '' ? Number(value) : value),
+    z.number({ invalid_type_error: 'PRICE_INVALID' }).min(1)
+  ),
+  image: mediaUrlSchema.optional(),
+  imageUrls: z.array(mediaUrlSchema).optional(),
+  videoUrls: z.array(mediaUrlSchema).optional(),
   description: z.string().min(5),
   descriptionShort: z.string().min(5).optional(),
   descriptionFull: z.string().min(10).optional(),
@@ -69,7 +89,10 @@ export const sellerProductSchema = z.object({
   printTime: z.string().min(2),
   color: z.string().min(2),
   deliveryDateEstimated: z.string().datetime().optional(),
-  deliveryDates: z.array(z.string()).optional()
+  weightGrossG: z.number().int().positive(),
+  dxCm: z.number().int().positive(),
+  dyCm: z.number().int().positive(),
+  dzCm: z.number().int().positive(),
 });
 
 const reviewSchema = z.object({
@@ -77,7 +100,8 @@ const reviewSchema = z.object({
   pros: z.string().min(3).max(500),
   cons: z.string().min(3).max(500),
   comment: z.string().min(10).max(1000),
-  photos: z.array(z.string().url()).optional()
+  // ✅ разрешаем и /uploads/..., и абсолютные http(s)
+  photos: z.array(mediaUrlSchema).max(5).optional()
 });
 
 const reviewListSchema = z.object({
@@ -91,7 +115,7 @@ const summaryQuerySchema = z.object({
   productIds: z.string().optional()
 });
 
-productRoutes.get('/:id/reviews', async (req, res, next) => {
+productRoutes.get('/:id/reviews', publicReadLimiter, async (req, res, next) => {
   try {
     const params = reviewListSchema.parse(req.query);
     const productIds = params.productIds
@@ -126,7 +150,7 @@ productRoutes.post('/:id/reviews', authenticate, writeLimiter, async (req: AuthR
   }
 });
 
-productRoutes.get('/:id/reviews/summary', async (req, res, next) => {
+productRoutes.get('/:id/reviews/summary', publicReadLimiter, async (req, res, next) => {
   try {
     const params = summaryQuerySchema.parse(req.query);
     const productIds = params.productIds

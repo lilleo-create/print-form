@@ -1,0 +1,1 @@
+.block{border:1px solid var(--border);border-radius:12px;padding:12px;background:var(--card);display:grid;gap:10px}.grid{display:grid;gap:8px}.item,.active{border:1px solid var(--border);border-radius:10px;padding:10px;text-align:left;background:var(--bg-2)}.active{border-color:var(--primary)}

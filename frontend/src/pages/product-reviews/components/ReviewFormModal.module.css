@@ -1,0 +1,171 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 70;
+}
+
+.modal {
+  background: var(--card);
+  color: var(--text);
+  border-radius: var(--radius-card);
+  width: min(520px, 92vw);
+  padding: 24px;
+  display: grid;
+  gap: 16px;
+  max-height: 90vh;
+  overflow: auto;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.close {
+  border: none;
+  background: var(--surface-ghost-muted);
+  color: var(--text);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.product {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 600;
+}
+
+.product img {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  object-fit: cover;
+  background: var(--bg-2);
+}
+
+.productImagePlaceholder {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  border: 1px dashed var(--border);
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 10px;
+  text-align: center;
+  padding: 4px;
+}
+
+.productPrice {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.ratingBlock {
+  display: grid;
+  gap: 8px;
+}
+
+.stars {
+  display: flex;
+  gap: 8px;
+}
+
+.star,
+.starActive {
+  font-size: 28px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--star-muted);
+}
+
+.starActive {
+  color: var(--warning);
+}
+
+.ratingLabel {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.form {
+  display: grid;
+  gap: 12px;
+}
+
+.form label {
+  display: grid;
+  gap: 6px;
+  font-weight: 500;
+}
+
+.form input,
+.form textarea {
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  padding: 10px 12px;
+  color: var(--text);
+}
+
+.form textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.existingPhotos {
+  display: grid;
+  gap: 10px;
+}
+
+.existingPhoto {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface-ghost);
+  padding: 8px 12px;
+  border-radius: var(--radius-control);
+}
+
+.existingPhoto img {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.existingPhoto button {
+  border: none;
+  background: transparent;
+  color: var(--danger);
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.uploader :global(input[type='file']) {
+  color: var(--text);
+}
+
+.error {
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.fieldError {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #ff6b6b;
+}

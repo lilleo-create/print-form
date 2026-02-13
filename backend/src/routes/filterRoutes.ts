@@ -1,16 +1,29 @@
 import { Router } from 'express';
-import { prisma } from '../lib/prisma';
+import { PrismaClient } from '@prisma/client';
 
-export const filterRoutes = Router();
+const router = Router();
+const prisma = new PrismaClient();
 
-filterRoutes.get('/', async (_req, res, next) => {
-  try {
-    const products = await prisma.product.findMany();
-    const categories = Array.from(new Set(products.map((item) => item.category)));
-    const materials = Array.from(new Set(products.map((item) => item.material)));
-    const sizes = Array.from(new Set(products.map((item) => item.size)));
-    res.json({ data: { categories, materials, sizes } });
-  } catch (error) {
-    next(error);
-  }
+// GET /filters/reference-categories
+router.get('/reference-categories', async (_req, res) => {
+  const categories = await prisma.referenceCategory.findMany({
+    where: { isActive: true },
+    orderBy: { sortOrder: 'asc' },
+    select: { id: true, slug: true, title: true },
+  });
+
+  res.json(categories);
 });
+
+// GET /filters/cities
+router.get('/cities', async (_req, res) => {
+  const cities = await prisma.city.findMany({
+    where: { isActive: true },
+    orderBy: { name: 'asc' },
+    select: { id: true, name: true },
+  });
+
+  res.json(cities);
+});
+
+export { router as filterRoutes };

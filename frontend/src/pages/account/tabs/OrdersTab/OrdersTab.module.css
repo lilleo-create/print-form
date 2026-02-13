@@ -1,0 +1,52 @@
+.section {
+  display: grid;
+  gap: 16px;
+}
+
+.ordersList {
+  display: grid;
+  gap: 16px;
+}
+
+.orderCard {
+  background: var(--card);
+  border-radius: var(--radius-card);
+  padding: 20px;
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border);
+  display: grid;
+  gap: 12px;
+}
+
+.orderHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.total {
+  font-weight: 600;
+}
+
+.items {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.item {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.itemInfo {
+  display: grid;
+  gap: 4px;
+}
+
+.empty {
+  color: var(--muted);
+}

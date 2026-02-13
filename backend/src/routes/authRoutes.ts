@@ -8,6 +8,7 @@ import { otpService, OtpPurpose } from '../services/otpService';
 import { normalizePhone } from '../utils/phone';
 import { authLimiter, otpRequestLimiter, otpVerifyLimiter } from '../middleware/rateLimiters';
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
 
 export const authRoutes = Router();
 
@@ -41,6 +42,20 @@ const otpVerifySchema = z.object({
   phone: z.string().min(5),
   code: z.string().min(4),
   purpose: z.enum(['login', 'register', 'seller_verify']).optional()
+});
+
+const passwordResetRequestSchema = z.object({
+  phone: z.string().min(5)
+});
+
+const passwordResetVerifySchema = z.object({
+  phone: z.string().min(5),
+  code: z.string().min(4)
+});
+
+const passwordResetConfirmSchema = z.object({
+  token: z.string().min(10),
+  password: z.string().min(6)
 });
 
 const cookieOptions = {
@@ -80,6 +95,10 @@ const decodeAuthToken = (token: string) => {
   return jwt.verify(token, env.jwtSecret) as { userId: string; role?: string; scope?: string };
 };
 
+const createPasswordResetToken = (payload: { userId: string }) => {
+  return jwt.sign({ ...payload, scope: 'password_reset' }, env.jwtSecret, { expiresIn: '10m' });
+};
+
 authRoutes.post('/register', authLimiter, async (req, res, next) => {
   try {
     const payload = registerSchema.parse(req.body);
@@ -89,8 +108,7 @@ authRoutes.post('/register', authLimiter, async (req, res, next) => {
       payload.email,
       payload.password,
       payload.role,
-      phone,
-      payload.address
+      phone
     );
     const tempToken = authService.issueOtpToken(result.user);
     res.json({
@@ -132,14 +150,16 @@ authRoutes.post('/login', authLimiter, async (req, res, next) => {
     const tokens = await authService.issueTokens(result.user);
     res.cookie('refreshToken', tokens.refreshToken, cookieOptions);
     return res.json({
-      token: tokens.accessToken,
-      user: {
-        id: result.user.id,
-        name: result.user.name,
-        role: result.user.role,
-        email: result.user.email,
-        phone: result.user.phone,
-        address: result.user.address
+      data: {
+        accessToken: tokens.accessToken,
+        user: {
+          id: result.user.id,
+          name: result.user.name,
+          role: result.user.role,
+          email: result.user.email,
+          phone: result.user.phone,
+          address: result.user.address
+        }
       }
     });
   } catch (error) {
@@ -151,7 +171,7 @@ authRoutes.post('/refresh', async (req, res, next) => {
   try {
     const token = req.cookies.refreshToken as string | undefined;
     if (!token) {
-      return res.status(401).json({ error: 'UNAUTHORIZED' });
+      return res.status(401).json({ error: { code: 'UNAUTHORIZED' } });
     }
     const result = await authService.refresh(token);
     return res.json({ token: result.accessToken });
@@ -170,6 +190,61 @@ authRoutes.post('/logout', async (req, res, next) => {
     res.json({ success: true });
   } catch (error) {
     next(error);
+  }
+});
+
+authRoutes.post('/password-reset/request', otpRequestLimiter, async (req, res, next) => {
+  try {
+    const payload = passwordResetRequestSchema.parse(req.body);
+    const phone = normalizePhone(payload.phone);
+    const user = await userRepository.findByPhone(phone);
+    if (!user) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND' } });
+    }
+    const result = await otpService.requestOtp({
+      phone,
+      purpose: 'password_reset',
+      ip: req.ip,
+      userAgent: req.get('user-agent')
+    });
+    return res.json({ ok: true, devOtp: result.devOtp });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+authRoutes.post('/password-reset/verify', otpVerifyLimiter, async (req, res, next) => {
+  try {
+    const payload = passwordResetVerifySchema.parse(req.body);
+    const phone = normalizePhone(payload.phone);
+    const user = await userRepository.findByPhone(phone);
+    if (!user) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND' } });
+    }
+    await otpService.verifyOtp({ phone, code: payload.code, purpose: 'password_reset' });
+    const resetToken = createPasswordResetToken({ userId: user.id });
+    return res.json({ ok: true, resetToken });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+authRoutes.post('/password-reset/confirm', authLimiter, async (req, res, next) => {
+  try {
+    const payload = passwordResetConfirmSchema.parse(req.body);
+    const decoded = jwt.verify(payload.token, env.jwtSecret) as { userId: string; scope?: string };
+    if (decoded.scope !== 'password_reset') {
+      return res.status(401).json({ error: { code: 'UNAUTHORIZED' } });
+    }
+    const user = await userRepository.findById(decoded.userId);
+    if (!user) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND' } });
+    }
+    const hashed = await bcrypt.hash(payload.password, 10);
+    await userRepository.updatePassword(user.id, hashed);
+    return res.json({ ok: true });
+  } catch (error) {
+    return next(error);
   }
 });
 
@@ -269,14 +344,16 @@ authRoutes.post('/otp/verify', otpVerifyLimiter, async (req, res, next) => {
     const tokens = await authService.issueTokens(user);
     res.cookie('refreshToken', tokens.refreshToken, cookieOptions);
     return res.json({
-      token: tokens.accessToken,
-      user: {
-        id: user.id,
-        name: user.name,
-        role: user.role,
-        email: user.email,
-        phone: user.phone,
-        address: user.address
+      data: {
+        accessToken: tokens.accessToken,
+        user: {
+          id: user.id,
+          name: user.name,
+          role: user.role,
+          email: user.email,
+          phone: user.phone,
+          address: user.address
+        }
       }
     });
   } catch (error) {
@@ -295,9 +372,7 @@ authRoutes.get('/me', authenticate, async (req: AuthRequest, res, next) => {
         id: user.id,
         name: user.name,
         role: user.role,
-        email: user.email,
-        phone: user.phone,
-        address: user.address
+        email: user.email
       }
     });
   } catch (error) {

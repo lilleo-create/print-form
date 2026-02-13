@@ -7,7 +7,7 @@ import { smsProvider } from './smsProvider';
 const otpRequestWindowMs = 15 * 60 * 1000;
 const otpMaxPerPhoneWindow = 3;
 
-export type OtpPurpose = 'login' | 'register' | 'seller_verify';
+export type OtpPurpose = 'login' | 'register' | 'seller_verify' | 'password_reset';
 
 const formatPurpose = (purpose: OtpPurpose) => {
   switch (purpose) {
@@ -15,6 +15,8 @@ const formatPurpose = (purpose: OtpPurpose) => {
       return 'подтверждения телефона продавца';
     case 'register':
       return 'регистрации';
+    case 'password_reset':
+      return 'сброса пароля';
     default:
       return 'входа';
   }
@@ -24,7 +26,7 @@ export const otpService = {
   normalizePhone,
   async requestOtp(payload: { phone: string; purpose: OtpPurpose; ip?: string; userAgent?: string }) {
     const phone = normalizePhone(payload.phone);
-    const purpose = payload.purpose.toUpperCase() as 'LOGIN' | 'REGISTER' | 'SELLER_VERIFY';
+    const purpose = payload.purpose.toUpperCase() as 'LOGIN' | 'REGISTER' | 'SELLER_VERIFY' | 'PASSWORD_RESET';
     const now = new Date();
     const windowStart = new Date(now.getTime() - otpRequestWindowMs);
     const recentCount = await prisma.phoneOtp.count({
@@ -73,7 +75,7 @@ export const otpService = {
   },
   async verifyOtp(payload: { phone: string; code: string; purpose: OtpPurpose }) {
     const phone = normalizePhone(payload.phone);
-    const purpose = payload.purpose.toUpperCase() as 'LOGIN' | 'REGISTER' | 'SELLER_VERIFY';
+    const purpose = payload.purpose.toUpperCase() as 'LOGIN' | 'REGISTER' | 'SELLER_VERIFY' | 'PASSWORD_RESET';
     const now = new Date();
     const otp = await prisma.phoneOtp.findFirst({
       where: {

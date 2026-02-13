@@ -1,8 +1,13 @@
+import { OrderStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 
 export const orderRepository = {
   create: (data: {
     buyerId: string;
+    contactId?: string;
+    shippingAddressId?: string;
+    buyerPickupPvz?: { provider: 'YANDEX_NDD'; pvzId: string; raw: unknown; addressFull?: string };
+    sellerDropoffPvz?: { provider: 'YANDEX_NDD'; pvzId: string; raw: unknown; addressFull?: string };
     items: { productId: string; variantId?: string; quantity: number }[];
   }) =>
     prisma.$transaction(async (tx) => {
@@ -39,29 +44,59 @@ export const orderRepository = {
       return tx.order.create({
         data: {
           buyerId: data.buyerId,
+          contactId: data.contactId,
+          shippingAddressId: data.shippingAddressId,
+          buyerPickupPvzId: data.buyerPickupPvz?.pvzId,
+          buyerPickupPvzMeta: (data.buyerPickupPvz as unknown as object | undefined) ?? undefined,
+          sellerDropoffPvzId: data.sellerDropoffPvz?.pvzId,
+          sellerDropoffPvzMeta: (data.sellerDropoffPvz as unknown as object | undefined) ?? undefined,
           total,
           items: {
             create: itemsWithPrice
           }
         },
-        include: { items: { include: { product: true, variant: true } } }
+        include: {
+          items: { include: { product: true, variant: true } },
+          contact: true,
+          shippingAddress: true
+        }
       });
     }),
   findByBuyer: (buyerId: string) =>
     prisma.order.findMany({
       where: { buyerId },
-      include: { items: { include: { product: true } } },
+      include: { items: { include: { product: true } }, contact: true, shippingAddress: true },
       orderBy: { createdAt: 'desc' }
     }),
   findById: (id: string) =>
     prisma.order.findUnique({
       where: { id },
-      include: { items: { include: { product: true } } }
+      include: { items: { include: { product: true } }, contact: true, shippingAddress: true }
     }),
-  findSellerOrders: (sellerId: string) =>
+  findSellerOrders: (
+    sellerId: string,
+    options?: {
+      status?: OrderStatus;
+      offset?: number;
+      limit?: number;
+    }
+  ) =>
     prisma.order.findMany({
-      where: { items: { some: { product: { sellerId } } } },
-      include: { items: { include: { product: true } } },
-      orderBy: { createdAt: 'desc' }
+      where: {
+        items: { some: { product: { sellerId } } },
+        ...(options?.status ? { status: options.status } : {})
+      },
+      include: {
+        items: {
+          where: { product: { sellerId } },
+          include: { product: true, variant: true }
+        },
+        contact: true,
+        shippingAddress: true,
+        buyer: true
+      },
+      orderBy: { createdAt: 'desc' },
+      skip: options?.offset ?? 0,
+      take: options?.limit ?? 50
     })
 };

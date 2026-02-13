@@ -1,0 +1,26 @@
+.page {
+  width: 100%;
+  padding: 24px 16px;
+}
+
+.container {
+  width: min(1280px, 100%);
+  margin: 0 auto;
+  display: grid;
+  gap: 18px;
+}
+
+.placeholder,
+.stateCard {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px;
+  background: var(--card);
+  color: var(--muted);
+}
+
+.stateCard {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+}

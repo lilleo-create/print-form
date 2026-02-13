@@ -19,7 +19,7 @@
 - **Location:** `frontend/` (React + Vite + TS).
 - **Routing:** React Router in `frontend/src/App.tsx` (landing, catalog, cart, checkout, account, seller, auth).【F:frontend/src/App.tsx†L1-L44】
 - **State:** Zustand stores in `frontend/src/app/store/*` (auth, cart, orders, products, ui, address).【F:frontend/src/app/store/addressStore.ts†L1-L57】
-- **API client:** `frontend/src/shared/api/*` uses `fetch` client or mock adapter with localStorage (addresses, orders, products).【F:frontend/src/shared/api/index.ts†L1-L48】
+- **API client:** `frontend/src/shared/api/*` uses the fetch client for backend API calls (addresses, orders, products).【F:frontend/src/shared/api/index.ts†L1-L48】
 - **Persistence:** localStorage keys in `frontend/src/shared/constants/storageKeys.ts`.【F:frontend/src/shared/constants/storageKeys.ts†L1-L10】
 
 ### Where to integrate DB
@@ -62,7 +62,7 @@
 ## Dependencies & risks
 - **Prisma migrations:** ensure existing data remains valid when adding required fields (may need defaults or backfill script).
 - **Google Sheets API:** requires service account credentials and network access; design for graceful failure when unavailable.
-- **Frontend compatibility:** keep legacy response shape or update adapters to avoid breaking the mock API toggle.
+- **Frontend compatibility:** keep legacy response shape or update adapters to avoid breaking existing UI contracts.
 
 ## Open questions
 - What is the required schema for Google Sheets rows (column order, required fields)?
@@ -71,5 +71,5 @@
 
 ## Validation checklist
 - Prisma generate + migrate runs cleanly on fresh database.
-- Product list, filters, and detail pages render with mock API disabled.
+- Product list, filters, and detail pages render against the real API.
 - Order creation triggers a Google Sheets entry and records sync status.

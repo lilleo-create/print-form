@@ -1,0 +1,150 @@
+.header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 20px;
+  align-items: center;
+  padding: 24px;
+  border-radius: var(--radius-card);
+  background: var(--card);
+  color: var(--text);
+  margin-bottom: 24px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+}
+
+.backButton {
+  border: none;
+  background: var(--primary-soft);
+  color: var(--primary);
+  border-radius: 999px;
+  padding: 10px 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.product {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
+.productImage {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  object-fit: cover;
+  background: var(--bg-2);
+  flex-shrink: 0;
+}
+
+.productInfo {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.title {
+  font-size: 20px;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ratingRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.ratingValue {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.ratingMeta {
+  color: var(--muted-2);
+}
+
+.actions {
+  display: grid;
+  grid-auto-flow: column;
+  gap: 12px;
+  align-items: center;
+}
+
+.price {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.favoriteButton {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  border: none;
+  background: var(--surface-ghost-muted);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.buyNow {
+  border: none;
+  background: var(--primary-soft);
+  color: var(--primary);
+  border-radius: 14px;
+  padding: 10px 18px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.addToCart {
+  border: none;
+  background: var(--primary);
+  color: #ffffff;
+  border-radius: 14px;
+  padding: 10px 20px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+@media (max-width: 1024px) {
+  .header {
+    grid-template-columns: 1fr;
+    align-items: flex-start;
+  }
+
+  .actions {
+    grid-auto-flow: row;
+    justify-items: start;
+  }
+}
+
+@media (max-width: 640px) {
+  .header {
+    padding: 16px;
+  }
+
+  .product {
+    flex-wrap: wrap;
+  }
+
+  .actions {
+    width: 100%;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .price {
+    grid-column: 1 / -1;
+  }
+
+  .favoriteButton {
+    grid-column: 1 / 2;
+  }
+}

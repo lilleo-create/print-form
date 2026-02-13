@@ -1,7 +1,7 @@
 .page {
-  padding: 64px 0 96px;
-  width: 100%;
   align-self: stretch;
+  width: 100%;
+  padding: 64px 0 96px;
 }
 
 .header {
@@ -21,13 +21,14 @@
 }
 
 .form {
-  background: var(--color-surface);
-  padding: 24px;
-  border-radius: var(--radius-lg);
   display: flex;
   flex-direction: column;
   gap: 16px;
-  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  box-shadow: var(--shadow-card);
+  background: var(--card);
+  border: 1px solid var(--border);
 }
 
 .form label {
@@ -38,56 +39,28 @@
 }
 
 .form span {
-  color: var(--color-danger);
+  color: var(--danger);
   font-size: 12px;
 }
 
-.saveProfile {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-weight: 500;
-  color: var(--color-text-muted);
-}
-
-.saveProfile input {
-  width: 18px;
-  height: 18px;
-}
-
-.addressSelector {
-  border: 1px solid var(--color-border);
-  background: #ffffff;
-  border-radius: 16px;
-  padding: 12px 16px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-  font-weight: 500;
-}
-
-.marker {
-  font-size: 18px;
-}
-
 .summary {
-  background: var(--color-surface-muted);
-  border-radius: var(--radius-lg);
-  padding: 24px;
-  height: fit-content;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  height: fit-content;
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
 }
 
 .summary ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .summary li {
@@ -105,20 +78,28 @@
 
 .primaryButton {
   border: none;
-  background: var(--color-primary);
-  color: #ffffff;
-  padding: 12px 18px;
   border-radius: 999px;
+  padding: 12px 18px;
+  color: #ffffff;
+  background: var(--primary);
   font-weight: 600;
   cursor: pointer;
+}
+/* CheckoutPage.module.css */
+
+.form input:disabled {
+  border-color: var(--border);
+  color: var(--muted);
+  background: var(--surface-ghost);
+  cursor: not-allowed;
+}
+
+.form input:disabled::placeholder {
+  color: var(--muted-2);
 }
 
 @media (max-width: 900px) {
   .content {
     grid-template-columns: 1fr;
-  }
-
-  .addressSelector {
-    width: 100%;
   }
 }

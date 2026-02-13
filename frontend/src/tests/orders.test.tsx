@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { BuyerAccountPage } from '../pages/BuyerAccountPage';
+import { BuyerAccountPage } from '../pages/account/BuyerAccountPage';
 import { useOrdersStore } from '../app/store/ordersStore';
 import { useAuthStore } from '../app/store/authStore';
 import { addressesApi } from '../shared/api/addressesApi';
