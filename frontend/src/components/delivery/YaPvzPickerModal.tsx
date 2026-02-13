@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { ensureYaNddWidgetLoaded } from '../../shared/lib/yaNddWidget';
 
@@ -18,20 +18,17 @@ type YaNddPvzModalProps = {
   // Город можно менять
   city?: string;
 
-  // Важно: станция отгрузки продавца (GUID).
-  // Если не передашь, виджет часто работает плохо/не показывает расчет и часть точек.
+  // Станция отгрузки продавца (GUID). Нужна для маршрутов/доступности точек.
   sourcePlatformStationId?: string;
 
-  // Вес, если нужно фильтровать точки по допустимому весу
+  // Вес (в граммах), если нужно фильтровать точки по допустимому весу
   weightGrossG?: number;
 
   // Хочешь постаматы тоже? тогда includeTerminals=true
   includeTerminals?: boolean;
 
-  // Параметры фильтра оплаты (можно выключить)
-  paymentMethods?: Array<
-    'already_paid' | 'cash_on_receipt' | 'card_on_receipt'
-  >;
+  // Фильтр методов оплаты (можно выключить, передав undefined/[])
+  paymentMethods?: Array<'already_paid' | 'cash_on_receipt' | 'card_on_receipt'>;
 };
 
 export const YaNddPvzModal = ({
@@ -56,6 +53,14 @@ export const YaNddPvzModal = ({
     return el;
   }, []);
 
+  const onCloseRef = useRef(onClose);
+  const onSelectRef = useRef(onSelect);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+    onSelectRef.current = onSelect;
+  }, [onClose, onSelect]);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
 
@@ -69,6 +74,19 @@ export const YaNddPvzModal = ({
 
     let cancelled = false;
 
+    const onPointSelected = (evt: Event) => {
+      const d = (evt as CustomEvent)?.detail as any;
+      if (!d?.id) return;
+
+      onSelectRef.current({
+        pvzId: String(d.id),
+        addressFull: d?.address?.full_address,
+        raw: d
+      });
+
+      onCloseRef.current();
+    };
+
     const init = async () => {
       setLoading(true);
       setError('');
@@ -77,87 +95,87 @@ export const YaNddPvzModal = ({
         await ensureYaNddWidgetLoaded();
         if (cancelled) return;
 
-        // Небольшая проверка: если нет станции отгрузки, виджет может работать,
-        // но часто это не то поведение, которое тебе нужно в проде.
-        // Пока не блочим жестко, но предупреждаем.
-        if (!sourcePlatformStationId) {
-          console.warn(
-            '[YaNddPvzModal] sourcePlatformStationId is missing. ' +
-              'Widget may show incomplete results.'
+        const yaDelivery = (window as any)?.YaDelivery;
+        const createWidget = yaDelivery?.createWidget;
+
+        if (typeof createWidget !== 'function') {
+          throw new Error(
+            'YaDelivery.createWidget недоступен. Скрипт виджета не загрузился или заблокирован.'
           );
         }
 
-        // 1) Подписываемся на событие выбора точки
-        const onPointSelected = (evt: any) => {
-          const d = evt?.detail;
-          if (!d?.id) return;
+        if (!sourcePlatformStationId) {
+          console.warn(
+            '[YaNddPvzModal] sourcePlatformStationId is missing. Widget may show incomplete results.'
+          );
+        }
 
-          onSelect({
-            pvzId: String(d.id),
-            addressFull: d?.address?.full_address,
-            raw: d
-          });
-
-          onClose();
-        };
-
+        // 1) Подписка на выбор точки
         document.addEventListener('YaNddWidgetPointSelected', onPointSelected);
 
-        // 2) Создаем виджет
-        // Важно: контейнер должен существовать в DOM
+        // 2) Рендер виджета
         const container = document.getElementById(containerId);
-        if (!container) return;
+        if (!container) {
+          // если контейнера нет (редко, но бывает) - снимем слушатель
+          document.removeEventListener('YaNddWidgetPointSelected', onPointSelected);
+          return;
+        }
 
-        // иногда виджет не любит повторный createWidget в тот же контейнер
+        // Иногда повторная инициализация в тот же контейнер ломает UI
         container.innerHTML = '';
 
-        (window as any).YaDelivery.createWidget({
-          containerId,
-          params: {
-            city,
-            size: { width: '100%', height: '100%' },
+        const filterType = includeTerminals
+          ? ['pickup_point', 'terminal']
+          : ['pickup_point'];
 
-            // ВРЕМЕННО для проверки (тестовая станция из доки)
-            source_platform_station: '05e809bb-4521-42d9-a936-0fb0744c0fb3',
-            physical_dims_weight_gross: 10000,
+        const widgetParams: any = {
+          city,
+          size: { width: '100%', height: '100%' },
+          show_select_button: true,
 
-            show_select_button: true,
+          // Вес товара (фильтрация доступных точек)
+          physical_dims_weight_gross: weightGrossG,
 
-            // на первом этапе вообще без фильтров оплаты, чтобы не отфильтровать все точки
-            filter: {
-              type: ['pickup_point', 'terminal'],
-              is_yandex_branded: false
-            }
+          // Станция отгрузки продавца (если есть)
+          ...(sourcePlatformStationId
+            ? { source_platform_station: sourcePlatformStationId }
+            : {}),
+
+          filter: {
+            type: filterType,
+            is_yandex_branded: false
           }
-        });
-
-        // 3) Cleanup
-        return () => {
-          document.removeEventListener(
-            'YaNddWidgetPointSelected',
-            onPointSelected
-          );
         };
+
+        // Фильтр оплаты включаем только если реально передали методы (и не пусто)
+        if (paymentMethods && paymentMethods.length > 0) {
+          widgetParams.filter.payment_methods = paymentMethods;
+          widgetParams.filter.payment_methods_filter = 'or';
+        }
+
+        createWidget({
+          containerId,
+          params: widgetParams
+        });
       } catch (e: any) {
-        setError(e?.message || 'Ошибка инициализации виджета ПВЗ');
+        if (!cancelled) {
+          setError(e?.message || 'Ошибка инициализации виджета ПВЗ');
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
-    let cleanup: any;
-    init().then((c) => (cleanup = c));
+    void init();
 
     return () => {
       cancelled = true;
-      if (typeof cleanup === 'function') cleanup();
+      document.removeEventListener('YaNddWidgetPointSelected', onPointSelected);
     };
   }, [
     isOpen,
     city,
     containerId,
-    onClose,
-    onSelect,
     sourcePlatformStationId,
     weightGrossG,
     includeTerminals,
@@ -168,7 +186,7 @@ export const YaNddPvzModal = ({
 
   const modal = (
     <div
-      onClick={onClose}
+      onClick={() => onCloseRef.current()}
       style={{
         position: 'fixed',
         inset: 0,
@@ -208,7 +226,7 @@ export const YaNddPvzModal = ({
         >
           <span>{title}</span>
           <button
-            onClick={onClose}
+            onClick={() => onCloseRef.current()}
             style={{
               cursor: 'pointer',
               background: 'transparent',

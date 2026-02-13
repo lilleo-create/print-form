@@ -39,25 +39,27 @@ export const CheckoutLayout = () => {
 
   const total = useMemo(
     () =>
-      data?.cartItems.reduce(
-        (sum, item) => sum + item.price * item.quantity,
-        0
-      ) ?? 0,
+      data?.cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0) ??
+      0,
     [data?.cartItems]
   );
 
-  if (isLoading && !data)
-    return <p className={styles.state}>Загрузка checkout…</p>;
-  if (!data)
+  if (isLoading && !data) return <p className={styles.state}>Загрузка checkout…</p>;
+
+  if (!data) {
     return (
       <p className={styles.state}>{error ?? 'Не удалось загрузить checkout'}</p>
     );
+  }
+
+  const city = data.address?.city ?? 'Москва';
 
   return (
     <div className={styles.layout}>
       <div className={styles.left}>
         <section className={styles.block}>
           <h2>Доставка</h2>
+
           <DeliveryMethodSelector
             methods={data.deliveryMethods}
             selected={data.selectedDeliveryMethod ?? 'PICKUP_POINT'}
@@ -67,9 +69,7 @@ export const CheckoutLayout = () => {
           {data.selectedDeliveryMethod === 'PICKUP_POINT' ? (
             <PickupPointBlock
               point={data.selectedPickupPoint ?? null}
-              onOpen={() => {
-                setPickupModalOpen(true);
-              }}
+              onOpen={() => setPickupModalOpen(true)}
             />
           ) : (
             <AddressBlock
@@ -100,20 +100,17 @@ export const CheckoutLayout = () => {
       <aside className={styles.right}>
         <PaymentMethodSelector
           data={data}
-          onSelectMethod={(method, cardId) =>
-            void setPaymentMethod(method, cardId)
-          }
+          onSelectMethod={(method, cardId) => void setPaymentMethod(method, cardId)}
           onOpenAddCard={() => setAddCardOpen(true)}
         />
 
         <div className={styles.summary}>
           <div>Итого: {total.toLocaleString('ru-RU')} ₽</div>
-          <Button
-            isLoading={isSubmittingOrder}
-            onClick={() => void placeOrder()}
-          >
+
+          <Button isLoading={isSubmittingOrder} onClick={() => void placeOrder()}>
             Пополнить и оплатить
           </Button>
+
           {error ? <p className={styles.error}>{error}</p> : null}
         </div>
       </aside>
@@ -129,7 +126,12 @@ export const CheckoutLayout = () => {
           });
           setPickupModalOpen(false);
         }}
-        city="Москва"
+        city={city}
+        sourcePlatformStationId={data.sellerDropoffStationId ?? undefined}
+        weightGrossG={10000}
+        includeTerminals
+        // paymentMethods можешь отключить, если подозреваешь что фильтр режет точки:
+        // paymentMethods={[]}
       />
 
       <RecipientModal
