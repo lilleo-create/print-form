@@ -229,6 +229,7 @@ export interface Order {
   buyer?: { id: string; name: string; email: string; phone?: string | null } | null;
   items: OrderItem[];
   delivery?: OrderDelivery | null;
+  payoutStatus?: string | null;
   shipment?: {
     id: string;
     provider: string;

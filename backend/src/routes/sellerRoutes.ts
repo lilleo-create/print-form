@@ -13,6 +13,7 @@ import { sellerProductSchema } from './productRoutes';
 import { writeLimiter } from '../middleware/rateLimiters';
 import { sellerDeliveryProfileService } from '../services/sellerDeliveryProfileService';
 import { yandexNddShipmentOrchestrator } from '../services/yandexNddShipmentOrchestrator';
+import { payoutService } from '../services/payoutService';
 import { shipmentService } from '../services/shipmentService';
 import { yandexDeliveryService } from '../services/yandexDeliveryService';
 import { sellerOrderDocumentsService } from '../services/sellerOrderDocumentsService';
@@ -729,23 +730,31 @@ sellerRoutes.patch('/orders/:id/status', writeLimiter, async (req: AuthRequest, 
       return res.status(400).json({ error: { code: 'TRACKING_REQUIRED' } });
     }
 
-    const updated = await prisma.order.update({
-      where: { id: order.id },
-      data: {
-        status: payload.status,
-        statusUpdatedAt: new Date(),
-        trackingNumber,
-        carrier
-      },
-      include: {
-        items: {
-          where: { product: { sellerId: req.user!.userId } },
-          include: { product: true, variant: true }
+    const updated = await prisma.$transaction(async (tx) => {
+      const nextOrder = await tx.order.update({
+        where: { id: order.id },
+        data: {
+          status: payload.status,
+          statusUpdatedAt: new Date(),
+          trackingNumber,
+          carrier
         },
-        contact: true,
-        shippingAddress: true,
-        buyer: true
+        include: {
+          items: {
+            where: { product: { sellerId: req.user!.userId } },
+            include: { product: true, variant: true }
+          },
+          contact: true,
+          shippingAddress: true,
+          buyer: true
+        }
+      });
+
+      if (payload.status === 'DELIVERED') {
+        await payoutService.releaseForDeliveredOrder(order.id, tx as any);
       }
+
+      return nextOrder;
     });
 
     res.json({ data: updated });
@@ -753,6 +762,7 @@ sellerRoutes.patch('/orders/:id/status', writeLimiter, async (req: AuthRequest, 
     next(error);
   }
 });
+
 
 sellerRoutes.get('/stats', async (req: AuthRequest, res, next) => {
   try {

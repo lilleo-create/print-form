@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../app/store/authStore';
 import { api } from '../shared/api';
 import { ordersApi } from '../shared/api/ordersApi';
+import { normalizeApiError } from '../shared/api/client';
 import { useSellerContext } from '../hooks/seller/useSellerContext';
 import {
   Order,
@@ -525,7 +526,20 @@ export const SellerDashboardPage = () => {
     try {
       await ordersApi.readyToShip(orderId);
       await loadOrders();
-    } catch {
+    } catch (error) {
+      const normalized = normalizeApiError(error);
+      if (normalized.code === 'PAYMENT_REQUIRED') {
+        setOrderUpdateError('Заказ не оплачен.');
+        return;
+      }
+      if (normalized.code === 'SELLER_DROPOFF_REQUIRED') {
+        setOrderUpdateError('Не выбран ПВЗ сдачи продавца.');
+        return;
+      }
+      if (normalized.code === 'BUYER_PICKUP_REQUIRED') {
+        setOrderUpdateError('Не выбран ПВЗ покупателя.');
+        return;
+      }
       setOrderUpdateError(
         'Не удалось создать заявку доставки. Проверьте станцию отгрузки и данные ПВЗ.'
       );
@@ -597,6 +611,19 @@ export const SellerDashboardPage = () => {
     }
   };
 
+
+  const payoutLabel = (value?: string | null) => {
+    if (value === 'PAID') return 'PAID';
+    if (value === 'RELEASED' || value === 'READY_TO_PAYOUT' || value === 'READY') return 'READY';
+    return 'HOLD до получения';
+  };
+
+  const readyToShipDisabledReason = (order: Order) => {
+    if (order.status !== 'PAID') return 'Заказ не оплачен';
+    if (!order.sellerDropoffPvzMeta && !dropoffStationId) return 'Не выбран ПВЗ сдачи';
+    if (!order.shipment?.requestId && !order.buyerPickupPvzMeta && !order.shippingAddressId) return 'Не указан адрес доставки';
+    return null;
+  };
   const summary = useMemo(() => {
     const totalProducts = products.length;
     const totalOrders = orders.length;
@@ -1006,6 +1033,9 @@ export const SellerDashboardPage = () => {
                                 source_platform_station: {dropoffStationId || 'не задана'}
                               </p>
                               <p className={styles.muted}>
+                                Выплата: {payoutLabel(order.payoutStatus)}
+                              </p>
+                              <p className={styles.muted}>
                                 Статус доставки: {order.shipment?.status ?? 'не создана'}
                                 {order.shipment?.lastSyncAt
                                   ? ` · обновлено ${new Date(order.shipment.lastSyncAt).toLocaleString(
@@ -1047,10 +1077,13 @@ export const SellerDashboardPage = () => {
                                 type="button"
                                 variant="secondary"
                                 onClick={() => handleReadyToShip(order.id)}
-                                disabled={!dropoffStationId || Boolean(order.shipment?.requestId)}
-                              >
+                                disabled={Boolean(order.shipment?.requestId) || Boolean(readyToShipDisabledReason(order))}
+>
                                 Готов к отгрузке
                               </Button>
+                              {readyToShipDisabledReason(order) && !order.shipment?.requestId && (
+                                <p className={styles.muted}>{readyToShipDisabledReason(order)}</p>
+                              )}
 
                               <details>
                                 <summary>Данные для доставки</summary>

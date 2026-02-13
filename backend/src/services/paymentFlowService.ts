@@ -2,6 +2,7 @@ import { OrderStatus, Prisma, PaymentStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { orderUseCases } from '../usecases/orderUseCases';
 import { yandexDeliveryService } from './yandexDeliveryService';
+import { payoutService } from './payoutService';
 
 type StartPaymentInput = {
   buyerId: string;
@@ -261,7 +262,8 @@ export const paymentFlowService = {
             status: 'PAID',
             paidAt: new Date(),
             paymentProvider: input.provider ?? payment.provider,
-            paymentId: payment.id
+            paymentId: payment.id,
+            payoutStatus: 'HOLD'
           }
         });
 
@@ -288,6 +290,7 @@ export const paymentFlowService = {
       await tx.payment.update({ where: { id: payment.id }, data: { status: paymentStatus } });
       if (order.status === 'PAID') return;
       await tx.order.update({ where: { id: order.id }, data: { status: orderStatus } });
+      await payoutService.blockForOrder(order.id, tx as any);
     });
 
     return { ok: true };

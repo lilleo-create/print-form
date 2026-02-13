@@ -1,6 +1,5 @@
 import { prisma } from '../lib/prisma';
 import { orderDeliveryService } from './orderDeliveryService';
-import { sellerDeliveryProfileService } from './sellerDeliveryProfileService';
 import { mapYandexStatusToInternal, shipmentService } from './shipmentService';
 import { yandexNddClient } from './yandexNdd/YandexNddClient';
 
@@ -14,6 +13,10 @@ const pickBestOffer = (response: Record<string, unknown>) => {
   });
   return sorted[0];
 };
+
+
+const asRecord = (value: unknown): Record<string, unknown> | undefined =>
+  value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
 
 const extractYandexStatus = (payload: Record<string, unknown>) => {
   const status =
@@ -40,15 +43,32 @@ export const yandexNddShipmentOrchestrator = {
       throw new Error('ORDER_NOT_FOUND');
     }
 
-    const deliveryMap = await orderDeliveryService.getByOrderIds([orderId]);
-    const delivery = deliveryMap.get(orderId);
-    if (!delivery || delivery.deliveryMethod !== 'PICKUP_POINT' || !delivery.pickupPoint?.id) {
-      throw new Error('PICKUP_POINT_REQUIRED');
+    if (order.status !== 'PAID' || !order.paidAt) {
+      throw new Error('PAYMENT_REQUIRED');
     }
 
-    const profile = await sellerDeliveryProfileService.getBySellerId(sellerId);
-    if (!profile?.dropoffStationId) {
-      throw new Error('DROPOFF_STATION_REQUIRED');
+    if (!order.sellerDropoffPvzId) {
+      throw new Error('SELLER_DROPOFF_REQUIRED');
+    }
+
+    if (!order.buyerPickupPvzId && !order.shippingAddressId) {
+      throw new Error('DELIVERY_DESTINATION_REQUIRED');
+    }
+
+    const deliveryMap = await orderDeliveryService.getByOrderIds([orderId]);
+    const delivery = deliveryMap.get(orderId);
+    const deliveryMethod = delivery?.deliveryMethod ?? (order.shippingAddressId ? 'COURIER' : 'PICKUP_POINT');
+
+    if (deliveryMethod === 'PICKUP_POINT' && !order.buyerPickupPvzId) {
+      throw new Error('BUYER_PICKUP_REQUIRED');
+    }
+
+    if (deliveryMethod === 'COURIER' && !order.shippingAddressId) {
+      throw new Error('SHIPPING_ADDRESS_REQUIRED');
+    }
+
+    if (deliveryMethod !== 'PICKUP_POINT') {
+      throw new Error('DELIVERY_METHOD_NOT_SUPPORTED');
     }
 
     const existing = await shipmentService.getByOrderId(orderId);
@@ -60,17 +80,17 @@ export const yandexNddShipmentOrchestrator = {
       existing ??
       (await shipmentService.upsertForOrder({
         orderId,
-        deliveryMethod: delivery.deliveryMethod,
-        sourceStationId: profile.dropoffStationId,
-        sourceStationSnapshot: profile.dropoffStationMeta ?? undefined,
-        destinationStationId: delivery.pickupPoint.id,
-        destinationStationSnapshot: delivery.pickupPoint,
+        deliveryMethod,
+        sourceStationId: order.sellerDropoffPvzId,
+        sourceStationSnapshot: asRecord(order.sellerDropoffPvzMeta),
+        destinationStationId: order.buyerPickupPvzId!,
+        destinationStationSnapshot: delivery?.pickupPoint ?? asRecord(order.buyerPickupPvzMeta),
         status: 'CREATED'
       }));
 
     const offersBody = {
-      source_platform_station: profile.dropoffStationId,
-      destination_platform_station: delivery.pickupPoint.id,
+      source_platform_station: order.sellerDropoffPvzId,
+      destination_platform_station: order.buyerPickupPvzId,
       places: [{ physical_dims: { weight_gross: 500, dx: 10, dy: 10, dz: 10 } }]
     };
     const offersResponse = await yandexNddClient.offersCreate(offersBody);
@@ -82,8 +102,8 @@ export const yandexNddShipmentOrchestrator = {
 
     const offersConfirmResponse = await yandexNddClient.offersConfirm({ offers: [selectedOffer] });
     const requestCreateResponse = await yandexNddClient.requestCreate({
-      source_platform_station: profile.dropoffStationId,
-      destination_platform_station: delivery.pickupPoint.id,
+      source_platform_station: order.sellerDropoffPvzId,
+      destination_platform_station: order.buyerPickupPvzId,
       offer: selectedOffer,
       order_ref: orderId,
       recipient: {
@@ -111,15 +131,25 @@ export const yandexNddShipmentOrchestrator = {
 
     const updated = await shipmentService.upsertForOrder({
       orderId,
-      deliveryMethod: delivery.deliveryMethod,
-      sourceStationId: profile.dropoffStationId,
-      sourceStationSnapshot: profile.dropoffStationMeta ?? undefined,
-      destinationStationId: delivery.pickupPoint.id,
-      destinationStationSnapshot: delivery.pickupPoint,
+      deliveryMethod,
+      sourceStationId: order.sellerDropoffPvzId,
+      sourceStationSnapshot: asRecord(order.sellerDropoffPvzMeta),
+      destinationStationId: order.buyerPickupPvzId!,
+      destinationStationSnapshot: delivery?.pickupPoint ?? asRecord(order.buyerPickupPvzMeta),
       requestId,
       offerPayload: JSON.stringify(selectedOffer),
       status: internalStatus,
       statusRaw
+    });
+
+    await prisma.order.update({
+      where: { id: order.id },
+      data: {
+        status: 'READY_FOR_SHIPMENT',
+        statusUpdatedAt: new Date(),
+        readyForShipmentAt: new Date(),
+        dropoffDeadlineAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+      }
     });
 
     await shipmentService.pushHistory(updated.id, internalStatus, statusRaw);

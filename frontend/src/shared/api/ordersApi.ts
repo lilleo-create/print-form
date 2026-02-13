@@ -30,6 +30,7 @@ type ApiOrder = {
   sellerDropoffPvzMeta?: { addressFull?: string } | null;
   orderLabels?: Array<{ packageNo: number; code: string }>;
   createdAt: string;
+  payoutStatus?: string | null;
   trackingNumber?: string | null;
   carrier?: string | null;
   contact?: Order['contact'];
@@ -73,6 +74,7 @@ const mapOrder = (order: ApiOrder): Order => ({
   sellerDropoffPvzMeta: order.sellerDropoffPvzMeta ?? null,
   orderLabels: order.orderLabels ?? [],
   createdAt: order.createdAt,
+  payoutStatus: order.payoutStatus ?? null,
   trackingNumber: order.trackingNumber ?? null,
   carrier: order.carrier ?? null,
   contact: order.contact ?? null,
