@@ -619,7 +619,7 @@ export const SellerDashboardPage = () => {
   };
 
   const readyToShipDisabledReason = (order: Order) => {
-    if (order.status !== 'PAID') return 'Заказ не оплачен';
+    if (!order.paidAt && order.status !== 'PAID') return 'Ожидает оплаты';
     if (!order.sellerDropoffPvzMeta && !dropoffStationId) return 'Не выбран ПВЗ сдачи';
     if (!order.shipment?.requestId && !order.buyerPickupPvzMeta && !order.shippingAddressId) return 'Не указан адрес доставки';
     return null;

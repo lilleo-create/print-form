@@ -241,6 +241,10 @@ export const paymentFlowService = {
     return { orderId: order.id, paymentId: payment.id, paymentUrl };
   },
 
+  async mockSuccess(paymentId: string) {
+    return this.processWebhook({ paymentId, status: 'success', provider: 'manual' });
+  },
+
   async processWebhook(input: { paymentId: string; status: 'success' | 'failed' | 'cancelled' | 'expired'; provider?: string }) {
     const payment = await prisma.payment.findUnique({ where: { id: input.paymentId }, include: { order: true } });
     if (!payment) return { ok: true };

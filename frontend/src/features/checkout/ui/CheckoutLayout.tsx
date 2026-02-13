@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { checkoutApi } from '../api/checkoutApi';
 import { Button } from '../../../shared/ui/Button';
 import { useCheckoutStore } from '../model/useCheckoutStore';
 import { DeliveryMethodSelector } from './DeliveryMethodSelector';
@@ -33,6 +34,7 @@ export const CheckoutLayout = () => {
   const [isRecipientOpen, setRecipientOpen] = useState(false);
   const [isAddCardOpen, setAddCardOpen] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
+  const [pendingPaymentId, setPendingPaymentId] = useState<string | null>(null);
 
   useEffect(() => {
     void fetchCheckout();
@@ -53,13 +55,29 @@ export const CheckoutLayout = () => {
     setIsPaying(true);
     try {
       const result = await placeOrder();
-      if (result?.paymentUrl) {
+      if (!result) return;
+
+      setPendingPaymentId(result.paymentId);
+
+      if (!import.meta.env.DEV && result.paymentUrl) {
         window.location.assign(result.paymentUrl);
       }
     } finally {
       setIsPaying(false);
     }
   };
+
+  const handleMockSuccess = async () => {
+    if (!pendingPaymentId) return;
+    setIsPaying(true);
+    try {
+      await checkoutApi.mockSuccess(pendingPaymentId);
+      window.location.assign('/orders');
+    } finally {
+      setIsPaying(false);
+    }
+  };
+
   if (isLoading && !data)
     return <p className={styles.state}>Загрузка checkout…</p>;
 
@@ -133,6 +151,12 @@ export const CheckoutLayout = () => {
           >
             Пополнить и оплатить
           </Button>
+
+          {import.meta.env.DEV && pendingPaymentId ? (
+            <Button variant="ghost" disabled={isPaying} onClick={() => void handleMockSuccess()}>
+              Симулировать оплату
+            </Button>
+          ) : null}
 
           {error ? <p className={styles.error}>{error}</p> : null}
         </div>

@@ -55,6 +55,20 @@ paymentRoutes.post('/start', authenticate, writeLimiter, async (req: AuthRequest
   }
 });
 
+
+paymentRoutes.post('/:id/mock-success', authenticate, writeLimiter, async (req: AuthRequest, res, next) => {
+  try {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('FORBIDDEN');
+    }
+
+    await paymentFlowService.mockSuccess(req.params.id);
+    return res.json({ data: { ok: true } });
+  } catch (error) {
+    return next(error);
+  }
+});
+
 paymentRoutes.post('/webhook', async (req, res, next) => {
   try {
     const signature = req.headers['x-signature'];

@@ -47,8 +47,6 @@ export const errorHandler = (
     ? 403
     : error.message === 'USER_EXISTS' || error.message === 'EMAIL_EXISTS' || error.message === 'PHONE_EXISTS'
     ? 409
-    : error.message === 'PAYMENT_REQUIRED'
-    ? 402
     : error.message === 'OTP_INVALID' ||
       error.message === 'OTP_EXPIRED' ||
       error.message === 'OTP_TOO_MANY' ||
@@ -57,6 +55,7 @@ export const errorHandler = (
       error.message === 'PHONE_MISMATCH' ||
       error.message === 'KYC_FILE_TYPE_INVALID' ||
       error.message === 'AMOUNT_MISMATCH' ||
+      error.message === 'PAYMENT_REQUIRED' ||
       error.message === 'SELLER_DROPOFF_REQUIRED' ||
       error.message === 'BUYER_PICKUP_REQUIRED' ||
       error.message === 'SHIPPING_ADDRESS_REQUIRED' ||
