@@ -241,8 +241,13 @@ export interface SellerDeliveryProfile {
   defaultDropoffPvzId?: string | null;
   defaultDropoffPvzMeta?: { addressFull?: string } | null;
 
-  // что реально принимает update (судя по 400)
-  dropoffPvz?: { id: string; addressFull?: string } | null;
+  // payload/profile shape for dropoff PVZ
+  dropoffPvz?: {
+    provider: 'YANDEX_NDD';
+    pvzId: string;
+    raw: unknown;
+    addressFull?: string;
+  } | null;
 
   createdAt: string;
   updatedAt: string;

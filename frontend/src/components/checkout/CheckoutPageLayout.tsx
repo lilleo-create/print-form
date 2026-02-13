@@ -41,11 +41,7 @@ const contactSchema = z.object({
     .refine((v) => isValidEmailOptional(v), 'Введите корректный email')
 });
 
-type CheckoutPageLayoutProps = {
-  pathname?: string;
-};
-
-export const CheckoutPageLayout = ({}: CheckoutPageLayoutProps) => {
+export const CheckoutPageLayout = () => {
   const items = useCartStore((state) => state.items);
   const clear = useCartStore((state) => state.clear);
   const user = useAuthStore((state) => state.user);

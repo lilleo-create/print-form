@@ -238,7 +238,14 @@ export const api = {
     return apiClient.request<SellerDeliveryProfile | null>('/seller/settings');
   },
 
-  async updateSellerDeliveryProfile(payload: { dropoffPvz: Record<string, unknown> }) {
+  async updateSellerDeliveryProfile(payload: {
+    dropoffPvz: {
+      provider: 'YANDEX_NDD';
+      pvzId: string;
+      raw: unknown;
+      addressFull?: string;
+    };
+  }) {
     return apiClient.request<SellerDeliveryProfile>('/seller/settings/dropoff-pvz', { method: 'PUT', body: payload });
   },
 
