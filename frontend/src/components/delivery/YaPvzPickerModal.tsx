@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { ensureYaNddWidgetLoaded } from '../../shared/lib/yaNddWidget';
+import styles from './YaPvzPickerModal.module.css';
 
 export type YaPvzSelection = {
   pvzId: string;
@@ -17,7 +18,9 @@ type YaNddPvzModalProps = {
   sourcePlatformStationId?: string;
   weightGrossG?: number;
   includeTerminals?: boolean;
-  paymentMethods?: Array<'already_paid' | 'cash_on_receipt' | 'card_on_receipt'>;
+  paymentMethods?: Array<
+    'already_paid' | 'cash_on_receipt' | 'card_on_receipt'
+  >;
 };
 
 type MapCenter = {
@@ -36,17 +39,16 @@ type WidgetBoundsDetail = {
   bounds?: unknown;
 };
 
-
 const DEFAULT_PAYMENT_METHODS: Array<'already_paid' | 'card_on_receipt'> = [
   'already_paid',
   'card_on_receipt'
 ];
 
 const CITY_CENTERS: Record<string, MapCenter> = {
-  'москва': { latitude: 55.751244, longitude: 37.618423, zoom: 12 },
+  москва: { latitude: 55.751244, longitude: 37.618423, zoom: 12 },
   'санкт-петербург': { latitude: 59.93428, longitude: 30.335099, zoom: 12 },
-  'екатеринбург': { latitude: 56.838926, longitude: 60.605703, zoom: 12 },
-  'казань': { latitude: 55.796127, longitude: 49.106414, zoom: 12 }
+  екатеринбург: { latitude: 56.838926, longitude: 60.605703, zoom: 12 },
+  казань: { latitude: 55.796127, longitude: 49.106414, zoom: 12 }
 };
 
 const getCityCenter = (city: string): MapCenter => {
@@ -54,7 +56,10 @@ const getCityCenter = (city: string): MapCenter => {
   return CITY_CENTERS[normalized] ?? CITY_CENTERS['москва'];
 };
 
-const debounce = <T extends (...args: unknown[]) => void>(fn: T, timeoutMs: number) => {
+const debounce = <T extends (...args: unknown[]) => void>(
+  fn: T,
+  timeoutMs: number
+) => {
   let timeout: ReturnType<typeof setTimeout> | null = null;
 
   return (...args: Parameters<T>) => {
@@ -62,6 +67,8 @@ const debounce = <T extends (...args: unknown[]) => void>(fn: T, timeoutMs: numb
     timeout = setTimeout(() => fn(...args), timeoutMs);
   };
 };
+
+const isDev = import.meta.env.DEV;
 
 export const YaNddPvzModal = ({
   isOpen,
@@ -74,10 +81,11 @@ export const YaNddPvzModal = ({
   includeTerminals = true,
   paymentMethods
 }: YaNddPvzModalProps) => {
-  const containerId = useMemo(
-    () => `ya-ndd-widget-${Math.random().toString(16).slice(2)}`,
-    []
+  const containerId = useRef(
+    `ya-ndd-widget-${Math.random().toString(16).slice(2)}`
   );
+  const widgetInitializedRef = useRef(false);
+  const openCountRef = useRef(0);
 
   const portalRoot = useMemo(() => {
     const el = document.createElement('div');
@@ -110,14 +118,18 @@ export const YaNddPvzModal = ({
   }, [portalRoot]);
 
   useEffect(() => {
-    if (!isOpen) return;
-
-    let cancelled = false;
-    let onBoundsChanged: ((evt: Event) => void) | null = null;
-
     const onPointSelected = (evt: Event) => {
-      const detail = (evt as CustomEvent<WidgetPointDetail | undefined>)?.detail;
+      const detail = (evt as CustomEvent<WidgetPointDetail | undefined>)
+        ?.detail;
       if (!detail?.id) return;
+
+      if (isDev) {
+        console.info('[YaNddPvzModal] YaNddWidgetPointSelected', {
+          id: detail.id,
+          address: detail?.address?.full_address,
+          detail
+        });
+      }
 
       onSelectRef.current({
         pvzId: String(detail.id),
@@ -128,7 +140,29 @@ export const YaNddPvzModal = ({
       onCloseRef.current();
     };
 
-    const init = async () => {
+    document.addEventListener('YaNddWidgetPointSelected', onPointSelected);
+
+    return () => {
+      document.removeEventListener('YaNddWidgetPointSelected', onPointSelected);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    openCountRef.current += 1;
+    if (isDev) {
+      console.info('[YaNddPvzModal][DEV harness] modal open', {
+        openCount: openCountRef.current,
+        widgetInitialized: widgetInitializedRef.current,
+        containerId: containerId.current
+      });
+    }
+
+    let cancelled = false;
+    let onBoundsChanged: ((evt: Event) => void) | null = null;
+
+    const updateWidget = async () => {
       setLoading(true);
       setError('');
 
@@ -140,28 +174,32 @@ export const YaNddPvzModal = ({
         const createWidget = yaDelivery?.createWidget;
         const setParams = yaDelivery?.setParams;
 
-        if (typeof createWidget !== 'function') {
-          throw new Error('YaDelivery.createWidget недоступен.');
-        }
+        const container = document.getElementById(containerId.current);
+        if (!container) throw new Error('Контейнер виджета ПВЗ не найден.');
 
-        document.addEventListener('YaNddWidgetPointSelected', onPointSelected);
-
-        const container = document.getElementById(containerId);
-        if (!container) {
-          document.removeEventListener('YaNddWidgetPointSelected', onPointSelected);
-          return;
-        }
-
-        container.innerHTML = '';
-
+        const rectBefore = container.getBoundingClientRect();
+        const widgetHeightPx = Math.max(
+          Math.round(rectBefore.height || 0),
+          520
+        );
         const fallbackCenter = getCityCenter(city);
         const filterType = includeTerminals
           ? ['pickup_point', 'terminal']
           : ['pickup_point'];
 
+        if (isDev) {
+          console.info('[YaNddPvzModal][DEV] before create/update', {
+            rectBefore,
+            hasYaDelivery: Boolean(yaDelivery),
+            hasSetParams: typeof setParams === 'function',
+            hasCreateWidget: typeof createWidget === 'function',
+            widgetHeightPx
+          });
+        }
+
         const widgetParams: Record<string, unknown> = {
           city,
-          size: { width: '100%', height: '100%' },
+          size: { width: '100%', height: widgetHeightPx },
           show_select_button: true,
           physical_dims_weight_gross: weightGrossG,
           map: {
@@ -187,202 +225,149 @@ export const YaNddPvzModal = ({
           }
         };
 
-        createWidget({ containerId, params: widgetParams });
-
-        const updateViewport = debounce((detail: WidgetBoundsDetail | undefined) => {
-          if (typeof setParams !== 'function') return;
-          const bounds = detail?.bounds;
-          if (!bounds) return;
-
-          setParams({
-            map: {
-              bounds,
-              radius_m: 15000
-            }
+        if (!widgetInitializedRef.current) {
+          if (typeof createWidget !== 'function') {
+            throw new Error('YaDelivery.createWidget недоступен.');
+          }
+          createWidget({
+            containerId: containerId.current,
+            params: widgetParams
           });
-        }, 400);
-
-        onBoundsChanged = (evt: Event) => {
-          const detail = (evt as CustomEvent)?.detail;
-          updateViewport(detail);
-        };
-
-        document.addEventListener('YaNddWidgetBoundsChanged', onBoundsChanged);
-
-        if (navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition(
-            (position) => {
-              if (cancelled || typeof setParams !== 'function') return;
-
-              setParams({
-                map: {
-                  center: {
-                    latitude: position.coords.latitude,
-                    longitude: position.coords.longitude
-                  },
-                  zoom: 14,
-                  radius_m: 7000
-                }
-              });
-            },
-            () => {
-              if (cancelled || typeof setParams !== 'function') return;
-              setParams({
-                map: {
-                  center: {
-                    latitude: fallbackCenter.latitude,
-                    longitude: fallbackCenter.longitude
-                  },
-                  zoom: fallbackCenter.zoom,
-                  radius_m: 10000
-                }
-              });
-            },
-            { timeout: 6000, maximumAge: 300000, enableHighAccuracy: false }
-          );
+          widgetInitializedRef.current = true;
+        } else if (typeof setParams === 'function') {
+          setParams(widgetParams);
         }
 
-        if (cancelled && onBoundsChanged) {
-          document.removeEventListener('YaNddWidgetBoundsChanged', onBoundsChanged);
+        if (typeof setParams === 'function') {
+          const updateViewport = debounce((detail: unknown) => {
+            const bounds = (detail as WidgetBoundsDetail | undefined)?.bounds;
+            if (!bounds) return;
+
+            setParams({
+              map: {
+                bounds,
+                radius_m: 15000
+              }
+            });
+          }, 400);
+
+          onBoundsChanged = (evt: Event) => {
+            const detail = (evt as CustomEvent)?.detail;
+            updateViewport(detail);
+          };
+
+          document.addEventListener(
+            'YaNddWidgetBoundsChanged',
+            onBoundsChanged
+          );
+
+          if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+              (position) => {
+                if (cancelled) return;
+
+                setParams({
+                  map: {
+                    center: {
+                      latitude: position.coords.latitude,
+                      longitude: position.coords.longitude
+                    },
+                    zoom: 14,
+                    radius_m: 7000
+                  }
+                });
+              },
+              () => {
+                if (cancelled) return;
+
+                setParams({
+                  map: {
+                    center: {
+                      latitude: fallbackCenter.latitude,
+                      longitude: fallbackCenter.longitude
+                    },
+                    zoom: fallbackCenter.zoom,
+                    radius_m: 10000
+                  }
+                });
+              },
+              { timeout: 6000, maximumAge: 300000, enableHighAccuracy: false }
+            );
+          }
+
+          const rectAfter = container.getBoundingClientRect();
+          if (isDev) {
+            console.info('[YaNddPvzModal][DEV] after create/update', {
+              rectAfter,
+              hasSetParams: typeof setParams === 'function'
+            });
+          }
+        } else {
+          const rectAfter = container.getBoundingClientRect();
+          if (isDev) {
+            console.info('[YaNddPvzModal][DEV] after create/update', {
+              rectAfter,
+              hasSetParams: false
+            });
+          }
         }
       } catch (e: unknown) {
         if (!cancelled) {
-          setError(e instanceof Error ? e.message : 'Ошибка инициализации виджета ПВЗ');
+          setError(
+            e instanceof Error ? e.message : 'Ошибка инициализации виджета ПВЗ'
+          );
         }
       } finally {
         if (!cancelled) setLoading(false);
       }
     };
 
-    void init();
+    void updateWidget();
 
     return () => {
       cancelled = true;
-      document.removeEventListener('YaNddWidgetPointSelected', onPointSelected);
       if (onBoundsChanged) {
-        document.removeEventListener('YaNddWidgetBoundsChanged', onBoundsChanged);
+        document.removeEventListener(
+          'YaNddWidgetBoundsChanged',
+          onBoundsChanged
+        );
       }
-
-      const container = document.getElementById(containerId);
-      if (container) container.innerHTML = '';
     };
   }, [
     isOpen,
     city,
-    containerId,
     includeTerminals,
     activePaymentMethods,
     sourcePlatformStationId,
     weightGrossG
   ]);
 
-  if (!isOpen) return null;
-
   const modal = (
     <div
       onClick={() => onCloseRef.current()}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 9999,
-        background: 'rgba(0,0,0,0.55)',
-        backdropFilter: 'blur(6px)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 24
-      }}
+      className={`${styles.overlay} ${isOpen ? styles.overlayOpen : styles.overlayClosed}`}
+      aria-hidden={!isOpen}
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: 'min(1100px, 96vw)',
-          height: 'min(720px, 90vh)',
-          background: '#0b1630',
-          borderRadius: 16,
-          border: '1px solid rgba(255,255,255,0.08)',
-          boxShadow: '0 24px 80px rgba(0,0,0,0.45)',
-          overflow: 'hidden',
-          display: 'grid',
-          gridTemplateRows: '56px 1fr'
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '0 16px',
-            borderBottom: '1px solid rgba(255,255,255,0.08)',
-            color: '#fff',
-            fontWeight: 600
-          }}
-        >
+      <div onClick={(e) => e.stopPropagation()} className={styles.modal}>
+        <div className={styles.header}>
           <span>{title}</span>
           <button
             onClick={() => onCloseRef.current()}
-            style={{
-              cursor: 'pointer',
-              background: 'transparent',
-              border: 0,
-              color: 'inherit',
-              fontSize: 22,
-              lineHeight: 1,
-              padding: 8
-            }}
+            className={styles.closeButton}
             aria-label="Закрыть"
           >
             ×
           </button>
         </div>
 
-        <div style={{ position: 'relative', height: '100%' }}>
-          <div
-            id={containerId}
-            style={{
-              width: '100%',
-              height: '100%',
-              background: 'rgba(255,255,255,0.06)'
-            }}
-          />
+        <div className={styles.body}>
+          <div id={containerId.current} className={styles.widgetContainer} />
 
-          {loading && (
-            <div
-              style={{
-                position: 'absolute',
-                left: 12,
-                right: 12,
-                bottom: 12,
-                padding: 10,
-                borderRadius: 10,
-                background: 'rgba(0,0,0,0.35)',
-                color: '#fff',
-                fontSize: 13
-              }}
-            >
-              Загружаю виджет ПВЗ…
-            </div>
+          {loading && isOpen && (
+            <div className={styles.loading}>Загружаю виджет ПВЗ…</div>
           )}
 
-          {error && (
-            <div
-              style={{
-                position: 'absolute',
-                left: 12,
-                right: 12,
-                bottom: 12,
-                padding: 10,
-                borderRadius: 10,
-                background: 'rgba(255, 0, 0, 0.18)',
-                border: '1px solid rgba(255, 0, 0, 0.35)',
-                color: '#fff',
-                fontSize: 13,
-                whiteSpace: 'pre-wrap'
-              }}
-            >
-              {error}
-            </div>
-          )}
+          {error && isOpen && <div className={styles.error}>{error}</div>}
         </div>
       </div>
     </div>
