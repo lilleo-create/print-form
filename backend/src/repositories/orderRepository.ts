@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma';
 export const orderRepository = {
   create: (data: {
     buyerId: string;
+    paymentAttemptKey?: string;
     contactId?: string;
     shippingAddressId?: string;
     buyerPickupPvz?: { provider: 'YANDEX_NDD'; pvzId: string; raw: unknown; addressFull?: string };
@@ -44,6 +45,7 @@ export const orderRepository = {
       return tx.order.create({
         data: {
           buyerId: data.buyerId,
+          paymentAttemptKey: data.paymentAttemptKey,
           contactId: data.contactId,
           shippingAddressId: data.shippingAddressId,
           buyerPickupPvzId: data.buyerPickupPvz?.pvzId,

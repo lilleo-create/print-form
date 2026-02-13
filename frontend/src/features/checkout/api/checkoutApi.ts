@@ -185,27 +185,21 @@ export const checkoutApi = {
     });
     return response.data;
   },
-  placeOrder: async (
+  startPayment: async (
     payload: {
-      delivery: {
-        deliveryMethod: DeliveryMethodCode;
-        courierAddress?: CheckoutDto['address'];
-        buyerPickupPvz?: YaPvzSelection;
-      };
-      recipient: CheckoutDto['recipient'];
-      payment: { method: PaymentMethodCode; cardId?: string };
+      paymentAttemptKey: string;
+      buyerPickupPvz: YaPvzSelection;
       items: Array<{ productId: string; quantity: number }>;
     },
     signal?: AbortSignal
   ) => {
-    const response = await client.request<{ orderId: string }>('/orders', {
+    const response = await client.request<{
+      data: { orderId: string; paymentId: string; paymentUrl: string };
+    }>('/payments/start', {
       method: 'POST',
-      body: {
-        buyerPickupPvz: payload.delivery.buyerPickupPvz,
-        items: payload.items
-      },
+      body: payload,
       signal
     });
-    return response.data;
+    return response.data.data;
   }
 };

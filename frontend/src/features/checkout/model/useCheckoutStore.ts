@@ -32,7 +32,7 @@ type CheckoutState = {
     expYear: string;
     cvv: string;
   }) => Promise<void>;
-  placeOrder: () => Promise<string | null>;
+  placeOrder: () => Promise<{ orderId: string; paymentUrl: string } | null>;
 };
 
 let fetchController: AbortController | null = null;
@@ -171,6 +171,9 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   },
 
   placeOrder: async () => {
+    if (get().isSubmittingOrder) {
+      return null;
+    }
     const data = get().data;
     if (!data) return null;
 
@@ -197,16 +200,10 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         console.debug('[Checkout] placeOrder payload', { buyerPickupPvz });
       }
 
-      const response = await checkoutApi.placeOrder({
-        delivery: {
-          deliveryMethod: 'PICKUP_POINT',
-          buyerPickupPvz
-        },
-        recipient: data.recipient,
-        payment: {
-          method: data.selectedPaymentMethod ?? 'CARD',
-          cardId: data.selectedCardId ?? undefined
-        },
+      const paymentAttemptKey = crypto.randomUUID();
+      const response = await checkoutApi.startPayment({
+        paymentAttemptKey,
+        buyerPickupPvz,
         items: data.cartItems.map((item) => ({
           productId: item.productId,
           quantity: item.quantity
@@ -214,7 +211,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       });
 
       set({ isSubmittingOrder: false });
-      return response.orderId;
+      return { orderId: response.orderId, paymentUrl: response.paymentUrl };
     } catch (error) {
       set({
         isSubmittingOrder: false,

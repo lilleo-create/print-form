@@ -32,6 +32,7 @@ export const CheckoutLayout = () => {
   const [isPvzOpen, setPvzOpen] = useState(false);
   const [isRecipientOpen, setRecipientOpen] = useState(false);
   const [isAddCardOpen, setAddCardOpen] = useState(false);
+  const [isPaying, setIsPaying] = useState(false);
 
   useEffect(() => {
     void fetchCheckout();
@@ -46,6 +47,19 @@ export const CheckoutLayout = () => {
     [data?.cartItems]
   );
 
+
+  const handlePayClick = async () => {
+    if (isPaying) return;
+    setIsPaying(true);
+    try {
+      const result = await placeOrder();
+      if (result?.paymentUrl) {
+        window.location.assign(result.paymentUrl);
+      }
+    } finally {
+      setIsPaying(false);
+    }
+  };
   if (isLoading && !data)
     return <p className={styles.state}>Загрузка checkout…</p>;
 
@@ -113,8 +127,9 @@ export const CheckoutLayout = () => {
           <div>Итого: {total.toLocaleString('ru-RU')} ₽</div>
 
           <Button
-            isLoading={isSubmittingOrder}
-            onClick={() => void placeOrder()}
+            isLoading={isSubmittingOrder || isPaying}
+            disabled={isPaying}
+            onClick={() => void handlePayClick()}
           >
             Пополнить и оплатить
           </Button>

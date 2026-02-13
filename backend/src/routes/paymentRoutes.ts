@@ -1,52 +1,49 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { prisma } from '../lib/prisma';
 import { authenticate, AuthRequest } from '../middleware/authMiddleware';
 import { writeLimiter } from '../middleware/rateLimiters';
+import { paymentFlowService } from '../services/paymentFlowService';
 
 export const paymentRoutes = Router();
 
-const intentSchema = z.object({
-  orderId: z.string(),
-  provider: z.string().optional(),
-  amount: z.number().int().positive(),
-  currency: z.string().min(3).max(5).optional()
+const startSchema = z.object({
+  paymentAttemptKey: z.string().min(6),
+  buyerPickupPvz: z.object({
+    provider: z.literal('YANDEX_NDD'),
+    pvzId: z.string().min(1),
+    addressFull: z.string().optional(),
+    raw: z.unknown().optional()
+  }),
+  items: z
+    .array(
+      z.object({
+        productId: z.string(),
+        variantId: z.string().optional(),
+        quantity: z.number().int().min(1)
+      })
+    )
+    .min(1)
 });
 
-paymentRoutes.post('/intent', authenticate, writeLimiter, async (req: AuthRequest, res, next) => {
+const webhookSchema = z.object({
+  paymentId: z.string(),
+  status: z.enum(['success', 'failed', 'cancelled', 'expired']),
+  provider: z.string().optional()
+});
+
+paymentRoutes.post('/start', authenticate, writeLimiter, async (req: AuthRequest, res, next) => {
   try {
-    const payload = intentSchema.parse(req.body);
-    const order = await prisma.order.findUnique({
-      where: { id: payload.orderId }
+    const payload = startSchema.parse(req.body);
+    const data = await paymentFlowService.startPayment({
+      buyerId: req.user!.userId,
+      paymentAttemptKey: payload.paymentAttemptKey,
+      items: payload.items,
+      buyerPickupPvz: payload.buyerPickupPvz
     });
-    if (!order || order.buyerId !== req.user!.userId) {
-      return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND' } });
-    }
-    if (payload.amount !== order.total) {
-      return res.status(400).json({ error: { code: 'AMOUNT_MISMATCH' } });
-    }
-    const payment = await prisma.payment.create({
-      data: {
-        orderId: payload.orderId,
-        provider: payload.provider ?? 'manual',
-        status: 'PENDING',
-        amount: payload.amount,
-        currency: payload.currency ?? order.currency,
-        payloadJson: { source: 'api-intent' }
-      }
-    });
-    res.status(201).json({
-      data: {
-        id: payment.id,
-        status: payment.status,
-        provider: payment.provider,
-        amount: payment.amount,
-        currency: payment.currency,
-        clientSecret: payment.id
-      }
-    });
+
+    return res.status(201).json({ data });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 });
 
@@ -56,8 +53,12 @@ paymentRoutes.post('/webhook', async (req, res, next) => {
     if (!signature) {
       return res.status(400).json({ error: { code: 'SIGNATURE_REQUIRED' } });
     }
-    res.json({ received: true });
+
+    const payload = webhookSchema.parse(req.body);
+    await paymentFlowService.processWebhook(payload);
+
+    return res.json({ received: true });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 });
