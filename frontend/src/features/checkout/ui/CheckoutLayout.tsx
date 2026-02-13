@@ -29,7 +29,7 @@ export const CheckoutLayout = () => {
     placeOrder
   } = useCheckoutStore();
 
-  const [isPickupModalOpen, setPickupModalOpen] = useState(false);
+  const [isPvzOpen, setPvzOpen] = useState(false);
   const [isRecipientOpen, setRecipientOpen] = useState(false);
   const [isAddCardOpen, setAddCardOpen] = useState(false);
 
@@ -52,8 +52,6 @@ export const CheckoutLayout = () => {
     );
   }
 
-  const city = data.address?.city ?? 'Москва';
-
   return (
     <div className={styles.layout}>
       <div className={styles.left}>
@@ -69,7 +67,7 @@ export const CheckoutLayout = () => {
           {data.selectedDeliveryMethod === 'PICKUP_POINT' ? (
             <PickupPointBlock
               point={data.selectedPickupPoint ?? null}
-              onOpen={() => setPickupModalOpen(true)}
+              onOpen={() => setPvzOpen(true)}
             />
           ) : (
             <AddressBlock
@@ -116,22 +114,19 @@ export const CheckoutLayout = () => {
       </aside>
 
       <YaNddPvzModal
-        isOpen={isPickupModalOpen}
-        onClose={() => setPickupModalOpen(false)}
+        isOpen={isPvzOpen}
+        onClose={() => setPvzOpen(false)}
         onSelect={(sel) => {
           void setPickupPoint({
             pvzId: sel.pvzId,
-            addressFull: sel.addressFull ?? '',
-            raw: sel.raw
+            addressFull: sel.addressFull ?? ''
           });
-          setPickupModalOpen(false);
+          setPvzOpen(false);
         }}
-        city={city}
-        sourcePlatformStationId={data.sellerDropoffStationId ?? undefined}
+        city={data.address?.city ?? 'Москва'}
+        sourcePlatformStationId={data.sellerDropoffStationId}
         weightGrossG={10000}
         includeTerminals
-        // paymentMethods можешь отключить, если подозреваешь что фильтр режет точки:
-        // paymentMethods={[]}
       />
 
       <RecipientModal

@@ -29,6 +29,7 @@ export type CheckoutDto = {
   selectedDeliverySubType?: string | null;
   selectedPaymentMethod?: PaymentMethodCode;
   selectedCardId?: string | null;
+  sellerDropoffStationId?: string;
   deliveryMethods: Array<{ id: string; code: DeliveryMethodCode; title: string; description?: string }>;
   paymentMethods: Array<{ id: string; code: PaymentMethodCode; title: string }>;
   savedCards: Array<{ id: string; brand: string; last4: string; expMonth: number; expYear: number }>;

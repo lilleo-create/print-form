@@ -12,23 +12,55 @@ type YaNddPvzModalProps = {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (sel: YaPvzSelection) => void;
-
   title?: string;
-
-  // Город можно менять
   city?: string;
-
-  // Станция отгрузки продавца (GUID). Нужна для маршрутов/доступности точек.
   sourcePlatformStationId?: string;
-
-  // Вес (в граммах), если нужно фильтровать точки по допустимому весу
   weightGrossG?: number;
-
-  // Хочешь постаматы тоже? тогда includeTerminals=true
   includeTerminals?: boolean;
-
-  // Фильтр методов оплаты (можно выключить, передав undefined/[])
   paymentMethods?: Array<'already_paid' | 'cash_on_receipt' | 'card_on_receipt'>;
+};
+
+type MapCenter = {
+  latitude: number;
+  longitude: number;
+  zoom?: number;
+};
+
+type WidgetPointDetail = {
+  id?: string | number;
+  address?: { full_address?: string };
+  [key: string]: unknown;
+};
+
+type WidgetBoundsDetail = {
+  bounds?: unknown;
+};
+
+
+const DEFAULT_PAYMENT_METHODS: Array<'already_paid' | 'card_on_receipt'> = [
+  'already_paid',
+  'card_on_receipt'
+];
+
+const CITY_CENTERS: Record<string, MapCenter> = {
+  'москва': { latitude: 55.751244, longitude: 37.618423, zoom: 12 },
+  'санкт-петербург': { latitude: 59.93428, longitude: 30.335099, zoom: 12 },
+  'екатеринбург': { latitude: 56.838926, longitude: 60.605703, zoom: 12 },
+  'казань': { latitude: 55.796127, longitude: 49.106414, zoom: 12 }
+};
+
+const getCityCenter = (city: string): MapCenter => {
+  const normalized = city.trim().toLowerCase();
+  return CITY_CENTERS[normalized] ?? CITY_CENTERS['москва'];
+};
+
+const debounce = <T extends (...args: unknown[]) => void>(fn: T, timeoutMs: number) => {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+
+  return (...args: Parameters<T>) => {
+    if (timeout) clearTimeout(timeout);
+    timeout = setTimeout(() => fn(...args), timeoutMs);
+  };
 };
 
 export const YaNddPvzModal = ({
@@ -40,7 +72,7 @@ export const YaNddPvzModal = ({
   sourcePlatformStationId,
   weightGrossG = 10000,
   includeTerminals = true,
-  paymentMethods = ['already_paid', 'card_on_receipt']
+  paymentMethods
 }: YaNddPvzModalProps) => {
   const containerId = useMemo(
     () => `ya-ndd-widget-${Math.random().toString(16).slice(2)}`,
@@ -58,11 +90,19 @@ export const YaNddPvzModal = ({
 
   useEffect(() => {
     onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
     onSelectRef.current = onSelect;
-  }, [onClose, onSelect]);
+  }, [onSelect]);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
+
+  const activePaymentMethods = useMemo(
+    () => paymentMethods ?? DEFAULT_PAYMENT_METHODS,
+    [paymentMethods]
+  );
 
   useEffect(() => {
     document.body.appendChild(portalRoot);
@@ -73,15 +113,16 @@ export const YaNddPvzModal = ({
     if (!isOpen) return;
 
     let cancelled = false;
+    let onBoundsChanged: ((evt: Event) => void) | null = null;
 
     const onPointSelected = (evt: Event) => {
-      const d = (evt as CustomEvent)?.detail as any;
-      if (!d?.id) return;
+      const detail = (evt as CustomEvent<WidgetPointDetail | undefined>)?.detail;
+      if (!detail?.id) return;
 
       onSelectRef.current({
-        pvzId: String(d.id),
-        addressFull: d?.address?.full_address,
-        raw: d
+        pvzId: String(detail.id),
+        addressFull: detail?.address?.full_address,
+        raw: detail
       });
 
       onCloseRef.current();
@@ -95,71 +136,118 @@ export const YaNddPvzModal = ({
         await ensureYaNddWidgetLoaded();
         if (cancelled) return;
 
-        const yaDelivery = (window as any)?.YaDelivery;
+        const yaDelivery = window.YaDelivery;
         const createWidget = yaDelivery?.createWidget;
+        const setParams = yaDelivery?.setParams;
 
         if (typeof createWidget !== 'function') {
-          throw new Error(
-            'YaDelivery.createWidget недоступен. Скрипт виджета не загрузился или заблокирован.'
-          );
+          throw new Error('YaDelivery.createWidget недоступен.');
         }
 
-        if (!sourcePlatformStationId) {
-          console.warn(
-            '[YaNddPvzModal] sourcePlatformStationId is missing. Widget may show incomplete results.'
-          );
-        }
-
-        // 1) Подписка на выбор точки
         document.addEventListener('YaNddWidgetPointSelected', onPointSelected);
 
-        // 2) Рендер виджета
         const container = document.getElementById(containerId);
         if (!container) {
-          // если контейнера нет (редко, но бывает) - снимем слушатель
           document.removeEventListener('YaNddWidgetPointSelected', onPointSelected);
           return;
         }
 
-        // Иногда повторная инициализация в тот же контейнер ломает UI
         container.innerHTML = '';
 
+        const fallbackCenter = getCityCenter(city);
         const filterType = includeTerminals
           ? ['pickup_point', 'terminal']
           : ['pickup_point'];
 
-        const widgetParams: any = {
+        const widgetParams: Record<string, unknown> = {
           city,
           size: { width: '100%', height: '100%' },
           show_select_button: true,
-
-          // Вес товара (фильтрация доступных точек)
           physical_dims_weight_gross: weightGrossG,
-
-          // Станция отгрузки продавца (если есть)
+          map: {
+            center: {
+              latitude: fallbackCenter.latitude,
+              longitude: fallbackCenter.longitude
+            },
+            zoom: fallbackCenter.zoom,
+            radius_m: 10000
+          },
           ...(sourcePlatformStationId
             ? { source_platform_station: sourcePlatformStationId }
             : {}),
-
           filter: {
             type: filterType,
-            is_yandex_branded: false
+            is_yandex_branded: false,
+            ...(activePaymentMethods.length > 0
+              ? {
+                  payment_methods: activePaymentMethods,
+                  payment_methods_filter: 'or'
+                }
+              : {})
           }
         };
 
-        // Фильтр оплаты включаем только если реально передали методы (и не пусто)
-        if (paymentMethods && paymentMethods.length > 0) {
-          widgetParams.filter.payment_methods = paymentMethods;
-          widgetParams.filter.payment_methods_filter = 'or';
+        createWidget({ containerId, params: widgetParams });
+
+        const updateViewport = debounce((detail: WidgetBoundsDetail | undefined) => {
+          if (typeof setParams !== 'function') return;
+          const bounds = detail?.bounds;
+          if (!bounds) return;
+
+          setParams({
+            map: {
+              bounds,
+              radius_m: 15000
+            }
+          });
+        }, 400);
+
+        onBoundsChanged = (evt: Event) => {
+          const detail = (evt as CustomEvent)?.detail;
+          updateViewport(detail);
+        };
+
+        document.addEventListener('YaNddWidgetBoundsChanged', onBoundsChanged);
+
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              if (cancelled || typeof setParams !== 'function') return;
+
+              setParams({
+                map: {
+                  center: {
+                    latitude: position.coords.latitude,
+                    longitude: position.coords.longitude
+                  },
+                  zoom: 14,
+                  radius_m: 7000
+                }
+              });
+            },
+            () => {
+              if (cancelled || typeof setParams !== 'function') return;
+              setParams({
+                map: {
+                  center: {
+                    latitude: fallbackCenter.latitude,
+                    longitude: fallbackCenter.longitude
+                  },
+                  zoom: fallbackCenter.zoom,
+                  radius_m: 10000
+                }
+              });
+            },
+            { timeout: 6000, maximumAge: 300000, enableHighAccuracy: false }
+          );
         }
 
-        createWidget({
-          containerId,
-          params: widgetParams
-        });
-      } catch (e: any) {
+        if (cancelled && onBoundsChanged) {
+          document.removeEventListener('YaNddWidgetBoundsChanged', onBoundsChanged);
+        }
+      } catch (e: unknown) {
         if (!cancelled) {
-          setError(e?.message || 'Ошибка инициализации виджета ПВЗ');
+          setError(e instanceof Error ? e.message : 'Ошибка инициализации виджета ПВЗ');
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -171,15 +259,21 @@ export const YaNddPvzModal = ({
     return () => {
       cancelled = true;
       document.removeEventListener('YaNddWidgetPointSelected', onPointSelected);
+      if (onBoundsChanged) {
+        document.removeEventListener('YaNddWidgetBoundsChanged', onBoundsChanged);
+      }
+
+      const container = document.getElementById(containerId);
+      if (container) container.innerHTML = '';
     };
   }, [
     isOpen,
     city,
     containerId,
-    sourcePlatformStationId,
-    weightGrossG,
     includeTerminals,
-    paymentMethods
+    activePaymentMethods,
+    sourcePlatformStationId,
+    weightGrossG
   ]);
 
   if (!isOpen) return null;
