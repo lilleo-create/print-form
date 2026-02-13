@@ -4,7 +4,7 @@ import { useCheckoutStore } from '../model/useCheckoutStore';
 import { DeliveryMethodSelector } from './DeliveryMethodSelector';
 import { AddressBlock } from './AddressBlock';
 import { PickupPointBlock } from './PickupPointBlock';
-import { YaNddPvzModal } from '../../../components/delivery/YaPvzPickerModal';
+import { YaPvzPickerModal  } from '../../../components/delivery/YaPvzPickerModal';
 import { RecipientModal } from './RecipientModal';
 import { DeliveryDatesSection } from './DeliveryDatesSection';
 import { CheckoutItemsList } from './CheckoutItemsList';
@@ -133,7 +133,7 @@ export const CheckoutLayout = () => {
         </div>
       </aside>
 
-      <YaNddPvzModal
+      <YaPvzPickerModal 
         isOpen={isPvzOpen}
         onClose={() => setPvzOpen(false)}
         onSelect={(sel) => {
