@@ -236,11 +236,22 @@ export interface Order {
 export interface SellerDeliveryProfile {
   id: string;
   sellerId: string;
+
+  // что реально хранится/возвращается
   defaultDropoffPvzId?: string | null;
-  defaultDropoffPvzMeta?: Record<string, unknown> | null;
+  defaultDropoffPvzMeta?: { addressFull?: string } | null;
+
+  // что реально принимает update (судя по 400)
+  dropoffPvz?: { id: string; addressFull?: string } | null;
+
   createdAt: string;
   updatedAt: string;
+
+  // legacy, если где-то ещё используется
+  dropoffStationId?: string;
+  dropoffStationMeta?: { addressFull?: string };
 }
+
 
 export interface User {
   id: string;

@@ -70,11 +70,6 @@ textarea:focus {
   box-shadow: var(--focus-ring);
 }
 
-section {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
 
 button {
   transition:

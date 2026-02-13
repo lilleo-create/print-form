@@ -51,13 +51,91 @@
   height: 100%;
   overflow: hidden;
   background: #fff;
+
+  /* важно: не центрировать, иначе дочерние могут схлопываться */
+  display: block;
 }
 
 .widget {
   width: 100%;
-  height: 780px;
-  max-height: 100%;
+  height: 100%;
   min-height: 0;
+}
+
+/* ---------- ЖЁСТКИЕ ПЕРЕОПРЕДЕЛЕНИЯ ДЛЯ ВИДЖЕТА ЯНДЕКСА ---------- */
+/* Внутри виджета есть стили типа .widget__content { max-width: 400px } -> из-за этого карта = 0px.
+   Мы переопределяем layout на flex: список слева фикс, карта справа занимает остаток. */
+
+:global(#ydw-widget-section) {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+:global(#ydw-widget-section .widget_wrapper) {
+  width: 100% !important;
+  height: 100% !important;
+  display: flex !important;
+  align-items: stretch !important;
+  justify-content: space-between !important;
+  gap: 0 !important;
+}
+
+/* левая колонка (список) */
+:global(#ydw-widget-section .widget_content) {
+  flex: 0 0 400px !important;
+  width: 400px !important;
+  min-width: 320px !important;
+  max-width: 400px !important;
+}
+
+/* правая колонка (карта) */
+:global(#ydw-widget-section .widget_map) {
+  flex: 1 1 auto !important;
+  width: auto !important;
+  min-width: 0 !important;
+}
+
+/* заставляем ymaps не делать width:0 */
+:global(#ydw-widget-section .ymaps-2-1-79-map) {
+  width: 100% !important;
+  max-width: none !important;
+}
+.widget :global(.widget_wrapper) {
+  width: 100% !important;
+}
+
+.widget :global(.widget_map) {
+  flex: 1 1 auto !important;
+  width: auto !important;
+}
+
+/* ---------- MOBILE: стек (список сверху, карта снизу) ---------- */
+@media (max-width: 760px) {
+  .overlay {
+    padding: 0;
+  }
+
+  .modal {
+    width: 100vw;
+    height: 100vh;
+    border-radius: 0;
+  }
+
+  :global(#ydw-widget-section .widget_wrapper) {
+    flex-direction: column !important;
+  }
+
+  :global(#ydw-widget-section .widget_content) {
+    width: 100% !important;
+    max-width: none !important;
+    flex: 0 0 320px !important; /* чтобы не было “огромного промежутка” */
+  }
+
+  :global(#ydw-widget-section .widget_map) {
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    min-height: 320px !important;
+  }
 }
 
 .error {
@@ -72,16 +150,4 @@
   text-align: center;
   padding: 16px;
   z-index: 2;
-}
-
-@media (max-width: 640px) {
-  .overlay {
-    padding: 0;
-  }
-
-  .modal {
-    width: 100vw;
-    height: 100vh;
-    border-radius: 0;
-  }
 }

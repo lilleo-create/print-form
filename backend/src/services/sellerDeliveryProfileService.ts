@@ -7,6 +7,15 @@ type SellerDeliveryProfile = {
   dropoff_station_meta: Record<string, unknown> | null;
   created_at: Date;
   updated_at: Date;
+  dropoffStationId?: string | null;
+  dropoffStationMeta?: {
+    addressFull?: string | null;
+    [key: string]: any;
+  } | null;
+  dropoffPvz: {
+    id: string;
+    addressFull?: string;
+  } | null;
 };
 
 const ensureSellerDeliveryProfileTable = async () => {
