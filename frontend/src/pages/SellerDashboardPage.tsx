@@ -1,4 +1,4 @@
-import { ChangeEvent, useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../app/store/authStore';
 import { api } from '../shared/api';
@@ -169,7 +169,7 @@ export const SellerDashboardPage = () => {
     }
   }, [navigate, sellerContextError]);
 
-  const loadProducts = async () => {
+  const loadProducts = useCallback(async () => {
     setIsProductsLoading(true);
     setProductsError(null);
     try {
@@ -183,9 +183,9 @@ export const SellerDashboardPage = () => {
     } finally {
       setIsProductsLoading(false);
     }
-  };
+  }, [isSellerReady]);
 
-  const loadOrders = async () => {
+  const loadOrders = useCallback(async () => {
     setOrdersLoading(true);
     setOrdersError(null);
 
@@ -199,11 +199,7 @@ export const SellerDashboardPage = () => {
       const data = await ordersApi.listBySeller(userId);
       setOrders(data);
 
-      setOrdersView(
-        statusFilter === 'ALL'
-          ? data
-          : data.filter((order) => order.status === statusFilter)
-      );
+      setOrdersView(data);
 
       setTrackingDrafts((prev) => {
         const next = { ...prev };
@@ -219,8 +215,17 @@ export const SellerDashboardPage = () => {
 
       // load seller delivery profile (dropoff station)
       const profileResponse = await api.getSellerDeliveryProfile();
-      setDropoffStationId(profileResponse.data?.dropoffPvz?.id ?? '');
-      setDropoffStationAddress(profileResponse.data?.dropoffPvz?.addressFull ?? '');
+      const dropoffPvz = profileResponse.data?.dropoffPvz;
+      const dropoffMeta = profileResponse.data?.defaultDropoffPvzMeta;
+      setDropoffStationId(
+        dropoffPvz?.pvzId ?? profileResponse.data?.defaultDropoffPvzId ?? ''
+      );
+      setDropoffStationAddress(
+        dropoffPvz?.addressFull ??
+          dropoffMeta?.addressFull ??
+          profileResponse.data?.defaultDropoffPvzId ??
+          ''
+      );
     } catch (error) {
       setOrders([]);
       setOrdersView([]);
@@ -232,9 +237,9 @@ export const SellerDashboardPage = () => {
     } finally {
       setOrdersLoading(false);
     }
-  };
+  }, [isSellerReady, userId]);
 
-  const loadOrdersByStatus = async (status: OrderStatus | 'ALL') => {
+  const loadOrdersByStatus = useCallback(async (status: OrderStatus | 'ALL') => {
     if (status === 'ALL') {
       setOrdersView(orders);
       return;
@@ -273,9 +278,9 @@ export const SellerDashboardPage = () => {
     } finally {
       setOrdersLoading(false);
     }
-  };
+  }, [isSellerReady, orders, userId]);
 
-  const loadKyc = async () => {
+  const loadKyc = useCallback(async () => {
     setKycLoading(true);
     setKycError(null);
     try {
@@ -289,9 +294,9 @@ export const SellerDashboardPage = () => {
     } finally {
       setKycLoading(false);
     }
-  };
+  }, [isSellerReady]);
 
-  const loadPayments = async () => {
+  const loadPayments = useCallback(async () => {
     setPaymentsLoading(true);
     setPaymentsError(null);
     try {
@@ -305,7 +310,7 @@ export const SellerDashboardPage = () => {
     } finally {
       setPaymentsLoading(false);
     }
-  };
+  }, [isSellerReady]);
 
   useEffect(() => {
     if (!isSellerReady) {
@@ -331,7 +336,7 @@ export const SellerDashboardPage = () => {
     void loadKyc();
     void loadPayments();
     if (userId) void loadOrders();
-  }, [isSellerReady, userId]);
+  }, [isSellerReady, loadKyc, loadOrders, loadPayments, loadProducts, userId]);
 
   useEffect(() => {
     if (!isSellerReady) {
@@ -345,7 +350,7 @@ export const SellerDashboardPage = () => {
     }
 
     void loadOrdersByStatus(statusFilter);
-  }, [orders, statusFilter, isSellerReady]);
+  }, [isSellerReady, loadOrdersByStatus, orders, statusFilter]);
 
   const handleKycUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -482,10 +487,10 @@ export const SellerDashboardPage = () => {
     setDeliverySettingsMessage(null);
     setDeliverySettingsError(null);
 
-    const id = dropoffStationId.trim();
-    const addressFull = dropoffStationAddress?.trim();
+    const pvzId = dropoffStationId.trim();
+    const addressFull = dropoffStationAddress.trim();
 
-    if (!id) {
+    if (!pvzId) {
       setDeliverySettingsError('Выберите ПВЗ сдачи через карту.');
       return;
     }
@@ -493,8 +498,12 @@ export const SellerDashboardPage = () => {
     try {
       await api.updateSellerDeliveryProfile({
         dropoffPvz: {
-          id: dropoffStationId.trim(),
-          addressFull: dropoffStationAddress || dropoffStationId.trim()
+          provider: 'YANDEX_NDD',
+          pvzId,
+          raw: {
+            pvzId
+          },
+          addressFull: addressFull || pvzId
         }
       });
 
