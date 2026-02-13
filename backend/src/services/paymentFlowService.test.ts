@@ -144,3 +144,47 @@ test('webhook success marks PAID and creates delivery only once', async () => {
 
   assert.equal(deliveryCalls, 1);
 });
+
+
+test('webhook success sets payoutStatus HOLD and does not create payout', async () => {
+  (prisma.payment.findUnique as any) = async () => ({ id: 'pay-3', provider: 'manual', orderId: 'order-3', order: { id: 'order-3' } });
+
+  let updatedOrderData: any = null;
+  (prisma.$transaction as any) = async (cb: any) =>
+    cb({
+      order: {
+        findUnique: async () => ({ id: 'order-3', status: 'CREATED' }),
+        update: async ({ data }: any) => {
+          updatedOrderData = data;
+          return {};
+        },
+        updateMany: async () => ({ count: 0 })
+      },
+      payment: { update: async () => ({}) }
+    });
+
+  await paymentFlowService.processWebhook({ paymentId: 'pay-3', status: 'success' });
+
+  assert.equal(updatedOrderData.payoutStatus, 'HOLD');
+});
+
+test('webhook cancel blocks payout status for unpaid order', async () => {
+  (prisma.payment.findUnique as any) = async () => ({ id: 'pay-4', provider: 'manual', orderId: 'order-4', order: { id: 'order-4' } });
+
+  let blocked = false;
+  (prisma.$transaction as any) = async (cb: any) =>
+    cb({
+      order: {
+        findUnique: async () => ({ id: 'order-4', status: 'CREATED' }),
+        update: async () => ({}),
+      },
+      payment: { update: async () => ({}) },
+      payout: { },
+    });
+
+  const payoutModule = await import('./payoutService');
+  (payoutModule.payoutService.blockForOrder as any) = async () => { blocked = true; };
+
+  await paymentFlowService.processWebhook({ paymentId: 'pay-4', status: 'cancelled' });
+  assert.equal(blocked, true);
+});

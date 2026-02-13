@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma';
 import { yandexDeliveryService } from '../services/yandexDeliveryService';
+import { payoutService } from '../services/payoutService';
 
 const SYNC_INTERVAL_MS = 10 * 60 * 1000;
 
@@ -43,12 +44,18 @@ export const runShipmentsSyncJob = async () => {
     }
 
     const internal = mapStatus(nextStatus);
-    await prisma.order.update({
-      where: { id: order.id },
-      data: {
-        yandexStatus: nextStatus,
-        ...(internal ? { status: internal as 'DELIVERED' | 'CANCELLED' | 'RETURNED' | 'IN_TRANSIT' } : {}),
-        ...(internal === 'DELIVERED' ? { payoutStatus: 'RELEASED' } : {})
+    await prisma.$transaction(async (tx) => {
+      await tx.order.update({
+        where: { id: order.id },
+        data: {
+          yandexStatus: nextStatus,
+          ...(internal ? { status: internal as 'DELIVERED' | 'CANCELLED' | 'RETURNED' | 'IN_TRANSIT' } : {}),
+          ...(internal === 'CANCELLED' || internal === 'RETURNED' ? { payoutStatus: 'BLOCKED' } : {})
+        }
+      });
+
+      if (internal === 'DELIVERED') {
+        await payoutService.releaseForDeliveredOrder(order.id, tx as any);
       }
     });
   }

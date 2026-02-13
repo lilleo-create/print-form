@@ -34,6 +34,7 @@ model User {
   sellerDeliveryProfile  SellerDeliveryProfile?
   moderatedProducts      Product[]              @relation("ProductModerator")
   moderatedReviews       Review[]               @relation("ReviewModerator")
+  payouts                Payout[]
 }
 
 model SellerProfile {
@@ -205,8 +206,25 @@ model Order {
   payments             Payment[]
   shipment             OrderShipment?
   deliveryEvents       OrderDeliveryEvent[]
+  payout               Payout?
 
   @@unique([buyerId, paymentAttemptKey])
+}
+
+
+model Payout {
+  id        String   @id @default(cuid())
+  orderId   String   @unique
+  sellerId  String
+  amount    Int
+  currency  String
+  status    String   @default("HOLD")
+  createdAt DateTime @default(now())
+  paidAt    DateTime?
+  order     Order    @relation(fields: [orderId], references: [id])
+  seller    User     @relation(fields: [sellerId], references: [id])
+
+  @@index([sellerId, status])
 }
 
 model SellerSettings {
