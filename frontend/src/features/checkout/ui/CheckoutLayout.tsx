@@ -32,6 +32,7 @@ export const CheckoutLayout = () => {
   const [isPvzOpen, setPvzOpen] = useState(false);
   const [isRecipientOpen, setRecipientOpen] = useState(false);
   const [isAddCardOpen, setAddCardOpen] = useState(false);
+  const [devPvzOpenCount, setDevPvzOpenCount] = useState(0);
 
   useEffect(() => {
     void fetchCheckout();
@@ -39,12 +40,15 @@ export const CheckoutLayout = () => {
 
   const total = useMemo(
     () =>
-      data?.cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0) ??
-      0,
+      data?.cartItems.reduce(
+        (sum, item) => sum + item.price * item.quantity,
+        0
+      ) ?? 0,
     [data?.cartItems]
   );
 
-  if (isLoading && !data) return <p className={styles.state}>Загрузка checkout…</p>;
+  if (isLoading && !data)
+    return <p className={styles.state}>Загрузка checkout…</p>;
 
   if (!data) {
     return (
@@ -67,7 +71,10 @@ export const CheckoutLayout = () => {
           {data.selectedDeliveryMethod === 'PICKUP_POINT' ? (
             <PickupPointBlock
               point={data.selectedPickupPoint ?? null}
-              onOpen={() => setPvzOpen(true)}
+              onOpen={() => {
+                setPvzOpen(true);
+                if (import.meta.env.DEV) setDevPvzOpenCount((prev) => prev + 1);
+              }}
             />
           ) : (
             <AddressBlock
@@ -85,6 +92,14 @@ export const CheckoutLayout = () => {
             />
           )}
 
+          {import.meta.env.DEV &&
+          data.selectedDeliveryMethod === 'PICKUP_POINT' ? (
+            <p className={styles.state}>
+              DEV harness: откройте модалку ПВЗ дважды подряд (open → close →
+              open). Счётчик открытий: {devPvzOpenCount}.
+            </p>
+          ) : null}
+
           <Button variant="ghost" onClick={() => setRecipientOpen(true)}>
             Получатель: {data.recipient.name || 'Указать'}
           </Button>
@@ -98,14 +113,19 @@ export const CheckoutLayout = () => {
       <aside className={styles.right}>
         <PaymentMethodSelector
           data={data}
-          onSelectMethod={(method, cardId) => void setPaymentMethod(method, cardId)}
+          onSelectMethod={(method, cardId) =>
+            void setPaymentMethod(method, cardId)
+          }
           onOpenAddCard={() => setAddCardOpen(true)}
         />
 
         <div className={styles.summary}>
           <div>Итого: {total.toLocaleString('ru-RU')} ₽</div>
 
-          <Button isLoading={isSubmittingOrder} onClick={() => void placeOrder()}>
+          <Button
+            isLoading={isSubmittingOrder}
+            onClick={() => void placeOrder()}
+          >
             Пополнить и оплатить
           </Button>
 
