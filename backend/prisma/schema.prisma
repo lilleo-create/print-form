@@ -186,6 +186,10 @@ model Order {
   yandexCourierOrderId String?
   yandexSelfPickupCode Json?
   yandexActualInfo     Json?
+  paymentAttemptKey    String?
+  paymentProvider      String?
+  paymentId            String?
+  paidAt               DateTime?
   payoutStatus         String               @default("HOLD")
   readyForShipmentAt   DateTime?
   dropoffDeadlineAt    DateTime?
@@ -196,6 +200,8 @@ model Order {
   payments             Payment[]
   shipment             OrderShipment?
   deliveryEvents       OrderDeliveryEvent[]
+
+  @@unique([buyerId, paymentAttemptKey])
 }
 
 model SellerSettings {
@@ -490,6 +496,7 @@ enum ProductModerationStatus {
 enum OrderStatus {
   CREATED
   PAID
+  PAYMENT_FAILED
   READY_FOR_SHIPMENT
   PRINTING
   HANDED_TO_DELIVERY

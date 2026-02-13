@@ -6,18 +6,19 @@ import { sheetsService } from '../services/sheetsService';
 export const orderUseCases = {
   create: async (data: {
     buyerId: string;
+    paymentAttemptKey?: string;
     contactId?: string;
     shippingAddressId?: string;
     buyerPickupPvz?: { provider: 'YANDEX_NDD'; pvzId: string; raw: unknown; addressFull?: string };
     sellerDropoffPvz?: { provider: 'YANDEX_NDD'; pvzId: string; raw: unknown; addressFull?: string };
     items: { productId: string; variantId?: string; quantity: number }[];
   }) => {
-    const order = await orderRepository.create(data);
+    const order: any = await orderRepository.create(data);
     const buyer = await userRepository.findById(data.buyerId);
 
     if (buyer) {
       await Promise.all(
-        order.items.map(async (item) => {
+        order.items.map(async (item: any) => {
           try {
             await sheetsService.appendOrderRow({
               orderId: order.id,
