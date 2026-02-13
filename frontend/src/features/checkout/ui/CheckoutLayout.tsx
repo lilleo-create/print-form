@@ -4,7 +4,7 @@ import { useCheckoutStore } from '../model/useCheckoutStore';
 import { DeliveryMethodSelector } from './DeliveryMethodSelector';
 import { AddressBlock } from './AddressBlock';
 import { PickupPointBlock } from './PickupPointBlock';
-import { YaPvzPickerModal  } from '../../../components/delivery/YaPvzPickerModal';
+import { YaPvzPickerModal } from '../../../components/delivery/YaPvzPickerModal';
 import { RecipientModal } from './RecipientModal';
 import { DeliveryDatesSection } from './DeliveryDatesSection';
 import { CheckoutItemsList } from './CheckoutItemsList';
@@ -32,7 +32,6 @@ export const CheckoutLayout = () => {
   const [isPvzOpen, setPvzOpen] = useState(false);
   const [isRecipientOpen, setRecipientOpen] = useState(false);
   const [isAddCardOpen, setAddCardOpen] = useState(false);
-  const [devPvzOpenCount, setDevPvzOpenCount] = useState(0);
 
   useEffect(() => {
     void fetchCheckout();
@@ -73,7 +72,6 @@ export const CheckoutLayout = () => {
               point={data.selectedPickupPoint ?? null}
               onOpen={() => {
                 setPvzOpen(true);
-                if (import.meta.env.DEV) setDevPvzOpenCount((prev) => prev + 1);
               }}
             />
           ) : (
@@ -91,14 +89,6 @@ export const CheckoutLayout = () => {
               }}
             />
           )}
-
-          {import.meta.env.DEV &&
-          data.selectedDeliveryMethod === 'PICKUP_POINT' ? (
-            <p className={styles.state}>
-              DEV harness: откройте модалку ПВЗ дважды подряд (open → close →
-              open). Счётчик открытий: {devPvzOpenCount}.
-            </p>
-          ) : null}
 
           <Button variant="ghost" onClick={() => setRecipientOpen(true)}>
             Получатель: {data.recipient.name || 'Указать'}
@@ -133,13 +123,22 @@ export const CheckoutLayout = () => {
         </div>
       </aside>
 
-      <YaPvzPickerModal 
+      <YaPvzPickerModal
         isOpen={isPvzOpen}
         onClose={() => setPvzOpen(false)}
         onSelect={(sel) => {
+          if (import.meta.env.DEV) {
+            console.debug('[Checkout] PVZ selected', {
+              pvzId: sel.pvzId,
+              addressFull: sel.addressFull
+            });
+          }
+
           void setPickupPoint({
+            provider: 'YANDEX_NDD',
             pvzId: sel.pvzId,
-            addressFull: sel.addressFull ?? ''
+            addressFull: sel.addressFull ?? '',
+            raw: sel.raw
           });
           setPvzOpen(false);
         }}

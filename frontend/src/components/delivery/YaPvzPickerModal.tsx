@@ -35,7 +35,10 @@ type Props = {
 declare global {
   interface Window {
     YaDelivery?: {
-      createWidget: (args: { containerId: string; params: Record<string, unknown> }) => void;
+      createWidget: (args: {
+        containerId: string;
+        params: Record<string, unknown>;
+      }) => void;
       setParams?: (params: Record<string, unknown>) => void;
     };
   }
@@ -58,6 +61,36 @@ function ensureWidgetScriptLoaded() {
   }
 }
 
+const buildParams = ({
+  city,
+  source_platform_station,
+  physical_dims_weight_gross
+}: {
+  city: string;
+  source_platform_station?: string;
+  physical_dims_weight_gross: number;
+}) => {
+  const params: Record<string, unknown> = {
+    city,
+    size: { width: '100%', height: '780px' },
+    show_select_button: true,
+    filter: {
+      type: ['pickup_point', 'terminal'],
+      is_yandex_branded: false,
+      payment_methods: ['already_paid', 'card_on_receipt'],
+      payment_methods_filter: 'or'
+    }
+  };
+
+  const station = (source_platform_station ?? '').trim();
+  if (station) {
+    params.source_platform_station = station;
+    params.physical_dims_weight_gross = physical_dims_weight_gross;
+  }
+
+  return params;
+};
+
 export function YaPvzPickerModal({
   isOpen,
   onClose,
@@ -67,8 +100,12 @@ export function YaPvzPickerModal({
   physical_dims_weight_gross = 10000,
   requireSourceStation = false
 }: Props) {
-  const containerIdRef = useRef(`delivery-widget-${Math.random().toString(16).slice(2)}`);
+  const containerIdRef = useRef(
+    `delivery-widget-${Math.random().toString(16).slice(2)}`
+  );
   const hostRef = useRef<HTMLDivElement | null>(null);
+  const widgetInitializedRef = useRef(false);
+  const initCountRef = useRef(0);
 
   const onCloseRef = useRef(onClose);
   const onSelectRef = useRef(onSelect);
@@ -81,7 +118,6 @@ export function YaPvzPickerModal({
     onSelectRef.current = onSelect;
   }, [onClose, onSelect]);
 
-  // ESC close
   useEffect(() => {
     if (!isOpen) return;
 
@@ -94,82 +130,84 @@ export function YaPvzPickerModal({
   }, [isOpen]);
 
   useEffect(() => {
-    if (!isOpen) return;
-
     const host = hostRef.current;
-    if (!host) {
-      setError('Не удалось подготовить контейнер виджета ПВЗ.');
+    if (!host) return;
+
+    const station = (source_platform_station ?? '').trim();
+    if (requireSourceStation && !station) {
+      setError(
+        'Не задан source_platform_station. Укажите станцию отгрузки продавца.'
+      );
       return;
     }
 
     setError(null);
-    selectedOnceRef.current = false;
-
-    // важное: чистим DOM виджета при каждом открытии
-    host.innerHTML = '';
-
-    const station = (source_platform_station ?? '').trim();
-    if (requireSourceStation && !station) {
-      setError('Не задан source_platform_station. Укажите станцию отгрузки продавца.');
-      return;
-    }
-
-    // ширина контейнера должна быть нормальной ДО createWidget
     host.style.width = '100%';
     host.style.minWidth = '0';
 
-    ensureWidgetScriptLoaded();
+    const params = buildParams({
+      city,
+      source_platform_station,
+      physical_dims_weight_gross
+    });
 
-    let cancelled = false;
-    let timeoutId: number | null = null;
-
-    const startWidget = () => {
-      if (cancelled) return;
+    const initWidget = () => {
+      if (widgetInitializedRef.current) {
+        if (window.YaDelivery?.setParams) {
+          window.YaDelivery.setParams(params);
+        }
+        return;
+      }
 
       const ya = window.YaDelivery;
       if (!ya?.createWidget) return;
 
-      const params: Record<string, unknown> = {
-        city,
-        size: { width: '100%', height: '780px' },
-        show_select_button: true,
-        filter: {
-          type: ['pickup_point', 'terminal'],
-          is_yandex_branded: false,
-          payment_methods: ['already_paid', 'card_on_receipt'],
-          payment_methods_filter: 'or'
-        }
-      };
-
-      if (station) {
-        params.source_platform_station = station;
-        params.physical_dims_weight_gross = physical_dims_weight_gross;
-      }
-
-      debugLog('createWidget', { containerId: containerIdRef.current, params });
+      widgetInitializedRef.current = true;
+      initCountRef.current += 1;
+      if (isDev)
+        console.debug('[PVZ] widget init count:', initCountRef.current);
 
       ya.createWidget({
         containerId: containerIdRef.current,
         params
       });
 
-      // “пинок” для пересчёта размеров карты (иначе иногда 0px)
       window.setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
       window.setTimeout(() => window.dispatchEvent(new Event('resize')), 250);
       window.setTimeout(() => window.dispatchEvent(new Event('resize')), 800);
     };
 
-    const onPointSelected = (event: Event) => {
-      if (cancelled || selectedOnceRef.current) return;
+    ensureWidgetScriptLoaded();
+    if (window.YaDelivery?.createWidget) initWidget();
+    else
+      document.addEventListener('YaNddWidgetLoad', initWidget, { once: true });
 
-      const detail = (event as CustomEvent<Record<string, unknown>>).detail as Record<string, unknown> | undefined;
+    const fallbackInitId = window.setTimeout(() => {
+      if (window.YaDelivery?.createWidget) initWidget();
+    }, 1500);
+
+    return () => {
+      window.clearTimeout(fallbackInitId);
+      document.removeEventListener('YaNddWidgetLoad', initWidget);
+    };
+  }, [
+    city,
+    source_platform_station,
+    physical_dims_weight_gross,
+    requireSourceStation
+  ]);
+
+  useEffect(() => {
+    const onPointSelected = (event: Event) => {
+      const detail = (event as CustomEvent<Record<string, unknown>>).detail as
+        | Record<string, unknown>
+        | undefined;
       const id = detail?.id;
-      if (!id) return;
+      if (!id || selectedOnceRef.current) return;
 
       selectedOnceRef.current = true;
 
       const addressObj = detail?.address as Record<string, unknown> | undefined;
-
       const addressFull =
         (addressObj?.full_address as string | undefined) ??
         (addressObj?.fullAddress as string | undefined) ??
@@ -183,48 +221,50 @@ export function YaPvzPickerModal({
       });
 
       onCloseRef.current();
+      window.setTimeout(() => {
+        selectedOnceRef.current = false;
+      }, 0);
     };
 
-    document.addEventListener('YaNddWidgetPointSelected', onPointSelected as EventListener);
-
-    // стартуем сразу (у тебя “900px wait” никогда не выполнится, потому что виджет сам режет ширину)
-    if (window.YaDelivery?.createWidget) startWidget();
-    else document.addEventListener('YaNddWidgetLoad', startWidget, { once: true });
-
-    // запасной старт
-    timeoutId = window.setTimeout(() => {
-      if (cancelled) return;
-      if (window.YaDelivery?.createWidget) startWidget();
-    }, 1500);
-
-    return () => {
-      cancelled = true;
-      selectedOnceRef.current = false;
-
-      document.removeEventListener('YaNddWidgetPointSelected', onPointSelected as EventListener);
-      document.removeEventListener('YaNddWidgetLoad', startWidget);
-
-      if (timeoutId !== null) window.clearTimeout(timeoutId);
-
-      host.innerHTML = '';
-    };
-  }, [isOpen, city, source_platform_station, physical_dims_weight_gross, requireSourceStation]);
-
-  if (!isOpen) return null;
+    document.addEventListener(
+      'YaNddWidgetPointSelected',
+      onPointSelected as EventListener
+    );
+    return () =>
+      document.removeEventListener(
+        'YaNddWidgetPointSelected',
+        onPointSelected as EventListener
+      );
+  }, []);
 
   return (
-    <div className={styles.overlay} onClick={onClose}>
+    <div
+      className={styles.overlay}
+      onClick={onClose}
+      hidden={!isOpen}
+      aria-hidden={!isOpen}
+      style={isOpen ? undefined : { display: 'none' }}
+    >
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
         <div className={styles.header}>
           <span>Выберите пункт выдачи</span>
-          <button className={styles.closeButton} onClick={onClose} aria-label="Закрыть">
+          <button
+            className={styles.closeButton}
+            onClick={onClose}
+            aria-label="Закрыть"
+          >
             ×
           </button>
         </div>
 
         <div className={styles.body}>
           {error ? <div className={styles.error}>{error}</div> : null}
-          <div id={containerIdRef.current} ref={hostRef} className={styles.widget} aria-hidden={Boolean(error)} />
+          <div
+            id={containerIdRef.current}
+            ref={hostRef}
+            className={styles.widget}
+            aria-hidden={Boolean(error)}
+          />
         </div>
       </div>
     </div>
