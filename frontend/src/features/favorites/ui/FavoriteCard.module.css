@@ -1,0 +1,68 @@
+.card {
+  position: relative;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.mediaButton,
+.title {
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.image {
+  width: 100%;
+  height: 260px;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 10px;
+  background: var(--bg-2);
+}
+
+.removeFavorite {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  border: 0;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.title {
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 38px;
+}
+
+.price {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.rating {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.shortSpec {
+  color: var(--muted);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -1,0 +1,58 @@
+.sidebar {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  position: sticky;
+  top: 120px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.field select {
+  width: 100%;
+}
+
+.error {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.skeletons {
+  display: grid;
+  gap: 12px;
+}
+
+.skeleton {
+  height: 40px;
+  border-radius: 12px;
+}
+
+@media (max-width: 960px) {
+  .sidebar {
+    position: static;
+  }
+}

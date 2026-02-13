@@ -1,20 +1,22 @@
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.4);
+  background: var(--overlay);
   display: flex;
   justify-content: flex-end;
   z-index: 30;
 }
 
 .drawer {
-  background: #ffffff;
+  background: var(--card);
   width: min(440px, 100%);
   height: 100%;
   display: flex;
   flex-direction: column;
   padding: 20px;
   gap: 16px;
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
 }
 
 .header {
@@ -70,20 +72,23 @@
 .controls input {
   width: 70px;
   padding: 6px;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--text);
 }
 
 .controls button {
   border: none;
-  background: #f3f4f6;
+  background: var(--bg-2);
   padding: 6px 10px;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   cursor: pointer;
+  color: var(--text);
 }
 
 .footer {
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--border);
   padding-top: 12px;
 }
 
@@ -103,20 +108,22 @@
 .form input,
 .form select {
   padding: 10px;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--text);
 }
 
 .form span {
   font-size: 12px;
-  color: #ef4444;
+  color: var(--danger);
 }
 
 .success {
-  color: #16a34a;
+  color: var(--success);
   font-weight: 600;
 }
 
 .empty {
-  color: #6b7280;
+  color: var(--muted);
 }

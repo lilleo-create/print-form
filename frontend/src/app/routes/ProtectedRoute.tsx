@@ -4,7 +4,7 @@ import { Role } from '../../shared/types';
 
 interface ProtectedRouteProps {
   children: JSX.Element;
-  requiredRole?: Role;
+  requiredRole?: Role | Role[];
 }
 
 export const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
@@ -16,8 +16,11 @@ export const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) 
     return <Navigate to={`/auth/login?redirectTo=${redirectTo}`} replace />;
   }
 
-  if (requiredRole && user.role !== requiredRole) {
-    return <Navigate to="/account" replace />;
+  if (requiredRole) {
+    const allowed = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
+    if (!allowed.includes(user.role)) {
+      return <Navigate to="/account" replace />;
+    }
   }
 
   return children;

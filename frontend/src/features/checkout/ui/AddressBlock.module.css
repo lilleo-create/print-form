@@ -1,0 +1,2 @@
+.block { width:100%; text-align:left; border:1px solid var(--border); border-radius:12px; padding:12px; background:var(--bg-2); display:grid; gap:6px; }
+span { color:var(--muted); }

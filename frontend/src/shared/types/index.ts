@@ -1,8 +1,14 @@
 export type MaterialType = 'PLA' | 'ABS' | 'PETG' | 'RESIN';
 export type TechnologyType = 'FDM' | 'SLA';
-export type Role = 'buyer' | 'seller';
-export type OrderStatus = 'processing' | 'printing' | 'shipped' | 'delivered';
-export type OrderItemStatus = 'new' | OrderStatus;
+export type Role = 'buyer' | 'seller' | 'admin';
+export type OrderStatus = 'CREATED' | 'PRINTING' | 'HANDED_TO_DELIVERY' | 'IN_TRANSIT' | 'DELIVERED';
+export type ProductModerationStatus = 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'NEEDS_EDIT' | 'ARCHIVED';
+export type ReviewModerationStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'NEEDS_EDIT';
+export type ReturnStatus = 'CREATED' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED' | 'REFUNDED';
+export type ReturnReason = 'NOT_FIT' | 'DAMAGED' | 'WRONG_ITEM';
+export type ChatThreadKind = 'SUPPORT' | 'SELLER';
+export type ChatThreadStatus = 'ACTIVE' | 'CLOSED';
+export type ChatMessageAuthorRole = 'USER' | 'ADMIN';
 
 export interface Product {
   id: string;
@@ -23,13 +29,20 @@ export interface Product {
   printTime: string;
   color: string;
   sellerId: string | null;
+  createdAt?: string;
+  updatedAt?: string;
   images?: ProductImage[];
   variants?: ProductVariant[];
   specs?: ProductSpec[];
   deliveryDateNearest?: string;
   deliveryDateEstimated?: string;
-  deliveryDates?: string[];
   imageUrls?: string[];
+  videoUrls?: string[];
+  moderationStatus?: ProductModerationStatus;
+  moderationNotes?: string | null;
+  publishedAt?: string | null;
+  moderatedAt?: string | null;
+  moderatedById?: string | null;
 }
 
 export interface ProductImage {
@@ -67,6 +80,10 @@ export interface Review {
   likesCount?: number;
   dislikesCount?: number;
   isPublic?: boolean;
+  moderationStatus?: ReviewModerationStatus;
+  moderationNotes?: string | null;
+  moderatedAt?: string | null;
+  moderatedById?: string | null;
   createdAt: string;
   user?: { id: string; name: string } | null;
   product?: { id: string; title: string; image?: string };
@@ -78,6 +95,7 @@ export interface CartItem {
 }
 
 export interface OrderItem {
+  id?: string;
   productId: string;
   title: string;
   price: number;
@@ -85,7 +103,92 @@ export interface OrderItem {
   sellerId: string;
   lineTotal: number;
   image?: string;
-  status?: OrderItemStatus;
+}
+
+export interface ReturnPhoto {
+  id: string;
+  url: string;
+  createdAt?: string;
+}
+
+export interface ReturnItem {
+  id: string;
+  orderItemId: string;
+  quantity: number;
+  orderItem?: {
+    id: string;
+    quantity: number;
+    priceAtPurchase: number;
+    productId: string;
+    product?: Product | null;
+    order?: { id: string; createdAt: string; statusUpdatedAt?: string | null; status?: OrderStatus } | null;
+  } | null;
+}
+
+export interface ReturnRequest {
+  id: string;
+  userId?: string;
+  status: ReturnStatus;
+  reason: ReturnReason;
+  comment?: string | null;
+  adminComment?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+  items: ReturnItem[];
+  photos: ReturnPhoto[];
+  chatThread?: { id: string; status: ChatThreadStatus } | null;
+}
+
+export interface ChatMessage {
+  id: string;
+  threadId: string;
+  authorRole: ChatMessageAuthorRole;
+  authorId: string;
+  text: string;
+  createdAt: string;
+}
+
+export interface ChatThread {
+  id: string;
+  kind: ChatThreadKind;
+  userId: string;
+  status: ChatThreadStatus;
+  returnRequestId?: string | null;
+  lastMessageAt?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+  lastMessage?: ChatMessage | null;
+  returnRequest?: ReturnRequest | null;
+  user?: { id: string; name: string; email: string } | null;
+}
+
+export interface PickupPointDelivery {
+  id: string;
+  fullAddress: string;
+  country?: string;
+  locality?: string;
+  street?: string;
+  house?: string;
+  comment?: string;
+  position?: Record<string, unknown>;
+  type?: string;
+  paymentMethods?: string[];
+}
+
+export interface OrderDelivery {
+  deliveryProvider: string;
+  deliveryMethod: 'COURIER' | 'PICKUP_POINT';
+  courierAddress?: {
+    line1?: string;
+    city?: string;
+    postalCode?: string;
+    country?: string;
+    apartment?: string | null;
+    floor?: string | null;
+    comment?: string | null;
+  } | null;
+  pickupPoint?: PickupPointDelivery | null;
+  deliveryMeta?: Record<string, unknown>;
 }
 
 export interface Order {
@@ -95,9 +198,34 @@ export interface Order {
   contactId: string;
   shippingAddressId: string;
   status: OrderStatus;
+  statusUpdatedAt?: string;
   total: number;
   createdAt: string;
+  trackingNumber?: string | null;
+  carrier?: string | null;
+  contact?: Contact | null;
+  shippingAddress?: Address | null;
+  buyer?: { id: string; name: string; email: string; phone?: string | null } | null;
   items: OrderItem[];
+  delivery?: OrderDelivery | null;
+  shipment?: {
+    id: string;
+    provider: string;
+    status: string;
+    requestId?: string | null;
+    sourceStationId: string;
+    lastSyncAt?: string | null;
+    statusRaw?: Record<string, unknown> | null;
+  } | null;
+}
+
+export interface SellerDeliveryProfile {
+  id: string;
+  sellerId: string;
+  dropoffStationId: string;
+  dropoffStationMeta?: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface User {
@@ -117,6 +245,8 @@ export interface Contact {
   email?: string;
   createdAt: string;
 }
+
+export type { Shop, ShopLegalInfo } from './shop';
 
 export interface Address {
   id: string;
@@ -142,6 +272,60 @@ export interface SellerProfile {
   city: string;
   referenceCategory: string;
   catalogPosition: string;
+}
+
+export interface SellerContextResponse {
+  isSeller: boolean;
+  profile: SellerProfile | null;
+  kyc?: SellerKycSubmission | null;
+  canSell?: boolean;
+}
+
+export type KycStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface SellerDocument {
+  id: string;
+  submissionId: string;
+  type: string;
+  url: string;
+  fileName?: string | null;
+  originalName: string;
+  mime: string;
+  size: number;
+  createdAt: string;
+}
+
+export interface SellerKycSubmission {
+  id: string;
+  userId: string;
+  status: KycStatus;
+  submittedAt?: string | null;
+  reviewedAt?: string | null;
+  reviewerId?: string | null;
+  moderationNotes?: string | null;
+  notes?: string | null;
+  documents: SellerDocument[];
+  user?: { id: string; name: string; email: string; phone?: string | null };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaymentIntent {
+  id: string;
+  status: string;
+  provider: string;
+  amount: number;
+  currency: string;
+  clientSecret?: string;
+}
+
+export interface Payment {
+  id: string;
+  orderId: string;
+  status: string;
+  amount: number;
+  currency: string;
+  createdAt: string;
 }
 
 export interface CustomPrintRequest {

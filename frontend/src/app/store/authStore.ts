@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { authApi } from '../../shared/api/authApi';
+import { loadFromStorage, removeFromStorage, saveToStorage, setAccessToken } from '../../shared/lib/storage';
+import { STORAGE_KEYS } from '../../shared/constants/storageKeys';
 import { User, Role } from '../../shared/types';
 
 type Purpose = 'login' | 'register' | 'seller_verify';
@@ -24,10 +26,22 @@ interface AuthState {
   user: User | null;
   token: string | null;
 
+  otp: {
+    required: boolean;
+    purpose: Purpose | null;
+    tempToken: string | null;
+    phone: string | null;
+    user: User | null;
+  };
+
+  setOtpState: (v: Partial<AuthState['otp']>) => void;
+  clearOtp: () => void;
+
   login: (email: string, password: string) => Promise<{
     requiresOtp: boolean;
     tempToken?: string;
     user?: User;
+    token?: string;
   }>;
 
   register: (payload: {
@@ -42,6 +56,7 @@ interface AuthState {
     requiresOtp: boolean;
     tempToken?: string;
     user?: User;
+    token?: string;
   }>;
 
   requestOtp: (payload: { phone: string; purpose?: Purpose }, token?: string | null) => Promise<void>;
@@ -58,72 +73,139 @@ interface AuthState {
   hydrate: () => void;
 }
 
-const safeGetSession = () => {
+type StoredSession = { user: User } | { user: User; token?: string };
+
+const loadStoredUser = () => {
   try {
-    return authApi.getSession?.() ?? null;
+    const session = loadFromStorage<StoredSession | null>(STORAGE_KEYS.session, null);
+    return session?.user ?? null;
   } catch {
     return null;
   }
 };
 
+const loadStoredToken = () => {
+  try {
+    return loadFromStorage<string | null>(STORAGE_KEYS.accessToken, null);
+  } catch {
+    return null;
+  }
+};
+
+const saveStoredUser = (user: User | null) => {
+  if (!user) {
+    removeFromStorage(STORAGE_KEYS.session);
+    return;
+  }
+  saveToStorage(STORAGE_KEYS.session, { user });
+};
+
+const emptyOtp: AuthState['otp'] = {
+  required: false,
+  purpose: null,
+  tempToken: null,
+  phone: null,
+  user: null,
+};
+
 export const useAuthStore = create<AuthState>((set, get) => {
-  const session = safeGetSession();
+  const storedUser = loadStoredUser();
+  const storedToken = loadStoredToken();
 
   return {
-    user: session?.user ?? null,
-    token: session?.token ?? null,
+    user: storedUser,
+    token: storedToken,
+
+    otp: { ...emptyOtp },
+
+    setOtpState(v) {
+      set({ otp: { ...get().otp, ...v } });
+    },
+
+    clearOtp() {
+      set({ otp: { ...emptyOtp } });
+    },
 
     async login(email, password) {
-      const raw = await authApi.login(email, password);
+      get().clearOtp();
 
-      if (!raw) {
-        throw new Error('Login failed: empty response');
-      }
+      const raw = await authApi.login(email, password);
+      if (!raw) throw new Error('Login failed: empty response');
 
       const result = raw as AuthResult;
 
       if (isOtpRequired(result)) {
+        set({
+          otp: {
+            required: true,
+            purpose: 'login',
+            tempToken: result.tempToken,
+            phone: result.user.phone ?? null,
+            user: result.user,
+          },
+        });
         return { requiresOtp: true, tempToken: result.tempToken, user: result.user };
       }
 
       // non-OTP success
+      saveStoredUser(result.user);
+      setAccessToken(result.token);
       set({ user: result.user, token: result.token });
-      return { requiresOtp: false };
+      return { requiresOtp: false, user: result.user, token: result.token };
     },
 
     async register(payload) {
-      const raw = await authApi.register(payload);
+      get().clearOtp();
 
-      if (!raw) {
-        throw new Error('Register failed: empty response');
-      }
+      const raw = await authApi.register(payload);
+      if (!raw) throw new Error('Register failed: empty response');
 
       const result = raw as AuthResult;
 
       if (isOtpRequired(result)) {
+        set({
+          otp: {
+            required: true,
+            purpose: 'register',
+            tempToken: result.tempToken,
+            phone: payload.phone ?? result.user.phone ?? null,
+            user: result.user,
+          },
+        });
         return { requiresOtp: true, tempToken: result.tempToken, user: result.user };
       }
 
+      saveStoredUser(result.user);
+      setAccessToken(result.token);
       set({ user: result.user, token: result.token });
-      return { requiresOtp: false };
+      return { requiresOtp: false, user: result.user, token: result.token };
     },
 
     async requestOtp(payload, token) {
-      // purpose по умолчанию лучше явно проставлять на уровне UI,
-      // но на всякий случай:
-      const finalPayload = { purpose: 'login' as Purpose, ...payload };
-      await authApi.requestOtp(finalPayload, token ?? get().token);
+      const purpose = (payload.purpose ?? get().otp.purpose ?? 'login') as Purpose;
+      const finalPayload = { ...payload, purpose };
+
+      await authApi.requestOtp(finalPayload, token ?? get().otp.tempToken ?? get().token);
     },
 
     async verifyOtp(payload, token) {
-      const finalPayload = { purpose: 'login' as Purpose, ...payload };
-      const result = await authApi.verifyOtp(finalPayload, token ?? get().token);
+      const otp = get().otp;
+      const purpose = (payload.purpose ?? otp.purpose ?? 'login') as Purpose;
+
+      const finalPayload = { ...payload, purpose };
+      const result = await authApi.verifyOtp(finalPayload, token ?? otp.tempToken ?? get().token);
 
       if (!result?.user || !result?.token) {
         throw new Error('OTP verify failed: invalid response');
       }
 
-      set({ user: result.user, token: result.token });
+      set({
+        user: result.user,
+        token: result.token,
+        otp: { ...emptyOtp },
+      });
+      saveStoredUser(result.user);
+      setAccessToken(result.token);
     },
 
     async updateProfile(payload) {
@@ -135,29 +217,43 @@ export const useAuthStore = create<AuthState>((set, get) => {
           role: result.user.role as Role,
         };
         set({ user });
+        saveStoredUser(user);
       }
     },
 
     setUser(user) {
-      // обновляем user в session если метод существует
       authApi.setSessionUser?.(user);
+      saveStoredUser(user);
       set({ user });
     },
 
     async logout() {
-      // Даже если бэк не поднят, локально мы обязаны "выйти"
       try {
         await authApi.logout();
       } catch {
-        // намеренно игнорим, чтобы не ломать UI
+        // ignore
       } finally {
-        set({ user: null, token: null });
+        removeFromStorage(STORAGE_KEYS.session);
+        setAccessToken(null);
+        set({ user: null, token: null, otp: { ...emptyOtp } });
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('auth:logout'));
+        }
       }
     },
 
     hydrate() {
-      const current = safeGetSession();
-      set({ user: current?.user ?? null, token: current?.token ?? null });
+      const user = loadStoredUser();
+      const token = loadStoredToken();
+      set({ user, token });
     },
   };
 });
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('auth:logout', () => {
+    removeFromStorage(STORAGE_KEYS.session);
+    setAccessToken(null);
+    useAuthStore.setState({ user: null, token: null, otp: { ...emptyOtp } });
+  });
+}

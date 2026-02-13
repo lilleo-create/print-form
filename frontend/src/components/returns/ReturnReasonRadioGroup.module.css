@@ -1,0 +1,31 @@
+.group {
+  display: grid;
+  gap: 12px;
+}
+
+.option {
+  display: grid;
+  grid-template-columns: 18px 1fr; /* радио + текст */
+  align-items: center;
+  column-gap: 12px;
+
+  cursor: pointer;
+  user-select: none;
+  width: 100%;
+}
+
+.option input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--primary);
+
+  justify-self: start; /* прибить влево */
+}
+
+.label {
+  justify-self: start; /* текст тоже влево */
+  text-align: left;
+  line-height: 1.4;
+  font-size: 14px;
+}

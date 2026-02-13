@@ -38,7 +38,6 @@ export const authService = {
     password: string,
     role?: 'BUYER' | 'SELLER',
     phone?: string,
-    address?: string
   ) {
     const existingEmail = await userRepository.findByEmail(email);
     if (existingEmail) {
@@ -57,7 +56,6 @@ export const authService = {
       passwordHash: hashed,
       role,
       phone: phone ?? null,
-      address: address ?? null
     });
     return { user };
   },

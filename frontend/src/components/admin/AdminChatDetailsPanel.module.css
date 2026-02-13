@@ -1,0 +1,94 @@
+.panel {
+  display: grid;
+  gap: 16px;
+}
+
+.returnPanel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+  background: var(--bg-2);
+}
+
+.photos {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.photos img {
+  width: 60px;
+  height: 60px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.returnProduct {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.returnProduct img {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.controls {
+  display: grid;
+  gap: 8px;
+}
+
+.controls textarea {
+  min-height: 70px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border);
+  padding: 8px;
+  background: var(--bg-2);
+  color: var(--text);
+}
+
+.chatControls {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.messages {
+  display: grid;
+  gap: 8px;
+  max-height: 360px;
+  overflow: auto;
+}
+
+.messageAdmin {
+  justify-self: end;
+  background: var(--primary-soft);
+  padding: 8px 12px;
+  border-radius: 12px;
+  max-width: 80%;
+}
+
+.messageUser {
+  justify-self: start;
+  background: var(--surface-ghost-muted);
+  padding: 8px 12px;
+  border-radius: 12px;
+  max-width: 80%;
+}
+
+.messageAdmin span,
+.messageUser span {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.empty {
+  color: var(--muted);
+}

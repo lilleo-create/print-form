@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { Product } from '../../shared/types';
 import { sellerProductsApi } from '../../shared/api/sellerProductsApi';
-import { products as seedProducts } from '../../shared/api/mockData';
+import { api } from '../../shared/api';
 
 interface ProductsState {
   sellerProducts: Product[];
@@ -12,34 +12,37 @@ interface ProductsState {
   removeProduct: (id: string) => Promise<void>;
 }
 
-const mergeProducts = (seller: Product[]) => [...seedProducts, ...seller];
-
 export const useProductsStore = create<ProductsState>((set) => ({
   sellerProducts: [],
-  allProducts: [...seedProducts],
+  allProducts: [],
   async loadProducts() {
-    const seller = await sellerProductsApi.list();
-    set({ sellerProducts: seller, allProducts: mergeProducts(seller) });
+    const [seller, catalog] = await Promise.all([
+      sellerProductsApi.list(),
+      api.getProducts()
+    ]);
+    set({ sellerProducts: seller, allProducts: catalog.data });
   },
   async addProduct(product) {
     await sellerProductsApi.create(product);
     set((state) => {
       const nextSeller = [product, ...state.sellerProducts];
-      return { sellerProducts: nextSeller, allProducts: mergeProducts(nextSeller) };
+      return { sellerProducts: nextSeller, allProducts: [...state.allProducts, product] };
     });
   },
   async updateProduct(product) {
     await sellerProductsApi.update(product);
     set((state) => {
       const nextSeller = state.sellerProducts.map((item) => (item.id === product.id ? product : item));
-      return { sellerProducts: nextSeller, allProducts: mergeProducts(nextSeller) };
+      const nextAll = state.allProducts.map((item) => (item.id === product.id ? product : item));
+      return { sellerProducts: nextSeller, allProducts: nextAll };
     });
   },
   async removeProduct(id) {
     await sellerProductsApi.remove(id);
     set((state) => {
       const nextSeller = state.sellerProducts.filter((item) => item.id !== id);
-      return { sellerProducts: nextSeller, allProducts: mergeProducts(nextSeller) };
+      const nextAll = state.allProducts.filter((item) => item.id !== id);
+      return { sellerProducts: nextSeller, allProducts: nextAll };
     });
   }
 }));

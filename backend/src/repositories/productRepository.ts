@@ -6,6 +6,7 @@ export interface ProductInput {
   price: number;
   image: string;
   imageUrls?: string[];
+  videoUrls?: string[];
   description: string;
   descriptionShort: string;
   descriptionFull: string;
@@ -17,32 +18,41 @@ export interface ProductInput {
   printTime: string;
   color: string;
   deliveryDateEstimated?: Date | string | null;
-  deliveryDates?: string[];
   sellerId: string;
 }
 
 export const productRepository = {
   findMany: (filters: {
+    shopId?: string;
+    query?: string;
     category?: string;
     material?: string;
     size?: string;
     minPrice?: number;
     maxPrice?: number;
-    sort?: 'createdAt' | 'rating';
+    sort?: 'createdAt' | 'rating' | 'price';
     order?: 'asc' | 'desc';
     page?: number;
     limit?: number;
   }) => {
-    const sortField = filters.sort === 'rating' ? 'ratingAvg' : 'createdAt';
+    const sortField = filters.sort === 'rating' ? 'ratingAvg' : filters.sort === 'price' ? 'price' : 'createdAt';
     const orderBy = { [sortField]: filters.order ?? 'desc' } as const;
     const page = filters.page && filters.page > 0 ? filters.page : 1;
     const limit = filters.limit && filters.limit > 0 ? filters.limit : 12;
     const skip = (page - 1) * limit;
     return prisma.product.findMany({
       where: {
+        sellerId: filters.shopId,
+        title: filters.query
+          ? {
+              contains: filters.query,
+              mode: 'insensitive'
+            }
+          : undefined,
         category: filters.category,
         material: filters.material,
         size: filters.size,
+        moderationStatus: 'APPROVED',
         price: {
           gte: filters.minPrice,
           lte: filters.maxPrice
@@ -54,8 +64,8 @@ export const productRepository = {
     });
   },
   findById: (id: string) =>
-    prisma.product.findUnique({
-      where: { id },
+    prisma.product.findFirst({
+      where: { id, moderationStatus: 'APPROVED' },
       include: {
         images: { orderBy: { sortOrder: 'asc' } },
         variants: true,
@@ -63,10 +73,16 @@ export const productRepository = {
       }
     }),
   create: (data: ProductInput) => {
-    const { imageUrls, ...rest } = data;
+    const { imageUrls, videoUrls, ...rest } = data;
     return prisma.product.create({
       data: {
         ...rest,
+        videoUrls: videoUrls ?? [],
+        moderationStatus: 'PENDING',
+        moderationNotes: null,
+        moderatedAt: null,
+        moderatedById: null,
+        publishedAt: null,
         images: imageUrls?.length
           ? {
               create: imageUrls.map((url, index) => ({
@@ -82,12 +98,22 @@ export const productRepository = {
     });
   },
   update: async (id: string, data: Partial<ProductInput>) => {
-    const { imageUrls, ...rest } = data;
+    const { imageUrls, videoUrls, ...rest } = data;
+    const moderationPatch = {
+      moderationStatus: 'PENDING' as const,
+      moderationNotes: null,
+      moderatedAt: null,
+      moderatedById: null
+    };
+    const videoUrlsPatch = videoUrls !== undefined ? { videoUrls } : {};
     if (!imageUrls) {
-      return prisma.product.update({ where: { id }, data: rest });
+      return prisma.product.update({
+        where: { id },
+        data: { ...rest, ...moderationPatch, ...videoUrlsPatch }
+      });
     }
     return prisma.$transaction(async (tx) => {
-      await tx.product.update({ where: { id }, data: rest });
+      await tx.product.update({ where: { id }, data: { ...rest, ...moderationPatch, ...videoUrlsPatch } });
       await tx.productImage.deleteMany({ where: { productId: id } });
       if (imageUrls.length > 0) {
         await tx.productImage.createMany({

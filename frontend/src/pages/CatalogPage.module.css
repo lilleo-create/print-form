@@ -27,7 +27,7 @@
 
 .controlsTitle {
   font-size: 14px;
-  color: #64748b;
+  color: var(--muted);
 }
 
 .sortButtons {
@@ -38,13 +38,19 @@
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 24px;
 }
 
 .loading {
   padding: 20px 0;
-  color: #64748b;
+  color: var(--muted);
+}
+
+@media (max-width: 1200px) {
+  .grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 768px) {
