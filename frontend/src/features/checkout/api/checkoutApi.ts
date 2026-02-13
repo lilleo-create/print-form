@@ -188,6 +188,8 @@ export const checkoutApi = {
   startPayment: async (
     payload: {
       paymentAttemptKey: string;
+      recipient: { name: string; phone: string; email?: string | null };
+      packagesCount?: number;
       buyerPickupPvz: YaPvzSelection;
       items: Array<{ productId: string; quantity: number }>;
     },

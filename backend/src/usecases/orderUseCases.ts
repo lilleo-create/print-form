@@ -11,6 +11,9 @@ export const orderUseCases = {
     shippingAddressId?: string;
     buyerPickupPvz?: { provider: 'YANDEX_NDD'; pvzId: string; raw: unknown; addressFull?: string };
     sellerDropoffPvz?: { provider: 'YANDEX_NDD'; pvzId: string; raw: unknown; addressFull?: string };
+    recipient?: { name: string; phone: string; email?: string | null };
+    packagesCount?: number;
+    orderLabels?: { packageNo: number; code: string }[];
     items: { productId: string; variantId?: string; quantity: number }[];
   }) => {
     const order: any = await orderRepository.create(data);

@@ -22,6 +22,13 @@ type ApiOrder = {
   status?: string;
   statusUpdatedAt?: string;
   total: number;
+  recipientName?: string | null;
+  recipientPhone?: string | null;
+  recipientEmail?: string | null;
+  packagesCount?: number;
+  buyerPickupPvzMeta?: { addressFull?: string } | null;
+  sellerDropoffPvzMeta?: { addressFull?: string } | null;
+  orderLabels?: Array<{ packageNo: number; code: string }>;
   createdAt: string;
   trackingNumber?: string | null;
   carrier?: string | null;
@@ -58,6 +65,13 @@ const mapOrder = (order: ApiOrder): Order => ({
   status: mapStatus(order.status),
   statusUpdatedAt: order.statusUpdatedAt,
   total: order.total,
+  recipientName: order.recipientName ?? null,
+  recipientPhone: order.recipientPhone ?? null,
+  recipientEmail: order.recipientEmail ?? null,
+  packagesCount: order.packagesCount ?? 1,
+  buyerPickupPvzMeta: order.buyerPickupPvzMeta ?? null,
+  sellerDropoffPvzMeta: order.sellerDropoffPvzMeta ?? null,
+  orderLabels: order.orderLabels ?? [],
   createdAt: order.createdAt,
   trackingNumber: order.trackingNumber ?? null,
   carrier: order.carrier ?? null,
@@ -126,5 +140,8 @@ export const ordersApi = {
     created_until_utc?: string;
   }) => {
     return api.downloadYandexHandoverAct(payload);
+  },
+  downloadSellerDocument: async (orderId: string, type: 'packing-slip' | 'labels' | 'handover-act') => {
+    return api.downloadSellerOrderDocument(orderId, type);
   }
 };

@@ -203,6 +203,12 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       const paymentAttemptKey = crypto.randomUUID();
       const response = await checkoutApi.startPayment({
         paymentAttemptKey,
+        recipient: {
+          name: data.recipient.name,
+          phone: data.recipient.phone,
+          email: data.recipient.email || null
+        },
+        packagesCount: 1,
         buyerPickupPvz,
         items: data.cartItems.map((item) => ({
           productId: item.productId,

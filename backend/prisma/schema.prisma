@@ -179,6 +179,11 @@ model Order {
   buyerPickupPvzMeta   Json?
   sellerDropoffPvzId   String?
   sellerDropoffPvzMeta Json?
+  recipientName        String?
+  recipientPhone       String?
+  recipientEmail       String?
+  packagesCount        Int                  @default(1)
+  orderLabels          Json?
   yandexOfferId        String?
   yandexRequestId      String?
   yandexStatus         String?
