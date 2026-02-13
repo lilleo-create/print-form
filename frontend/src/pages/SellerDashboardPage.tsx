@@ -1217,14 +1217,15 @@ export const SellerDashboardPage = () => {
                     <p className={styles.error}>{deliverySettingsError}</p>
                   )}
                   <YaNddPvzModal
-                    isOpen={isPvzOpen}
-                    onClose={() => setPvzOpen(false)}
+                    isOpen={isDropoffModalOpen}
+                    onClose={() => setDropoffModalOpen(false)}
                     onSelect={(sel) => {
-                      // тут сохраняешь sel.pvzId и sel.addressFull в стор/checkout
-                      console.log('SELECTED PVZ', sel);
+                      handleDropoffSelect(sel);
+                      setDropoffModalOpen(false);
                     }}
                     city="Москва"
-                    sourcePlatformStationId={sellerDropoffStationId} // вот это важно
+                    source_platform_station={dropoffStationId}
+                    physical_dims_weight_gross={10000}
                   />
                 </div>
               )}

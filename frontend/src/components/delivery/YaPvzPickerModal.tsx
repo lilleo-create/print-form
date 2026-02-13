@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ensureYaNddWidgetLoaded } from '../../shared/lib/yaNddWidget';
 import styles from './YaPvzPickerModal.module.css';
 
@@ -13,60 +13,59 @@ type Props = {
   onClose: () => void;
   onSelect: (sel: YaPvzSelection) => void;
   city?: string;
-  sourcePlatformStationId?: string;
-  weightGrossG?: number;
-  includeTerminals?: boolean;
+  source_platform_station?: string;
+  physical_dims_weight_gross?: number;
 };
 
-const DESKTOP_MIN_SIZE = { width: 900, height: 600 };
-const MOBILE_MIN_SIZE = { width: 320, height: 460 };
-const SIZE_WAIT_TIMEOUT_MS = 2000;
+const DESKTOP_WIDTH_THRESHOLD = 900;
+const SIZE_WAIT_TIMEOUT_MS = 3000;
+
+const isDev = import.meta.env.DEV;
+
+const debugLog = (...args: unknown[]) => {
+  if (isDev) {
+    console.debug('[YaPvzPickerModal]', ...args);
+  }
+};
 
 const waitRaf = () =>
   new Promise<void>((resolve) => {
     requestAnimationFrame(() => resolve());
   });
 
-const waitForContainerSize = async (
+const waitForContainerWidth = async (
   element: HTMLElement,
   timeoutMs: number
-): Promise<DOMRect> => {
+): Promise<{ rect: DOMRect; timedOut: boolean }> => {
   const startedAt = Date.now();
-  const minSize =
-    window.matchMedia('(max-width: 768px)').matches ||
-    window.innerWidth < DESKTOP_MIN_SIZE.width
-      ? MOBILE_MIN_SIZE
-      : DESKTOP_MIN_SIZE;
 
   while (Date.now() - startedAt < timeoutMs) {
     await waitRaf();
-    await waitRaf();
     const rect = element.getBoundingClientRect();
-    if (rect.width >= minSize.width && rect.height >= minSize.height) {
-      return rect;
+    if (rect.width >= DESKTOP_WIDTH_THRESHOLD) {
+      return { rect, timedOut: false };
     }
   }
 
-  throw new Error(
-    `YA_NDD_WIDGET_CONTAINER_SIZE_INVALID: expected >=${minSize.width}x${minSize.height}`
-  );
+  return { rect: element.getBoundingClientRect(), timedOut: true };
 };
 
-export const YaNddPvzModal = ({
+export const YaPvzPickerModal = ({
   isOpen,
   onClose,
   onSelect,
   city = 'Москва',
-  sourcePlatformStationId,
-  weightGrossG = 10000,
-  includeTerminals = true
+  source_platform_station,
+  physical_dims_weight_gross = 10000
 }: Props) => {
   const containerId = useMemo(
     () => `ya-ndd-widget-${Math.random().toString(16).slice(2)}`,
     []
   );
-  const widgetCreatedRef = useRef(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const onSelectRef = useRef(onSelect);
+  const onCloseRef = useRef(onClose);
+  const selectedRef = useRef(false);
   const bodyStyleRef = useRef<{
     overflow: string;
     position: string;
@@ -76,61 +75,10 @@ export const YaNddPvzModal = ({
     width: string;
   } | null>(null);
   const scrollYRef = useRef(0);
-  const paramsRef = useRef<Record<string, unknown>>({});
-  const onSelectRef = useRef(onSelect);
-  const onCloseRef = useRef(onClose);
   const [error, setError] = useState<string | null>(null);
 
   onSelectRef.current = onSelect;
   onCloseRef.current = onClose;
-
-  const buildParams = useCallback(
-    (size: { width: string; height: string }) => ({
-      city,
-      size,
-      show_select_button: true,
-      source_platform_station_id: sourcePlatformStationId,
-      weight_gross: weightGrossG,
-      filter: {
-        type: includeTerminals ? ['pickup_point', 'terminal'] : ['pickup_point']
-      }
-    }),
-    [city, includeTerminals, sourcePlatformStationId, weightGrossG]
-  );
-
-  useEffect(() => {
-    const onPointSelected = (ev: Event) => {
-      const d = (ev as CustomEvent)?.detail;
-      if (!d?.id) return;
-
-      onSelectRef.current({
-        pvzId: String(d.id),
-        addressFull: d?.address?.full_address,
-        raw: d
-      });
-      onCloseRef.current();
-    };
-
-    document.addEventListener('YaNddWidgetPointSelected', onPointSelected);
-
-    return () => {
-      document.removeEventListener('YaNddWidgetPointSelected', onPointSelected);
-    };
-  }, []);
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && isOpen) {
-        onCloseRef.current();
-      }
-    };
-
-    document.addEventListener('keydown', onKeyDown);
-
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-    };
-  }, [isOpen]);
 
   useEffect(() => {
     const body = document.body;
@@ -186,58 +134,133 @@ export const YaNddPvzModal = ({
   useEffect(() => {
     if (!isOpen) return;
 
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onCloseRef.current();
+      }
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const container = containerRef.current;
+    if (!container) {
+      setError('Не удалось подготовить контейнер виджета ПВЗ.');
+      return;
+    }
+
+    selectedRef.current = false;
+    setError(null);
+    container.innerHTML = '';
+
+    if (!source_platform_station?.trim()) {
+      setError('Не задан source_platform_station. Укажите станцию отгрузки продавца.');
+      return;
+    }
+
     let cancelled = false;
 
-    const initOrUpdateWidget = async () => {
-      setError(null);
+    const onPointSelected = (ev: Event) => {
+      const detail = (ev as CustomEvent)?.detail;
+      debugLog('YaNddWidgetPointSelected', detail);
+
+      if (selectedRef.current || !detail?.id) {
+        return;
+      }
+
+      selectedRef.current = true;
+      onSelectRef.current({
+        pvzId: String(detail.id),
+        addressFull: detail?.address?.full_address,
+        raw: detail
+      });
+      onCloseRef.current();
+    };
+
+    const startWidget = async () => {
+      if (cancelled) return;
 
       try {
         await ensureYaNddWidgetLoaded();
+        if (cancelled) return;
 
         if (!window.YaDelivery?.createWidget) {
           throw new Error('YA_NDD_WIDGET_NOT_LOADED');
         }
 
-        const container = containerRef.current;
-        if (!container) {
-          throw new Error('YA_NDD_WIDGET_CONTAINER_NOT_FOUND');
-        }
+        const widthResult = await waitForContainerWidth(
+          container,
+          SIZE_WAIT_TIMEOUT_MS
+        );
 
-        const rect = await waitForContainerSize(container, SIZE_WAIT_TIMEOUT_MS);
         if (cancelled) return;
 
-        const size = {
-          width: `${Math.floor(rect.width)}px`,
-          height: `${Math.floor(rect.height)}px`
-        };
-        const params = buildParams(size);
-        paramsRef.current = params;
-
-        if (!widgetCreatedRef.current) {
-          window.YaDelivery.createWidget({ containerId, params });
-          widgetCreatedRef.current = true;
-        } else {
-          window.YaDelivery.setParams?.(params);
-          window.dispatchEvent(new Event('resize'));
+        if (widthResult.timedOut) {
+          debugLog(
+            `Container width below ${DESKTOP_WIDTH_THRESHOLD}px, starting anyway`,
+            widthResult.rect.width
+          );
         }
+
+        const params = {
+          city,
+          size: {
+            width: `${Math.max(320, Math.floor(widthResult.rect.width))}px`,
+            height: '780px'
+          },
+          show_select_button: true,
+          source_platform_station,
+          physical_dims_weight_gross
+        };
+
+        debugLog('createWidget', { containerId, params });
+
+        container.innerHTML = '';
+        window.YaDelivery.createWidget({ containerId, params });
       } catch (e) {
         const message =
           e instanceof Error
             ? e.message
             : 'Не удалось инициализировать виджет ПВЗ';
-        console.error('[YaNddPvzModal]', message, e);
+        console.error('[YaPvzPickerModal]', message, e);
         setError(
           'Не удалось загрузить карту ПВЗ. Обновите страницу и попробуйте снова.'
         );
       }
     };
 
-    void initOrUpdateWidget();
+    document.addEventListener('YaNddWidgetPointSelected', onPointSelected);
+
+    if (window.YaDelivery?.createWidget) {
+      debugLog('script already loaded');
+      void startWidget();
+    } else {
+      debugLog('waiting for YaNddWidgetLoad');
+      document.addEventListener('YaNddWidgetLoad', startWidget, { once: true });
+      void ensureYaNddWidgetLoaded().catch(() => {
+        // error will be surfaced in startWidget when event arrives, or by loader.
+      });
+    }
 
     return () => {
       cancelled = true;
+      document.removeEventListener('YaNddWidgetPointSelected', onPointSelected);
+      document.removeEventListener('YaNddWidgetLoad', startWidget);
+      container.innerHTML = '';
     };
-  }, [buildParams, containerId, isOpen]);
+  }, [
+    city,
+    containerId,
+    isOpen,
+    physical_dims_weight_gross,
+    source_platform_station
+  ]);
 
   return (
     <div
@@ -273,4 +296,4 @@ export const YaNddPvzModal = ({
   );
 };
 
-export const YaPvzPickerModal = YaNddPvzModal;
+export { YaPvzPickerModal as YaNddPvzModal };

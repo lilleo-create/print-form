@@ -23,9 +23,10 @@
 }
 
 .modal {
-  width: min(1260px, 96vw);
-  height: min(820px, 92vh);
-  min-height: 640px;
+  width: min(1200px, 95vw);
+  max-width: 1200px;
+  height: min(860px, 92vh);
+  min-height: 680px;
   background: #fff;
   border-radius: 16px;
   box-shadow: 0 20px 70px rgba(0, 0, 0, 0.35);
@@ -66,9 +67,8 @@
 
 .widgetMount {
   width: 100%;
-  height: 100%;
-  min-width: 980px;
-  min-height: 620px;
+  height: 780px;
+  min-height: 780px;
 }
 
 .error {
@@ -97,7 +97,7 @@
   }
 
   .widgetMount {
-    min-width: 100%;
+    height: calc(100vh - 64px);
     min-height: 460px;
   }
 }
