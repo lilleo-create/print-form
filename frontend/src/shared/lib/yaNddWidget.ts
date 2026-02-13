@@ -1,4 +1,3 @@
-// frontend/src/shared/lib/yaNddWidget.ts
 const SRC = 'https://ndd-widget.landpro.site/widget.js';
 const SCRIPT_ID = 'ya-ndd-widget';
 
@@ -11,13 +10,15 @@ declare global {
   }
 }
 
+let loadPromise: Promise<void> | null = null;
+
 function waitEvent(name: string) {
   return new Promise<void>((resolve) => {
     document.addEventListener(name, () => resolve(), { once: true });
   });
 }
 
-export async function ensureYaNddWidgetLoaded(): Promise<void> {
+async function loadWidgetScript() {
   if (window.YaDelivery?.createWidget) return;
 
   if (!document.getElementById(SCRIPT_ID)) {
@@ -28,17 +29,26 @@ export async function ensureYaNddWidgetLoaded(): Promise<void> {
     document.head.appendChild(s);
   }
 
-  // по доке: если YaDelivery ещё нет, ждать YaNddWidgetLoad
-  if (!window.YaDelivery?.createWidget) {
-    await waitEvent('YaNddWidgetLoad');
-  }
+  await waitEvent('YaNddWidgetLoad');
 
-  // микротик (иногда API цепляется не синхронно)
   if (!window.YaDelivery?.createWidget) {
-    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
   }
 
   if (!window.YaDelivery?.createWidget) {
     throw new Error('YA_NDD_WIDGET_NOT_READY');
   }
+}
+
+export async function ensureYaNddWidgetLoaded(): Promise<void> {
+  if (window.YaDelivery?.createWidget) return;
+
+  if (!loadPromise) {
+    loadPromise = loadWidgetScript().catch((error) => {
+      loadPromise = null;
+      throw error;
+    });
+  }
+
+  await loadPromise;
 }
