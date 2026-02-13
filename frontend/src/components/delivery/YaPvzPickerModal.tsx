@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { ensureYaNddWidgetLoaded } from '../../shared/lib/yaNddWidget';
+import { useEffect, useRef } from 'react';
 import styles from './YaPvzPickerModal.module.css';
 
 export type YaPvzSelection = {
@@ -12,125 +11,51 @@ type Props = {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (sel: YaPvzSelection) => void;
+
   city?: string;
-  source_platform_station?: string;
-  physical_dims_weight_gross?: number;
+  source_platform_station: string;        // по доке, обязательный если считаем доставку
+  physical_dims_weight_gross?: number;    // по доке, граммы
 };
 
-const DESKTOP_WIDTH_THRESHOLD = 900;
-const SIZE_WAIT_TIMEOUT_MS = 3000;
-
-const isDev = import.meta.env.DEV;
-
-const debugLog = (...args: unknown[]) => {
-  if (isDev) {
-    console.debug('[YaPvzPickerModal]', ...args);
+declare global {
+  interface Window {
+    YaDelivery?: {
+      createWidget: (args: { containerId: string; params: any }) => void;
+    };
   }
-};
+}
 
-const waitRaf = () =>
-  new Promise<void>((resolve) => {
-    requestAnimationFrame(() => resolve());
-  });
-
-const waitForContainerWidth = async (
-  element: HTMLElement,
-  timeoutMs: number
-): Promise<{ rect: DOMRect; timedOut: boolean }> => {
-  const startedAt = Date.now();
-
-  while (Date.now() - startedAt < timeoutMs) {
-    await waitRaf();
-    const rect = element.getBoundingClientRect();
-    if (rect.width >= DESKTOP_WIDTH_THRESHOLD) {
-      return { rect, timedOut: false };
-    }
-  }
-
-  return { rect: element.getBoundingClientRect(), timedOut: true };
-};
-
-export const YaPvzPickerModal = ({
+export function YaPvzPickerModal({
   isOpen,
   onClose,
   onSelect,
   city = 'Москва',
   source_platform_station,
   physical_dims_weight_gross = 10000
-}: Props) => {
-  const containerId = useMemo(
-    () => `ya-ndd-widget-${Math.random().toString(16).slice(2)}`,
-    []
-  );
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const onSelectRef = useRef(onSelect);
-  const onCloseRef = useRef(onClose);
-  const selectedRef = useRef(false);
-  const bodyStyleRef = useRef<{
-    overflow: string;
-    position: string;
-    top: string;
-    left: string;
-    right: string;
-    width: string;
-  } | null>(null);
-  const scrollYRef = useRef(0);
-  const [error, setError] = useState<string | null>(null);
+}: Props) {
+  const containerIdRef = useRef(`delivery-widget-${Math.random().toString(16).slice(2)}`);
+  const mountedRef = useRef(false);
 
-  onSelectRef.current = onSelect;
-  onCloseRef.current = onClose;
-
+  // 1) Подписка на событие выбора (строго по доке)
   useEffect(() => {
-    const body = document.body;
+    const handler = (data: any) => {
+      const d = data?.detail;
+      if (!d?.id) return;
 
-    if (isOpen) {
-      if (!bodyStyleRef.current) {
-        bodyStyleRef.current = {
-          overflow: body.style.overflow,
-          position: body.style.position,
-          top: body.style.top,
-          left: body.style.left,
-          right: body.style.right,
-          width: body.style.width
-        };
-      }
-      scrollYRef.current = window.scrollY;
+      onSelect({
+        pvzId: String(d.id),
+        addressFull: d?.address?.full_address,
+        raw: d
+      });
 
-      body.style.overflow = 'hidden';
-      body.style.position = 'fixed';
-      body.style.top = `-${scrollYRef.current}px`;
-      body.style.left = '0';
-      body.style.right = '0';
-      body.style.width = '100%';
-
-      return;
-    }
-
-    if (bodyStyleRef.current) {
-      const prev = bodyStyleRef.current;
-      body.style.overflow = prev.overflow;
-      body.style.position = prev.position;
-      body.style.top = prev.top;
-      body.style.left = prev.left;
-      body.style.right = prev.right;
-      body.style.width = prev.width;
-      window.scrollTo(0, scrollYRef.current);
-      bodyStyleRef.current = null;
-    }
-
-    return () => {
-      if (!bodyStyleRef.current) return;
-      const prev = bodyStyleRef.current;
-      body.style.overflow = prev.overflow;
-      body.style.position = prev.position;
-      body.style.top = prev.top;
-      body.style.left = prev.left;
-      body.style.right = prev.right;
-      body.style.width = prev.width;
-      bodyStyleRef.current = null;
+      onClose();
     };
-  }, [isOpen]);
 
+    document.addEventListener('YaNddWidgetPointSelected', handler);
+    return () => document.removeEventListener('YaNddWidgetPointSelected', handler);
+  }, [onClose, onSelect]);
+
+  // 2) Создание виджета (строго по доке)
   useEffect(() => {
     if (!isOpen) return;
 
@@ -166,87 +91,58 @@ export const YaPvzPickerModal = ({
 
     let cancelled = false;
 
-    const onPointSelected = (ev: Event) => {
-      const detail = (ev as CustomEvent)?.detail;
-      debugLog('YaNddWidgetPointSelected', detail);
-
-      if (selectedRef.current || !detail?.id) {
-        return;
-      }
-
-      selectedRef.current = true;
-      onSelectRef.current({
-        pvzId: String(detail.id),
-        addressFull: detail?.address?.full_address,
-        raw: detail
-      });
-      onCloseRef.current();
-    };
-
-    const startWidget = async () => {
+    function startWidget() {
       if (cancelled) return;
+      if (!window.YaDelivery?.createWidget) return;
 
-      try {
-        await ensureYaNddWidgetLoaded();
-        if (cancelled) return;
-
-        if (!window.YaDelivery?.createWidget) {
-          throw new Error('YA_NDD_WIDGET_NOT_LOADED');
-        }
-
-        const widthResult = await waitForContainerWidth(
-          container,
-          SIZE_WAIT_TIMEOUT_MS
-        );
-
-        if (cancelled) return;
-
-        if (widthResult.timedOut) {
-          debugLog(
-            `Container width below ${DESKTOP_WIDTH_THRESHOLD}px, starting anyway`,
-            widthResult.rect.width
-          );
-        }
-
-        const params = {
+      window.YaDelivery.createWidget({
+        containerId: containerIdRef.current,
+        params: {
           city,
           size: {
-            width: `${Math.max(320, Math.floor(widthResult.rect.width))}px`,
-            height: '780px'
+            height: '780px', // дока: только px
+            width: '100%'    // дока: % или px
           },
-          show_select_button: true,
           source_platform_station,
-          physical_dims_weight_gross
-        };
-
-        debugLog('createWidget', { containerId, params });
-
-        container.innerHTML = '';
-        window.YaDelivery.createWidget({ containerId, params });
-      } catch (e) {
-        const message =
-          e instanceof Error
-            ? e.message
-            : 'Не удалось инициализировать виджет ПВЗ';
-        console.error('[YaPvzPickerModal]', message, e);
-        setError(
-          'Не удалось загрузить карту ПВЗ. Обновите страницу и попробуйте снова.'
-        );
-      }
-    };
-
-    document.addEventListener('YaNddWidgetPointSelected', onPointSelected);
-
-    if (window.YaDelivery?.createWidget) {
-      debugLog('script already loaded');
-      void startWidget();
-    } else {
-      debugLog('waiting for YaNddWidgetLoad');
-      document.addEventListener('YaNddWidgetLoad', startWidget, { once: true });
-      void ensureYaNddWidgetLoaded().catch(() => {
-        // error will be surfaced in startWidget when event arrives, or by loader.
+          physical_dims_weight_gross,
+          delivery_price: 'от 100',
+          delivery_term: 'от 1 дня',
+          show_select_button: true,
+          filter: {
+            type: ['pickup_point', 'terminal'],
+            is_yandex_branded: false,
+            payment_methods: ['already_paid', 'card_on_receipt'],
+            payment_methods_filter: 'or'
+          }
+        }
       });
     }
+
+    // ВАЖНО: ждём нормальную ширину контейнера до старта,
+    // иначе виджет стартует в "мобильном" режиме (1 колонка).
+    async function startWhenWide() {
+      const el = document.getElementById(containerIdRef.current);
+      if (!el) return;
+
+      const start = performance.now();
+      while (!cancelled) {
+        const w = el.getBoundingClientRect().width;
+        // порог можно чуть менять, но 900 обычно достаточно для desktop-layout
+        if (w >= 900) break;
+        if (performance.now() - start > 2500) break; // не зависаем вечно
+        await new Promise((r) => requestAnimationFrame(r));
+      }
+
+      // запускаем строго как в доке
+      if (window.YaDelivery) startWidget();
+      else document.addEventListener('YaNddWidgetLoad', startWidget, { once: true });
+    }
+
+    // чистим контейнер перед стартом (чтобы рестарт был чистым)
+    const el = document.getElementById(containerIdRef.current);
+    if (el) el.innerHTML = '';
+
+    startWhenWide();
 
     return () => {
       cancelled = true;
@@ -254,46 +150,26 @@ export const YaPvzPickerModal = ({
       document.removeEventListener('YaNddWidgetLoad', startWidget);
       container.innerHTML = '';
     };
-  }, [
-    city,
-    containerId,
-    isOpen,
-    physical_dims_weight_gross,
-    source_platform_station
-  ]);
+  }, [isOpen, city, source_platform_station, physical_dims_weight_gross]);
 
+  // 3) Не рендерим ничего, если закрыто
+  if (!isOpen) return null;
+
+  // 4) Модалка
   return (
-    <div
-      className={`${styles.overlay} ${isOpen ? styles.overlayOpen : styles.overlayClosed}`}
-      onClick={() => onCloseRef.current()}
-      aria-hidden={!isOpen}
-    >
-      <div
-        className={styles.modal}
-        onClick={(event) => event.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Выбор пункта выдачи"
-      >
+    <div className={styles.overlay} onClick={onClose}>
+      <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
         <div className={styles.header}>
-          <h3 className={styles.title}>Выберите пункт выдачи</h3>
-          <button
-            type="button"
-            className={styles.closeBtn}
-            onClick={() => onCloseRef.current()}
-            aria-label="Закрыть"
-          >
+          <span>Выберите пункт выдачи</span>
+          <button className={styles.closeButton} onClick={onClose} aria-label="Закрыть">
             ×
           </button>
         </div>
 
         <div className={styles.body}>
-          <div ref={containerRef} id={containerId} className={styles.widgetMount} />
-          {error ? <div className={styles.error}>{error}</div> : null}
+          <div id={containerIdRef.current} className={styles.widget} />
         </div>
       </div>
     </div>
   );
-};
-
-export { YaPvzPickerModal as YaNddPvzModal };
+}
