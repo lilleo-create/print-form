@@ -108,10 +108,11 @@ SMS_PROVIDER=console
    ```env
    YANDEX_NDD_BASE_URL=https://b2b.taxi.tst.yandex.net
    YANDEX_NDD_TOKEN=<ваш токен>
+   YANDEX_NDD_OPERATOR_STATION_ID=<числовой station_id продавца, например 10022023854>
    YANDEX_NDD_LANG=ru
    ```
 2. Создайте заказ через checkout с `deliveryMethod=PICKUP_POINT` и валидным `pickupPoint.id` (станция назначения).
-3. В ЛК продавца откройте `Настройки` и сохраните `dropoffStationId` (GUID станции отгрузки `source_platform_station`).
+3. В ЛК продавца откройте `Настройки` и сохраните ПВЗ сдачи через виджет; в `raw` должен сохраниться `operator_station_id` (числовой station_id), а `YANDEX_NDD_OPERATOR_STATION_ID` используется как приоритетный источник station_id.
 4. В ЛК продавца в разделе `Заказы` нажмите **Готов к отгрузке** — создастся заявка NDD.
 5. Проверьте БД:
    - `order_shipments` (request_id, status, status_raw)

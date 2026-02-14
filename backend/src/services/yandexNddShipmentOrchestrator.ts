@@ -121,9 +121,9 @@ export const yandexNddShipmentOrchestrator = {
     }
 
     const sourceStationId =
+      process.env.YANDEX_NDD_OPERATOR_STATION_ID ??
       getOperatorStationId((order.sellerDropoffPvzMeta as Record<string, unknown> | null)?.raw) ??
       getOperatorStationId(order.sellerDropoffPvzMeta) ??
-      process.env.YANDEX_NDD_OPERATOR_STATION_ID ??
       null;
 
     if (!sourceStationId) {
@@ -203,7 +203,7 @@ export const yandexNddShipmentOrchestrator = {
       await shipmentService.upsertForOrder({
         orderId,
         deliveryMethod,
-        sourceStationId: order.sellerDropoffPvzId,
+        sourceStationId,
         sourceStationSnapshot: asRecord(order.sellerDropoffPvzMeta),
         destinationStationId: order.buyerPickupPvzId,
         destinationStationSnapshot: delivery?.pickupPoint ?? asRecord(order.buyerPickupPvzMeta),
@@ -217,10 +217,19 @@ export const yandexNddShipmentOrchestrator = {
     }
 
     const offersConfirmResponse = await yandexNddClient.offersConfirm({ offer_id: selectedOfferId });
-    const requestId =
+    let requestId =
       (offersConfirmResponse.request_id as string | undefined) ??
       ((offersConfirmResponse.request as Record<string, unknown> | undefined)?.request_id as string | undefined) ??
       null;
+
+    let requestCreateResponse: Record<string, unknown> | null = null;
+    if (!requestId) {
+      requestCreateResponse = await yandexNddClient.requestCreate({ offer_id: selectedOfferId });
+      requestId =
+        (requestCreateResponse.request_id as string | undefined) ??
+        ((requestCreateResponse.request as Record<string, unknown> | undefined)?.request_id as string | undefined) ??
+        null;
+    }
 
     if (!requestId) {
       throw new Error('NDD_REQUEST_ID_MISSING');
@@ -233,6 +242,7 @@ export const yandexNddShipmentOrchestrator = {
       offersInfo,
       offersCreate: offersResponse,
       offersConfirm: offersConfirmResponse,
+      requestCreate: requestCreateResponse,
       lastStatus: yandexStatus,
       offerId: selectedOfferId
     };
@@ -240,7 +250,7 @@ export const yandexNddShipmentOrchestrator = {
     const updated = await shipmentService.upsertForOrder({
       orderId,
       deliveryMethod,
-      sourceStationId: order.sellerDropoffPvzId,
+      sourceStationId,
       sourceStationSnapshot: asRecord(order.sellerDropoffPvzMeta),
       destinationStationId: order.buyerPickupPvzId,
       destinationStationSnapshot: delivery?.pickupPoint ?? asRecord(order.buyerPickupPvzMeta),
