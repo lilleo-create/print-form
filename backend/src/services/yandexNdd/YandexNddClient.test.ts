@@ -36,6 +36,25 @@ test('sets strict Authorization header as Bearer <token> even when env token alr
   assert.equal(capturedHeaders?.get('Authorization'), 'Bearer abcdefghijklmnop');
 });
 
+test('offersInfo sends expected query params', async () => {
+  process.env.YANDEX_NDD_TOKEN = 'token';
+  let url = '';
+
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    url = String(input);
+    return new Response(JSON.stringify({ intervals: [] }), { status: 200 });
+  }) as typeof fetch;
+
+  const client = new YandexNddClient();
+  await client.offersInfo('station-1', 'pvz-1');
+
+  assert.match(url, /offers\/info\?/);
+  assert.match(url, /station_id=station-1/);
+  assert.match(url, /self_pickup_id=pvz-1/);
+  assert.match(url, /last_mile_policy=time_interval/);
+  assert.match(url, /send_unix=true/);
+});
+
 test('logs token preview/length and Bearer prefix flag on failed responses', async () => {
   process.env.YANDEX_NDD_TOKEN = 'Bearer abcdefghij12345';
   process.env.NODE_ENV = 'test';

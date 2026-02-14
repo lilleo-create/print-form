@@ -91,18 +91,60 @@ export class YandexNddClient {
     return JSON.parse(bodyText) as T;
   }
 
-  offersCreate(body: JsonRecord) {
-    return this.request<JsonRecord>('/api/b2b/platform/offers/create', {
+  async offersCreate(body: JsonRecord) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[NDD offers/create body]', JSON.stringify(body));
+    }
+
+    const response = await this.request<JsonRecord>('/api/b2b/platform/offers/create', {
       method: 'POST',
       body: JSON.stringify(body)
     });
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[NDD offers/create response]', JSON.stringify(response));
+    }
+
+    return response;
   }
 
-  offersConfirm(body: JsonRecord) {
-    return this.request<JsonRecord>('/api/b2b/platform/offers/confirm', {
+  async offersInfo(stationId: string, selfPickupId: string, lastMilePolicy = 'time_interval', sendUnix = true) {
+    const query = new URLSearchParams({
+      station_id: stationId,
+      self_pickup_id: selfPickupId,
+      last_mile_policy: lastMilePolicy,
+      send_unix: String(sendUnix)
+    });
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[NDD offers/info params]', Object.fromEntries(query.entries()));
+    }
+
+    const response = await this.request<JsonRecord>(`/api/b2b/platform/offers/info?${query.toString()}`, {
+      method: 'GET'
+    });
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[NDD offers/info response]', JSON.stringify(response));
+    }
+
+    return response;
+  }
+
+  async offersConfirm(body: JsonRecord) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[NDD offers/confirm body]', JSON.stringify(body));
+    }
+
+    const response = await this.request<JsonRecord>('/api/b2b/platform/offers/confirm', {
       method: 'POST',
       body: JSON.stringify(body)
     });
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[NDD offers/confirm response]', JSON.stringify(response));
+    }
+
+    return response;
   }
 
   requestCreate(body: JsonRecord) {
