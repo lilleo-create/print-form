@@ -58,16 +58,26 @@ export const yandexNddShipmentOrchestrator = {
       return existing;
     }
 
+    const sourcePlatformStationId = process.env.YANDEX_NDD_PLATFORM_STATION_ID || order.sellerDropoffPvzId;
+
     const offersBody = {
-      source_platform_station: order.sellerDropoffPvzId,
-      destination_platform_station: order.buyerPickupPvzId,
+      source: {
+        type: 'platform_station',
+        platform_station_id: sourcePlatformStationId
+      },
+      destination: {
+        type: 'platform_station',
+        platform_station_id: order.buyerPickupPvzId
+      },
       billing_info: {
         delivery_cost: 0,
         payment_method: 'already_paid'
       },
       places: [{ physical_dims: { weight_gross: 500, dx: 10, dy: 10, dz: 10 } }]
     };
-    console.log('[NDD offers/create body]', JSON.stringify(offersBody, null, 2));
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[NDD offers/create body]', JSON.stringify(offersBody, null, 2));
+    }
     const offersResponse = await yandexNddClient.offersCreate(offersBody);
     const selectedOffer = pickBestOffer(offersResponse);
 
@@ -76,16 +86,26 @@ export const yandexNddShipmentOrchestrator = {
     }
 
     const offersConfirmResponse = await yandexNddClient.offersConfirm({ offers: [selectedOffer] });
-    const requestCreateResponse = await yandexNddClient.requestCreate({
-      source_platform_station: order.sellerDropoffPvzId,
-      destination_platform_station: order.buyerPickupPvzId,
+    const requestCreateBody = {
+      source: {
+        type: 'platform_station',
+        platform_station_id: sourcePlatformStationId
+      },
+      destination: {
+        type: 'platform_station',
+        platform_station_id: order.buyerPickupPvzId
+      },
       offer: selectedOffer,
       order_ref: orderId,
       recipient: {
         name: order.contact?.name ?? order.buyer.name,
         phone: order.contact?.phone ?? order.buyer.phone ?? ''
       }
-    });
+    };
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[NDD request/create body]', JSON.stringify(requestCreateBody, null, 2));
+    }
+    const requestCreateResponse = await yandexNddClient.requestCreate(requestCreateBody);
 
     const requestId =
       (requestCreateResponse.request_id as string | undefined) ??
