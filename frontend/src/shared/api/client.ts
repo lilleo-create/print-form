@@ -117,6 +117,7 @@ export function createFetchClient(baseUrl: string) {
       headers?: Record<string, string>;
       signal?: AbortSignal;
       retry?: boolean;
+      credentials?: RequestCredentials;
     }
   ): Promise<ApiResponse<T>> => {
     const url = `${baseUrl}${path}`;
@@ -151,7 +152,7 @@ export function createFetchClient(baseUrl: string) {
           : opts.body instanceof FormData
             ? opts.body
             : JSON.stringify(opts.body),
-      credentials: 'include',
+      credentials: opts?.credentials ?? 'include',
       signal: opts?.signal
     });
 

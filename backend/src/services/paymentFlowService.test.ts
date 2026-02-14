@@ -191,7 +191,14 @@ test('webhook cancel blocks payout status for unpaid order', async () => {
 });
 
 test('mock-success marks order as PAID and sets paidAt', async () => {
-  (prisma.payment.findUnique as any) = async () => ({ id: 'pay-mock-1', provider: 'manual', orderId: 'order-mock-1', order: { id: 'order-mock-1' } });
+  let findUniqueCalls = 0;
+  (prisma.payment.findUnique as any) = async () => {
+    findUniqueCalls += 1;
+    if (findUniqueCalls === 1) {
+      return { id: 'pay-mock-1', provider: 'manual', orderId: 'order-mock-1', order: { buyerId: 'buyer-1' } };
+    }
+    return { id: 'pay-mock-1', provider: 'manual', orderId: 'order-mock-1', order: { id: 'order-mock-1' } };
+  };
 
   let updatedOrderData: any = null;
   (prisma.$transaction as any) = async (cb: any) =>
@@ -207,9 +214,24 @@ test('mock-success marks order as PAID and sets paidAt', async () => {
       payment: { update: async () => ({}) }
     });
 
-  await paymentFlowService.mockSuccess('pay-mock-1');
+  await paymentFlowService.mockSuccess('pay-mock-1', 'buyer-1');
 
   assert.equal(updatedOrderData.status, 'PAID');
   assert.equal(updatedOrderData.payoutStatus, 'HOLD');
   assert.ok(updatedOrderData.paidAt instanceof Date);
+});
+
+
+test('mock-success rejects чужой payment', async () => {
+  (prisma.payment.findUnique as any) = async () => ({
+    id: 'pay-mock-2',
+    provider: 'manual',
+    orderId: 'order-mock-2',
+    order: { buyerId: 'buyer-owner' }
+  });
+
+  await assert.rejects(
+    () => paymentFlowService.mockSuccess('pay-mock-2', 'buyer-stranger'),
+    /FORBIDDEN/
+  );
 });
