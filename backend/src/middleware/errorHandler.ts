@@ -42,6 +42,19 @@ export const errorHandler = (
 
 
   if (error instanceof YandexNddHttpError) {
+    if (error.status === 401) {
+      return res.status(401).json({ error: { code: 'NDD_UNAUTHORIZED', details: error.details } });
+    }
+
+    const detailsCode =
+      error.details && typeof error.details === 'object'
+        ? String((error.details as Record<string, unknown>).code ?? '')
+        : '';
+
+    if (error.status === 403 && detailsCode === 'no_permissions') {
+      return res.status(403).json({ error: { code: 'NDD_NO_PERMISSIONS', details: error.details } });
+    }
+
     return res.status(502).json({
       error: {
         code: error.code,
@@ -76,6 +89,8 @@ export const errorHandler = (
       error.message === 'DELIVERY_DESTINATION_REQUIRED' ||
       error.message === 'DELIVERY_METHOD_NOT_SUPPORTED'
     ? 400
+    : error.message === 'ORDER_NOT_PAID' || error.message === 'PICKUP_POINT_REQUIRED'
+    ? 409
     : 500;
 
   if (status === 500) {
