@@ -114,3 +114,50 @@ test('ready-to-ship when NDD returns 403 no_permissions bubbles Ndd error and or
   await assert.rejects(() => yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-6'), (err: any) => err instanceof YandexNddHttpError);
   assert.equal(orderUpdateCalled, 0);
 });
+
+test('ready-to-ship sends mandatory billing_info to offers/create', async () => {
+  (prisma.order.findFirst as any) = async () => ({
+    id: 'order-7',
+    status: 'PAID',
+    paidAt: new Date(),
+    sellerDropoffPvzId: 'dropoff-1',
+    sellerDropoffPvzMeta: null,
+    buyerPickupPvzId: 'pickup-1',
+    buyerPickupPvzMeta: null,
+    shippingAddressId: null,
+    contact: { name: 'Buyer', phone: '+7999' },
+    buyer: { name: 'Buyer', phone: '+7999' }
+  });
+
+  const deliveryServiceModule = await import('./orderDeliveryService');
+  (deliveryServiceModule.orderDeliveryService.getByOrderIds as any) = async () =>
+    new Map([['order-7', { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: 'pickup-1' } }]]);
+
+  const shipmentModule = await import('./shipmentService');
+  (shipmentModule.shipmentService.getByOrderId as any) = async () => null;
+
+  let offersPayload: Record<string, unknown> | null = null;
+  (yandexNddClient.offersCreate as any) = async (body: Record<string, unknown>) => {
+    offersPayload = body;
+    return { offers: [{ offer_id: 'offer-1', price: { amount: 100 } }] };
+  };
+  (yandexNddClient.offersConfirm as any) = async () => ({ ok: true });
+  (yandexNddClient.requestCreate as any) = async () => ({ request_id: 'request-1', status: 'CREATED' });
+  (shipmentModule.shipmentService.upsertForOrder as any) = async (payload: Record<string, unknown>) => ({ id: 'shipment-1', ...payload });
+  (shipmentModule.shipmentService.pushHistory as any) = async () => undefined;
+  (prisma.order.update as any) = async () => ({});
+
+  await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-7');
+
+  assert.deepEqual((offersPayload as any).billing_info, {
+    delivery_cost: 0,
+    payment_method: 'already_paid'
+  });
+  assert.equal((offersPayload as any).request_id, undefined);
+  assert.deepEqual((offersPayload as any).places?.[0]?.physical_dims, {
+    weight_gross: 500,
+    dx: 10,
+    dy: 10,
+    dz: 10
+  });
+});
