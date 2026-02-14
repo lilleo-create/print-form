@@ -581,6 +581,11 @@ sellerRoutes.post('/orders/:orderId/ready-to-ship', writeLimiter, async (req: Au
     const shipment = await yandexNddShipmentOrchestrator.readyToShip(req.user!.userId, req.params.orderId);
     res.json({ data: shipment });
   } catch (error) {
+    console.error('[sellerRoutes.ready-to-ship] failed', {
+      sellerId: req.user?.userId,
+      orderId: req.params.orderId,
+      error: error instanceof Error ? error.message : String(error)
+    });
     next(error);
   }
 });

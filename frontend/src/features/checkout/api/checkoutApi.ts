@@ -195,13 +195,17 @@ export const checkoutApi = {
     },
     signal?: AbortSignal
   ) => {
-    const response = await client.request<{
-      data: { orderId: string; paymentId: string; paymentUrl: string };
-    }>('/payments/start', {
+    const response = await client.request<{ orderId: string; paymentId: string; paymentUrl: string }>('/payments/start', {
       method: 'POST',
       body: payload,
       signal
     });
-    return response.data.data;
+    return response.data;
+  },
+  mockSuccess: async (paymentId: string, signal?: AbortSignal) => {
+    await client.request(`/payments/${paymentId}/mock-success`, {
+      method: 'POST',
+      signal
+    });
   }
 };

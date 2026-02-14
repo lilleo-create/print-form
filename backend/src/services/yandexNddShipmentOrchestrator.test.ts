@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { prisma } from '../lib/prisma';
 import { yandexNddShipmentOrchestrator } from './yandexNddShipmentOrchestrator';
+import { paymentFlowService } from './paymentFlowService';
 
 const sellerId = 'seller-1';
 
@@ -91,4 +92,74 @@ test('ready-to-ship fails with PAYMENT_REQUIRED when unpaid', async () => {
     () => yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-4'),
     /PAYMENT_REQUIRED/
   );
+});
+
+
+test('ready-to-ship fails with PAYMENT_REQUIRED when status is PAID but paidAt is null', async () => {
+  (prisma.order.findFirst as any) = async () => ({
+    id: 'order-5',
+    status: 'PAID',
+    paidAt: null,
+    sellerDropoffPvzId: 'dropoff-1',
+    buyerPickupPvzId: 'pickup-1',
+    shippingAddressId: null,
+    contact: null,
+    buyer: { name: 'Buyer', phone: '+7999' }
+  });
+
+  await assert.rejects(
+    () => yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-5'),
+    /PAYMENT_REQUIRED/
+  );
+});
+
+test('after mock-success ready-to-ship passes when PVZ preconditions are set', async () => {
+  const orderState: any = {
+    id: 'order-6',
+    status: 'CREATED',
+    paidAt: null,
+    sellerDropoffPvzId: 'dropoff-1',
+    sellerDropoffPvzMeta: null,
+    buyerPickupPvzId: 'pickup-1',
+    buyerPickupPvzMeta: null,
+    shippingAddressId: null,
+    contact: { name: 'Buyer', phone: '+7999' },
+    buyer: { name: 'Buyer', phone: '+7999' }
+  };
+
+  (prisma.payment.findUnique as any) = async () => ({ id: 'pay-6', provider: 'manual', orderId: 'order-6' });
+  (prisma.$transaction as any) = async (cb: any) =>
+    cb({
+      order: {
+        findUnique: async () => ({ id: orderState.id, status: orderState.status }),
+        update: async ({ data }: any) => {
+          orderState.status = data.status ?? orderState.status;
+          orderState.paidAt = data.paidAt ?? orderState.paidAt;
+          return { ...orderState };
+        }
+      },
+      payment: { update: async () => ({}) }
+    });
+
+  await paymentFlowService.mockSuccess('pay-6');
+
+  (prisma.order.findFirst as any) = async () => ({ ...orderState });
+  (prisma.$queryRawUnsafe as any) = async () => [
+    { order_id: 'order-6', delivery_payload: { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: 'pickup-1' } } }
+  ];
+  (prisma.$executeRawUnsafe as any) = async () => 1;
+  (prisma.order.update as any) = async () => ({});
+
+  const shipmentModule = await import('./shipmentService');
+  (shipmentModule.shipmentService.getByOrderId as any) = async () => null;
+  (shipmentModule.shipmentService.upsertForOrder as any) = async () => ({ id: 'ship-6', requestId: 'req-6' });
+  (shipmentModule.shipmentService.pushHistory as any) = async () => ({});
+
+  const clientModule = await import('./yandexNdd/YandexNddClient');
+  (clientModule.yandexNddClient.offersCreate as any) = async () => ({ offers: [{ id: 'offer-6', price: { amount: 1 } }] });
+  (clientModule.yandexNddClient.offersConfirm as any) = async () => ({});
+  (clientModule.yandexNddClient.requestCreate as any) = async () => ({ request_id: 'req-6', status: 'CREATED' });
+
+  const result = await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-6');
+  assert.equal(result.requestId, 'req-6');
 });

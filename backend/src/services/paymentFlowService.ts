@@ -241,6 +241,37 @@ export const paymentFlowService = {
     return { orderId: order.id, paymentId: payment.id, paymentUrl };
   },
 
+  async mockSuccess(paymentId: string) {
+    const payment = await prisma.payment.findUnique({ where: { id: paymentId } });
+    if (!payment) return { ok: true };
+
+    await prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({ where: { id: payment.orderId } });
+      if (!order) return;
+
+      await tx.payment.update({
+        where: { id: payment.id },
+        data: {
+          status: 'SUCCEEDED',
+          provider: payment.provider ?? 'manual'
+        }
+      });
+
+      await tx.order.update({
+        where: { id: order.id },
+        data: {
+          status: 'PAID',
+          paidAt: new Date(),
+          paymentProvider: payment.provider ?? 'manual',
+          paymentId: payment.id,
+          payoutStatus: 'HOLD'
+        }
+      });
+    });
+
+    return { ok: true };
+  },
+
   async processWebhook(input: { paymentId: string; status: 'success' | 'failed' | 'cancelled' | 'expired'; provider?: string }) {
     const payment = await prisma.payment.findUnique({ where: { id: input.paymentId }, include: { order: true } });
     if (!payment) return { ok: true };
