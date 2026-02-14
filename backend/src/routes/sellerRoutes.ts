@@ -17,6 +17,7 @@ import { payoutService } from '../services/payoutService';
 import { shipmentService } from '../services/shipmentService';
 import { yandexDeliveryService } from '../services/yandexDeliveryService';
 import { sellerOrderDocumentsService } from '../services/sellerOrderDocumentsService';
+import { getOperatorStationId } from '../services/yandexNdd/getOperatorStationId';
 
 export const sellerRoutes = Router();
 
@@ -490,10 +491,16 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
     const detailId = rawDetail && typeof rawDetail.id === 'string' && rawDetail.id.trim()
       ? rawDetail.id.trim()
       : payload.dropoffPvz.pvzId;
+    const operatorStationId = getOperatorStationId(rawDetail) ?? undefined;
+    const normalizedRaw = {
+      ...(rawDetail ?? {}),
+      pvzId: detailId,
+      ...(operatorStationId ? { operator_station_id: operatorStationId } : {})
+    };
     const dropoffPvzMeta = {
       ...payload.dropoffPvz,
       pvzId: detailId,
-      raw: rawDetail ?? payload.dropoffPvz.raw
+      raw: normalizedRaw
     };
 
     const settings = await prisma.sellerSettings.upsert({

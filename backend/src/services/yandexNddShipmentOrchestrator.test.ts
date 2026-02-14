@@ -112,7 +112,7 @@ test('ready-to-ship sends station_id/self_pickup_id and interval_utc from offers
 
   await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-7');
 
-  assert.equal(offersPayload?.station_id, '10022023854');
+  assert.equal(offersPayload?.station_id, 'station-env');
   assert.equal(offersPayload?.self_pickup_id, 'pickup-1');
   assert.deepEqual(offersPayload?.interval_utc, interval);
   assert.equal(offersPayload?.last_mile_policy, 'time_interval');
@@ -148,6 +148,37 @@ test('ready-to-ship when NDD returns 400 variant maps NDD_OFFER_CREATE_FAILED', 
     () => yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-6'),
     (err: any) => err instanceof YandexNddHttpError && err.code === 'NDD_OFFER_CREATE_FAILED' && String((err as any).details?.message).includes('variant')
   );
+});
+
+
+test('ready-to-ship falls back to request/create when offers/confirm has no request_id', async () => {
+  (prisma.order.findFirst as any) = async () => mockPaidOrder('order-request-create');
+  const deliveryServiceModule = await import('./orderDeliveryService');
+  (deliveryServiceModule.orderDeliveryService.getByOrderIds as any) = async () =>
+    new Map([['order-request-create', { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: 'pickup-1' } }]]);
+
+  const shipmentModule = await import('./shipmentService');
+  let savedShipment: Record<string, unknown> | null = null;
+  (shipmentModule.shipmentService.getByOrderId as any) = async () => null;
+  (shipmentModule.shipmentService.upsertForOrder as any) = async (payload: Record<string, unknown>) => {
+    savedShipment = payload;
+    return { id: 'shipment-1', ...payload };
+  };
+  (shipmentModule.shipmentService.pushHistory as any) = async () => undefined;
+  (prisma.order.update as any) = async () => ({ id: 'order-request-create' });
+
+  (yandexNddClient.offersInfo as any) = async () => ({ intervals_utc: [{ from: 1, to: 2 }] });
+  (yandexNddClient.offersCreate as any) = async () => ({ offer_id: 'offer-1' });
+  (yandexNddClient.offersConfirm as any) = async () => ({ status: 'CREATED' });
+  (yandexNddClient.requestCreate as any) = async (body: Record<string, unknown>) => {
+    assert.equal(body.offer_id, 'offer-1');
+    return { request_id: 'request-created' };
+  };
+
+  const shipment = await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-request-create');
+
+  assert.equal(shipment.requestId, 'request-created');
+  assert.equal((savedShipment as any)?.requestId, 'request-created');
 });
 
 test('ready-to-ship is idempotent and returns existing shipment', async () => {

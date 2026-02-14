@@ -122,6 +122,7 @@ export const SellerDashboardPage = () => {
   // === Delivery profile ===
   const [dropoffStationId, setDropoffStationId] = useState('');
   const [dropoffStationAddress, setDropoffStationAddress] = useState('');
+  const [dropoffStationRaw, setDropoffStationRaw] = useState<Record<string, unknown> | null>(null);
   const [isDropoffModalOpen, setDropoffModalOpen] = useState(false);
 
   const [deliverySettingsMessage, setDeliverySettingsMessage] = useState<
@@ -227,6 +228,8 @@ export const SellerDashboardPage = () => {
           profileResponse.data?.defaultDropoffPvzId ??
           ''
       );
+      const persistedRaw = dropoffPvz?.raw ?? (dropoffMeta && typeof dropoffMeta === 'object' ? (dropoffMeta as Record<string, unknown>).raw : null);
+      setDropoffStationRaw(persistedRaw && typeof persistedRaw === 'object' && !Array.isArray(persistedRaw) ? (persistedRaw as Record<string, unknown>) : null);
     } catch (error) {
       setOrders([]);
       setOrdersView([]);
@@ -502,6 +505,7 @@ export const SellerDashboardPage = () => {
           provider: 'YANDEX_NDD',
           pvzId,
           raw: {
+            ...(dropoffStationRaw ?? {}),
             pvzId
           },
           addressFull: addressFull || pvzId
@@ -518,6 +522,11 @@ export const SellerDashboardPage = () => {
   const handleDropoffSelect = (selection: YaPvzSelection) => {
     setDropoffStationId(selection.pvzId);
     setDropoffStationAddress(selection.addressFull ?? '');
+    setDropoffStationRaw(
+      selection.raw && typeof selection.raw === 'object' && !Array.isArray(selection.raw)
+        ? (selection.raw as Record<string, unknown>)
+        : null
+    );
   };
 
   const handleReadyToShip = async (orderId: string) => {

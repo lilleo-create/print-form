@@ -248,13 +248,13 @@ export interface SellerDeliveryProfile {
 
   // что реально хранится/возвращается
   defaultDropoffPvzId?: string | null;
-  defaultDropoffPvzMeta?: { addressFull?: string } | null;
+  defaultDropoffPvzMeta?: { addressFull?: string; raw?: Record<string, unknown> } | null;
 
   // payload/profile shape for dropoff PVZ
   dropoffPvz?: {
     provider: 'YANDEX_NDD';
     pvzId: string;
-    raw: unknown;
+    raw: Record<string, unknown> | null;
     addressFull?: string;
   } | null;
 

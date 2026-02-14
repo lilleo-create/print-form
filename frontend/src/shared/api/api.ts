@@ -242,7 +242,7 @@ export const api = {
     dropoffPvz: {
       provider: 'YANDEX_NDD';
       pvzId: string;
-      raw: unknown;
+      raw: Record<string, unknown> | null;
       addressFull?: string;
     };
   }) {
