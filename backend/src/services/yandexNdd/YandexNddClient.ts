@@ -3,14 +3,20 @@ import { getYandexNddConfig } from '../../config/yandexNdd';
 type JsonRecord = Record<string, unknown>;
 
 export class YandexNddHttpError extends Error {
+  code: string;
+  path: string;
   status: number;
   raw: string;
+  details: unknown;
 
-  constructor(message: string, status: number, raw: string) {
-    super(message);
+  constructor(code: string, path: string, status: number, raw: string, details: unknown) {
+    super(code);
     this.name = 'YandexNddHttpError';
+    this.code = code;
+    this.path = path;
     this.status = status;
     this.raw = raw;
+    this.details = details;
   }
 }
 
@@ -29,13 +35,30 @@ export class YandexNddClient {
     });
 
     const bodyText = await response.text();
+    const errorDetails = (() => {
+      if (!bodyText) return null;
+      try {
+        return JSON.parse(bodyText) as unknown;
+      } catch {
+        return bodyText;
+      }
+    })();
 
     if (process.env.NODE_ENV !== 'production') {
       console.log('[YANDEX_NDD]', { requestId: init?.requestId ?? 'n/a', path, httpStatus: response.status });
     }
 
     if (!response.ok) {
-      throw new YandexNddHttpError(`NDD request failed: ${path}`, response.status, bodyText);
+      console.error('[YANDEX_NDD] non-2xx response', {
+        requestId: init?.requestId ?? 'n/a',
+        path,
+        httpStatus: response.status,
+        tokenLength: (this.config.token ?? '').length,
+        body: errorDetails
+      });
+
+      const code = path === '/api/b2b/platform/offers/create' ? 'NDD_OFFER_CREATE_FAILED' : 'NDD_REQUEST_FAILED';
+      throw new YandexNddHttpError(code, path, response.status, bodyText, errorDetails);
     }
 
     if (!bodyText) {

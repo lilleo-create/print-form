@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
 import { MulterError } from 'multer';
 import { ZodError } from 'zod';
+import { YandexNddHttpError } from '../services/yandexNdd/YandexNddClient';
 
 const mapMulterErrorCode = (code: string) => {
   switch (code) {
@@ -37,6 +38,17 @@ export const errorHandler = (
 
   if (error.message === 'RETURN_UPLOAD_FILE_TYPE_INVALID') {
     return res.status(400).json({ error: { code: 'RETURN_UPLOAD_FILE_TYPE_INVALID' } });
+  }
+
+
+  if (error instanceof YandexNddHttpError) {
+    return res.status(502).json({
+      error: {
+        code: error.code,
+        status: error.status,
+        details: error.details
+      }
+    });
   }
 
   const status = error.message === 'INVALID_CREDENTIALS' || error.message === 'UNAUTHORIZED'
