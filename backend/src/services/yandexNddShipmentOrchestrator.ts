@@ -61,6 +61,10 @@ export const yandexNddShipmentOrchestrator = {
     const offersBody = {
       source_platform_station: order.sellerDropoffPvzId,
       destination_platform_station: order.buyerPickupPvzId,
+      billing_info: {
+        delivery_cost: 0,
+        payment_method: 'already_paid'
+      },
       places: [{ physical_dims: { weight_gross: 500, dx: 10, dy: 10, dz: 10 } }]
     };
     const offersResponse = await yandexNddClient.offersCreate(offersBody);
