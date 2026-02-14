@@ -72,6 +72,7 @@ export const CheckoutLayout = () => {
     setIsPaying(true);
     try {
       await checkoutApi.mockSuccess(pendingPaymentId);
+      await fetchCheckout();
       window.location.assign('/orders');
     } finally {
       setIsPaying(false);

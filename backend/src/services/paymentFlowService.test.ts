@@ -34,6 +34,7 @@ test('startPayment is idempotent by buyerId + paymentAttemptKey', async () => {
   });
 
   assert.equal(first.orderId, second.orderId);
+  assert.equal(second.paymentUrl, 'https://payment.local/checkout/pay-1');
   assert.equal(createdPayments, 1);
 });
 
