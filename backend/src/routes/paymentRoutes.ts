@@ -62,7 +62,7 @@ paymentRoutes.post('/:id/mock-success', authenticate, writeLimiter, async (req: 
       throw new Error('FORBIDDEN');
     }
 
-    await paymentFlowService.mockSuccess(req.params.id);
+    await paymentFlowService.mockSuccess(req.params.id, req.user!.userId);
     return res.json({ data: { ok: true } });
   } catch (error) {
     return next(error);

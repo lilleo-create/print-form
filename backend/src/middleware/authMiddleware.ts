@@ -19,10 +19,13 @@ const loadUserRole = async (userId: string) => {
 
 export const requireAuth = async (req: AuthRequest, res: Response, next: NextFunction) => {
   const header = req.headers.authorization;
-  if (!header) {
+  const cookieToken = typeof req.cookies?.accessToken === 'string' ? req.cookies.accessToken : null;
+  const token = header?.replace('Bearer ', '') || cookieToken;
+
+  if (!token) {
     return unauthorized(res);
   }
-  const token = header.replace('Bearer ', '');
+
   try {
     const decoded = jwt.verify(token, env.jwtSecret) as {
       userId: string;

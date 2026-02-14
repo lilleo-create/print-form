@@ -209,6 +209,7 @@ export const checkoutApi = {
   mockSuccess: async (paymentId: string, signal?: AbortSignal) => {
     await client.request(`/payments/${paymentId}/mock-success`, {
       method: 'POST',
+      credentials: 'include',
       signal
     });
   }
