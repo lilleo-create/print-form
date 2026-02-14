@@ -6,7 +6,8 @@ export type YandexNddConfig = {
 };
 
 export const getYandexNddConfig = (): YandexNddConfig => {
-  const baseUrl = process.env.YANDEX_NDD_BASE_URL || 'https://b2b.taxi.tst.yandex.net';
+  const rawBaseUrl = process.env.YANDEX_NDD_BASE_URL || 'https://b2b.taxi.tst.yandex.net';
+  const baseUrl = rawBaseUrl.replace(/\/api\/?$/, '');
   const token = process.env.YANDEX_NDD_TOKEN || '';
   const lang = process.env.YANDEX_NDD_LANG || 'ru';
 
