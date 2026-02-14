@@ -1,8 +1,7 @@
-import { OrderStatus, Prisma, PaymentStatus } from '@prisma/client';
+import { Prisma, PaymentStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { orderUseCases } from '../usecases/orderUseCases';
 import { yandexDeliveryService } from './yandexDeliveryService';
-import { payoutService } from './payoutService';
 
 type StartPaymentInput = {
   buyerId: string;
@@ -143,9 +142,7 @@ const createDeliveryForPaidOrder = async (orderId: string) => {
 
 export const paymentFlowService = {
   async startPayment(input: StartPaymentInput) {
-    const existingOrder = await prisma.order.findFirst({
-      where: { buyerId: input.buyerId, paymentAttemptKey: input.paymentAttemptKey }
-    });
+    const existingOrder = await prisma.order.findFirst({ where: { buyerId: input.buyerId, paymentAttemptKey: input.paymentAttemptKey } });
 
     let order = existingOrder;
 
@@ -163,35 +160,50 @@ export const paymentFlowService = {
         throw new Error('SELLER_DROPOFF_PVZ_REQUIRED');
       }
 
-      const createdOrder = await orderUseCases.create({
-        buyerId: input.buyerId,
-        paymentAttemptKey: input.paymentAttemptKey,
-        buyerPickupPvz: {
-          ...input.buyerPickupPvz,
-          raw: input.buyerPickupPvz.raw ?? {}
-        },
-        sellerDropoffPvz: {
-          provider: 'YANDEX_NDD',
-          pvzId: sellerSettings.defaultDropoffPvzId,
-          raw: sellerSettings.defaultDropoffPvzMeta ?? {},
-          addressFull:
-            typeof sellerSettings.defaultDropoffPvzMeta === 'object' && sellerSettings.defaultDropoffPvzMeta
-              ? String((sellerSettings.defaultDropoffPvzMeta as Record<string, unknown>).addressFull ?? '')
-              : undefined
-        },
-        recipient: {
-          name: input.recipient.name,
-          phone: input.recipient.phone,
-          email: input.recipient.email ?? null
-        },
-        packagesCount: input.packagesCount ?? 1,
-        orderLabels: [],
-        items: input.items
-      });
-      order = createdOrder;
+      try {
+        const createdOrder = await orderUseCases.create({
+          buyerId: input.buyerId,
+          paymentAttemptKey: input.paymentAttemptKey,
+          buyerPickupPvz: {
+            ...input.buyerPickupPvz,
+            raw: input.buyerPickupPvz.raw ?? {}
+          },
+          sellerDropoffPvz: {
+            provider: 'YANDEX_NDD',
+            pvzId: sellerSettings.defaultDropoffPvzId,
+            raw: sellerSettings.defaultDropoffPvzMeta ?? {},
+            addressFull:
+              typeof sellerSettings.defaultDropoffPvzMeta === 'object' && sellerSettings.defaultDropoffPvzMeta
+                ? String((sellerSettings.defaultDropoffPvzMeta as Record<string, unknown>).addressFull ?? '')
+                : undefined
+          },
+          recipient: {
+            name: input.recipient.name,
+            phone: input.recipient.phone,
+            email: input.recipient.email ?? null
+          },
+          packagesCount: input.packagesCount ?? 1,
+          orderLabels: [],
+          items: input.items
+        });
+        order = createdOrder;
 
-      const labels = buildOrderLabels(createdOrder.id, createdOrder.packagesCount ?? input.packagesCount ?? 1);
-      order = await prisma.order.update({ where: { id: createdOrder.id }, data: { orderLabels: labels } });
+        const labels = buildOrderLabels(createdOrder.id, createdOrder.packagesCount ?? input.packagesCount ?? 1);
+        order = await prisma.order.update({ where: { id: createdOrder.id }, data: { orderLabels: labels } });
+      } catch (error) {
+        const isUniqueViolation =
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002' &&
+          Array.isArray(error.meta?.target) &&
+          (error.meta?.target as string[]).includes('buyerId') &&
+          (error.meta?.target as string[]).includes('paymentAttemptKey');
+
+        if (!isUniqueViolation) {
+          throw error;
+        }
+
+        order = await prisma.order.findFirst({ where: { buyerId: input.buyerId, paymentAttemptKey: input.paymentAttemptKey } });
+      }
     }
 
     if (!order) {
@@ -213,32 +225,62 @@ export const paymentFlowService = {
       });
     }
 
-    const existingPayment = await prisma.payment.findFirst({
-      where: { orderId: order.id },
-      orderBy: { createdAt: 'desc' }
-    });
+    const existingPayment = await prisma.payment.findFirst({ where: { orderId: order.id }, orderBy: { createdAt: 'desc' } });
 
     if (existingPayment) {
       const paymentUrl = String((existingPayment.payloadJson as Record<string, unknown> | null)?.paymentUrl ?? buildPaymentUrl(existingPayment.id));
       return { orderId: order.id, paymentId: existingPayment.id, paymentUrl };
     }
 
-    const payment = await prisma.payment.create({
-      data: {
-        orderId: order.id,
-        provider: 'manual',
-        status: 'PENDING',
-        amount: order.total,
-        currency: order.currency,
-        payloadJson: { paymentUrl: '' }
+    return prisma.$transaction(async (tx) => {
+      const lockedOrder = await tx.order.findUnique({ where: { id: order.id } });
+      if (!lockedOrder) {
+        throw new Error('ORDER_NOT_FOUND');
       }
+
+      if (lockedOrder.paymentId) {
+        const lockedPayment = await tx.payment.findUnique({ where: { id: lockedOrder.paymentId } });
+        if (lockedPayment) {
+          const paymentUrl = String((lockedPayment.payloadJson as Record<string, unknown> | null)?.paymentUrl ?? buildPaymentUrl(lockedPayment.id));
+          return { orderId: order.id, paymentId: lockedPayment.id, paymentUrl };
+        }
+      }
+
+      const payment = await tx.payment.create({
+        data: {
+          orderId: order.id,
+          provider: 'manual',
+          status: 'PENDING',
+          amount: lockedOrder.total,
+          currency: lockedOrder.currency,
+          payloadJson: { paymentUrl: '' }
+        }
+      });
+
+      const paymentUrl = buildPaymentUrl(payment.id);
+      await tx.payment.update({ where: { id: payment.id }, data: { payloadJson: { paymentUrl } } });
+
+      const claimed = await tx.order.updateMany({
+        where: { id: order.id, paymentId: null },
+        data: { paymentId: payment.id, paymentProvider: payment.provider }
+      });
+
+      if (claimed.count === 0) {
+        await tx.payment.delete({ where: { id: payment.id } });
+        const existing = await tx.order.findUnique({ where: { id: order.id } });
+        if (existing?.paymentId) {
+          const existingPayment = await tx.payment.findUnique({ where: { id: existing.paymentId } });
+          if (existingPayment) {
+            const existingPaymentUrl = String(
+              (existingPayment.payloadJson as Record<string, unknown> | null)?.paymentUrl ?? buildPaymentUrl(existingPayment.id)
+            );
+            return { orderId: order.id, paymentId: existingPayment.id, paymentUrl: existingPaymentUrl };
+          }
+        }
+      }
+
+      return { orderId: order.id, paymentId: payment.id, paymentUrl };
     });
-
-    const paymentUrl = buildPaymentUrl(payment.id);
-    await prisma.payment.update({ where: { id: payment.id }, data: { payloadJson: { paymentUrl } } });
-    await prisma.order.update({ where: { id: order.id }, data: { paymentId: payment.id, paymentProvider: payment.provider } });
-
-    return { orderId: order.id, paymentId: payment.id, paymentUrl };
   },
 
   async mockSuccess(paymentId: string, buyerId: string) {
@@ -298,7 +340,6 @@ export const paymentFlowService = {
       return { ok: true };
     }
 
-    const orderStatus: OrderStatus = input.status === 'failed' ? 'PAYMENT_FAILED' : 'CANCELLED';
     const paymentStatus: PaymentStatus = input.status === 'failed' ? 'FAILED' : 'FAILED';
 
     await prisma.$transaction(async (tx) => {
@@ -306,8 +347,7 @@ export const paymentFlowService = {
       if (!order) return;
       await tx.payment.update({ where: { id: payment.id }, data: { status: paymentStatus } });
       if (order.status === 'PAID') return;
-      await tx.order.update({ where: { id: order.id }, data: { status: orderStatus } });
-      await payoutService.blockForOrder(order.id, tx as any);
+      await tx.order.update({ where: { id: order.id }, data: { status: 'CREATED' } });
     });
 
     return { ok: true };

@@ -44,49 +44,19 @@ export const yandexNddShipmentOrchestrator = {
     }
 
     if (order.status !== 'PAID' || !order.paidAt) {
-      throw new Error('PAYMENT_REQUIRED');
+      throw new Error('ORDER_NOT_PAID');
     }
 
-    if (!order.sellerDropoffPvzId) {
-      throw new Error('SELLER_DROPOFF_REQUIRED');
-    }
-
-    if (!order.buyerPickupPvzId && !order.shippingAddressId) {
-      throw new Error('DELIVERY_DESTINATION_REQUIRED');
-    }
+    if (!order.sellerDropoffPvzId || !order.buyerPickupPvzId) throw new Error('PICKUP_POINT_REQUIRED');
 
     const deliveryMap = await orderDeliveryService.getByOrderIds([orderId]);
     const delivery = deliveryMap.get(orderId);
-    const deliveryMethod = delivery?.deliveryMethod ?? (order.shippingAddressId ? 'COURIER' : 'PICKUP_POINT');
-
-    if (deliveryMethod === 'PICKUP_POINT' && !order.buyerPickupPvzId) {
-      throw new Error('BUYER_PICKUP_REQUIRED');
-    }
-
-    if (deliveryMethod === 'COURIER' && !order.shippingAddressId) {
-      throw new Error('SHIPPING_ADDRESS_REQUIRED');
-    }
-
-    if (deliveryMethod !== 'PICKUP_POINT') {
-      throw new Error('DELIVERY_METHOD_NOT_SUPPORTED');
-    }
+    const deliveryMethod = 'PICKUP_POINT';
 
     const existing = await shipmentService.getByOrderId(orderId);
-    if (existing?.requestId) {
+    if (existing?.requestId || existing?.offerPayload) {
       return existing;
     }
-
-    const shipment =
-      existing ??
-      (await shipmentService.upsertForOrder({
-        orderId,
-        deliveryMethod,
-        sourceStationId: order.sellerDropoffPvzId,
-        sourceStationSnapshot: asRecord(order.sellerDropoffPvzMeta),
-        destinationStationId: order.buyerPickupPvzId!,
-        destinationStationSnapshot: delivery?.pickupPoint ?? asRecord(order.buyerPickupPvzMeta),
-        status: 'CREATED'
-      }));
 
     const offersBody = {
       source_platform_station: order.sellerDropoffPvzId,
