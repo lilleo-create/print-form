@@ -23,15 +23,29 @@ export class YandexNddHttpError extends Error {
 export class YandexNddClient {
   private readonly config = getYandexNddConfig();
 
+  private getAuthTokenMeta() {
+    const rawToken = (this.config.token ?? '').trim();
+    const hasBearerPrefix = /^Bearer\s+/i.test(rawToken);
+    const normalizedToken = rawToken.replace(/^Bearer\s+/i, '').trim();
+
+    return {
+      hasBearerPrefix,
+      normalizedToken,
+      tokenLength: normalizedToken.length,
+      tokenPreview: normalizedToken.slice(0, 10)
+    };
+  }
+
   private async request<T>(path: string, init?: RequestInit & { requestId?: string }): Promise<T> {
+    const tokenMeta = this.getAuthTokenMeta();
+    const headers = new Headers(init?.headers ?? {});
+    headers.set('Authorization', `Bearer ${tokenMeta.normalizedToken}`);
+    headers.set('Content-Type', 'application/json');
+    headers.set('Accept-Language', this.config.lang);
+
     const response = await fetch(`${this.config.baseUrl}${path}`, {
       ...init,
-      headers: {
-        Authorization: `Bearer ${this.config.token}`,
-        'Content-Type': 'application/json',
-        'Accept-Language': this.config.lang,
-        ...(init?.headers ?? {})
-      }
+      headers
     });
 
     const bodyText = await response.text();
@@ -45,7 +59,14 @@ export class YandexNddClient {
     })();
 
     if (process.env.NODE_ENV !== 'production') {
-      console.log('[YANDEX_NDD]', { requestId: init?.requestId ?? 'n/a', path, httpStatus: response.status });
+      console.log('[YANDEX_NDD]', {
+        requestId: init?.requestId ?? 'n/a',
+        path,
+        httpStatus: response.status,
+        tokenPreview: tokenMeta.tokenPreview,
+        tokenLength: tokenMeta.tokenLength,
+        hasBearerPrefix: tokenMeta.hasBearerPrefix
+      });
     }
 
     if (!response.ok) {
@@ -53,7 +74,9 @@ export class YandexNddClient {
         requestId: init?.requestId ?? 'n/a',
         path,
         httpStatus: response.status,
-        tokenLength: (this.config.token ?? '').length,
+        tokenPreview: tokenMeta.tokenPreview,
+        tokenLength: tokenMeta.tokenLength,
+        hasBearerPrefix: tokenMeta.hasBearerPrefix,
         body: errorDetails
       });
 
