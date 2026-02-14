@@ -2,6 +2,7 @@ import { prisma } from '../lib/prisma';
 import { orderDeliveryService } from './orderDeliveryService';
 import { mapYandexStatusToInternal, shipmentService } from './shipmentService';
 import { yandexNddClient } from './yandexNdd/YandexNddClient';
+import { getOperatorStationId } from './yandexNdd/getOperatorStationId';
 
 const pickBestOffer = (response: Record<string, unknown>) => {
   const offers = (response.offers as Record<string, unknown>[] | undefined) ?? [];
@@ -119,9 +120,25 @@ export const yandexNddShipmentOrchestrator = {
       return existing;
     }
 
-    const sourcePlatformStationId = process.env.YANDEX_NDD_PLATFORM_STATION_ID || order.sellerDropoffPvzId;
+    const sourceStationId =
+      getOperatorStationId((order.sellerDropoffPvzMeta as Record<string, unknown> | null)?.raw) ??
+      getOperatorStationId(order.sellerDropoffPvzMeta) ??
+      process.env.YANDEX_NDD_OPERATOR_STATION_ID ??
+      null;
 
-    const offersInfo = await yandexNddClient.offersInfo(sourcePlatformStationId, order.buyerPickupPvzId, 'time_interval', true);
+    if (!sourceStationId) {
+      throw new Error('SELLER_STATION_ID_REQUIRED');
+    }
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[NDD readyToShip stations]', {
+        orderId,
+        station_id: sourceStationId,
+        self_pickup_id: order.buyerPickupPvzId
+      });
+    }
+
+    const offersInfo = await yandexNddClient.offersInfo(sourceStationId, order.buyerPickupPvzId, 'time_interval', true);
     const intervalUtc = extractIntervalUtc(offersInfo);
     if (!intervalUtc) {
       throw new Error('NDD_INTERVAL_REQUIRED');
@@ -149,12 +166,9 @@ export const yandexNddShipmentOrchestrator = {
     const totalWeight = order.items.reduce((sum: number, item: any) => sum + ((item.product?.weightGrossG ?? 0) * item.quantity), 0);
 
     const offersBody: Record<string, unknown> = {
-      source: { platform_station: { platform_id: sourcePlatformStationId } },
-      destination: {
-        type: 'platform_station',
-        platform_station: { platform_id: order.buyerPickupPvzId },
-        interval_utc: intervalUtc
-      },
+      station_id: sourceStationId,
+      self_pickup_id: order.buyerPickupPvzId,
+      interval_utc: intervalUtc,
       last_mile_policy: 'time_interval',
       info: {
         operator_request_id: order.id
@@ -176,6 +190,10 @@ export const yandexNddShipmentOrchestrator = {
         payment_method: 'already_paid'
       }
     };
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[NDD readyToShip offers/create body]', JSON.stringify(offersBody));
+    }
 
     const offersResponse = await yandexNddClient.offersCreate(offersBody);
     const selectedOffer = pickBestOffer(offersResponse);

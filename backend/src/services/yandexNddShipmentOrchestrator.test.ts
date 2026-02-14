@@ -11,7 +11,7 @@ const mockPaidOrder = (id: string) => ({
   status: 'PAID',
   paidAt: new Date(),
   sellerDropoffPvzId: 'dropoff-1',
-  sellerDropoffPvzMeta: null,
+  sellerDropoffPvzMeta: { raw: { id: 'dropoff-1', operator_station_id: '10022023854' } },
   buyerPickupPvzId: 'pickup-1',
   buyerPickupPvzMeta: null,
   recipientName: 'Иван Иванов',
@@ -86,8 +86,8 @@ test('ready-to-ship calls offers/info -> offers/create -> offers/confirm in orde
   assert.deepEqual(callOrder, ['offersInfo', 'offersCreate', 'offersConfirm']);
 });
 
-test('ready-to-ship sends platform_station.platform_id and interval_utc from offers/info', async () => {
-  process.env.YANDEX_NDD_PLATFORM_STATION_ID = 'station-env';
+test('ready-to-ship sends station_id/self_pickup_id and interval_utc from offers/info', async () => {
+  process.env.YANDEX_NDD_OPERATOR_STATION_ID = 'station-env';
 
   (prisma.order.findFirst as any) = async () => mockPaidOrder('order-7');
   const deliveryServiceModule = await import('./orderDeliveryService');
@@ -112,10 +112,20 @@ test('ready-to-ship sends platform_station.platform_id and interval_utc from off
 
   await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-7');
 
-  assert.deepEqual(offersPayload?.source, { platform_station: { platform_id: 'station-env' } });
-  assert.deepEqual(offersPayload?.destination?.platform_station, { platform_id: 'pickup-1' });
-  assert.deepEqual(offersPayload?.destination?.interval_utc, interval);
+  assert.equal(offersPayload?.station_id, '10022023854');
+  assert.equal(offersPayload?.self_pickup_id, 'pickup-1');
+  assert.deepEqual(offersPayload?.interval_utc, interval);
   assert.equal(offersPayload?.last_mile_policy, 'time_interval');
+});
+
+test('ready-to-ship fails with SELLER_STATION_ID_REQUIRED when station id is missing', async () => {
+  delete process.env.YANDEX_NDD_OPERATOR_STATION_ID;
+  (prisma.order.findFirst as any) = async () => ({
+    ...mockPaidOrder('order-no-station'),
+    sellerDropoffPvzMeta: { raw: { id: 'dropoff-1' } }
+  });
+
+  await assert.rejects(() => yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-no-station'), /SELLER_STATION_ID_REQUIRED/);
 });
 
 test('ready-to-ship when NDD returns 400 variant maps NDD_OFFER_CREATE_FAILED', async () => {

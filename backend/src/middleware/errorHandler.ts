@@ -85,6 +85,7 @@ export const errorHandler = (
       error.message === 'PAYMENT_REQUIRED' ||
       error.message === 'SELLER_DROPOFF_REQUIRED' ||
       error.message === 'BUYER_PICKUP_REQUIRED' ||
+      error.message === 'SELLER_STATION_ID_REQUIRED' ||
       error.message === 'SHIPPING_ADDRESS_REQUIRED' ||
       error.message === 'DELIVERY_DESTINATION_REQUIRED' ||
       error.message === 'DELIVERY_METHOD_NOT_SUPPORTED'
