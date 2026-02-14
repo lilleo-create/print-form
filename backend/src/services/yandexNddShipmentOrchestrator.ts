@@ -18,6 +18,37 @@ const pickBestOffer = (response: Record<string, unknown>) => {
 const asRecord = (value: unknown): Record<string, unknown> | undefined =>
   value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
 
+type StationVariantBuilder = (id: string) => Record<string, unknown>;
+
+const stationVariantCandidates: { name: string; build: StationVariantBuilder }[] = [
+  {
+    name: 'A',
+    build: (id: string) => ({
+      type: 'platform_station',
+      platform_station_id: id
+    })
+  },
+  {
+    name: 'B',
+    build: (id: string) => ({
+      platform_station: { id }
+    })
+  },
+  {
+    name: 'C',
+    build: (id: string) => ({
+      platform_station_id: id
+    })
+  }
+];
+
+let selectedStationVariantCandidate: { name: string; build: StationVariantBuilder } | null = null;
+
+export const buildStationVariant = (id: string): Record<string, unknown> => {
+  const candidate = selectedStationVariantCandidate ?? stationVariantCandidates[0];
+  return candidate.build(id);
+};
+
 const extractYandexStatus = (payload: Record<string, unknown>) => {
   const status =
     (payload.status as string | undefined) ??
@@ -60,25 +91,45 @@ export const yandexNddShipmentOrchestrator = {
 
     const sourcePlatformStationId = process.env.YANDEX_NDD_PLATFORM_STATION_ID || order.sellerDropoffPvzId;
 
-    const offersBody = {
-      source: {
-        type: 'platform_station',
-        platform_station_id: sourcePlatformStationId
-      },
-      destination: {
-        type: 'platform_station',
-        platform_station_id: order.buyerPickupPvzId
-      },
+    const createOffersBody = (stationVariantBuilder: StationVariantBuilder) => ({
+      source: stationVariantBuilder(sourcePlatformStationId),
+      destination: stationVariantBuilder(order.buyerPickupPvzId!),
       billing_info: {
         delivery_cost: 0,
         payment_method: 'already_paid'
       },
       places: [{ physical_dims: { weight_gross: 500, dx: 10, dy: 10, dz: 10 } }]
-    };
+    });
+
+    let offersResponse: Record<string, unknown> | null = null;
+    if (process.env.NODE_ENV !== 'production' && !selectedStationVariantCandidate) {
+      for (const candidate of stationVariantCandidates) {
+        const candidateOffersBody = createOffersBody(candidate.build);
+        console.log(`[NDD station variant candidate] ${candidate.name}`);
+        console.log('[NDD offers/create body]', JSON.stringify(candidateOffersBody, null, 2));
+
+        try {
+          const candidateResponse = await yandexNddClient.offersCreate(candidateOffersBody);
+          if (pickBestOffer(candidateResponse)) {
+            selectedStationVariantCandidate = candidate;
+            offersResponse = candidateResponse;
+            console.log(`[NDD station variant selected] ${candidate.name}`);
+            break;
+          }
+        } catch (error) {
+          console.log(`[NDD station variant candidate failed] ${candidate.name}`, error);
+        }
+      }
+      if (!selectedStationVariantCandidate) {
+        selectedStationVariantCandidate = stationVariantCandidates[0];
+      }
+    }
+
+    const offersBody = createOffersBody((id: string) => buildStationVariant(id));
     if (process.env.NODE_ENV !== 'production') {
       console.log('[NDD offers/create body]', JSON.stringify(offersBody, null, 2));
     }
-    const offersResponse = await yandexNddClient.offersCreate(offersBody);
+    offersResponse = offersResponse ?? await yandexNddClient.offersCreate(offersBody);
     const selectedOffer = pickBestOffer(offersResponse);
 
     if (!selectedOffer) {
@@ -87,14 +138,8 @@ export const yandexNddShipmentOrchestrator = {
 
     const offersConfirmResponse = await yandexNddClient.offersConfirm({ offers: [selectedOffer] });
     const requestCreateBody = {
-      source: {
-        type: 'platform_station',
-        platform_station_id: sourcePlatformStationId
-      },
-      destination: {
-        type: 'platform_station',
-        platform_station_id: order.buyerPickupPvzId
-      },
+      source: buildStationVariant(sourcePlatformStationId),
+      destination: buildStationVariant(order.buyerPickupPvzId),
       offer: selectedOffer,
       order_ref: orderId,
       recipient: {
