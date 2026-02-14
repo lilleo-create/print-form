@@ -484,16 +484,28 @@ sellerRoutes.get('/settings', async (req: AuthRequest, res, next) => {
 sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest, res, next) => {
   try {
     const payload = sellerDeliveryProfileSchema.parse(req.body);
+    const rawDetail = payload.dropoffPvz.raw && typeof payload.dropoffPvz.raw === 'object' && !Array.isArray(payload.dropoffPvz.raw)
+      ? (payload.dropoffPvz.raw as Record<string, unknown>)
+      : null;
+    const detailId = rawDetail && typeof rawDetail.id === 'string' && rawDetail.id.trim()
+      ? rawDetail.id.trim()
+      : payload.dropoffPvz.pvzId;
+    const dropoffPvzMeta = {
+      ...payload.dropoffPvz,
+      pvzId: detailId,
+      raw: rawDetail ?? payload.dropoffPvz.raw
+    };
+
     const settings = await prisma.sellerSettings.upsert({
       where: { sellerId: req.user!.userId },
       create: {
         sellerId: req.user!.userId,
-        defaultDropoffPvzId: payload.dropoffPvz.pvzId,
-        defaultDropoffPvzMeta: payload.dropoffPvz as unknown as object
+        defaultDropoffPvzId: detailId,
+        defaultDropoffPvzMeta: dropoffPvzMeta as unknown as object
       },
       update: {
-        defaultDropoffPvzId: payload.dropoffPvz.pvzId,
-        defaultDropoffPvzMeta: payload.dropoffPvz as unknown as object
+        defaultDropoffPvzId: detailId,
+        defaultDropoffPvzMeta: dropoffPvzMeta as unknown as object
       }
     });
     res.json({ data: settings });
