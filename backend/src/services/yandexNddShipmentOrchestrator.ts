@@ -63,6 +63,7 @@ export const yandexNddShipmentOrchestrator = {
       destination_platform_station: order.buyerPickupPvzId,
       places: [{ physical_dims: { weight_gross: 500, dx: 10, dy: 10, dz: 10 } }]
     };
+    console.log('[NDD offers/create body]', JSON.stringify(offersBody, null, 2));
     const offersResponse = await yandexNddClient.offersCreate(offersBody);
     const selectedOffer = pickBestOffer(offersResponse);
 
