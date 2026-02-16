@@ -110,7 +110,16 @@ export const yandexNddShipmentOrchestrator = {
         id: orderId,
         items: { some: { product: { sellerId } } }
       },
-      include: {
+      select: {
+        id: true,
+        status: true,
+        paidAt: true,
+        sellerDropoffPvzId: true,
+        sellerDropoffPvzMeta: true,
+        buyerPickupPvzId: true,
+        buyerPickupPvzMeta: true,
+        recipientName: true,
+        recipientPhone: true,
         contact: true,
         buyer: true,
         items: {
@@ -150,35 +159,53 @@ export const yandexNddShipmentOrchestrator = {
       });
     }
 
-    // Источники station_id: env -> meta/raw -> seller profile -> fallback из заказа
-    const sourceStationId =
-      process.env.YANDEX_NDD_OPERATOR_STATION_ID ??
-      getOperatorStationId((order.sellerDropoffPvzMeta as Record<string, unknown> | null)?.raw) ??
-      getOperatorStationId(order.sellerDropoffPvzMeta) ??
-      getOperatorStationId(sellerDeliveryProfile?.dropoffStationMeta as Record<string, unknown> | null) ??
-      sellerDeliveryProfile?.dropoffStationId ??
-      // ✅ ВАЖНО: если station id уже сохранён в заказе, используем его как fallback
-      (order as any).sellerDropoffPvzId ??
-      null;
+    const sourceFromEnv = process.env.YANDEX_NDD_OPERATOR_STATION_ID ?? null;
+    const sourceFromOrderRaw = getOperatorStationId((order.sellerDropoffPvzMeta as Record<string, unknown> | null)?.raw);
+    const sourceFromOrderMeta = getOperatorStationId(order.sellerDropoffPvzMeta);
+    const sourceFromProfileRaw = getOperatorStationId((sellerDeliveryProfile?.dropoffStationMeta as Record<string, unknown> | null)?.raw);
+    const sourceFromProfileMeta = getOperatorStationId(sellerDeliveryProfile?.dropoffStationMeta as Record<string, unknown> | null);
+    const sourceFromProfileId = sellerDeliveryProfile?.dropoffStationId ?? null;
 
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('[READY_TO_SHIP][resolved station]', {
-        sellerId,
-        orderId,
-        sourceStationId
-      });
+    let sourceStationId: string | null = null;
+    let sourceStationFrom: 'env' | 'order.meta.raw' | 'order.meta' | 'profile.meta.raw' | 'profile.meta' | 'profile.id' | 'none' = 'none';
+
+    if (sourceFromEnv) {
+      sourceStationId = sourceFromEnv;
+      sourceStationFrom = 'env';
+    } else if (sourceFromOrderRaw) {
+      sourceStationId = sourceFromOrderRaw;
+      sourceStationFrom = 'order.meta.raw';
+    } else if (sourceFromOrderMeta) {
+      sourceStationId = sourceFromOrderMeta;
+      sourceStationFrom = 'order.meta';
+    } else if (sourceFromProfileRaw) {
+      sourceStationId = sourceFromProfileRaw;
+      sourceStationFrom = 'profile.meta.raw';
+    } else if (sourceFromProfileMeta) {
+      sourceStationId = sourceFromProfileMeta;
+      sourceStationFrom = 'profile.meta';
+    } else if (sourceFromProfileId) {
+      sourceStationId = sourceFromProfileId;
+      sourceStationFrom = 'profile.id';
     }
 
+    console.info('[READY_TO_SHIP] resolved source station', {
+      sellerId,
+      orderId,
+      sourceStationId,
+      from: sourceStationFrom
+    });
+
     if (!sourceStationId) {
-      console.error('[READY_TO_SHIP][FAIL] SELLER_STATION_ID_REQUIRED', {
+      console.error('[READY_TO_SHIP] SELLER_STATION_ID_REQUIRED', {
         sellerId,
         orderId,
-        envOperatorStation: process.env.YANDEX_NDD_OPERATOR_STATION_ID ?? null,
-        fromOrderRaw: getOperatorStationId((order.sellerDropoffPvzMeta as Record<string, unknown> | null)?.raw) ?? null,
-        fromOrderMeta: getOperatorStationId(order.sellerDropoffPvzMeta) ?? null,
-        fromProfileMeta: getOperatorStationId(sellerDeliveryProfile?.dropoffStationMeta as Record<string, unknown> | null) ?? null,
-        fromProfileId: sellerDeliveryProfile?.dropoffStationId ?? null,
-        fallbackFromOrderId: (order as any).sellerDropoffPvzId ?? null
+        envOperatorStation: sourceFromEnv,
+        fromOrderRaw: sourceFromOrderRaw ?? null,
+        fromOrderMeta: sourceFromOrderMeta ?? null,
+        fromProfileRaw: sourceFromProfileRaw ?? null,
+        fromProfileMeta: sourceFromProfileMeta ?? null,
+        fromProfileId: sourceFromProfileId
       });
       throw new Error('SELLER_STATION_ID_REQUIRED');
     }
