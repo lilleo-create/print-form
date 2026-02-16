@@ -24,6 +24,11 @@ test('returns null for non-digit station ids', () => {
   assert.equal(getOperatorStationId({ operator_station_id: 'station-123' }), null);
 });
 
+test('returns null for too short or too long station ids', () => {
+  assert.equal(getOperatorStationId({ operator_station_id: '12345' }), null);
+  assert.equal(getOperatorStationId({ operator_station_id: '123456789012345678901' }), null);
+});
+
 test('returns null for invalid payload', () => {
   assert.equal(getOperatorStationId({ id: 'pvz-1' }), null);
   assert.equal(getOperatorStationId(null), null);

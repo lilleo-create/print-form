@@ -510,6 +510,8 @@ const sellerDeliveryProfileSchema = z.object({
   })
 });
 
+const OPERATOR_STATION_ID_DIGITS_ONLY = /^\d{6,20}$/;
+
 sellerRoutes.get('/settings', async (req: AuthRequest, res, next) => {
   try {
     await ensureSellerDeliveryProfile(req.user!.userId);
@@ -529,12 +531,28 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
     const detailId = rawDetail && typeof rawDetail.id === 'string' && rawDetail.id.trim()
       ? rawDetail.id.trim()
       : payload.dropoffPvz.pvzId;
+    console.info('[DROP_OFF_PVZ] rawDetail preview', {
+      operator_station_id: rawDetail?.operator_station_id,
+      station_id: rawDetail?.station_id,
+      data: rawDetail?.data,
+      pickup_point: rawDetail?.pickup_point,
+      point: rawDetail?.point
+    });
     const operatorStationId = getOperatorStationId(rawDetail) ?? undefined;
     console.info('[DROP_OFF_PVZ] parsed', {
       pvzId: detailId,
       operatorStationId,
       rawKeys: Object.keys(rawDetail ?? {})
     });
+
+    if (operatorStationId && (operatorStationId.includes('-') || !OPERATOR_STATION_ID_DIGITS_ONLY.test(operatorStationId))) {
+      return res.status(400).json({
+        error: {
+          code: 'OPERATOR_STATION_ID_INVALID',
+          message: 'Выбранная точка содержит некорректный station id для отгрузки. Выберите другую точку или проверьте raw в виджете.'
+        }
+      });
+    }
 
     if (!operatorStationId) {
       return res.status(400).json({
