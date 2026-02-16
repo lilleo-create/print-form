@@ -46,18 +46,18 @@ const authHeaders = () => {
 export const api = {
   async getProducts(
     filters?: {
-    category?: string;
-    material?: string;
-    price?: string;
-    size?: string;
-    sort?: 'createdAt' | 'rating' | 'price';
-    order?: 'asc' | 'desc';
-    page?: number;
-    limit?: number;
-    shopId?: string;
-    q?: string;
-    cursor?: string;
-    signal?: AbortSignal;
+      category?: string;
+      material?: string;
+      price?: string;
+      size?: string;
+      sort?: 'createdAt' | 'rating' | 'price';
+      order?: 'asc' | 'desc';
+      page?: number;
+      limit?: number;
+      shopId?: string;
+      q?: string;
+      cursor?: string;
+      signal?: AbortSignal;
     },
     opts?: { signal?: AbortSignal }
   ) {
@@ -79,22 +79,30 @@ export const api = {
 
     const query = params.toString();
     const signal = opts?.signal ?? filters?.signal;
-    return apiClient.request<Product[]>(`/products${query ? `?${query}` : ''}`, { signal });
-  },
-
-  async getShop(shopId: string, opts?: { signal?: AbortSignal }) {
-    return apiClient.request<Shop>(`/shops/${shopId}`, { signal: opts?.signal });
-  },
-
-  async getShopFilters(shopId: string, opts?: { signal?: AbortSignal }) {
-    return apiClient.request<{ categories: string[]; materials: string[]; sizes: string[] }>(
-      `/shops/${shopId}/filters`,
-      { signal: opts?.signal }
+    return apiClient.request<Product[]>(
+      `/products${query ? `?${query}` : ''}`,
+      { signal }
     );
   },
 
+  async getShop(shopId: string, opts?: { signal?: AbortSignal }) {
+    return apiClient.request<Shop>(`/shops/${shopId}`, {
+      signal: opts?.signal
+    });
+  },
+
+  async getShopFilters(shopId: string, opts?: { signal?: AbortSignal }) {
+    return apiClient.request<{
+      categories: string[];
+      materials: string[];
+      sizes: string[];
+    }>(`/shops/${shopId}/filters`, { signal: opts?.signal });
+  },
+
   async getProduct(id: string, opts?: { signal?: AbortSignal }) {
-    return apiClient.request<Product>(`/products/${id}`, { signal: opts?.signal });
+    return apiClient.request<Product>(`/products/${id}`, {
+      signal: opts?.signal
+    });
   },
 
   async getProductReviews(
@@ -121,28 +129,47 @@ export const api = {
 
   async createReview(
     id: string,
-    payload: { rating: number; pros: string; cons: string; comment: string; photos?: string[] }
+    payload: {
+      rating: number;
+      pros: string;
+      cons: string;
+      comment: string;
+      photos?: string[];
+    }
   ) {
-    return apiClient.request<Review>(`/products/${id}/reviews`, { method: 'POST', body: payload });
+    return apiClient.request<Review>(`/products/${id}/reviews`, {
+      method: 'POST',
+      body: payload
+    });
   },
 
-  async getReviewSummary(id: string, productIds?: string[], opts?: { signal?: AbortSignal }) {
+  async getReviewSummary(
+    id: string,
+    productIds?: string[],
+    opts?: { signal?: AbortSignal }
+  ) {
     const params = new URLSearchParams();
     if (productIds && productIds.length > 0) {
       params.set('productIds', productIds.join(','));
     }
     const qs = params.toString();
     return apiClient.request<{
-      data: { total: number; avg: number; counts: { rating: number; count: number }[]; photos: string[] };
-    }>(`/products/${id}/reviews/summary${qs ? `?${qs}` : ''}`, { signal: opts?.signal });
+      data: {
+        total: number;
+        avg: number;
+        counts: { rating: number; count: number }[];
+        photos: string[];
+      };
+    }>(`/products/${id}/reviews/summary${qs ? `?${qs}` : ''}`, {
+      signal: opts?.signal
+    });
   },
 
   async getFilters(opts?: { signal?: AbortSignal } | AbortSignal) {
     const signal = opts instanceof AbortSignal ? opts : opts?.signal;
-    const categoriesResponse = await apiClient.request<{ id: string; slug: string; title: string }[]>(
-      '/filters/reference-categories',
-      { signal }
-    );
+    const categoriesResponse = await apiClient.request<
+      { id: string; slug: string; title: string }[]
+    >('/filters/reference-categories', { signal });
     return {
       data: {
         categories: categoriesResponse.data.map((category) => category.title),
@@ -153,7 +180,9 @@ export const api = {
   },
 
   async getReferenceCategories() {
-    return apiClient.request<{ id: string; slug: string; title: string }[]>('/filters/reference-categories');
+    return apiClient.request<{ id: string; slug: string; title: string }[]>(
+      '/filters/reference-categories'
+    );
   },
 
   async getCities() {
@@ -161,7 +190,10 @@ export const api = {
   },
 
   async sendCustomRequest(payload: Omit<CustomPrintRequest, 'id' | 'status'>) {
-    return apiClient.request<CustomPrintRequest>('/custom-requests', { method: 'POST', body: payload });
+    return apiClient.request<CustomPrintRequest>('/custom-requests', {
+      method: 'POST',
+      body: payload
+    });
   },
 
   async getOrders() {
@@ -190,7 +222,10 @@ export const api = {
     videoUrls?: string[];
     deliveryDateEstimated?: string;
   }) {
-    return apiClient.request<Product>('/seller/products', { method: 'POST', body: payload });
+    return apiClient.request<Product>('/seller/products', {
+      method: 'POST',
+      body: payload
+    });
   },
 
   async updateSellerProduct(
@@ -214,24 +249,43 @@ export const api = {
       deliveryDateEstimated?: string;
     }
   ) {
-    return apiClient.request<Product>(`/seller/products/${id}`, { method: 'PUT', body: payload });
+    return apiClient.request<Product>(`/seller/products/${id}`, {
+      method: 'PUT',
+      body: payload
+    });
   },
 
   async removeSellerProduct(id: string) {
-    return apiClient.request<{ success: boolean }>(`/seller/products/${id}`, { method: 'DELETE' });
+    return apiClient.request<{ success: boolean }>(`/seller/products/${id}`, {
+      method: 'DELETE'
+    });
   },
 
-  async getSellerOrders(filters?: { status?: OrderStatus; offset?: number; limit?: number }) {
+  async getSellerOrders(filters?: {
+    status?: OrderStatus;
+    offset?: number;
+    limit?: number;
+  }) {
     const params = new URLSearchParams();
     if (filters?.status) params.set('status', filters.status);
-    if (filters?.offset !== undefined) params.set('offset', String(filters.offset));
-    if (filters?.limit !== undefined) params.set('limit', String(filters.limit));
+    if (filters?.offset !== undefined)
+      params.set('offset', String(filters.offset));
+    if (filters?.limit !== undefined)
+      params.set('limit', String(filters.limit));
     const query = params.toString();
-    return apiClient.request<Order[]>(`/seller/orders${query ? `?${query}` : ''}`);
+    return apiClient.request<Order[]>(
+      `/seller/orders${query ? `?${query}` : ''}`
+    );
   },
 
-  async updateSellerOrderStatus(id: string, payload: { status: OrderStatus; trackingNumber?: string; carrier?: string }) {
-    return apiClient.request<Order>(`/seller/orders/${id}/status`, { method: 'PATCH', body: payload });
+  async updateSellerOrderStatus(
+    id: string,
+    payload: { status: OrderStatus; trackingNumber?: string; carrier?: string }
+  ) {
+    return apiClient.request<Order>(`/seller/orders/${id}/status`, {
+      method: 'PATCH',
+      body: payload
+    });
   },
 
   async getSellerDeliveryProfile() {
@@ -246,22 +300,32 @@ export const api = {
       addressFull?: string;
     };
   }) {
-    return apiClient.request<SellerDeliveryProfile>('/seller/settings/dropoff-pvz', { method: 'PUT', body: payload });
+    return apiClient.request<SellerDeliveryProfile>(
+      '/seller/settings/dropoff-pvz',
+      { method: 'PUT', body: payload }
+    );
   },
 
   async readyToShip(orderId: string) {
-    return apiClient.request<{ id: string; requestId?: string | null; status: string }>(`/seller/orders/${orderId}/ready-to-ship`, {
+    return apiClient.request<{
+      id: string;
+      requestId?: string | null;
+      status: string;
+    }>(`/seller/orders/${orderId}/ready-to-ship`, {
       method: 'POST'
     });
   },
 
   async downloadShippingLabel(orderId: string) {
-    const response = await fetch(`${baseUrl}/seller/orders/${orderId}/yandex/labels`, {
-      method: 'POST',
-      headers: {
-        ...(authHeaders() ?? {})
+    const response = await fetch(
+      `${baseUrl}/seller/orders/${orderId}/yandex/labels`,
+      {
+        method: 'POST',
+        headers: {
+          ...(authHeaders() ?? {})
+        }
       }
-    });
+    );
     if (!response.ok) {
       throw new Error(`LABEL_DOWNLOAD_FAILED_${response.status}`);
     }
@@ -305,12 +369,18 @@ export const api = {
     };
   },
 
-  async downloadSellerOrderDocument(orderId: string, type: 'packing-slip' | 'labels' | 'handover-act') {
-    const response = await fetch(`${baseUrl}/seller/orders/${orderId}/documents/${type}.pdf`, {
-      headers: {
-        ...(authHeaders() ?? {})
+  async downloadSellerOrderDocument(
+    orderId: string,
+    type: 'packing-slip' | 'labels' | 'handover-act'
+  ) {
+    const response = await fetch(
+      `${baseUrl}/seller/orders/${orderId}/documents/${type}.pdf`,
+      {
+        headers: {
+          ...(authHeaders() ?? {})
+        }
       }
-    });
+    );
     if (!response.ok) {
       throw new Error(`ORDER_DOCUMENT_DOWNLOAD_FAILED_${response.status}`);
     }
@@ -326,14 +396,24 @@ export const api = {
     shippingAddressId?: string;
     items: { productId: string; variantId?: string; quantity: number }[];
   }) {
-    return apiClient.request<Order>('/orders', { method: 'POST', body: payload });
+    return apiClient.request<Order>('/orders', {
+      method: 'POST',
+      body: payload
+    });
   },
 
   async login(payload: { email: string; password: string }) {
     return apiClient.request<{
       requiresOtp?: boolean;
       tempToken?: string;
-      user?: { name: string; role: string; email: string; id: string; phone?: string | null; address?: string | null };
+      user?: {
+        name: string;
+        role: string;
+        email: string;
+        id: string;
+        phone?: string | null;
+        address?: string | null;
+      };
       accessToken?: string;
     }>('/auth/login', { method: 'POST', body: payload });
   },
@@ -349,45 +429,81 @@ export const api = {
     return apiClient.request<{
       requiresOtp?: boolean;
       tempToken?: string;
-      user?: { name: string; role: string; email: string; id: string; phone?: string | null; address?: string | null };
+      user?: {
+        name: string;
+        role: string;
+        email: string;
+        id: string;
+        phone?: string | null;
+        address?: string | null;
+      };
       accessToken?: string;
     }>('/auth/register', { method: 'POST', body: payload });
   },
 
   async requestOtp(
-    payload: { phone: string; purpose?: 'login' | 'register' | 'seller_verify'; turnstileToken?: string },
+    payload: {
+      phone: string;
+      purpose?: 'login' | 'register' | 'seller_verify';
+      turnstileToken?: string;
+    },
     token?: string | null
   ) {
-    return apiClient.request<{ ok: boolean; devOtp?: string }>('/auth/otp/request', {
-      method: 'POST',
-      body: payload,
-      token
-    });
+    return apiClient.request<{ ok: boolean; devOtp?: string }>(
+      '/auth/otp/request',
+      {
+        method: 'POST',
+        body: payload,
+        token
+      }
+    );
   },
 
-  async verifyOtp(payload: { phone: string; code: string; purpose?: 'login' | 'register' | 'seller_verify' }, token?: string | null) {
+  async verifyOtp(
+    payload: {
+      phone: string;
+      code: string;
+      purpose?: 'login' | 'register' | 'seller_verify';
+    },
+    token?: string | null
+  ) {
     return apiClient.request<{
       accessToken?: string;
-      user?: { name: string; role: string; email: string; id: string; phone?: string | null; address?: string | null };
+      user?: {
+        name: string;
+        role: string;
+        email: string;
+        id: string;
+        phone?: string | null;
+        address?: string | null;
+      };
     }>('/auth/otp/verify', { method: 'POST', body: payload, token });
   },
 
   async logout() {
-    return apiClient.request<{ success: boolean }>('/auth/logout', { method: 'POST' });
+    return apiClient.request<{ success: boolean }>('/auth/logout', {
+      method: 'POST'
+    });
   },
 
   async requestPasswordReset(payload: { phone: string }) {
-    return apiClient.request<{ ok: boolean; devOtp?: string }>('/auth/password-reset/request', {
-      method: 'POST',
-      body: payload
-    });
+    return apiClient.request<{ ok: boolean; devOtp?: string }>(
+      '/auth/password-reset/request',
+      {
+        method: 'POST',
+        body: payload
+      }
+    );
   },
 
   async verifyPasswordReset(payload: { phone: string; code: string }) {
-    return apiClient.request<{ ok: boolean; resetToken: string }>('/auth/password-reset/verify', {
-      method: 'POST',
-      body: payload
-    });
+    return apiClient.request<{ ok: boolean; resetToken: string }>(
+      '/auth/password-reset/verify',
+      {
+        method: 'POST',
+        body: payload
+      }
+    );
   },
 
   async confirmPasswordReset(payload: { token: string; password: string }) {
@@ -398,12 +514,29 @@ export const api = {
   },
 
   async me() {
-    return apiClient.request<{ id: string; name: string; role: string; email: string }>('/me');
+    return apiClient.request<{
+      id: string;
+      name: string;
+      role: string;
+      email: string;
+    }>('/me');
   },
 
-  async updateProfile(payload: { name?: string; email?: string; phone?: string; address?: string }) {
+  async updateProfile(payload: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+  }) {
     return apiClient.request<{
-      data: { id: string; name: string; role: string; email: string; phone?: string | null; address?: string | null };
+      data: {
+        id: string;
+        name: string;
+        role: string;
+        email: string;
+        phone?: string | null;
+        address?: string | null;
+      };
     }>('/auth/me', { method: 'PATCH', body: payload });
   },
 
@@ -427,14 +560,19 @@ export const api = {
     referenceCategory: string;
     catalogPosition: string;
   }) {
-    return apiClient.request<{ id: string; name: string; email: string; phone?: string | null; role: string }>(
-      '/seller/onboarding',
-      { method: 'POST', body: payload }
-    );
+    return apiClient.request<{
+      id: string;
+      name: string;
+      email: string;
+      phone?: string | null;
+      role: string;
+    }>('/seller/onboarding', { method: 'POST', body: payload });
   },
 
   async getSellerContext(signal?: AbortSignal) {
-    return apiClient.request<SellerContextResponse>('/seller/context', { signal });
+    return apiClient.request<SellerContextResponse>('/seller/context', {
+      signal
+    });
   },
 
   async getSellerProfile() {
@@ -465,15 +603,23 @@ export const api = {
     if (!response.ok) throw new Error('UPLOAD_FAILED');
 
     const json = (await response.json()) as UploadResponse;
-    return { data: { urls: (json.data.urls ?? []).map(normalizeUploadUrl) } } satisfies UploadResponse;
+    return {
+      data: { urls: (json.data.urls ?? []).map(normalizeUploadUrl) }
+    } satisfies UploadResponse;
   },
 
   async getSellerKyc() {
     return apiClient.request<SellerKycSubmission | null>('/seller/kyc/me');
   },
 
-  async submitSellerKyc() {
-    return apiClient.request<SellerKycSubmission>('/seller/kyc/submit', { method: 'POST' });
+  async submitSellerKyc(payload: {
+    dropoffStationId: string;
+    dropoffStationMeta?: Record<string, unknown>;
+  }) {
+    return apiClient.request<SellerKycSubmission>('/seller/kyc/submit', {
+      method: 'POST',
+      body: payload
+    });
   },
 
   async uploadSellerKycDocuments(files: FileList) {
@@ -489,32 +635,48 @@ export const api = {
 
     if (!response.ok) throw new Error('UPLOAD_FAILED');
 
-    return response.json() as Promise<{ data: { submissionId: string; documents: SellerKycSubmission['documents'] } }>;
+    return response.json() as Promise<{
+      data: {
+        submissionId: string;
+        documents: SellerKycSubmission['documents'];
+      };
+    }>;
   },
 
   async getAdminKyc(status: 'PENDING' | 'APPROVED' | 'REJECTED' = 'PENDING') {
-    return apiClient.request<SellerKycSubmission[]>(`/admin/kyc?status=${status}`);
+    return apiClient.request<SellerKycSubmission[]>(
+      `/admin/kyc?status=${status}`
+    );
   },
 
   async approveAdminKyc(id: string) {
-    return apiClient.request<SellerKycSubmission>(`/admin/kyc/${id}/approve`, { method: 'POST' });
+    return apiClient.request<SellerKycSubmission>(`/admin/kyc/${id}/approve`, {
+      method: 'POST'
+    });
   },
 
   async rejectAdminKyc(id: string, payload: { notes?: string }) {
-    return apiClient.request<SellerKycSubmission>(`/admin/kyc/${id}/reject`, { method: 'POST', body: payload });
+    return apiClient.request<SellerKycSubmission>(`/admin/kyc/${id}/reject`, {
+      method: 'POST',
+      body: payload
+    });
   },
 
   async downloadAdminSellerDocument(id: string) {
-    const response = await fetch(`${baseUrl}/admin/seller-documents/${id}/download`, {
-      method: 'GET',
-      headers: authHeaders(),
-      credentials: 'include'
-    });
+    const response = await fetch(
+      `${baseUrl}/admin/seller-documents/${id}/download`,
+      {
+        method: 'GET',
+        headers: authHeaders(),
+        credentials: 'include'
+      }
+    );
     if (!response.ok) {
       throw new Error('DOWNLOAD_FAILED');
     }
     const blob = await response.blob();
-    const contentDisposition = response.headers.get('content-disposition') ?? '';
+    const contentDisposition =
+      response.headers.get('content-disposition') ?? '';
     const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
     const filename = filenameMatch?.[1];
     return { blob, filename };
@@ -525,19 +687,29 @@ export const api = {
   },
 
   async approveAdminProduct(id: string) {
-    return apiClient.request<Product>(`/admin/products/${id}/approve`, { method: 'POST' });
+    return apiClient.request<Product>(`/admin/products/${id}/approve`, {
+      method: 'POST'
+    });
   },
 
   async rejectAdminProduct(id: string, payload: { notes?: string }) {
-    return apiClient.request<Product>(`/admin/products/${id}/reject`, { method: 'POST', body: payload });
+    return apiClient.request<Product>(`/admin/products/${id}/reject`, {
+      method: 'POST',
+      body: payload
+    });
   },
 
   async needsEditAdminProduct(id: string, payload: { notes?: string }) {
-    return apiClient.request<Product>(`/admin/products/${id}/needs-edit`, { method: 'POST', body: payload });
+    return apiClient.request<Product>(`/admin/products/${id}/needs-edit`, {
+      method: 'POST',
+      body: payload
+    });
   },
 
   async archiveAdminProduct(id: string) {
-    return apiClient.request<Product>(`/admin/products/${id}`, { method: 'DELETE' });
+    return apiClient.request<Product>(`/admin/products/${id}`, {
+      method: 'DELETE'
+    });
   },
 
   async getAdminReviews(status: string = 'PENDING') {
@@ -545,40 +717,66 @@ export const api = {
   },
 
   async approveAdminReview(id: string) {
-    return apiClient.request<Review>(`/admin/reviews/${id}/approve`, { method: 'POST' });
+    return apiClient.request<Review>(`/admin/reviews/${id}/approve`, {
+      method: 'POST'
+    });
   },
 
   async rejectAdminReview(id: string, payload: { notes?: string }) {
-    return apiClient.request<Review>(`/admin/reviews/${id}/reject`, { method: 'POST', body: payload });
+    return apiClient.request<Review>(`/admin/reviews/${id}/reject`, {
+      method: 'POST',
+      body: payload
+    });
   },
 
   async needsEditAdminReview(id: string, payload: { notes?: string }) {
-    return apiClient.request<Review>(`/admin/reviews/${id}/needs-edit`, { method: 'POST', body: payload });
+    return apiClient.request<Review>(`/admin/reviews/${id}/needs-edit`, {
+      method: 'POST',
+      body: payload
+    });
   },
 
   returns: {
     async listMy() {
       return apiClient.request<ReturnRequest[]>('/returns/my');
     },
-    async create(payload: { orderItemId: string; reason: ReturnReason; comment?: string; photosUrls?: string[] }) {
-      return apiClient.request<ReturnRequest>('/returns', { method: 'POST', body: payload });
+    async create(payload: {
+      orderItemId: string;
+      reason: ReturnReason;
+      comment?: string;
+      photosUrls?: string[];
+    }) {
+      return apiClient.request<ReturnRequest>('/returns', {
+        method: 'POST',
+        body: payload
+      });
     },
     async uploadPhotos(files: File[]) {
       const formData = new FormData();
       files.forEach((file) => formData.append('files', file));
-      return apiClient.request<{ urls: string[] }>('/returns/uploads', { method: 'POST', body: formData });
+      return apiClient.request<{ urls: string[] }>('/returns/uploads', {
+        method: 'POST',
+        body: formData
+      });
     }
   },
 
   chats: {
     async listMy() {
-      return apiClient.request<{ active: ChatThread[]; closed: ChatThread[] }>('/chats/my');
+      return apiClient.request<{ active: ChatThread[]; closed: ChatThread[] }>(
+        '/chats/my'
+      );
     },
     async getThread(id: string) {
-      return apiClient.request<{ thread: ChatThread; messages: ChatMessage[] }>(`/chats/${id}`);
+      return apiClient.request<{ thread: ChatThread; messages: ChatMessage[] }>(
+        `/chats/${id}`
+      );
     },
     async sendMessage(id: string, payload: { text: string }) {
-      return apiClient.request<ChatMessage>(`/chats/${id}/messages`, { method: 'POST', body: payload });
+      return apiClient.request<ChatMessage>(`/chats/${id}/messages`, {
+        method: 'POST',
+        body: payload
+      });
     }
   },
 
@@ -592,23 +790,50 @@ export const api = {
         params.set('q', query.q);
       }
       const suffix = params.toString() ? `?${params.toString()}` : '';
-      return apiClient.request<{ active: ChatThread[]; closed: ChatThread[] }>(`/admin/chats${suffix}`);
+      return apiClient.request<{ active: ChatThread[]; closed: ChatThread[] }>(
+        `/admin/chats${suffix}`
+      );
     },
     async getThread(id: string) {
-      return apiClient.request<{ thread: ChatThread; messages: ChatMessage[] }>(`/admin/chats/${id}`);
+      return apiClient.request<{ thread: ChatThread; messages: ChatMessage[] }>(
+        `/admin/chats/${id}`
+      );
     },
     async sendMessage(id: string, payload: { text: string }) {
-      return apiClient.request<ChatMessage>(`/admin/chats/${id}/messages`, { method: 'POST', body: payload });
+      return apiClient.request<ChatMessage>(`/admin/chats/${id}/messages`, {
+        method: 'POST',
+        body: payload
+      });
     },
-    async updateThreadStatus(id: string, payload: { status: 'ACTIVE' | 'CLOSED' }) {
-      return apiClient.request<ChatThread>(`/admin/chats/${id}`, { method: 'PATCH', body: payload });
+    async updateThreadStatus(
+      id: string,
+      payload: { status: 'ACTIVE' | 'CLOSED' }
+    ) {
+      return apiClient.request<ChatThread>(`/admin/chats/${id}`, {
+        method: 'PATCH',
+        body: payload
+      });
     },
-    async updateReturnStatus(id: string, payload: { status: ReturnStatus; adminComment?: string }) {
-      return apiClient.request<ReturnRequest>(`/admin/returns/${id}/status`, { method: 'PATCH', body: payload });
+    async updateReturnStatus(
+      id: string,
+      payload: { status: ReturnStatus; adminComment?: string }
+    ) {
+      return apiClient.request<ReturnRequest>(`/admin/returns/${id}/status`, {
+        method: 'PATCH',
+        body: payload
+      });
     }
   },
 
-  async createPaymentIntent(payload: { orderId: string; amount: number; currency?: string; provider?: string }) {
-    return apiClient.request<PaymentIntent>('/payments/intent', { method: 'POST', body: payload });
+  async createPaymentIntent(payload: {
+    orderId: string;
+    amount: number;
+    currency?: string;
+    provider?: string;
+  }) {
+    return apiClient.request<PaymentIntent>('/payments/intent', {
+      method: 'POST',
+      body: payload
+    });
   }
 };

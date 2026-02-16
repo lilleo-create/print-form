@@ -6,6 +6,10 @@ import { YandexNddHttpError, yandexNddClient } from './yandexNdd/YandexNddClient
 
 const sellerId = 'seller-1';
 
+test.beforeEach(() => {
+  (prisma.sellerDeliveryProfile.findUnique as any) = async () => null;
+});
+
 const mockPaidOrder = (id: string) => ({
   id,
   status: 'PAID',
@@ -116,6 +120,41 @@ test('ready-to-ship sends station_id/self_pickup_id and interval_utc from offers
   assert.equal(offersPayload?.self_pickup_id, 'pickup-1');
   assert.deepEqual(offersPayload?.interval_utc, interval);
   assert.equal(offersPayload?.last_mile_policy, 'time_interval');
+});
+
+
+
+test('ready-to-ship uses seller delivery profile station when order meta has no station id', async () => {
+  delete process.env.YANDEX_NDD_OPERATOR_STATION_ID;
+  (prisma.order.findFirst as any) = async () => ({
+    ...mockPaidOrder('order-from-profile'),
+    sellerDropoffPvzMeta: { raw: { id: 'dropoff-1' } }
+  });
+  (prisma.sellerDeliveryProfile.findUnique as any) = async () => ({
+    dropoffStationId: 'station-from-profile',
+    dropoffStationMeta: { addressFull: 'Москва' }
+  });
+
+  const deliveryServiceModule = await import('./orderDeliveryService');
+  (deliveryServiceModule.orderDeliveryService.getByOrderIds as any) = async () =>
+    new Map([['order-from-profile', { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: 'pickup-1' } }]]);
+
+  const shipmentModule = await import('./shipmentService');
+  (shipmentModule.shipmentService.getByOrderId as any) = async () => null;
+  (shipmentModule.shipmentService.upsertForOrder as any) = async (payload: Record<string, unknown>) => ({ id: 'shipment-1', ...payload });
+  (shipmentModule.shipmentService.pushHistory as any) = async () => undefined;
+  (prisma.order.update as any) = async () => ({ id: 'order-from-profile' });
+
+  let stationId: string | null = null;
+  (yandexNddClient.offersInfo as any) = async (src: string) => {
+    stationId = src;
+    return { intervals_utc: [{ from: 1, to: 2 }] };
+  };
+  (yandexNddClient.offersCreate as any) = async () => ({ offer_id: 'offer-1' });
+  (yandexNddClient.offersConfirm as any) = async () => ({ request_id: 'request-1', status: 'CREATED' });
+
+  await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-from-profile');
+  assert.equal(stationId, 'station-from-profile');
 });
 
 test('ready-to-ship fails with SELLER_STATION_ID_REQUIRED when station id is missing', async () => {
