@@ -16,19 +16,8 @@ type Props = {
   onClose: () => void;
   onSelect: (sel: YaPvzSelection) => void;
   city?: string;
-
-  /**
-   * Для checkout (расчёт сроков/стоимости) — нужен.
-   * Для выбора dropoff ПВЗ продавца — не обязателен.
-   */
   source_platform_station?: string;
-
   physical_dims_weight_gross?: number;
-
-  /**
-   * true: без source_platform_station покажем ошибку (checkout).
-   * false: можно открывать без station (seller выбирает dropoff).
-   */
   requireSourceStation?: boolean;
 };
 
@@ -57,39 +46,9 @@ function ensureWidgetScriptLoaded() {
     script.src = YA_NDD_WIDGET_SRC;
     script.async = true;
     document.head.appendChild(script);
-    debugLog('script appended', YA_NDD_WIDGET_SRC);
+    debugLog('script appended');
   }
 }
-
-const buildParams = ({
-  city,
-  source_platform_station,
-  physical_dims_weight_gross
-}: {
-  city: string;
-  source_platform_station?: string;
-  physical_dims_weight_gross: number;
-}) => {
-  const params: Record<string, unknown> = {
-    city,
-    size: { width: '100%', height: '780px' },
-    show_select_button: true,
-    filter: {
-      type: ['pickup_point', 'terminal'],
-      is_yandex_branded: false,
-      payment_methods: ['already_paid', 'card_on_receipt'],
-      payment_methods_filter: 'or'
-    }
-  };
-
-  const station = (source_platform_station ?? '').trim();
-  if (station) {
-    params.source_platform_station = station;
-    params.physical_dims_weight_gross = physical_dims_weight_gross;
-  }
-
-  return params;
-};
 
 export function YaPvzPickerModal({
   isOpen,
@@ -105,92 +64,119 @@ export function YaPvzPickerModal({
   );
   const hostRef = useRef<HTMLDivElement | null>(null);
   const widgetInitializedRef = useRef(false);
-  const initCountRef = useRef(0);
-
-  const onCloseRef = useRef(onClose);
-  const onSelectRef = useRef(onSelect);
-
   const selectedOnceRef = useRef(false);
-  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    onCloseRef.current = onClose;
-    onSelectRef.current = onSelect;
-  }, [onClose, onSelect]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCloseRef.current();
+      if (e.key === 'Escape') onClose();
     };
 
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, onClose]);
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const scrollY = window.scrollY;
+
+    const originalStyle = {
+      overflow: document.body.style.overflow,
+      position: document.body.style.position,
+      top: document.body.style.top,
+      width: document.body.style.width
+    };
+
+    document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = '100%';
+
+    return () => {
+      document.body.style.overflow = originalStyle.overflow;
+      document.body.style.position = originalStyle.position;
+      document.body.style.top = originalStyle.top;
+      document.body.style.width = originalStyle.width;
+
+      window.scrollTo(0, scrollY);
+    };
   }, [isOpen]);
 
   useEffect(() => {
+    if (!isOpen) return;
     const host = hostRef.current;
     if (!host) return;
 
     const station = (source_platform_station ?? '').trim();
     if (requireSourceStation && !station) {
-      setError(
-        'Не задан source_platform_station. Укажите станцию отгрузки продавца.'
-      );
+      setError('Не задан source_platform_station.');
       return;
     }
 
     setError(null);
-    host.style.width = '100%';
-    host.style.minWidth = '0';
-
-    const params = buildParams({
-      city,
-      source_platform_station,
-      physical_dims_weight_gross
-    });
+    ensureWidgetScriptLoaded();
 
     const initWidget = () => {
-      if (widgetInitializedRef.current) {
-        if (window.YaDelivery?.setParams) {
-          window.YaDelivery.setParams(params);
+      if (!window.YaDelivery?.createWidget) return;
+
+      const rect = host.getBoundingClientRect();
+      const height = Math.max(600, Math.floor(rect.height));
+
+      const params: Record<string, unknown> = {
+        city,
+        show_select_button: true,
+        size: { width: '100%', height: `${height}px` },
+        filter: {
+          type: ['pickup_point', 'terminal'],
+          is_yandex_branded: false,
+          payment_methods: ['already_paid', 'card_on_receipt'],
+          payment_methods_filter: 'or'
         }
-        return;
+      };
+
+      if (station) {
+        params.source_platform_station = station;
+        params.physical_dims_weight_gross = physical_dims_weight_gross;
       }
 
-      const ya = window.YaDelivery;
-      if (!ya?.createWidget) return;
+      debugLog('init height:', height);
 
-      widgetInitializedRef.current = true;
-      initCountRef.current += 1;
-      if (isDev)
-        console.debug('[PVZ] widget init count:', initCountRef.current);
-
-      ya.createWidget({
+      window.YaDelivery.createWidget({
         containerId: containerIdRef.current,
         params
       });
 
-      window.setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
-      window.setTimeout(() => window.dispatchEvent(new Event('resize')), 250);
-      window.setTimeout(() => window.dispatchEvent(new Event('resize')), 800);
+      widgetInitializedRef.current = true;
+
+      // Принудительный пересчёт
+      requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+      setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
+      setTimeout(() => window.dispatchEvent(new Event('resize')), 300);
     };
 
-    ensureWidgetScriptLoaded();
-    if (window.YaDelivery?.createWidget) initWidget();
-    else
+    if (window.YaDelivery?.createWidget) {
+      initWidget();
+    } else {
       document.addEventListener('YaNddWidgetLoad', initWidget, { once: true });
+      setTimeout(() => {
+        if (window.YaDelivery?.createWidget) initWidget();
+      }, 1200);
+    }
 
-    const fallbackInitId = window.setTimeout(() => {
-      if (window.YaDelivery?.createWidget) initWidget();
-    }, 1500);
+    // ResizeObserver — чтобы кнопка больше никогда не исчезала
+    const ro = new ResizeObserver(() => {
+      window.dispatchEvent(new Event('resize'));
+    });
+    ro.observe(host);
 
     return () => {
-      window.clearTimeout(fallbackInitId);
-      document.removeEventListener('YaNddWidgetLoad', initWidget);
+      ro.disconnect();
     };
   }, [
+    isOpen,
     city,
     source_platform_station,
     physical_dims_weight_gross,
@@ -199,29 +185,23 @@ export function YaPvzPickerModal({
 
   useEffect(() => {
     const onPointSelected = (event: Event) => {
-      const detail = (event as CustomEvent<Record<string, unknown>>).detail as
-        | Record<string, unknown>
-        | undefined;
+      const detail = (event as CustomEvent<Record<string, unknown>>).detail;
       const id = detail?.id;
       if (!id || selectedOnceRef.current) return;
 
       selectedOnceRef.current = true;
 
-      const addressObj = detail?.address as Record<string, unknown> | undefined;
-      const addressFull =
-        (addressObj?.full_address as string | undefined) ??
-        (addressObj?.fullAddress as string | undefined) ??
-        (detail?.full_address as string | undefined) ??
-        (detail?.fullAddress as string | undefined);
-
-      onSelectRef.current({
+      onSelect({
         pvzId: String(id),
-        addressFull,
+        addressFull:
+          (detail?.address as any)?.full_address ??
+          (detail?.address as any)?.fullAddress,
         raw: detail
       });
 
-      onCloseRef.current();
-      window.setTimeout(() => {
+      onClose();
+
+      setTimeout(() => {
         selectedOnceRef.current = false;
       }, 0);
     };
@@ -230,21 +210,18 @@ export function YaPvzPickerModal({
       'YaNddWidgetPointSelected',
       onPointSelected as EventListener
     );
+
     return () =>
       document.removeEventListener(
         'YaNddWidgetPointSelected',
         onPointSelected as EventListener
       );
-  }, []);
+  }, [onClose, onSelect]);
+
+  if (!isOpen) return null;
 
   return (
-    <div
-      className={styles.overlay}
-      onClick={onClose}
-      hidden={!isOpen}
-      aria-hidden={!isOpen}
-      style={isOpen ? undefined : { display: 'none' }}
-    >
+    <div className={styles.overlay} onClick={onClose}>
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
         <div className={styles.header}>
           <span>Выберите пункт выдачи</span>
@@ -258,12 +235,11 @@ export function YaPvzPickerModal({
         </div>
 
         <div className={styles.body}>
-          {error ? <div className={styles.error}>{error}</div> : null}
+          {error && <div className={styles.error}>{error}</div>}
           <div
             id={containerIdRef.current}
             ref={hostRef}
             className={styles.widget}
-            aria-hidden={Boolean(error)}
           />
         </div>
       </div>
