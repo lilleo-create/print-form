@@ -6,12 +6,12 @@ const asRecord = (value: unknown): Record<string, unknown> | null => {
   return value as Record<string, unknown>;
 };
 
-const DIGITS_ONLY = /^\d+$/;
+const STATION_ID_DIGITS_ONLY = /^\d{6,20}$/;
 
-const toStationId = (value: unknown): string | null => {
+const toDigitsStationId = (value: unknown): string | null => {
   if (typeof value === 'number' && Number.isFinite(value)) {
     const asString = String(value);
-    return DIGITS_ONLY.test(asString) ? asString : null;
+    return STATION_ID_DIGITS_ONLY.test(asString) ? asString : null;
   }
 
   if (typeof value !== 'string') {
@@ -19,7 +19,7 @@ const toStationId = (value: unknown): string | null => {
   }
 
   const trimmed = value.trim();
-  if (!trimmed || !DIGITS_ONLY.test(trimmed)) {
+  if (!trimmed || trimmed.includes('-') || !STATION_ID_DIGITS_ONLY.test(trimmed)) {
     return null;
   }
 
@@ -43,7 +43,7 @@ export const getOperatorStationId = (metaRaw: unknown): string | null => {
   ];
 
   for (const candidate of candidates) {
-    const stationId = toStationId(candidate);
+    const stationId = toDigitsStationId(candidate);
     if (stationId) {
       return stationId;
     }
