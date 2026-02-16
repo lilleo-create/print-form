@@ -85,7 +85,7 @@ const sellerOnboardingSchema = z.object({
 const ensureSellerDeliveryProfile = async (sellerId: string) => {
   await prisma.sellerDeliveryProfile.upsert({
     where: { sellerId },
-    create: { sellerId },
+    create: { sellerId, dropoffStationId: '' },
     update: {}
   });
 };
@@ -530,10 +530,25 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
       ? rawDetail.id.trim()
       : payload.dropoffPvz.pvzId;
     const operatorStationId = getOperatorStationId(rawDetail) ?? undefined;
+    console.info('[DROP_OFF_PVZ] parsed', {
+      pvzId: detailId,
+      operatorStationId,
+      rawKeys: Object.keys(rawDetail ?? {})
+    });
+
+    if (!operatorStationId) {
+      return res.status(400).json({
+        error: {
+          code: 'OPERATOR_STATION_ID_MISSING',
+          message: 'Выбранная точка не содержит station id для отгрузки. Выберите другую точку или проверьте raw в виджете.'
+        }
+      });
+    }
+
     const normalizedRaw = {
       ...(rawDetail ?? {}),
       pvzId: detailId,
-      ...(operatorStationId ? { operator_station_id: operatorStationId } : {})
+      operator_station_id: operatorStationId
     };
     const dropoffPvzMeta = {
       ...payload.dropoffPvz,
@@ -555,7 +570,7 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
     });
 
     await sellerDeliveryProfileService.upsert(req.user!.userId, {
-      dropoffStationId: operatorStationId ?? detailId,
+      dropoffStationId: operatorStationId,
       dropoffStationMeta: dropoffPvzMeta as Record<string, unknown>
     });
 
