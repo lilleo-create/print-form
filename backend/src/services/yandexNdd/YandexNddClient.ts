@@ -24,22 +24,22 @@ export class YandexNddClient {
   private readonly config = getYandexNddConfig();
 
   private getAuthTokenMeta() {
-    const rawToken = (this.config.token ?? '').trim();
-    const hasBearerPrefix = /^Bearer\s+/i.test(rawToken);
-    const normalizedToken = rawToken.replace(/^Bearer\s+/i, '').trim();
+    const rawToken = (process.env.YANDEX_NDD_TOKEN ?? this.config.token ?? '').trim();
+    const authHeader = `Bearer ${rawToken}`;
+    const hasBearerPrefix = authHeader.startsWith('Bearer ');
 
     return {
       hasBearerPrefix,
-      normalizedToken,
-      tokenLength: normalizedToken.length,
-      tokenPreview: normalizedToken.slice(0, 10)
+      authHeader,
+      tokenLength: rawToken.length,
+      tokenPreview: rawToken.slice(0, 10)
     };
   }
 
   private async request<T>(path: string, init?: RequestInit & { requestId?: string }): Promise<T> {
     const tokenMeta = this.getAuthTokenMeta();
     const headers = new Headers(init?.headers ?? {});
-    headers.set('Authorization', `Bearer ${tokenMeta.normalizedToken}`);
+    headers.set('Authorization', tokenMeta.authHeader);
     headers.set('Content-Type', 'application/json');
     headers.set('Accept-Language', this.config.lang);
 
@@ -59,13 +59,16 @@ export class YandexNddClient {
     })();
 
     if (process.env.NODE_ENV !== 'production') {
+      console.info('[YANDEX_NDD][auth]', {
+        hasBearerPrefix: tokenMeta.hasBearerPrefix,
+        tokenLength: tokenMeta.tokenLength,
+        tokenPreview: tokenMeta.tokenPreview
+      });
+
       console.log('[YANDEX_NDD]', {
         requestId: init?.requestId ?? 'n/a',
         path,
-        httpStatus: response.status,
-        tokenPreview: tokenMeta.tokenPreview,
-        tokenLength: tokenMeta.tokenLength,
-        hasBearerPrefix: tokenMeta.hasBearerPrefix
+        httpStatus: response.status
       });
     }
 
