@@ -6,21 +6,48 @@ const asRecord = (value: unknown): Record<string, unknown> | null => {
   return value as Record<string, unknown>;
 };
 
+const DIGITS_ONLY = /^\d+$/;
+
+const toStationId = (value: unknown): string | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const asString = String(value);
+    return DIGITS_ONLY.test(asString) ? asString : null;
+  }
+
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed || !DIGITS_ONLY.test(trimmed)) {
+    return null;
+  }
+
+  return trimmed;
+};
+
 export const getOperatorStationId = (metaRaw: unknown): string | null => {
   const raw = asRecord(metaRaw);
   if (!raw) {
     return null;
   }
 
-  const directValue = raw.operator_station_id;
-  if (typeof directValue === 'string' && directValue.trim()) {
-    return directValue.trim();
-  }
+  const candidates: unknown[] = [
+    raw.operator_station_id,
+    raw.operatorStationId,
+    raw.station_id,
+    raw.stationId,
+    asRecord(raw.data)?.operator_station_id,
+    asRecord(raw.pickup_point)?.operator_station_id,
+    asRecord(raw.point)?.operator_station_id
+  ];
 
-  if (typeof directValue === 'number' && Number.isFinite(directValue)) {
-    return String(directValue);
+  for (const candidate of candidates) {
+    const stationId = toStationId(candidate);
+    if (stationId) {
+      return stationId;
+    }
   }
 
   return null;
 };
-

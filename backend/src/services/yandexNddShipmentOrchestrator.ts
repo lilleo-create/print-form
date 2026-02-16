@@ -24,6 +24,17 @@ const asRecord = (value: unknown): Record<string, unknown> | undefined =>
     ? (value as Record<string, unknown>)
     : undefined;
 
+const DIGITS_ONLY = /^\d+$/;
+
+const normalizeDigitsStation = (value: string | null | undefined): string | null => {
+  if (!value) {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return DIGITS_ONLY.test(trimmed) ? trimmed : null;
+};
+
 const extractYandexStatus = (payload: Record<string, unknown>) => {
   const status =
     (payload.status as string | undefined) ??
@@ -159,54 +170,43 @@ export const yandexNddShipmentOrchestrator = {
       });
     }
 
-    const envStation =
-      process.env.YANDEX_NDD_OPERATOR_STATION_ID && process.env.YANDEX_NDD_OPERATOR_STATION_ID.trim().length > 0
-        ? process.env.YANDEX_NDD_OPERATOR_STATION_ID.trim()
-        : null;
-    const sourceFromOrderRaw = getOperatorStationId((order.sellerDropoffPvzMeta as Record<string, unknown> | null)?.raw);
-    const sourceFromOrderMeta = getOperatorStationId(order.sellerDropoffPvzMeta);
-    const sourceFromProfileRaw = getOperatorStationId((sellerDeliveryProfile?.dropoffStationMeta as Record<string, unknown> | null)?.raw);
-    const sourceFromProfileId = sellerDeliveryProfile?.dropoffStationId ?? null;
+    const envOperatorStation = normalizeDigitsStation(process.env.YANDEX_NDD_OPERATOR_STATION_ID ?? null);
+    const fromOrderRaw = getOperatorStationId((order.sellerDropoffPvzMeta as Record<string, unknown> | null)?.raw);
+    const fromOrderMeta = getOperatorStationId(order.sellerDropoffPvzMeta);
+    const fromProfileRaw = getOperatorStationId((sellerDeliveryProfile?.dropoffStationMeta as Record<string, unknown> | null)?.raw);
+    const fromProfileMeta = getOperatorStationId(sellerDeliveryProfile?.dropoffStationMeta);
+    const fromProfileId = normalizeDigitsStation(sellerDeliveryProfile?.dropoffStationId ?? null);
 
-    let sourceStationId: string | null = null;
-    let sourceStationFrom: 'env' | 'order.meta.raw' | 'order.meta' | 'profile.meta.raw' | 'profile.dropoffStationId' | 'none' = 'none';
+    const candidates: Array<{ value: string | null; source: 'env' | 'order.meta.raw' | 'order.meta' | 'profile.meta.raw' | 'profile.meta' | 'profile.dropoffStationId' }> = [
+      { value: envOperatorStation, source: 'env' },
+      { value: fromOrderRaw, source: 'order.meta.raw' },
+      { value: fromOrderMeta, source: 'order.meta' },
+      { value: fromProfileRaw, source: 'profile.meta.raw' },
+      { value: fromProfileMeta, source: 'profile.meta' },
+      { value: fromProfileId, source: 'profile.dropoffStationId' }
+    ];
 
-    if (envStation) {
-      sourceStationId = envStation;
-      sourceStationFrom = 'env';
-    } else if (sourceFromOrderRaw) {
-      sourceStationId = sourceFromOrderRaw;
-      sourceStationFrom = 'order.meta.raw';
-    } else if (sourceFromOrderMeta) {
-      sourceStationId = sourceFromOrderMeta;
-      sourceStationFrom = 'order.meta';
-    } else if (sourceFromProfileRaw) {
-      sourceStationId = sourceFromProfileRaw;
-      sourceStationFrom = 'profile.meta.raw';
-    } else if (sourceFromProfileId) {
-      sourceStationId = sourceFromProfileId;
-      sourceStationFrom = 'profile.dropoffStationId';
-    }
-
-    console.info('[READY_TO_SHIP] resolved source station', {
-      sellerId,
-      orderId,
-      sourceStationId,
-      from:
-        envStation
-          ? 'env'
-          : getOperatorStationId((order.sellerDropoffPvzMeta as Record<string, unknown> | null)?.raw)
-            ? 'order.meta.raw'
-            : getOperatorStationId(order.sellerDropoffPvzMeta)
-              ? 'order.meta'
-              : getOperatorStationId((sellerDeliveryProfile?.dropoffStationMeta as Record<string, unknown> | null)?.raw)
-                ? 'profile.meta.raw'
-                : sellerDeliveryProfile?.dropoffStationId
-                  ? 'profile.dropoffStationId'
-                  : 'none'
+    console.info('[READY_TO_SHIP] station candidates', {
+      envOperatorStation,
+      fromOrderRaw,
+      fromOrderMeta,
+      fromProfileRaw,
+      fromProfileMeta,
+      fromProfileId
     });
 
-    if (envStation && sourceStationId === envStation) {
+    let sourceStationId: string | null = null;
+    let sourceStationFrom: 'env' | 'order.meta.raw' | 'order.meta' | 'profile.meta.raw' | 'profile.meta' | 'profile.dropoffStationId' | 'none' = 'none';
+
+    for (const candidate of candidates) {
+      if (candidate.value) {
+        sourceStationId = candidate.value;
+        sourceStationFrom = candidate.source;
+        break;
+      }
+    }
+
+    if (envOperatorStation && sourceStationId === envOperatorStation) {
       console.warn('[NDD] station id taken from ENV override');
     }
 
@@ -214,11 +214,12 @@ export const yandexNddShipmentOrchestrator = {
       console.error('[READY_TO_SHIP] SELLER_STATION_ID_REQUIRED', {
         sellerId,
         orderId,
-        envOperatorStation: envStation,
-        fromOrderRaw: sourceFromOrderRaw ?? null,
-        fromOrderMeta: sourceFromOrderMeta ?? null,
-        fromProfileRaw: sourceFromProfileRaw ?? null,
-        fromProfileId: sourceFromProfileId
+        envOperatorStation,
+        fromOrderRaw,
+        fromOrderMeta,
+        fromProfileRaw,
+        fromProfileMeta,
+        fromProfileId
       });
       throw new Error('SELLER_STATION_ID_REQUIRED');
     }
@@ -234,7 +235,8 @@ export const yandexNddShipmentOrchestrator = {
 
     console.info('[NDD] using station_id', {
       station_id: sourceStationId,
-      self_pickup_id: order.buyerPickupPvzId
+      self_pickup_id: order.buyerPickupPvzId,
+      source: sourceStationFrom
     });
 
     const offersInfo = await yandexNddClient.offersInfo(
