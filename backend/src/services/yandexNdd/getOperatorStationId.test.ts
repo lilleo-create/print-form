@@ -6,8 +6,8 @@ test('returns operator_station_id from string', () => {
   assert.equal(getOperatorStationId({ operator_station_id: '10022023854' }), '10022023854');
 });
 
-test('returns operator_station_id from number', () => {
-  assert.equal(getOperatorStationId({ operator_station_id: 10022023854 }), '10022023854');
+test('returns null when operator_station_id is not string', () => {
+  assert.equal(getOperatorStationId({ operator_station_id: 10022023854 }), null);
 });
 
 test('returns station id from supported fallback fields', () => {
