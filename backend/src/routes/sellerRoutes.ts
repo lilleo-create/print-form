@@ -257,22 +257,23 @@ sellerRoutes.post('/kyc/submit', writeLimiter, async (req: AuthRequest, res, nex
   try {
     const payload = z
       .object({
-        dropoffStationId: z.string().min(1).trim(),
+        dropoffStationId: z.string().optional(),
         dropoffStationMeta: z.record(z.string(), z.unknown()).optional()
       })
       .parse(req.body ?? {});
 
-    if (!payload.dropoffStationId) {
+    const dropoffStationId = payload.dropoffStationId?.trim();
+    if (!dropoffStationId) {
       return res.status(400).json({
         error: {
           code: 'SELLER_STATION_ID_REQUIRED',
-          message: 'Выберите точку отгрузки перед отправкой документов.'
+          message: 'Выберите точку отгрузки перед отправкой документов. В будущем можно изменить в настройках.'
         }
       });
     }
 
     await sellerDeliveryProfileService.upsert(req.user!.userId, {
-      dropoffStationId: payload.dropoffStationId,
+      dropoffStationId,
       dropoffStationMeta: payload.dropoffStationMeta
     });
 
@@ -539,7 +540,7 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
     });
 
     await sellerDeliveryProfileService.upsert(req.user!.userId, {
-      dropoffStationId: detailId,
+      dropoffStationId: operatorStationId ?? detailId,
       dropoffStationMeta: dropoffPvzMeta as Record<string, unknown>
     });
 
@@ -607,11 +608,7 @@ sellerRoutes.post('/yandex/handover-act', writeLimiter, async (req: AuthRequest,
     next(error);
   }
 });
-console.info('[READY_TO_SHIP][route] input', {
-  sellerId: req.user?.id,
-  orderId: req.params?.orderId ?? req.params?.id,
-  body: req.body
-});
+
 sellerRoutes.get('/orders', async (req: AuthRequest, res, next) => {
   try {
     const query = sellerOrdersQuerySchema.parse(req.query);

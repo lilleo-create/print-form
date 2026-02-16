@@ -7,6 +7,7 @@ import { YandexNddHttpError, yandexNddClient } from './yandexNdd/YandexNddClient
 const sellerId = 'seller-1';
 
 test.beforeEach(() => {
+  delete process.env.YANDEX_NDD_OPERATOR_STATION_ID;
   (prisma.sellerDeliveryProfile.findUnique as any) = async () => null;
 });
 
@@ -123,6 +124,39 @@ test('ready-to-ship sends station_id/self_pickup_id and interval_utc from offers
 });
 
 
+
+
+test('ready-to-ship uses seller delivery profile meta.raw.operator_station_id when available', async () => {
+  (prisma.order.findFirst as any) = async () => ({
+    ...mockPaidOrder('order-from-profile-meta-raw'),
+    sellerDropoffPvzMeta: { raw: { id: 'dropoff-1' } }
+  });
+  (prisma.sellerDeliveryProfile.findUnique as any) = async () => ({
+    dropoffStationId: 'station-from-profile-id',
+    dropoffStationMeta: { raw: { operator_station_id: 'station-from-profile-raw' } }
+  });
+
+  const deliveryServiceModule = await import('./orderDeliveryService');
+  (deliveryServiceModule.orderDeliveryService.getByOrderIds as any) = async () =>
+    new Map([['order-from-profile-meta-raw', { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: 'pickup-1' } }]]);
+
+  const shipmentModule = await import('./shipmentService');
+  (shipmentModule.shipmentService.getByOrderId as any) = async () => null;
+  (shipmentModule.shipmentService.upsertForOrder as any) = async (payload: Record<string, unknown>) => ({ id: 'shipment-1', ...payload });
+  (shipmentModule.shipmentService.pushHistory as any) = async () => undefined;
+  (prisma.order.update as any) = async () => ({ id: 'order-from-profile-meta-raw' });
+
+  let stationId: string | null = null;
+  (yandexNddClient.offersInfo as any) = async (src: string) => {
+    stationId = src;
+    return { intervals_utc: [{ from: 1, to: 2 }] };
+  };
+  (yandexNddClient.offersCreate as any) = async () => ({ offer_id: 'offer-1' });
+  (yandexNddClient.offersConfirm as any) = async () => ({ request_id: 'request-1', status: 'CREATED' });
+
+  await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-from-profile-meta-raw');
+  assert.equal(stationId, 'station-from-profile-raw');
+});
 
 test('ready-to-ship uses seller delivery profile station when order meta has no station id', async () => {
   delete process.env.YANDEX_NDD_OPERATOR_STATION_ID;

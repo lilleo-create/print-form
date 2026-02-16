@@ -24,11 +24,14 @@ const toDto = (profile: {
   createdAt: profile.createdAt,
   updatedAt: profile.updatedAt
 });
-const profile = await prisma.sellerDeliveryProfile.upsert({
-  where: { sellerId },
-  create: { sellerId },
-  update: {}
-});
+
+const toJsonInput = (value?: Record<string, unknown>): Prisma.InputJsonValue | typeof Prisma.JsonNull => {
+  if (!value) {
+    return Prisma.JsonNull;
+  }
+
+  return value as Prisma.InputJsonValue;
+};
 
 export const sellerDeliveryProfileService = {
   getBySellerId: async (sellerId: string) => {
@@ -42,11 +45,11 @@ export const sellerDeliveryProfileService = {
       create: {
         sellerId,
         dropoffStationId: payload.dropoffStationId,
-        dropoffStationMeta: payload.dropoffStationMeta ? (payload.dropoffStationMeta as Prisma.InputJsonValue) : Prisma.JsonNull
+        dropoffStationMeta: toJsonInput(payload.dropoffStationMeta)
       },
       update: {
         dropoffStationId: payload.dropoffStationId,
-        dropoffStationMeta: payload.dropoffStationMeta ? (payload.dropoffStationMeta as Prisma.InputJsonValue) : Prisma.JsonNull
+        dropoffStationMeta: toJsonInput(payload.dropoffStationMeta)
       }
     });
 
