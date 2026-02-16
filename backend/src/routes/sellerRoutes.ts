@@ -82,6 +82,14 @@ const sellerOnboardingSchema = z.object({
   catalogPosition: z.string().min(2)
 });
 
+const ensureSellerDeliveryProfile = async (sellerId: string) => {
+  await prisma.sellerDeliveryProfile.upsert({
+    where: { sellerId },
+    create: { sellerId },
+    update: {}
+  });
+};
+
 sellerRoutes.post('/onboarding', requireAuth, writeLimiter, async (req: AuthRequest, res, next) => {
   try {
     const payload = sellerOnboardingSchema.parse(req.body);
@@ -121,6 +129,9 @@ sellerRoutes.post('/onboarding', requireAuth, writeLimiter, async (req: AuthRequ
         }
       }
     });
+
+    await ensureSellerDeliveryProfile(req.user!.userId);
+
     res.json({
       data: {
         id: updated.id,
@@ -164,6 +175,9 @@ const respondSellerContext = async (req: AuthRequest, res: Response) => {
   if (req.user?.role !== 'SELLER') {
     return res.status(403).json({ code: 'FORBIDDEN', message: 'Seller only' });
   }
+
+  await ensureSellerDeliveryProfile(req.user.userId);
+
   const context = await loadSellerContext(req.user.userId);
   if (!context) {
     console.warn('Seller profile missing for user', { userId: req.user.userId });
@@ -267,7 +281,7 @@ sellerRoutes.post('/kyc/submit', writeLimiter, async (req: AuthRequest, res, nex
       return res.status(400).json({
         error: {
           code: 'SELLER_STATION_ID_REQUIRED',
-          message: 'Выберите точку отгрузки перед отправкой документов. В будущем можно изменить в настройках.'
+          message: 'Точка отгрузки обязательна. В будущем можно изменить в настройках.'
         }
       });
     }
@@ -498,6 +512,7 @@ const sellerDeliveryProfileSchema = z.object({
 
 sellerRoutes.get('/settings', async (req: AuthRequest, res, next) => {
   try {
+    await ensureSellerDeliveryProfile(req.user!.userId);
     const settings = await prisma.sellerSettings.findUnique({ where: { sellerId: req.user!.userId } });
     res.json({ data: settings });
   } catch (error) {
