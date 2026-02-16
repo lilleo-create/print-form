@@ -9,11 +9,6 @@ const asRecord = (value: unknown): Record<string, unknown> | null => {
 const STATION_ID_DIGITS_ONLY = /^\d{6,20}$/;
 
 const toDigitsStationId = (value: unknown): string | null => {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    const asString = String(value);
-    return STATION_ID_DIGITS_ONLY.test(asString) ? asString : null;
-  }
-
   if (typeof value !== 'string') {
     return null;
   }
