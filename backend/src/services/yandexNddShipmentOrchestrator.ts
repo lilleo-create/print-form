@@ -175,7 +175,9 @@ export const yandexNddShipmentOrchestrator = {
     const fromOrderMeta = getOperatorStationId(order.sellerDropoffPvzMeta);
     const fromProfileRaw = getOperatorStationId((sellerDeliveryProfile?.dropoffStationMeta as Record<string, unknown> | null)?.raw);
     const fromProfileMeta = getOperatorStationId(sellerDeliveryProfile?.dropoffStationMeta);
-    const fromProfileId = normalizeDigitsStation(sellerDeliveryProfile?.dropoffStationId ?? null);
+    const profileDropoffRaw = sellerDeliveryProfile?.dropoffStationId?.trim() || null;
+    const fromProfileId = normalizeDigitsStation(profileDropoffRaw);
+    const profileDropoffLooksLikePvz = Boolean(profileDropoffRaw && !fromProfileId);
 
     const candidates: Array<{ value: string | null; source: 'env' | 'order.meta.raw' | 'order.meta' | 'profile.meta.raw' | 'profile.meta' | 'profile.dropoffStationId' }> = [
       { value: envOperatorStation, source: 'env' },
@@ -192,7 +194,9 @@ export const yandexNddShipmentOrchestrator = {
       fromOrderMeta,
       fromProfileRaw,
       fromProfileMeta,
-      fromProfileId
+      profileDropoffRaw,
+      fromProfileId,
+      profileDropoffLooksLikePvz
     });
 
     let sourceStationId: string | null = null;
@@ -219,8 +223,13 @@ export const yandexNddShipmentOrchestrator = {
         fromOrderMeta,
         fromProfileRaw,
         fromProfileMeta,
-        fromProfileId
+        profileDropoffRaw,
+        fromProfileId,
+        profileDropoffLooksLikePvz
       });
+      if (profileDropoffLooksLikePvz) {
+        console.error('[READY_TO_SHIP] dropoffStationId looks like pvz uuid, expected operator_station_id digits');
+      }
       throw new Error('SELLER_STATION_ID_REQUIRED');
     }
 
