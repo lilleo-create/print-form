@@ -122,7 +122,10 @@ export const SellerDashboardPage = () => {
   // === Delivery profile ===
   const [dropoffStationId, setDropoffStationId] = useState('');
   const [dropoffStationAddress, setDropoffStationAddress] = useState('');
-  const [dropoffStationRaw, setDropoffStationRaw] = useState<Record<string, unknown> | null>(null);
+  const [dropoffStationRaw, setDropoffStationRaw] = useState<Record<
+    string,
+    unknown
+  > | null>(null);
   const [isDropoffModalOpen, setDropoffModalOpen] = useState(false);
 
   const [deliverySettingsMessage, setDeliverySettingsMessage] = useState<
@@ -151,6 +154,13 @@ export const SellerDashboardPage = () => {
     Boolean(sellerProfile);
 
   const isAuthLoading = authStatus === 'loading' || contextStatus === 'loading';
+
+  const hasDropoffStation = Boolean(dropoffStationId.trim());
+  const kycSubmitDisabledReason = !kycSubmission?.documents?.length
+    ? 'Сначала загрузите документы.'
+    : !hasDropoffStation
+      ? 'Выберите точку отгрузки (station_id), чтобы отправить документы.'
+      : null;
 
   useEffect(() => {
     if (!sellerContextError) return;
@@ -228,8 +238,18 @@ export const SellerDashboardPage = () => {
           profileResponse.data?.defaultDropoffPvzId ??
           ''
       );
-      const persistedRaw = dropoffPvz?.raw ?? (dropoffMeta && typeof dropoffMeta === 'object' ? (dropoffMeta as Record<string, unknown>).raw : null);
-      setDropoffStationRaw(persistedRaw && typeof persistedRaw === 'object' && !Array.isArray(persistedRaw) ? (persistedRaw as Record<string, unknown>) : null);
+      const persistedRaw =
+        dropoffPvz?.raw ??
+        (dropoffMeta && typeof dropoffMeta === 'object'
+          ? (dropoffMeta as Record<string, unknown>).raw
+          : null);
+      setDropoffStationRaw(
+        persistedRaw &&
+          typeof persistedRaw === 'object' &&
+          !Array.isArray(persistedRaw)
+          ? (persistedRaw as Record<string, unknown>)
+          : null
+      );
     } catch (error) {
       setOrders([]);
       setOrdersView([]);
@@ -243,46 +263,49 @@ export const SellerDashboardPage = () => {
     }
   }, [isSellerReady, userId]);
 
-  const loadOrdersByStatus = useCallback(async (status: OrderStatus | 'ALL') => {
-    if (status === 'ALL') {
-      setOrdersView(orders);
-      return;
-    }
-
-    setOrdersLoading(true);
-    setOrdersError(null);
-
-    try {
-      if (!userId || !isSellerReady) {
-        setOrdersView([]);
+  const loadOrdersByStatus = useCallback(
+    async (status: OrderStatus | 'ALL') => {
+      if (status === 'ALL') {
+        setOrdersView(orders);
         return;
       }
 
-      const data = await ordersApi.listBySeller(userId, status);
-      setOrdersView(data);
+      setOrdersLoading(true);
+      setOrdersError(null);
 
-      setTrackingDrafts((prev) => {
-        const next = { ...prev };
-        data.forEach((order) => {
-          next[order.id] = {
-            trackingNumber:
-              order.trackingNumber ?? next[order.id]?.trackingNumber ?? '',
-            carrier: order.carrier ?? next[order.id]?.carrier ?? ''
-          };
+      try {
+        if (!userId || !isSellerReady) {
+          setOrdersView([]);
+          return;
+        }
+
+        const data = await ordersApi.listBySeller(userId, status);
+        setOrdersView(data);
+
+        setTrackingDrafts((prev) => {
+          const next = { ...prev };
+          data.forEach((order) => {
+            next[order.id] = {
+              trackingNumber:
+                order.trackingNumber ?? next[order.id]?.trackingNumber ?? '',
+              carrier: order.carrier ?? next[order.id]?.carrier ?? ''
+            };
+          });
+          return next;
         });
-        return next;
-      });
-    } catch (error) {
-      setOrdersView([]);
-      if (isAccessError(error) && isSellerReady) {
-        setOrdersError('Сессия истекла, войдите снова.');
-      } else if (isSellerReady) {
-        setOrdersError('Не удалось загрузить заказы.');
+      } catch (error) {
+        setOrdersView([]);
+        if (isAccessError(error) && isSellerReady) {
+          setOrdersError('Сессия истекла, войдите снова.');
+        } else if (isSellerReady) {
+          setOrdersError('Не удалось загрузить заказы.');
+        }
+      } finally {
+        setOrdersLoading(false);
       }
-    } finally {
-      setOrdersLoading(false);
-    }
-  }, [isSellerReady, orders, userId]);
+    },
+    [isSellerReady, orders, userId]
+  );
 
   const loadKyc = useCallback(async () => {
     setKycLoading(true);
@@ -393,17 +416,35 @@ export const SellerDashboardPage = () => {
       return;
     }
 
+    if (!hasDropoffStation) {
+      setKycError(
+        'Выберите точку отгрузки (station_id) перед отправкой документов.'
+      );
+      return;
+    }
+
     setKycMessage(null);
     setKycError(null);
 
     try {
-      const response = await api.submitSellerKyc();
+      const response = await api.submitSellerKyc({
+        dropoffStationId: dropoffStationId.trim(),
+        dropoffStationMeta: {
+          ...(dropoffStationRaw ?? {}),
+          addressFull: dropoffStationAddress.trim() || dropoffStationId.trim()
+        }
+      });
       setKycSubmission(response.data);
       setKycMessage('Заявка отправлена на проверку.');
       await reload();
     } catch (error) {
+      const normalized = normalizeApiError(error);
       if (isAccessError(error)) {
         setKycError('Сессия истекла, войдите снова.');
+      } else if (normalized.code === 'SELLER_STATION_ID_REQUIRED') {
+        setKycError(
+          'Выберите точку отгрузки через карту: без station_id документы не отправляются.'
+        );
       } else {
         setKycError('Не удалось отправить документы.');
       }
@@ -518,12 +559,13 @@ export const SellerDashboardPage = () => {
     }
   };
 
-
   const handleDropoffSelect = (selection: YaPvzSelection) => {
     setDropoffStationId(selection.pvzId);
     setDropoffStationAddress(selection.addressFull ?? '');
     setDropoffStationRaw(
-      selection.raw && typeof selection.raw === 'object' && !Array.isArray(selection.raw)
+      selection.raw &&
+        typeof selection.raw === 'object' &&
+        !Array.isArray(selection.raw)
         ? (selection.raw as Record<string, unknown>)
         : null
     );
@@ -620,17 +662,27 @@ export const SellerDashboardPage = () => {
     }
   };
 
-
   const payoutLabel = (value?: string | null) => {
     if (value === 'PAID') return 'PAID';
-    if (value === 'RELEASED' || value === 'READY_TO_PAYOUT' || value === 'READY') return 'READY';
+    if (
+      value === 'RELEASED' ||
+      value === 'READY_TO_PAYOUT' ||
+      value === 'READY'
+    )
+      return 'READY';
     return 'HOLD до получения';
   };
 
   const readyToShipDisabledReason = (order: Order) => {
     if (!order.paidAt && order.status !== 'PAID') return 'Ожидает оплаты';
-    if (!order.sellerDropoffPvzMeta && !dropoffStationId) return 'Не выбран ПВЗ сдачи';
-    if (!order.shipment?.requestId && !order.buyerPickupPvzMeta && !order.shippingAddressId) return 'Не указан адрес доставки';
+    if (!order.sellerDropoffPvzMeta && !dropoffStationId)
+      return 'Не выбран ПВЗ сдачи';
+    if (
+      !order.shipment?.requestId &&
+      !order.buyerPickupPvzMeta &&
+      !order.shippingAddressId
+    )
+      return 'Не указан адрес доставки';
     return null;
   };
   const summary = useMemo(() => {
@@ -705,8 +757,9 @@ export const SellerDashboardPage = () => {
     <section className={styles.page}>
       <div className={styles.shell}>
         <aside
-          className={`${styles.sidebar} ${isMenuOpen ? styles.sidebarOpen : ''
-            }`}
+          className={`${styles.sidebar} ${
+            isMenuOpen ? styles.sidebarOpen : ''
+          }`}
         >
           <div className={styles.sidebarHeader}>
             <h2>Кабинет продавца</h2>
@@ -739,7 +792,10 @@ export const SellerDashboardPage = () => {
         </aside>
 
         <div className={styles.content}>
-          <SellerHeader title={activeItem} onMenuOpen={() => setIsMenuOpen(true)} />
+          <SellerHeader
+            title={activeItem}
+            onMenuOpen={() => setIsMenuOpen(true)}
+          />
 
           {isAuthLoading && (
             <div className={styles.section}>
@@ -817,21 +873,53 @@ export const SellerDashboardPage = () => {
                     <div className={styles.kycPanel}>
                       <div className={styles.kycRow}>
                         <span className={styles.kycLabel}>Статус:</span>
-                        <strong>{kycSubmission?.status ?? 'Не отправлено'}</strong>
+                        <strong>
+                          {kycSubmission?.status ?? 'Не отправлено'}
+                        </strong>
                       </div>
 
-                      {(kycSubmission?.moderationNotes || kycSubmission?.notes) && (
+                      {(kycSubmission?.moderationNotes ||
+                        kycSubmission?.notes) && (
                         <p className={styles.kycNotes}>
                           Комментарий:{' '}
                           {kycSubmission.moderationNotes ?? kycSubmission.notes}
                         </p>
                       )}
 
+                      <div className={styles.settingsGrid}>
+                        <div>
+                          <span className={styles.muted}>
+                            Точка отгрузки (обязательно)
+                          </span>
+                          <p>
+                            {hasDropoffStation
+                              ? dropoffStationId
+                              : 'Не выбрана'}
+                          </p>
+                          {dropoffStationAddress ? (
+                            <p className={styles.muted}>
+                              {dropoffStationAddress}
+                            </p>
+                          ) : null}
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() => setDropoffModalOpen(true)}
+                          >
+                            Выбрать на карте
+                          </Button>
+                        </div>
+                      </div>
+
                       {kycSubmission?.documents?.length ? (
                         <ul className={styles.kycDocs}>
                           {kycSubmission.documents.map((doc) => (
                             <li key={doc.id}>
-                              <a href={doc.url} target="_blank" rel="noreferrer">
+                              <a
+                                href={doc.url}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
                                 {doc.originalName}
                               </a>
                             </li>
@@ -839,6 +927,19 @@ export const SellerDashboardPage = () => {
                         </ul>
                       ) : (
                         <p className={styles.muted}>Документы не загружены.</p>
+                      )}
+
+                      <p className={styles.muted}>
+                        Без точки отгрузки документы не отправятся. В будущем
+                        можно изменить в настройках. Поле отправляется вместе с
+                        документами на проверку.
+                      </p>
+
+                      {!hasDropoffStation && (
+                        <p className={styles.error}>
+                          Выберите точку отгрузки (station_id) через карту в
+                          настройках продавца.
+                        </p>
                       )}
 
                       <div className={styles.kycActions}>
@@ -850,20 +951,30 @@ export const SellerDashboardPage = () => {
                             onChange={handleKycUpload}
                             disabled={isKycUploading}
                           />
-                          {isKycUploading ? 'Загрузка...' : 'Загрузить документы'}
+                          {isKycUploading
+                            ? 'Загрузка...'
+                            : 'Загрузить документы'}
                         </label>
 
                         <Button
                           type="button"
                           onClick={handleKycSubmit}
-                          disabled={!kycSubmission?.documents?.length}
+                          disabled={Boolean(kycSubmitDisabledReason)}
                         >
                           Отправить на проверку
                         </Button>
                       </div>
 
+                      {kycSubmitDisabledReason && (
+                        <p className={styles.muted}>
+                          {kycSubmitDisabledReason}
+                        </p>
+                      )}
+
                       {kycError && <p className={styles.error}>{kycError}</p>}
-                      {kycMessage && <p className={styles.kycMessage}>{kycMessage}</p>}
+                      {kycMessage && (
+                        <p className={styles.kycMessage}>{kycMessage}</p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -874,7 +985,9 @@ export const SellerDashboardPage = () => {
                   <div className={styles.sectionHeader}>
                     <div>
                       <h2>Товары продавца</h2>
-                      <p>Создавайте и редактируйте карточки с описанием и фото.</p>
+                      <p>
+                        Создавайте и редактируйте карточки с описанием и фото.
+                      </p>
                     </div>
 
                     <SellerActions
@@ -950,7 +1063,9 @@ export const SellerDashboardPage = () => {
                           className={styles.select}
                           value={statusFilter}
                           onChange={(event) =>
-                            setStatusFilter(event.target.value as OrderStatus | 'ALL')
+                            setStatusFilter(
+                              event.target.value as OrderStatus | 'ALL'
+                            )
                           }
                         >
                           <option value="ALL">Все</option>
@@ -997,13 +1112,21 @@ export const SellerDashboardPage = () => {
                           <div key={order.id} className={styles.ordersRow}>
                             <div className={styles.cellTruncate}>
                               <strong>№{order.id}</strong>
-                              <p className={styles.muted}>{formatDate(order.createdAt)}</p>
+                              <p className={styles.muted}>
+                                {formatDate(order.createdAt)}
+                              </p>
                             </div>
 
                             <div className={styles.cellTruncate}>
-                              <p>{order.contact?.name ?? order.buyer?.name ?? '—'}</p>
+                              <p>
+                                {order.contact?.name ??
+                                  order.buyer?.name ??
+                                  '—'}
+                              </p>
                               <p className={styles.muted}>
-                                {order.contact?.phone ?? order.buyer?.email ?? ''}
+                                {order.contact?.phone ??
+                                  order.buyer?.email ??
+                                  ''}
                               </p>
                             </div>
 
@@ -1013,16 +1136,23 @@ export const SellerDashboardPage = () => {
                               <select
                                 className={styles.select}
                                 value={order.status}
-                                disabled={!nextStatus || orderUpdateId === order.id}
+                                disabled={
+                                  !nextStatus || orderUpdateId === order.id
+                                }
                                 onChange={(event) =>
-                                  handleStatusChange(order, event.target.value as OrderStatus)
+                                  handleStatusChange(
+                                    order,
+                                    event.target.value as OrderStatus
+                                  )
                                 }
                               >
                                 <option value={order.status}>
                                   {statusLabels[order.status]}
                                 </option>
                                 {nextStatus && (
-                                  <option value={nextStatus}>{statusLabels[nextStatus]}</option>
+                                  <option value={nextStatus}>
+                                    {statusLabels[nextStatus]}
+                                  </option>
                                 )}
                               </select>
 
@@ -1036,20 +1166,24 @@ export const SellerDashboardPage = () => {
                                 Метод: {order.delivery?.deliveryMethod ?? '—'}
                               </p>
                               <p className={styles.muted}>
-                                ПВЗ: {order.delivery?.pickupPoint?.fullAddress ?? '—'}
+                                ПВЗ:{' '}
+                                {order.delivery?.pickupPoint?.fullAddress ??
+                                  '—'}
                               </p>
                               <p className={styles.muted}>
-                                source_platform_station: {dropoffStationId || 'не задана'}
+                                source_platform_station:{' '}
+                                {dropoffStationId || 'не задана'}
                               </p>
                               <p className={styles.muted}>
                                 Выплата: {payoutLabel(order.payoutStatus)}
                               </p>
                               <p className={styles.muted}>
-                                Статус доставки: {order.shipment?.status ?? 'не создана'}
+                                Статус доставки:{' '}
+                                {order.shipment?.status ?? 'не создана'}
                                 {order.shipment?.lastSyncAt
-                                  ? ` · обновлено ${new Date(order.shipment.lastSyncAt).toLocaleString(
-                                    'ru-RU'
-                                  )}`
+                                  ? ` · обновлено ${new Date(
+                                      order.shipment.lastSyncAt
+                                    ).toLocaleString('ru-RU')}`
                                   : ''}
                               </p>
 
@@ -1075,7 +1209,8 @@ export const SellerDashboardPage = () => {
                                   setTrackingDrafts((prev) => ({
                                     ...prev,
                                     [order.id]: {
-                                      trackingNumber: prev[order.id]?.trackingNumber ?? '',
+                                      trackingNumber:
+                                        prev[order.id]?.trackingNumber ?? '',
                                       carrier: event.target.value
                                     }
                                   }))
@@ -1086,30 +1221,51 @@ export const SellerDashboardPage = () => {
                                 type="button"
                                 variant="secondary"
                                 onClick={() => handleReadyToShip(order.id)}
-                                disabled={Boolean(order.shipment?.requestId) || Boolean(readyToShipDisabledReason(order))}
->
+                                disabled={
+                                  Boolean(order.shipment?.requestId) ||
+                                  Boolean(readyToShipDisabledReason(order))
+                                }
+                              >
                                 Готов к отгрузке
                               </Button>
-                              {readyToShipDisabledReason(order) && !order.shipment?.requestId && (
-                                <p className={styles.muted}>{readyToShipDisabledReason(order)}</p>
-                              )}
+                              {readyToShipDisabledReason(order) &&
+                                !order.shipment?.requestId && (
+                                  <p className={styles.muted}>
+                                    {readyToShipDisabledReason(order)}
+                                  </p>
+                                )}
 
                               <details>
                                 <summary>Данные для доставки</summary>
-                                <p className={styles.muted}>ФИО: {order.recipientName ?? '—'}</p>
-                                <p className={styles.muted}>Телефон: {order.recipientPhone ?? '—'}</p>
-                                <p className={styles.muted}>Email: {order.recipientEmail ?? '—'}</p>
                                 <p className={styles.muted}>
-                                  ПВЗ покупателя: {order.buyerPickupPvzMeta?.addressFull ?? '—'}
+                                  ФИО: {order.recipientName ?? '—'}
                                 </p>
                                 <p className={styles.muted}>
-                                  ПВЗ сдачи: {order.sellerDropoffPvzMeta?.addressFull ?? '—'}
+                                  Телефон: {order.recipientPhone ?? '—'}
                                 </p>
-                                <p className={styles.muted}>Грузомест: {order.packagesCount ?? 1}</p>
-                                <p className={styles.muted}>Сумма: {formatCurrency(total)} ₽</p>
+                                <p className={styles.muted}>
+                                  Email: {order.recipientEmail ?? '—'}
+                                </p>
+                                <p className={styles.muted}>
+                                  ПВЗ покупателя:{' '}
+                                  {order.buyerPickupPvzMeta?.addressFull ?? '—'}
+                                </p>
+                                <p className={styles.muted}>
+                                  ПВЗ сдачи:{' '}
+                                  {order.sellerDropoffPvzMeta?.addressFull ??
+                                    '—'}
+                                </p>
+                                <p className={styles.muted}>
+                                  Грузомест: {order.packagesCount ?? 1}
+                                </p>
+                                <p className={styles.muted}>
+                                  Сумма: {formatCurrency(total)} ₽
+                                </p>
                                 <p className={styles.muted}>
                                   Товары:{' '}
-                                  {order.items.map((item) => `${item.title} ×${item.qty}`).join(', ') || '—'}
+                                  {order.items
+                                    .map((item) => `${item.title} ×${item.qty}`)
+                                    .join(', ') || '—'}
                                 </p>
                               </details>
 
@@ -1165,7 +1321,9 @@ export const SellerDashboardPage = () => {
                               </Button>
 
                               {!order.shipment?.requestId && (
-                                <p className={styles.muted}>Сначала нажмите «Готов к отгрузке».</p>
+                                <p className={styles.muted}>
+                                  Сначала нажмите «Готов к отгрузке».
+                                </p>
                               )}
                             </div>
                           </div>
@@ -1174,7 +1332,9 @@ export const SellerDashboardPage = () => {
                     </div>
                   )}
 
-                  {orderUpdateError && <p className={styles.error}>{orderUpdateError}</p>}
+                  {orderUpdateError && (
+                    <p className={styles.error}>{orderUpdateError}</p>
+                  )}
                 </div>
               )}
 
@@ -1202,7 +1362,9 @@ export const SellerDashboardPage = () => {
                         <div key={order.id} className={styles.ordersRow}>
                           <div className={styles.cellTruncate}>
                             <strong>№{order.id}</strong>
-                            <p className={styles.muted}>{formatDate(order.createdAt)}</p>
+                            <p className={styles.muted}>
+                              {formatDate(order.createdAt)}
+                            </p>
                           </div>
                           <div className={styles.cellTruncate}>
                             {order.shippingAddress?.addressText ?? '—'}
@@ -1210,7 +1372,9 @@ export const SellerDashboardPage = () => {
                           <div>{statusLabels[order.status]}</div>
                           <div className={styles.cellTruncate}>
                             <p>{order.trackingNumber ?? '—'}</p>
-                            <p className={styles.muted}>{order.carrier ?? '—'}</p>
+                            <p className={styles.muted}>
+                              {order.carrier ?? '—'}
+                            </p>
                           </div>
                         </div>
                       ))}
@@ -1234,7 +1398,9 @@ export const SellerDashboardPage = () => {
                   ) : paymentsError ? (
                     <p className={styles.error}>{paymentsError}</p>
                   ) : payments.length === 0 ? (
-                    <p className={styles.muted}>Данные о выплатах пока отсутствуют.</p>
+                    <p className={styles.muted}>
+                      Данные о выплатах пока отсутствуют.
+                    </p>
                   ) : (
                     <div className={styles.ordersTable}>
                       <div className={styles.ordersHeader}>
@@ -1247,7 +1413,9 @@ export const SellerDashboardPage = () => {
                       {payments.map((payment) => (
                         <div key={payment.id} className={styles.ordersRow}>
                           <span>{formatDate(payment.createdAt)}</span>
-                          <span className={styles.cellTruncate}>№{payment.orderId}</span>
+                          <span className={styles.cellTruncate}>
+                            №{payment.orderId}
+                          </span>
                           <span>
                             {formatCurrency(payment.amount)} {payment.currency}
                           </span>
@@ -1338,7 +1506,8 @@ export const SellerDashboardPage = () => {
                   )}
 
                   <p className={styles.muted}>
-                    Редактирование профиля доступно через форму подключения продавца.
+                    Редактирование профиля доступно через форму подключения
+                    продавца.
                   </p>
 
                   <div className={styles.settingsGrid}>
@@ -1350,7 +1519,9 @@ export const SellerDashboardPage = () => {
                       <input
                         className={styles.input}
                         value={dropoffStationId}
-                        onChange={(event) => setDropoffStationId(event.target.value)}
+                        onChange={(event) =>
+                          setDropoffStationId(event.target.value)
+                        }
                         placeholder="GUID станции"
                       />
 
@@ -1369,7 +1540,8 @@ export const SellerDashboardPage = () => {
                   </div>
 
                   <p className={styles.muted}>
-                    Используется для создания заявок NDD «Доставка в другой день».
+                    Используется для создания заявок NDD «Доставка в другой
+                    день».
                   </p>
 
                   <Button
@@ -1394,22 +1566,19 @@ export const SellerDashboardPage = () => {
                   {deliverySettingsError && (
                     <p className={styles.error}>{deliverySettingsError}</p>
                   )}
-
-                  {/* КЛЮЧЕВАЯ ПРАВКА:
-                      Для выбора "первой" станции нельзя требовать source_platform_station.
-                      Поэтому НЕ передаем source_platform_station вообще. */}
-                  <YaPvzPickerModal
-                    isOpen={isDropoffModalOpen}
-                    onClose={() => setDropoffModalOpen(false)}
-                    onSelect={(sel) => {
-                      handleDropoffSelect(sel);
-                      setDropoffModalOpen(false);
-                    }}
-                    city="Москва"
-                    physical_dims_weight_gross={10000}
-                  />
                 </div>
               )}
+
+              <YaPvzPickerModal
+                isOpen={isDropoffModalOpen}
+                onClose={() => setDropoffModalOpen(false)}
+                onSelect={(sel) => {
+                  handleDropoffSelect(sel);
+                  setDropoffModalOpen(false);
+                }}
+                city="Москва"
+                physical_dims_weight_gross={10000}
+              />
 
               {isModalOpen && (
                 <SellerProductModal

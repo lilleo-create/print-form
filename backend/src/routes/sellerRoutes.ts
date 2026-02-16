@@ -254,6 +254,27 @@ sellerRoutes.get('/kyc/me', async (req: AuthRequest, res, next) => {
 
 sellerRoutes.post('/kyc/submit', writeLimiter, async (req: AuthRequest, res, next) => {
   try {
+    const payload = z
+      .object({
+        dropoffStationId: z.string().min(1).trim(),
+        dropoffStationMeta: z.record(z.string(), z.unknown()).optional()
+      })
+      .parse(req.body ?? {});
+
+    if (!payload.dropoffStationId) {
+      return res.status(400).json({
+        error: {
+          code: 'SELLER_STATION_ID_REQUIRED',
+          message: 'Выберите точку отгрузки перед отправкой документов.'
+        }
+      });
+    }
+
+    await sellerDeliveryProfileService.upsert(req.user!.userId, {
+      dropoffStationId: payload.dropoffStationId,
+      dropoffStationMeta: payload.dropoffStationMeta
+    });
+
     const latest = await prisma.sellerKycSubmission.findFirst({
       where: { userId: req.user!.userId },
       orderBy: { createdAt: 'desc' }
@@ -462,7 +483,7 @@ const sellerOrderStatusSchema = z.object({
 const sellerDeliveryProfileSchema = z.object({
   dropoffPvz: z.object({
     provider: z.literal('YANDEX_NDD'),
-    pvzId: z.string().min(2),
+    pvzId: z.string().min(1).trim(),
     raw: z.unknown(),
     addressFull: z.string().optional(),
     country: z.string().optional(),
@@ -515,6 +536,12 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
         defaultDropoffPvzMeta: dropoffPvzMeta as unknown as object
       }
     });
+
+    await sellerDeliveryProfileService.upsert(req.user!.userId, {
+      dropoffStationId: detailId,
+      dropoffStationMeta: dropoffPvzMeta as Record<string, unknown>
+    });
+
     res.json({ data: settings });
   } catch (error) {
     next(error);

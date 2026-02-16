@@ -120,10 +120,17 @@ export const yandexNddShipmentOrchestrator = {
       return existing;
     }
 
+    const sellerDeliveryProfile = await prisma.sellerDeliveryProfile.findUnique({
+      where: { sellerId },
+      select: { dropoffStationId: true, dropoffStationMeta: true }
+    });
+
     const sourceStationId =
       process.env.YANDEX_NDD_OPERATOR_STATION_ID ??
       getOperatorStationId((order.sellerDropoffPvzMeta as Record<string, unknown> | null)?.raw) ??
       getOperatorStationId(order.sellerDropoffPvzMeta) ??
+      getOperatorStationId(sellerDeliveryProfile?.dropoffStationMeta as Record<string, unknown> | null) ??
+      sellerDeliveryProfile?.dropoffStationId ??
       null;
 
     if (!sourceStationId) {
