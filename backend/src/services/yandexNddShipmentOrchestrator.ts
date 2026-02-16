@@ -8,29 +8,40 @@ const pickBestOffer = (response: Record<string, unknown>) => {
   const offers = (response.offers as Record<string, unknown>[] | undefined) ?? [];
   if (!offers.length) return null;
   const sorted = [...offers].sort((a, b) => {
-    const priceA = Number((a.price as Record<string, unknown> | undefined)?.amount ?? Number.MAX_SAFE_INTEGER);
-    const priceB = Number((b.price as Record<string, unknown> | undefined)?.amount ?? Number.MAX_SAFE_INTEGER);
+    const priceA = Number(
+      (a.price as Record<string, unknown> | undefined)?.amount ?? Number.MAX_SAFE_INTEGER
+    );
+    const priceB = Number(
+      (b.price as Record<string, unknown> | undefined)?.amount ?? Number.MAX_SAFE_INTEGER
+    );
     return priceA - priceB;
   });
   return sorted[0];
 };
 
 const asRecord = (value: unknown): Record<string, unknown> | undefined =>
-  value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
+  value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
 
 const extractYandexStatus = (payload: Record<string, unknown>) => {
   const status =
     (payload.status as string | undefined) ??
     ((payload.request as Record<string, unknown> | undefined)?.status as string | undefined) ??
-    (((payload.history as Record<string, unknown>[] | undefined) ?? [])[Math.max((((payload.history as Record<string, unknown>[] | undefined) ?? []).length - 1), 0)]?.status as string | undefined);
+    (((payload.history as Record<string, unknown>[] | undefined) ?? [])[Math.max(
+      (((payload.history as Record<string, unknown>[] | undefined) ?? []).length - 1),
+      0
+    )]?.status as string | undefined);
   return status ?? null;
 };
 
-const extractIntervalUtc = (offersInfo: Record<string, unknown>): { from: number | string; to: number | string } | null => {
+const extractIntervalUtc = (
+  offersInfo: Record<string, unknown>
+): { from: number | string; to: number | string } | null => {
   const candidates: unknown[] = [
-    offersInfo.interval_utc,
-    offersInfo.intervals_utc,
-    offersInfo.intervals,
+    (offersInfo as any).interval_utc,
+    (offersInfo as any).intervals_utc,
+    (offersInfo as any).intervals,
     (offersInfo.result as Record<string, unknown> | undefined)?.interval_utc,
     (offersInfo.result as Record<string, unknown> | undefined)?.intervals_utc,
     (offersInfo.result as Record<string, unknown> | undefined)?.intervals,
@@ -41,10 +52,12 @@ const extractIntervalUtc = (offersInfo: Record<string, unknown>): { from: number
 
   for (const candidate of candidates) {
     if (!candidate) continue;
+
     if (Array.isArray(candidate) && candidate.length > 0 && typeof candidate[0] === 'object') {
       const first = candidate[0] as Record<string, unknown>;
       if (first.from && first.to) return { from: first.from as string | number, to: first.to as string | number };
     }
+
     if (typeof candidate === 'object' && !Array.isArray(candidate)) {
       const interval = candidate as Record<string, unknown>;
       if (interval.from && interval.to) return { from: interval.from as string | number, to: interval.to as string | number };
@@ -75,11 +88,13 @@ const buildPhysicalDims = (item: any) => {
       dz: item.product?.dzCm ?? undefined
     };
   }
-
   return { predefined_volume: 1 };
 };
 
-const findOfferId = (offersResponse: Record<string, unknown>, selectedOffer: Record<string, unknown> | null) => {
+const findOfferId = (
+  offersResponse: Record<string, unknown>,
+  selectedOffer: Record<string, unknown> | null
+) => {
   return (
     (offersResponse.offer_id as string | undefined) ??
     ((offersResponse.offer as Record<string, unknown> | undefined)?.offer_id as string | undefined) ??
@@ -125,15 +140,46 @@ export const yandexNddShipmentOrchestrator = {
       select: { dropoffStationId: true, dropoffStationMeta: true }
     });
 
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[READY_TO_SHIP][ctx]', {
+        sellerId,
+        orderId,
+        orderSellerDropoffPvzId: (order as any).sellerDropoffPvzId,
+        hasSellerProfile: Boolean(sellerDeliveryProfile),
+        sellerProfileDropoffStationId: sellerDeliveryProfile?.dropoffStationId ?? null
+      });
+    }
+
+    // Источники station_id: env -> meta/raw -> seller profile -> fallback из заказа
     const sourceStationId =
       process.env.YANDEX_NDD_OPERATOR_STATION_ID ??
       getOperatorStationId((order.sellerDropoffPvzMeta as Record<string, unknown> | null)?.raw) ??
       getOperatorStationId(order.sellerDropoffPvzMeta) ??
       getOperatorStationId(sellerDeliveryProfile?.dropoffStationMeta as Record<string, unknown> | null) ??
       sellerDeliveryProfile?.dropoffStationId ??
+      // ✅ ВАЖНО: если station id уже сохранён в заказе, используем его как fallback
+      (order as any).sellerDropoffPvzId ??
       null;
 
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[READY_TO_SHIP][resolved station]', {
+        sellerId,
+        orderId,
+        sourceStationId
+      });
+    }
+
     if (!sourceStationId) {
+      console.error('[READY_TO_SHIP][FAIL] SELLER_STATION_ID_REQUIRED', {
+        sellerId,
+        orderId,
+        envOperatorStation: process.env.YANDEX_NDD_OPERATOR_STATION_ID ?? null,
+        fromOrderRaw: getOperatorStationId((order.sellerDropoffPvzMeta as Record<string, unknown> | null)?.raw) ?? null,
+        fromOrderMeta: getOperatorStationId(order.sellerDropoffPvzMeta) ?? null,
+        fromProfileMeta: getOperatorStationId(sellerDeliveryProfile?.dropoffStationMeta as Record<string, unknown> | null) ?? null,
+        fromProfileId: sellerDeliveryProfile?.dropoffStationId ?? null,
+        fallbackFromOrderId: (order as any).sellerDropoffPvzId ?? null
+      });
       throw new Error('SELLER_STATION_ID_REQUIRED');
     }
 
@@ -145,7 +191,12 @@ export const yandexNddShipmentOrchestrator = {
       });
     }
 
-    const offersInfo = await yandexNddClient.offersInfo(sourceStationId, order.buyerPickupPvzId, 'time_interval', true);
+    const offersInfo = await yandexNddClient.offersInfo(
+      sourceStationId,
+      order.buyerPickupPvzId,
+      'time_interval',
+      true
+    );
     const intervalUtc = extractIntervalUtc(offersInfo);
     if (!intervalUtc) {
       throw new Error('NDD_INTERVAL_REQUIRED');
@@ -170,7 +221,10 @@ export const yandexNddShipmentOrchestrator = {
       place_barcode: barcode
     }));
 
-    const totalWeight = order.items.reduce((sum: number, item: any) => sum + ((item.product?.weightGrossG ?? 0) * item.quantity), 0);
+    const totalWeight = order.items.reduce(
+      (sum: number, item: any) => sum + ((item.product?.weightGrossG ?? 0) * item.quantity),
+      0
+    );
 
     const offersBody: Record<string, unknown> = {
       station_id: sourceStationId,
@@ -287,10 +341,15 @@ export const yandexNddShipmentOrchestrator = {
 
     for (const shipment of shipments) {
       if (!shipment.requestId) continue;
+
       const history = await yandexNddClient.requestHistory(shipment.requestId);
-      const yandexStatus = extractYandexStatus(history) ?? extractYandexStatus(await yandexNddClient.requestInfo(shipment.requestId));
+      const yandexStatus =
+        extractYandexStatus(history) ??
+        extractYandexStatus(await yandexNddClient.requestInfo(shipment.requestId));
+
       const internalStatus = mapYandexStatusToInternal(yandexStatus);
       const previousStatus = shipment.status;
+
       const statusRaw = {
         ...(shipment.statusRaw ?? {}),
         history,

@@ -135,6 +135,7 @@ sellerRoutes.post('/onboarding', requireAuth, writeLimiter, async (req: AuthRequ
   }
 });
 
+
 const loadSellerContext = async (userId: string) => {
   const profile = await prisma.sellerProfile.findUnique({
     where: { userId }
@@ -606,7 +607,11 @@ sellerRoutes.post('/yandex/handover-act', writeLimiter, async (req: AuthRequest,
     next(error);
   }
 });
-
+console.info('[READY_TO_SHIP][route] input', {
+  sellerId: req.user?.id,
+  orderId: req.params?.orderId ?? req.params?.id,
+  body: req.body
+});
 sellerRoutes.get('/orders', async (req: AuthRequest, res, next) => {
   try {
     const query = sellerOrdersQuerySchema.parse(req.query);

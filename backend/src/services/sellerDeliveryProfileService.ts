@@ -24,6 +24,11 @@ const toDto = (profile: {
   createdAt: profile.createdAt,
   updatedAt: profile.updatedAt
 });
+const profile = await prisma.sellerDeliveryProfile.upsert({
+  where: { sellerId },
+  create: { sellerId },
+  update: {}
+});
 
 export const sellerDeliveryProfileService = {
   getBySellerId: async (sellerId: string) => {
