@@ -1,4 +1,6 @@
 import axios, { AxiosError, type AxiosInstance } from "axios";
+import { getOperatorStationId, normalizeStationId } from "./yandexNdd/getOperatorStationId";
+import { getYandexNddConfig, isYandexNddTestEnvironment } from "../config/yandexNdd";
 
 const TEST_HOST = "https://b2b.taxi.tst.yandex.net";
 const PROD_HOST = "https://b2b-authproxy.taxi.yandex.net";
@@ -50,6 +52,87 @@ class YandexDeliveryService {
       this.client.post("/api/b2b/platform/pickup-points/list", payload),
     );
     return data;
+  }
+
+  private extractPoints(payload: unknown): Record<string, unknown>[] {
+    const asRecord = (value: unknown): Record<string, unknown> | null =>
+      value && typeof value === "object" && !Array.isArray(value)
+        ? (value as Record<string, unknown>)
+        : null;
+
+    if (Array.isArray(payload)) {
+      return payload.filter((item) => asRecord(item)) as Record<string, unknown>[];
+    }
+
+    const root = asRecord(payload);
+    if (!root) {
+      return [];
+    }
+
+    const directCandidates = [root.points, root.pickup_points, root.items];
+    for (const candidate of directCandidates) {
+      if (Array.isArray(candidate)) {
+        return candidate.filter((item) => asRecord(item)) as Record<string, unknown>[];
+      }
+    }
+
+    const nested = asRecord(root.result) ?? asRecord(root.data) ?? asRecord(root.payload);
+    if (!nested) {
+      return [];
+    }
+
+    const nestedCandidates = [nested.points, nested.pickup_points, nested.items];
+    for (const candidate of nestedCandidates) {
+      if (Array.isArray(candidate)) {
+        return candidate.filter((item) => asRecord(item)) as Record<string, unknown>[];
+      }
+    }
+
+    return [];
+  }
+
+  async getPickupPointDetails(pvzId: string) {
+    const normalizedPvzId = String(pvzId ?? "").trim();
+    if (!normalizedPvzId) {
+      return null;
+    }
+
+    const responses = await Promise.allSettled([
+      this.listPickupPoints({ ids: [normalizedPvzId] }),
+      this.listPickupPoints({ pickup_point_ids: [normalizedPvzId] }),
+      this.listPickupPoints({ point_ids: [normalizedPvzId] }),
+    ]);
+
+    const allPoints = responses
+      .filter((response): response is PromiseFulfilledResult<unknown> => response.status === "fulfilled")
+      .flatMap((response) => this.extractPoints(response.value));
+
+    const matchedPoint = allPoints.find((point) => {
+      const candidates = [point.id, point.point_id, point.pickup_point_id, point.external_id]
+        .map((candidate) => String(candidate ?? "").trim())
+        .filter(Boolean);
+      return candidates.includes(normalizedPvzId);
+    });
+
+    if (!matchedPoint) {
+      return null;
+    }
+
+    const { baseUrl } = getYandexNddConfig();
+    const stationIdPolicy = { allowUuid: isYandexNddTestEnvironment(baseUrl) };
+    const stationRecord =
+      matchedPoint.station && typeof matchedPoint.station === 'object' && !Array.isArray(matchedPoint.station)
+        ? (matchedPoint.station as Record<string, unknown>)
+        : null;
+    const stationId =
+      getOperatorStationId(matchedPoint, stationIdPolicy) ??
+      normalizeStationId(stationRecord?.id, stationIdPolicy) ??
+      normalizeStationId(stationRecord?.station_id, stationIdPolicy);
+
+    return {
+      point: matchedPoint,
+      stationId,
+    };
   }
 
   async createOffers(payload: Record<string, unknown>) {

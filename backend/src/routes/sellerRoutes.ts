@@ -17,8 +17,7 @@ import { payoutService } from '../services/payoutService';
 import { shipmentService } from '../services/shipmentService';
 import { yandexDeliveryService } from '../services/yandexDeliveryService';
 import { sellerOrderDocumentsService } from '../services/sellerOrderDocumentsService';
-import { getOperatorStationId } from '../services/yandexNdd/getOperatorStationId';
-import { getYandexNddConfig, isYandexNddTestEnvironment, NDD_TEST_PLATFORM_STATION_ID } from '../config/yandexNdd';
+import { NDD_TEST_PLATFORM_STATION_ID } from '../config/yandexNdd';
 
 export const sellerRoutes = Router();
 
@@ -498,12 +497,6 @@ const sellerOrderStatusSchema = z.object({
 });
 
 
-const resolveStationIdPolicy = () => {
-  const { baseUrl } = getYandexNddConfig();
-  const allowUuid = isYandexNddTestEnvironment(baseUrl);
-  return { allowUuid };
-};
-
 const sellerDeliveryProfileSchema = z.object({
   dropoffPvz: z.object({
     provider: z.literal('YANDEX_NDD'),
@@ -537,56 +530,43 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
     const detailId = rawDetail && typeof rawDetail.id === 'string' && rawDetail.id.trim()
       ? rawDetail.id.trim()
       : payload.dropoffPvz.pvzId;
-    const stationIdPolicy = resolveStationIdPolicy();
-    const detectedEnvironment = stationIdPolicy.allowUuid ? 'test' : 'production';
-    const stationIdFromRaw = getOperatorStationId(rawDetail, stationIdPolicy) ?? undefined;
 
-    if (!stationIdFromRaw) {
-      console.info('[DROP_OFF_PVZ] OPERATOR_STATION_ID_MISSING', {
-        pvzId: detailId,
-        detectedEnvironment,
-        rawKeys: Object.keys(rawDetail ?? {}),
-        rawPreview: {
-          operator_station_id: rawDetail?.operator_station_id,
-          platform_station_id: rawDetail?.platform_station_id,
-          station_id: rawDetail?.station_id,
-          data: rawDetail?.data,
-          pickup_point: rawDetail?.pickup_point,
-          point: rawDetail?.point
-        }
-      });
+    console.info('[DROP_OFF_PVZ] selected', {
+      pvzId: detailId,
+      rawKeys: Object.keys(rawDetail ?? {})
+    });
+
+    const pickupPointDetails = await yandexDeliveryService.getPickupPointDetails(detailId);
+
+    console.info('[DROP_OFF_PVZ] lookup result', {
+      pvzId: detailId,
+      found: Boolean(pickupPointDetails),
+      stationId: pickupPointDetails?.stationId ?? null,
+      pointKeys: pickupPointDetails ? Object.keys(pickupPointDetails.point ?? {}) : []
+    });
+
+    if (!pickupPointDetails?.stationId) {
       return res.status(400).json({
         error: {
-          code: 'OPERATOR_STATION_ID_MISSING',
-          message: 'Не удалось определить station_id/platform_station_id для точки отгрузки. Выберите точку заново и проверьте данные из виджета.'
+          code: 'SELLER_DROPOFF_POINT_UNSUPPORTED',
+          message: 'выбранный пункт нельзя использовать как точку отправления, выберите другой'
         }
       });
     }
 
-    const stationId = stationIdFromRaw;
-
-    if (!stationId) {
-      return res.status(400).json({
-        error: {
-          code: 'STATION_ID_INVALID',
-          message: stationIdPolicy.allowUuid
-            ? 'Выбранная точка содержит некорректный station id/platform_station_id для отгрузки. Разрешены UUID или digits-only.'
-            : 'Выбранная точка содержит некорректный station id/platform_station_id для отгрузки. В production разрешены только digits-only.'
-        }
-      });
-    }
+    const stationId = pickupPointDetails.stationId;
 
     const normalizedRaw = {
       ...(rawDetail ?? {}),
       pvzId: detailId,
-      platform_station_id: stationId
+      lookup_point: pickupPointDetails.point,
+      platform_station_id: stationId,
+      station_id: stationId
     };
 
-    console.info('[DROP_OFF_PVZ] saved', {
+    console.info('[DROP_OFF_PVZ] saved resolved station', {
       pvzId: detailId,
-      extractedStationId: stationId,
-      rawKeys: Object.keys(rawDetail ?? {}),
-      detectedEnvironment
+      resolvedDropoffStationId: stationId
     });
     const dropoffPvzMeta = {
       ...payload.dropoffPvz,
@@ -609,7 +589,12 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
 
     await sellerDeliveryProfileService.upsert(req.user!.userId, {
       dropoffStationId: stationId,
-      dropoffStationMeta: dropoffPvzMeta as Record<string, unknown>
+      dropoffStationMeta: {
+        ...dropoffPvzMeta,
+        resolvedStationId: stationId,
+        source: 'pickup_points_lookup',
+        point: pickupPointDetails.point
+      } as Record<string, unknown>
     });
 
     res.json({ data: settings });
