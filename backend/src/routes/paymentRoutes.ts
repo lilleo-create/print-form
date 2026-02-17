@@ -49,7 +49,7 @@ paymentRoutes.post('/start', authenticate, writeLimiter, async (req: AuthRequest
       buyerPickupPvz: payload.buyerPickupPvz
     });
 
-    return res.status(201).json({ data });
+    return res.status(200).json({ data });
   } catch (error) {
     return next(error);
   }

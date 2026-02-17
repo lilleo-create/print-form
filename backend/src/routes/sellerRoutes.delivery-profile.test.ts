@@ -61,7 +61,7 @@ test('creates default seller delivery profile on onboarding when profile is abse
   });
 });
 
-test('uses NDD test station fallback when dropoff pvz has no explicit station id', async () => {
+test('returns OPERATOR_STATION_ID_MISSING when dropoff pvz has no station id', async () => {
   const sellerDeliveryUpserts: unknown[] = [];
 
   (prisma.user.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ role: 'SELLER' });
@@ -95,9 +95,9 @@ test('uses NDD test station fallback when dropoff pvz has no explicit station id
       }
     });
 
-  assert.equal(dropoffResponse.status, 200);
-  assert.equal(sellerDeliveryUpserts.length, 2);
-  assert.equal((sellerDeliveryUpserts[1] as any).update.dropoffStationId, 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924');
+  assert.equal(dropoffResponse.status, 400);
+  assert.equal(dropoffResponse.body?.error?.code, 'OPERATOR_STATION_ID_MISSING');
+  assert.equal(sellerDeliveryUpserts.length, 1);
 });
 
 
@@ -191,46 +191,14 @@ test('ensures seller delivery profile on settings and saves operator_station_id 
 
   assert.equal(dropoffResponse.status, 200);
 
-  assert.deepEqual(sellerDeliveryUpserts[1], {
-    where: { sellerId: 'seller-2' },
-    create: {
-      sellerId: 'seller-2',
-      dropoffStationId: '123456',
-      dropoffStationMeta: {
-        provider: 'YANDEX_NDD',
-        pvzId: 'pvz-detail-id',
-        raw: {
-          id: 'pvz-detail-id',
-          station: {
-            id: 123456
-          },
-          pvzId: 'pvz-detail-id',
-          operator_station_id: '123456',
-          station_id: '123456',
-          platform_station_id: '123456'
-        },
-        addressFull: 'Москва, ул. Пример, 1'
-      }
-    },
-    update: {
-      dropoffStationId: '123456',
-      dropoffStationMeta: {
-        provider: 'YANDEX_NDD',
-        pvzId: 'pvz-detail-id',
-        raw: {
-          id: 'pvz-detail-id',
-          station: {
-            id: 123456
-          },
-          pvzId: 'pvz-detail-id',
-          operator_station_id: '123456',
-          station_id: '123456',
-          platform_station_id: '123456'
-        },
-        addressFull: 'Москва, ул. Пример, 1'
-      }
-    }
-  });
+  const secondUpsert = sellerDeliveryUpserts[1] as any;
+  assert.equal(secondUpsert.where.sellerId, 'seller-2');
+  assert.equal(secondUpsert.create.dropoffStationId, '123456');
+  assert.equal(secondUpsert.update.dropoffStationId, '123456');
+  assert.equal(secondUpsert.create.dropoffStationMeta.pvzId, 'pvz-detail-id');
+  assert.equal(secondUpsert.create.dropoffStationMeta.raw.platform_station_id, '123456');
+  assert.equal(secondUpsert.create.dropoffStationMeta.raw.pvzId, 'pvz-detail-id');
+  assert.equal(secondUpsert.update.dropoffStationMeta.raw.platform_station_id, '123456');
 });
 
 

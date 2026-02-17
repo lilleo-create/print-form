@@ -145,6 +145,8 @@ export const paymentFlowService = {
     const existingOrder = await prisma.order.findFirst({ where: { buyerId: input.buyerId, paymentAttemptKey: input.paymentAttemptKey } });
 
     let order = existingOrder;
+    let deliveryConfigMissing = false;
+    let blockingReason: 'SELLER_DROPOFF_PVZ_REQUIRED' | null = null;
 
     if (!order) {
       const product = await prisma.product.findFirst({
@@ -160,8 +162,11 @@ export const paymentFlowService = {
         where: { sellerId: product.sellerId },
         select: { dropoffStationId: true }
       });
-      if (!sellerDeliveryProfile?.dropoffStationId?.trim() || !sellerSettings?.defaultDropoffPvzId) {
-        throw new Error('SELLER_DROPOFF_PVZ_REQUIRED');
+      const hasDropoffPvzId = Boolean(sellerSettings?.defaultDropoffPvzId?.trim());
+      const hasDropoffStationId = Boolean(sellerDeliveryProfile?.dropoffStationId?.trim());
+      if (!hasDropoffPvzId || !hasDropoffStationId) {
+        deliveryConfigMissing = true;
+        blockingReason = 'SELLER_DROPOFF_PVZ_REQUIRED';
       }
 
       try {
@@ -172,15 +177,17 @@ export const paymentFlowService = {
             ...input.buyerPickupPvz,
             raw: input.buyerPickupPvz.raw ?? {}
           },
-          sellerDropoffPvz: {
-            provider: 'YANDEX_NDD',
-            pvzId: sellerSettings.defaultDropoffPvzId,
-            raw: sellerSettings.defaultDropoffPvzMeta ?? {},
-            addressFull:
-              typeof sellerSettings.defaultDropoffPvzMeta === 'object' && sellerSettings.defaultDropoffPvzMeta
-                ? String((sellerSettings.defaultDropoffPvzMeta as Record<string, unknown>).addressFull ?? '')
-                : undefined
-          },
+          sellerDropoffPvz: sellerSettings?.defaultDropoffPvzId
+            ? {
+                provider: 'YANDEX_NDD',
+                pvzId: sellerSettings.defaultDropoffPvzId,
+                raw: sellerSettings.defaultDropoffPvzMeta ?? {},
+                addressFull:
+                  typeof sellerSettings.defaultDropoffPvzMeta === 'object' && sellerSettings.defaultDropoffPvzMeta
+                    ? String((sellerSettings.defaultDropoffPvzMeta as Record<string, unknown>).addressFull ?? '')
+                    : undefined
+              }
+            : undefined,
           recipient: {
             name: input.recipient.name,
             phone: input.recipient.phone,
@@ -214,6 +221,11 @@ export const paymentFlowService = {
       throw new Error('ORDER_CREATE_FAILED');
     }
 
+    if (!order.sellerDropoffPvzId?.trim()) {
+      deliveryConfigMissing = true;
+      blockingReason = 'SELLER_DROPOFF_PVZ_REQUIRED';
+    }
+
     const shouldRefreshLabels = !order.orderLabels || !Array.isArray(order.orderLabels) || order.orderLabels.length === 0;
     const shouldUpdateRecipient = !order.recipientName || !order.recipientPhone;
     if (shouldRefreshLabels || shouldUpdateRecipient) {
@@ -233,7 +245,7 @@ export const paymentFlowService = {
 
     if (existingPayment) {
       const paymentUrl = String((existingPayment.payloadJson as Record<string, unknown> | null)?.paymentUrl ?? buildPaymentUrl(existingPayment.id));
-      return { orderId: order.id, paymentId: existingPayment.id, paymentUrl };
+      return { orderId: order.id, paymentId: existingPayment.id, paymentUrl, deliveryConfigMissing, blockingReason };
     }
 
     return prisma.$transaction(async (tx) => {
@@ -246,7 +258,7 @@ export const paymentFlowService = {
         const lockedPayment = await tx.payment.findUnique({ where: { id: lockedOrder.paymentId } });
         if (lockedPayment) {
           const paymentUrl = String((lockedPayment.payloadJson as Record<string, unknown> | null)?.paymentUrl ?? buildPaymentUrl(lockedPayment.id));
-          return { orderId: order.id, paymentId: lockedPayment.id, paymentUrl };
+          return { orderId: order.id, paymentId: lockedPayment.id, paymentUrl, deliveryConfigMissing, blockingReason };
         }
       }
 
@@ -278,12 +290,12 @@ export const paymentFlowService = {
             const existingPaymentUrl = String(
               (existingPayment.payloadJson as Record<string, unknown> | null)?.paymentUrl ?? buildPaymentUrl(existingPayment.id)
             );
-            return { orderId: order.id, paymentId: existingPayment.id, paymentUrl: existingPaymentUrl };
+            return { orderId: order.id, paymentId: existingPayment.id, paymentUrl: existingPaymentUrl, deliveryConfigMissing, blockingReason };
           }
         }
       }
 
-      return { orderId: order.id, paymentId: payment.id, paymentUrl };
+      return { orderId: order.id, paymentId: payment.id, paymentUrl, deliveryConfigMissing, blockingReason };
     });
   },
 
