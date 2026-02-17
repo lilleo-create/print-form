@@ -106,8 +106,8 @@ SMS_PROVIDER=console
 ## NDD Delivery test (tst)
 1. Задайте env в `backend/.env`:
    ```env
-   YANDEX_NDD_BASE_URL=https://b2b.taxi.tst.yandex.net
-   YANDEX_NDD_TOKEN=<ваш токен>
+   YANDEX_NDD_BASE_URL=https://b2b-authproxy.taxi.yandex.net
+   YANDEX_NDD_TOKEN=<ваш токен без префикса Bearer>
    YANDEX_NDD_OPERATOR_STATION_ID=<числовой station_id продавца, например 10022023854>
    YANDEX_NDD_LANG=ru
    ```

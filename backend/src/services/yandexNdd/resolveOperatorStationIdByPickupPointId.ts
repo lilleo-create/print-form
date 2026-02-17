@@ -3,12 +3,15 @@ import { normalizeDigitsStation } from './getOperatorStationId';
 
 export const resolveOperatorStationIdByPickupPointId = async (pickupPointId: string): Promise<string | null> => {
   const response = await yandexNddClient.pickupPointsList({ pickup_point_ids: [pickupPointId] });
-  const firstPoint = Array.isArray(response?.points) ? response.points[0] : null;
-  const operatorStationId = normalizeDigitsStation(firstPoint?.operator_station_id);
+  const points = Array.isArray(response?.points) ? response.points : [];
+  const point = points.find((item) => item && typeof item === 'object' && (item as { id?: unknown }).id === pickupPointId) ?? null;
+  const operatorStationId = normalizeDigitsStation((point as { operator_station_id?: unknown } | null)?.operator_station_id);
 
   console.info('[NDD][resolveOperatorStationId]', {
     pickupPointId,
-    operatorStationIdFound: Boolean(operatorStationId)
+    operatorStationId,
+    available_for_dropoff: (point as { available_for_dropoff?: unknown } | null)?.available_for_dropoff ?? null,
+    type: (point as { type?: unknown } | null)?.type ?? null
   });
 
   return operatorStationId;

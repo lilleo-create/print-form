@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getOperatorStationId, normalizeStationId } from './getOperatorStationId';
+import { getOperatorStationId, isDigitsStationId, normalizeDigitsStation, normalizeStationId } from './getOperatorStationId';
 
 test('returns operator_station_id from string', () => {
   assert.equal(getOperatorStationId({ operator_station_id: '10022023854' }), '10022023854');
@@ -20,25 +20,24 @@ test('returns station id from supported fallback fields', () => {
   assert.equal(getOperatorStationId({ point: { operator_station_id: '10022023854' } }), '10022023854');
 });
 
-test('accepts uuid station id by default', () => {
-  assert.equal(getOperatorStationId({ operator_station_id: 'f2330eea-c993-4f50-9def-1af3d940cf2b' }), 'f2330eea-c993-4f50-9def-1af3d940cf2b');
+test('always rejects uuid station id for operator station', () => {
+  assert.equal(getOperatorStationId({ operator_station_id: 'f2330eea-c993-4f50-9def-1af3d940cf2b' }), null);
+  assert.equal(getOperatorStationId({ platform_station_id: 'f2330eea-c993-4f50-9def-1af3d940cf2b' }), null);
 });
 
-
-test('rejects non-v4/v7 uuid station id', () => {
-  assert.equal(getOperatorStationId({ platform_station_id: 'f2330eea-c993-1f50-9def-1af3d940cf2b' }), null);
-});
-
-test('can enforce production policy with digits-only', () => {
-  assert.equal(getOperatorStationId({ operator_station_id: 'f2330eea-c993-4f50-9def-1af3d940cf2b' }, { allowUuid: false }), null);
+test('digits helpers validate and normalize operator station ids', () => {
+  assert.equal(isDigitsStationId('10035218565'), true);
+  assert.equal(isDigitsStationId(' 10035218565 '), true);
+  assert.equal(isDigitsStationId('019f2330eea'), false);
+  assert.equal(normalizeDigitsStation(' 10035218565 '), '10035218565');
+  assert.equal(normalizeDigitsStation('f2330eea-c993-4f50-9def-1af3d940cf2b'), null);
   assert.equal(normalizeStationId('f2330eea-c993-4f50-9def-1af3d940cf2b', { allowUuid: false }), null);
-  assert.equal(normalizeStationId('123456', { allowUuid: false }), '123456');
-  assert.equal(getOperatorStationId({ operator_station_id: 'station-123' }, { allowUuid: false }), null);
 });
 
-test('returns null for too short or too long station ids', () => {
-  assert.equal(getOperatorStationId({ operator_station_id: '12345' }), null);
-  assert.equal(getOperatorStationId({ operator_station_id: '123456789012345678901' }), null);
+test('returns digits station ids regardless of length and rejects non-digits', () => {
+  assert.equal(getOperatorStationId({ operator_station_id: '12345' }), '12345');
+  assert.equal(getOperatorStationId({ operator_station_id: '123456789012345678901' }), '123456789012345678901');
+  assert.equal(getOperatorStationId({ operator_station_id: '123abc' }), null);
 });
 
 test('returns null for invalid payload', () => {
