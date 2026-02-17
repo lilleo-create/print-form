@@ -2,7 +2,7 @@ import { prisma } from '../lib/prisma';
 import { orderDeliveryService } from './orderDeliveryService';
 import { mapYandexStatusToInternal, shipmentService } from './shipmentService';
 import { yandexNddClient } from './yandexNdd/YandexNddClient';
-import { getOperatorStationId } from './yandexNdd/getOperatorStationId';
+import { getOperatorStationId, normalizeStationId } from './yandexNdd/getOperatorStationId';
 
 const pickBestOffer = (response: Record<string, unknown>) => {
   const offers = (response.offers as Record<string, unknown>[] | undefined) ?? [];
@@ -23,17 +23,6 @@ const asRecord = (value: unknown): Record<string, unknown> | undefined =>
   value && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : undefined;
-
-const DIGITS_ONLY = /^\d+$/;
-
-const normalizeDigitsStation = (value: string | null | undefined): string | null => {
-  if (!value) {
-    return null;
-  }
-
-  const trimmed = value.trim();
-  return DIGITS_ONLY.test(trimmed) ? trimmed : null;
-};
 
 const extractYandexStatus = (payload: Record<string, unknown>) => {
   const status =
@@ -170,17 +159,15 @@ export const yandexNddShipmentOrchestrator = {
       });
     }
 
-    const envOperatorStation = normalizeDigitsStation(process.env.YANDEX_NDD_OPERATOR_STATION_ID ?? null);
     const fromOrderRaw = getOperatorStationId((order.sellerDropoffPvzMeta as Record<string, unknown> | null)?.raw);
     const fromOrderMeta = getOperatorStationId(order.sellerDropoffPvzMeta);
     const fromProfileRaw = getOperatorStationId((sellerDeliveryProfile?.dropoffStationMeta as Record<string, unknown> | null)?.raw);
     const fromProfileMeta = getOperatorStationId(sellerDeliveryProfile?.dropoffStationMeta);
     const profileDropoffRaw = sellerDeliveryProfile?.dropoffStationId?.trim() || null;
-    const fromProfileId = normalizeDigitsStation(profileDropoffRaw);
+    const fromProfileId = normalizeStationId(profileDropoffRaw);
     const profileDropoffLooksLikePvz = Boolean(profileDropoffRaw && !fromProfileId);
 
-    const candidates: Array<{ value: string | null; source: 'env' | 'order.meta.raw' | 'order.meta' | 'profile.meta.raw' | 'profile.meta' | 'profile.dropoffStationId' }> = [
-      { value: envOperatorStation, source: 'env' },
+    const candidates: Array<{ value: string | null; source: 'order.meta.raw' | 'order.meta' | 'profile.meta.raw' | 'profile.meta' | 'profile.dropoffStationId' }> = [
       { value: fromOrderRaw, source: 'order.meta.raw' },
       { value: fromOrderMeta, source: 'order.meta' },
       { value: fromProfileRaw, source: 'profile.meta.raw' },
@@ -189,7 +176,6 @@ export const yandexNddShipmentOrchestrator = {
     ];
 
     console.info('[READY_TO_SHIP] station candidates', {
-      envOperatorStation,
       fromOrderRaw,
       fromOrderMeta,
       fromProfileRaw,
@@ -200,7 +186,7 @@ export const yandexNddShipmentOrchestrator = {
     });
 
     let sourceStationId: string | null = null;
-    let sourceStationFrom: 'env' | 'order.meta.raw' | 'order.meta' | 'profile.meta.raw' | 'profile.meta' | 'profile.dropoffStationId' | 'none' = 'none';
+    let sourceStationFrom: 'order.meta.raw' | 'order.meta' | 'profile.meta.raw' | 'profile.meta' | 'profile.dropoffStationId' | 'none' = 'none';
 
     for (const candidate of candidates) {
       if (candidate.value) {
@@ -210,15 +196,10 @@ export const yandexNddShipmentOrchestrator = {
       }
     }
 
-    if (envOperatorStation && sourceStationId === envOperatorStation) {
-      console.warn('[NDD] station id taken from ENV override');
-    }
-
     if (!sourceStationId) {
       console.error('[READY_TO_SHIP] SELLER_STATION_ID_REQUIRED', {
         sellerId,
         orderId,
-        envOperatorStation,
         fromOrderRaw,
         fromOrderMeta,
         fromProfileRaw,
@@ -228,7 +209,7 @@ export const yandexNddShipmentOrchestrator = {
         profileDropoffLooksLikePvz
       });
       if (profileDropoffLooksLikePvz) {
-        console.error('[READY_TO_SHIP] dropoffStationId looks like pvz uuid, expected operator_station_id digits');
+        console.error('[READY_TO_SHIP] dropoffStationId is present but not a valid station_id/platform_station_id');
       }
       throw new Error('SELLER_STATION_ID_REQUIRED');
     }
