@@ -56,12 +56,12 @@ test('creates default seller delivery profile on onboarding when profile is abse
   assert.equal(response.status, 200);
   assert.deepEqual(upsertPayload, {
     where: { sellerId: 'seller-1' },
-    create: { sellerId: 'seller-1', dropoffStationId: '' },
+    create: { sellerId: 'seller-1' },
     update: {}
   });
 });
 
-test('returns OPERATOR_STATION_ID_MISSING when dropoff pvz has no operator station id', async () => {
+test('uses NDD test station fallback when dropoff pvz has no explicit station id', async () => {
   const sellerDeliveryUpserts: unknown[] = [];
 
   (prisma.user.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ role: 'SELLER' });
@@ -95,13 +95,13 @@ test('returns OPERATOR_STATION_ID_MISSING when dropoff pvz has no operator stati
       }
     });
 
-  assert.equal(dropoffResponse.status, 400);
-  assert.equal(dropoffResponse.body?.error?.code, 'OPERATOR_STATION_ID_MISSING');
-  assert.equal(sellerDeliveryUpserts.length, 1);
+  assert.equal(dropoffResponse.status, 200);
+  assert.equal(sellerDeliveryUpserts.length, 2);
+  assert.equal((sellerDeliveryUpserts[1] as any).update.dropoffStationId, 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924');
 });
 
 
-test('returns OPERATOR_STATION_ID_INVALID when operator station id is uuid-like', async () => {
+test('accepts uuid station id in test NDD environment', async () => {
   const sellerDeliveryUpserts: unknown[] = [];
 
   (prisma.user.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ role: 'SELLER' });
@@ -135,9 +135,9 @@ test('returns OPERATOR_STATION_ID_INVALID when operator station id is uuid-like'
       }
     });
 
-  assert.equal(dropoffResponse.status, 400);
-  assert.equal(dropoffResponse.body?.error?.code, 'OPERATOR_STATION_ID_INVALID');
-  assert.equal(sellerDeliveryUpserts.length, 1);
+  assert.equal(dropoffResponse.status, 200);
+  assert.equal(sellerDeliveryUpserts.length, 2);
+  assert.equal((sellerDeliveryUpserts[1] as any).update.dropoffStationId, 'f2330eea-c993-4f50-9def-1af3d940cf2b');
 });
 
 test('ensures seller delivery profile on settings and saves operator_station_id for dropoff pvz', async () => {
@@ -165,7 +165,7 @@ test('ensures seller delivery profile on settings and saves operator_station_id 
   assert.equal(settingsResponse.status, 200);
   assert.deepEqual(sellerDeliveryUpserts[0], {
     where: { sellerId: 'seller-2' },
-    create: { sellerId: 'seller-2', dropoffStationId: '' },
+    create: { sellerId: 'seller-2' },
     update: {}
   });
 
@@ -181,7 +181,9 @@ test('ensures seller delivery profile on settings and saves operator_station_id 
           station: {
             id: 123456
           },
-          operator_station_id: '123456'
+          operator_station_id: '123456',
+          station_id: '123456',
+          platform_station_id: '123456'
         },
         addressFull: 'Москва, ул. Пример, 1'
       }
@@ -203,7 +205,9 @@ test('ensures seller delivery profile on settings and saves operator_station_id 
             id: 123456
           },
           pvzId: 'pvz-detail-id',
-          operator_station_id: '123456'
+          operator_station_id: '123456',
+          station_id: '123456',
+          platform_station_id: '123456'
         },
         addressFull: 'Москва, ул. Пример, 1'
       }
@@ -219,10 +223,39 @@ test('ensures seller delivery profile on settings and saves operator_station_id 
             id: 123456
           },
           pvzId: 'pvz-detail-id',
-          operator_station_id: '123456'
+          operator_station_id: '123456',
+          station_id: '123456',
+          platform_station_id: '123456'
         },
         addressFull: 'Москва, ул. Пример, 1'
       }
     }
   });
+});
+
+
+test('dev endpoint sets test station for seller delivery profile', async () => {
+  const sellerDeliveryUpserts: unknown[] = [];
+
+  (prisma.user.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ role: 'SELLER' });
+  (prisma.sellerProfile.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ id: 'sp-1' });
+  (prisma.sellerSettings.upsert as unknown as (...args: unknown[]) => unknown) = async (args: unknown) => ({
+    sellerId: 'seller-2',
+    ...(args as { create: Record<string, unknown> }).create
+  });
+  (prisma.sellerDeliveryProfile.upsert as unknown as (...args: unknown[]) => unknown) = async (args: unknown) => {
+    sellerDeliveryUpserts.push(args);
+    return { sellerId: 'seller-2', dropoffStationId: '' };
+  };
+
+  const app = buildApp();
+  const auth = `Bearer ${tokenFor('seller-2')}`;
+
+  const response = await request(app)
+    .post('/seller/settings/dropoff-pvz/test-station')
+    .set('Authorization', auth)
+    .send({});
+
+  assert.equal(response.status, 200);
+  assert.equal((sellerDeliveryUpserts[0] as any).update.dropoffStationId, 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924');
 });

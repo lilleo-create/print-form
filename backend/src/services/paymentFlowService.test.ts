@@ -32,6 +32,7 @@ test('startPayment double-click with same paymentAttemptKey -> 1 order, 1 paymen
   };
   (prisma.product.findFirst as any) = async () => ({ sellerId: 'seller-1' });
   (prisma.sellerSettings.findUnique as any) = async () => ({ defaultDropoffPvzId: 'dropoff-1', defaultDropoffPvzMeta: {} });
+  (prisma.sellerDeliveryProfile.findUnique as any) = async () => ({ dropoffStationId: '10022023854' });
   (orderUseCases.create as any) = async () => {
     orderCreateCalls += 1;
     if (orderCreateCalls === 1) {
@@ -81,6 +82,7 @@ test('startPayment with different paymentAttemptKey creates new order', async ()
   (prisma.order.findFirst as any) = async () => null;
   (prisma.product.findFirst as any) = async () => ({ sellerId: 'seller-1' });
   (prisma.sellerSettings.findUnique as any) = async () => ({ defaultDropoffPvzId: 'dropoff-1', defaultDropoffPvzMeta: {} });
+  (prisma.sellerDeliveryProfile.findUnique as any) = async () => ({ dropoffStationId: '10022023854' });
   (orderUseCases.create as any) = async ({ paymentAttemptKey }: any) => {
     createdOrders += 1;
     return { id: `order-${paymentAttemptKey}`, total: 100, currency: 'RUB', packagesCount: 1, orderLabels: [] };

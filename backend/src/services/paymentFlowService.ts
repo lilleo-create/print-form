@@ -156,7 +156,11 @@ export const paymentFlowService = {
       }
 
       const sellerSettings = await prisma.sellerSettings.findUnique({ where: { sellerId: product.sellerId } });
-      if (!sellerSettings?.defaultDropoffPvzId) {
+      const sellerDeliveryProfile = await prisma.sellerDeliveryProfile.findUnique({
+        where: { sellerId: product.sellerId },
+        select: { dropoffStationId: true }
+      });
+      if (!sellerDeliveryProfile?.dropoffStationId?.trim() || !sellerSettings?.defaultDropoffPvzId) {
         throw new Error('SELLER_DROPOFF_PVZ_REQUIRED');
       }
 

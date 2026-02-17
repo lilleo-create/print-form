@@ -18,6 +18,7 @@ import { shipmentService } from '../services/shipmentService';
 import { yandexDeliveryService } from '../services/yandexDeliveryService';
 import { sellerOrderDocumentsService } from '../services/sellerOrderDocumentsService';
 import { getOperatorStationId, normalizeStationId } from '../services/yandexNdd/getOperatorStationId';
+import { getYandexNddConfig, isYandexNddTestEnvironment, NDD_TEST_PLATFORM_STATION_ID } from '../config/yandexNdd';
 
 export const sellerRoutes = Router();
 
@@ -496,6 +497,13 @@ const sellerOrderStatusSchema = z.object({
   carrier: z.string().min(2).optional()
 });
 
+
+const resolveStationIdPolicy = () => {
+  const { baseUrl } = getYandexNddConfig();
+  const allowUuid = isYandexNddTestEnvironment(baseUrl);
+  return { allowUuid };
+};
+
 const sellerDeliveryProfileSchema = z.object({
   dropoffPvz: z.object({
     provider: z.literal('YANDEX_NDD'),
@@ -536,18 +544,23 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
       pickup_point: rawDetail?.pickup_point,
       point: rawDetail?.point
     });
-    const stationIdFromRaw = getOperatorStationId(rawDetail) ?? undefined;
-    const stationIdFromPvzId = normalizeStationId(payload.dropoffPvz.pvzId) ?? undefined;
-    const stationId = stationIdFromRaw ?? stationIdFromPvzId;
+    const stationIdPolicy = resolveStationIdPolicy();
+    const stationIdFromRaw = getOperatorStationId(rawDetail, stationIdPolicy) ?? undefined;
+    const stationIdFromPvzId = normalizeStationId(payload.dropoffPvz.pvzId, { allowUuid: false }) ?? undefined;
+    const stationIdFromTestFallback = !stationIdFromRaw && !stationIdFromPvzId && stationIdPolicy.allowUuid
+      ? NDD_TEST_PLATFORM_STATION_ID
+      : undefined;
+    const stationId = stationIdFromRaw ?? stationIdFromPvzId ?? stationIdFromTestFallback;
     console.info('[DROP_OFF_PVZ] parsed', {
       pvzId: detailId,
       stationId,
       stationIdFromRaw,
       stationIdFromPvzId,
+      stationIdFromTestFallback,
       rawKeys: Object.keys(rawDetail ?? {})
     });
 
-    if (!stationIdFromRaw && !stationIdFromPvzId) {
+    if (!stationIdFromRaw && !stationIdFromPvzId && !stationIdFromTestFallback) {
       return res.status(400).json({
         error: {
           code: 'STATION_ID_MISSING',
@@ -560,7 +573,9 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
       return res.status(400).json({
         error: {
           code: 'STATION_ID_INVALID',
-          message: 'Выбранная точка содержит некорректный station id/platform_station_id для отгрузки. Разрешены UUID или digits-only.'
+          message: stationIdPolicy.allowUuid
+            ? 'Выбранная точка содержит некорректный station id/platform_station_id для отгрузки. Разрешены UUID или digits-only.'
+            : 'Выбранная точка содержит некорректный station id/platform_station_id для отгрузки. В production разрешены только digits-only.'
         }
       });
     }
@@ -598,6 +613,48 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
     res.json({ data: settings });
   } catch (error) {
     next(error);
+  }
+});
+
+
+sellerRoutes.post('/settings/dropoff-pvz/test-station', writeLimiter, async (req: AuthRequest, res, next) => {
+  try {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(403).json({ error: { code: 'FORBIDDEN' } });
+    }
+
+    const dropoffPvzMeta = {
+      provider: 'YANDEX_NDD',
+      pvzId: 'ndd-test-station',
+      raw: {
+        source: 'dev-endpoint',
+        station_id: NDD_TEST_PLATFORM_STATION_ID,
+        platform_station_id: NDD_TEST_PLATFORM_STATION_ID
+      },
+      addressFull: 'NDD test platform station'
+    };
+
+    const settings = await prisma.sellerSettings.upsert({
+      where: { sellerId: req.user!.userId },
+      create: {
+        sellerId: req.user!.userId,
+        defaultDropoffPvzId: 'ndd-test-station',
+        defaultDropoffPvzMeta: dropoffPvzMeta as unknown as object
+      },
+      update: {
+        defaultDropoffPvzId: 'ndd-test-station',
+        defaultDropoffPvzMeta: dropoffPvzMeta as unknown as object
+      }
+    });
+
+    await sellerDeliveryProfileService.upsert(req.user!.userId, {
+      dropoffStationId: NDD_TEST_PLATFORM_STATION_ID,
+      dropoffStationMeta: dropoffPvzMeta as Record<string, unknown>
+    });
+
+    return res.json({ data: settings });
+  } catch (error) {
+    return next(error);
   }
 });
 
