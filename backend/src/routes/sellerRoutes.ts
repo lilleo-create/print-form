@@ -606,39 +606,44 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
     const rawDetail = payload.dropoffPvz.raw && typeof payload.dropoffPvz.raw === 'object' && !Array.isArray(payload.dropoffPvz.raw)
       ? (payload.dropoffPvz.raw as Record<string, unknown>)
       : null;
-    const pickupPointId = rawDetail && typeof rawDetail.id === 'string' && rawDetail.id.trim()
-      ? rawDetail.id.trim()
-      : payload.dropoffPvz.pvzId;
+    const detailId = payload.dropoffPvz.pvzId || (rawDetail && typeof rawDetail.id === 'string' ? rawDetail.id.trim() : '');
 
-    let operatorStationId = getOperatorStationId(rawDetail, { allowUuid: false });
+    if (!detailId) {
+      return res.status(400).json({ error: { code: 'DROP_OFF_PVZ_ID_REQUIRED', message: 'Не выбран pickup_point_id.' } });
+    }
+
+    if (rawDetail?.available_for_dropoff === false) {
+      return res.status(400).json({ error: { code: 'DROP_OFF_NOT_AVAILABLE' } });
+    }
+
+    let operatorStationId = getOperatorStationId(rawDetail);
     if (!operatorStationId) {
-      operatorStationId = await resolveOperatorStationIdByPickupPointId(pickupPointId);
+      operatorStationId = await resolveOperatorStationIdByPickupPointId(detailId);
     }
 
     if (!normalizeDigitsStation(operatorStationId)) {
       return res.status(400).json({
         error: {
           code: 'OPERATOR_STATION_ID_MISSING',
-          message: 'Выбранная точка не содержит operator_station_id. Выберите другую точку.'
+          message: 'Точка не подходит для отгрузки (нет operator_station_id). Выберите другую.'
         }
       });
     }
 
-    console.info('[DROP_OFF_PVZ] selected', {
-      pickupPointId,
-      operatorStationId,
-      rawKeys: Object.keys(rawDetail ?? {})
+    console.info('[DROP_OFF_PVZ]', {
+      pickupPointId: detailId,
+      operatorStationId
     });
 
     const normalizedRaw = {
       ...(rawDetail ?? {}),
-      pvzId: pickupPointId,
+      pvzId: detailId,
       operator_station_id: operatorStationId
     };
 
     const dropoffPvzMeta = {
       ...payload.dropoffPvz,
-      pvzId: pickupPointId,
+      pvzId: detailId,
       raw: normalizedRaw
     };
 
@@ -646,11 +651,11 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
       where: { sellerId: req.user!.userId },
       create: {
         sellerId: req.user!.userId,
-        defaultDropoffPvzId: pickupPointId,
+        defaultDropoffPvzId: detailId,
         defaultDropoffPvzMeta: dropoffPvzMeta as unknown as object
       },
       update: {
-        defaultDropoffPvzId: pickupPointId,
+        defaultDropoffPvzId: detailId,
         defaultDropoffPvzMeta: dropoffPvzMeta as unknown as object
       }
     });

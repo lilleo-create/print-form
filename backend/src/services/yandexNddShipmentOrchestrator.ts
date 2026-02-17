@@ -160,7 +160,7 @@ export const yandexNddShipmentOrchestrator = {
     const profileDropoffRaw = sellerDeliveryProfile?.dropoffStationId?.trim() || null;
     const fromProfileMetaRaw = getOperatorStationId(sellerDeliveryProfile?.dropoffStationMeta && typeof sellerDeliveryProfile.dropoffStationMeta === 'object'
       ? (sellerDeliveryProfile.dropoffStationMeta as Record<string, unknown>).raw
-      : null, { allowUuid: false });
+      : null);
     const fromProfileId = normalizeDigitsStation(profileDropoffRaw);
 
     if (profileDropoffRaw && !fromProfileId) {

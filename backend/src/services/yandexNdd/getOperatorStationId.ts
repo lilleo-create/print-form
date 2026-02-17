@@ -13,6 +13,14 @@ type StationIdParseOptions = {
   allowUuid?: boolean;
 };
 
+export const isDigitsStationId = (value: unknown): value is string => {
+  if (typeof value !== 'string') {
+    return false;
+  }
+
+  return /^\d+$/.test(value.trim());
+};
+
 export const normalizeStationId = (value: unknown, options: StationIdParseOptions = {}): string | null => {
   const allowUuid = options.allowUuid ?? true;
   if (typeof value !== 'string') {
@@ -32,22 +40,17 @@ export const normalizeStationId = (value: unknown, options: StationIdParseOption
 };
 
 export const normalizeDigitsStation = (value: unknown): string | null => {
-  if (typeof value !== 'string') {
+  if (!isDigitsStationId(value)) {
     return null;
   }
 
-  const trimmed = value.trim();
-  if (!trimmed || !/^\d+$/.test(trimmed)) {
-    return null;
-  }
-
-  return trimmed;
+  return value.trim();
 };
 
 export const isValidStationId = (value: unknown, options: StationIdParseOptions = {}): boolean =>
   normalizeStationId(value, options) !== null;
 
-export const getOperatorStationId = (metaRaw: unknown, options: StationIdParseOptions = {}): string | null => {
+export const getOperatorStationId = (metaRaw: unknown, _options: StationIdParseOptions = {}): string | null => {
   const raw = asRecord(metaRaw);
   if (!raw) {
     return null;
@@ -85,7 +88,7 @@ export const getOperatorStationId = (metaRaw: unknown, options: StationIdParseOp
   ];
 
   for (const candidate of candidates) {
-    const stationId = normalizeStationId(candidate, options);
+    const stationId = normalizeDigitsStation(candidate);
     if (stationId) {
       return stationId;
     }

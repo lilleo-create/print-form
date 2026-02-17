@@ -98,6 +98,29 @@ test('dropoff-pvz stores operator_station_id in seller delivery profile', async 
   assert.equal((sellerDeliveryUpserts[0] as any).update.dropoffStationMeta.raw.operator_station_id, '10035218565');
 });
 
+
+test('dropoff-pvz returns DROP_OFF_NOT_AVAILABLE when point is unavailable for dropoff', async () => {
+  (prisma.user.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ role: 'SELLER' });
+  (prisma.sellerProfile.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ id: 'sp-1' });
+
+  const app = buildApp();
+  const auth = `Bearer ${tokenFor('seller-2')}`;
+
+  const dropoffResponse = await request(app)
+    .put('/seller/settings/dropoff-pvz')
+    .set('Authorization', auth)
+    .send({
+      dropoffPvz: {
+        provider: 'YANDEX_NDD',
+        pvzId: 'pvz-widget-id',
+        raw: { id: 'pvz-widget-id', available_for_dropoff: false },
+        addressFull: 'Москва, ул. Пример, 1'
+      }
+    });
+
+  assert.equal(dropoffResponse.status, 400);
+  assert.equal(dropoffResponse.body?.error?.code, 'DROP_OFF_NOT_AVAILABLE');
+});
 test('settings returns both source platform station and dropoff pvz separately', async () => {
   (prisma.user.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ role: 'SELLER' });
   (prisma.sellerProfile.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ id: 'sp-1' });
