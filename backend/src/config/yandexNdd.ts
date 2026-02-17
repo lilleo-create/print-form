@@ -5,6 +5,13 @@ export type YandexNddConfig = {
   lang: string;
 };
 
+export const NDD_TEST_PLATFORM_STATION_ID = 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924';
+
+export const isYandexNddTestEnvironment = (baseUrl: string): boolean => {
+  const normalized = baseUrl.toLowerCase();
+  return normalized.includes('.tst.yandex.net');
+};
+
 export const getYandexNddConfig = (): YandexNddConfig => {
   const rawBaseUrl = process.env.YANDEX_NDD_BASE_URL || 'https://b2b.taxi.tst.yandex.net';
   const baseUrl = rawBaseUrl.replace(/\/api\/?$/, '');

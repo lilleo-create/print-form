@@ -3,6 +3,7 @@ import { orderDeliveryService } from './orderDeliveryService';
 import { mapYandexStatusToInternal, shipmentService } from './shipmentService';
 import { yandexNddClient } from './yandexNdd/YandexNddClient';
 import { getOperatorStationId, normalizeStationId } from './yandexNdd/getOperatorStationId';
+import { getYandexNddConfig, isYandexNddTestEnvironment } from '../config/yandexNdd';
 
 const pickBestOffer = (response: Record<string, unknown>) => {
   const offers = (response.offers as Record<string, unknown>[] | undefined) ?? [];
@@ -65,6 +66,11 @@ const extractIntervalUtc = (
   }
 
   return null;
+};
+
+const resolveStationIdPolicy = () => {
+  const { baseUrl } = getYandexNddConfig();
+  return { allowUuid: isYandexNddTestEnvironment(baseUrl) };
 };
 
 const parseRecipientName = (order: any) => {
@@ -159,12 +165,13 @@ export const yandexNddShipmentOrchestrator = {
       });
     }
 
-    const fromOrderRaw = getOperatorStationId((order.sellerDropoffPvzMeta as Record<string, unknown> | null)?.raw);
-    const fromOrderMeta = getOperatorStationId(order.sellerDropoffPvzMeta);
-    const fromProfileRaw = getOperatorStationId((sellerDeliveryProfile?.dropoffStationMeta as Record<string, unknown> | null)?.raw);
-    const fromProfileMeta = getOperatorStationId(sellerDeliveryProfile?.dropoffStationMeta);
+    const stationIdPolicy = resolveStationIdPolicy();
+    const fromOrderRaw = getOperatorStationId((order.sellerDropoffPvzMeta as Record<string, unknown> | null)?.raw, stationIdPolicy);
+    const fromOrderMeta = getOperatorStationId(order.sellerDropoffPvzMeta, stationIdPolicy);
+    const fromProfileRaw = getOperatorStationId((sellerDeliveryProfile?.dropoffStationMeta as Record<string, unknown> | null)?.raw, stationIdPolicy);
+    const fromProfileMeta = getOperatorStationId(sellerDeliveryProfile?.dropoffStationMeta, stationIdPolicy);
     const profileDropoffRaw = sellerDeliveryProfile?.dropoffStationId?.trim() || null;
-    const fromProfileId = normalizeStationId(profileDropoffRaw);
+    const fromProfileId = normalizeStationId(profileDropoffRaw, stationIdPolicy);
     const profileDropoffLooksLikePvz = Boolean(profileDropoffRaw && !fromProfileId);
 
     const candidates: Array<{ value: string | null; source: 'order.meta.raw' | 'order.meta' | 'profile.meta.raw' | 'profile.meta' | 'profile.dropoffStationId' }> = [

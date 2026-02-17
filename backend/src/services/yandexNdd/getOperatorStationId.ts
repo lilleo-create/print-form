@@ -9,7 +9,12 @@ const asRecord = (value: unknown): Record<string, unknown> | null => {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DIGITS_RE = /^\d{6,20}$/;
 
-export const normalizeStationId = (value: unknown): string | null => {
+type StationIdParseOptions = {
+  allowUuid?: boolean;
+};
+
+export const normalizeStationId = (value: unknown, options: StationIdParseOptions = {}): string | null => {
+  const allowUuid = options.allowUuid ?? true;
   if (typeof value !== 'string') {
     return null;
   }
@@ -19,16 +24,17 @@ export const normalizeStationId = (value: unknown): string | null => {
     return null;
   }
 
-  if (!UUID_RE.test(trimmed) && !DIGITS_RE.test(trimmed)) {
+  if (!DIGITS_RE.test(trimmed) && !(allowUuid && UUID_RE.test(trimmed))) {
     return null;
   }
 
   return trimmed;
 };
 
-export const isValidStationId = (value: unknown): boolean => normalizeStationId(value) !== null;
+export const isValidStationId = (value: unknown, options: StationIdParseOptions = {}): boolean =>
+  normalizeStationId(value, options) !== null;
 
-export const getOperatorStationId = (metaRaw: unknown): string | null => {
+export const getOperatorStationId = (metaRaw: unknown, options: StationIdParseOptions = {}): string | null => {
   const raw = asRecord(metaRaw);
   if (!raw) {
     return null;
@@ -53,7 +59,7 @@ export const getOperatorStationId = (metaRaw: unknown): string | null => {
   ];
 
   for (const candidate of candidates) {
-    const stationId = normalizeStationId(candidate);
+    const stationId = normalizeStationId(candidate, options);
     if (stationId) {
       return stationId;
     }

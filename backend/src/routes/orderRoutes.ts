@@ -46,7 +46,11 @@ orderRoutes.post('/', authenticate, writeLimiter, async (req: AuthRequest, res, 
     }
 
     const sellerSettings = await prisma.sellerSettings.findUnique({ where: { sellerId: product.sellerId } });
-    if (!sellerSettings?.defaultDropoffPvzId) {
+    const sellerDeliveryProfile = await prisma.sellerDeliveryProfile.findUnique({
+      where: { sellerId: product.sellerId },
+      select: { dropoffStationId: true }
+    });
+    if (!sellerSettings?.defaultDropoffPvzId || !sellerDeliveryProfile?.dropoffStationId?.trim()) {
       return res.status(400).json({ error: { code: 'SELLER_DROPOFF_PVZ_REQUIRED', message: 'Seller has no dropoff PVZ' } });
     }
 
