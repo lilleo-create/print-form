@@ -17,7 +17,10 @@ import { payoutService } from '../services/payoutService';
 import { shipmentService } from '../services/shipmentService';
 import { yandexDeliveryService } from '../services/yandexDeliveryService';
 import { sellerOrderDocumentsService } from '../services/sellerOrderDocumentsService';
-import { getOperatorStationId } from '../services/yandexNdd/getOperatorStationId';
+import { getYandexNddConfig } from '../config/yandexNdd';
+import { yandexNddClient } from '../services/yandexNdd/YandexNddClient';
+import { getOperatorStationId, normalizeDigitsStation, normalizeStationId } from '../services/yandexNdd/getOperatorStationId';
+import { resolveOperatorStationIdByPickupPointId } from '../services/yandexNdd/resolveOperatorStationIdByPickupPointId';
 
 export const sellerRoutes = Router();
 
@@ -85,9 +88,38 @@ const sellerOnboardingSchema = z.object({
 const ensureSellerDeliveryProfile = async (sellerId: string) => {
   await prisma.sellerDeliveryProfile.upsert({
     where: { sellerId },
-    create: { sellerId, dropoffStationId: '' },
+    create: { sellerId },
     update: {}
   });
+};
+
+const resolveValidationSelfPickupId = () => {
+  const value = process.env.YANDEX_NDD_VALIDATION_SELF_PICKUP_ID?.trim();
+  return value || null;
+};
+
+const validateSourcePlatformStationId = async (dropoffStationId: string) => {
+  const { baseUrl, defaultPlatformStationId } = getYandexNddConfig();
+  const normalized = normalizeStationId(dropoffStationId, { allowUuid: baseUrl.includes('.tst.yandex.net') });
+  if (!normalized) {
+    throw new Error('SELLER_STATION_ID_INVALID');
+  }
+
+  const selfPickupId = resolveValidationSelfPickupId();
+  if (!selfPickupId) {
+    return normalized;
+  }
+
+  try {
+    await yandexNddClient.offersInfo(normalized, selfPickupId, 'time_interval', true);
+  } catch (_error) {
+    if (defaultPlatformStationId && normalized === defaultPlatformStationId) {
+      return normalized;
+    }
+    throw new Error('SELLER_STATION_ID_INVALID');
+  }
+
+  return normalized;
 };
 
 sellerRoutes.post('/onboarding', requireAuth, writeLimiter, async (req: AuthRequest, res, next) => {
@@ -496,6 +528,11 @@ const sellerOrderStatusSchema = z.object({
   carrier: z.string().min(2).optional()
 });
 
+
+const sourcePlatformStationSchema = z.object({
+  source_platform_station: z.string().min(1).trim()
+});
+
 const sellerDeliveryProfileSchema = z.object({
   dropoffPvz: z.object({
     provider: z.literal('YANDEX_NDD'),
@@ -510,15 +547,56 @@ const sellerDeliveryProfileSchema = z.object({
   })
 });
 
-const OPERATOR_STATION_ID_DIGITS_ONLY = /^\d{6,20}$/;
-
 sellerRoutes.get('/settings', async (req: AuthRequest, res, next) => {
   try {
     await ensureSellerDeliveryProfile(req.user!.userId);
-    const settings = await prisma.sellerSettings.findUnique({ where: { sellerId: req.user!.userId } });
-    res.json({ data: settings });
+    const [settings, deliveryProfile] = await Promise.all([
+      prisma.sellerSettings.findUnique({ where: { sellerId: req.user!.userId } }),
+      prisma.sellerDeliveryProfile.findUnique({ where: { sellerId: req.user!.userId } })
+    ]);
+
+    res.json({
+      data: {
+        ...(settings ?? { sellerId: req.user!.userId }),
+        dropoffStationId: deliveryProfile?.dropoffStationId ?? null,
+        dropoffStationMeta: deliveryProfile?.dropoffStationMeta ?? null,
+        dropoffPvz: settings?.defaultDropoffPvzId
+          ? {
+              provider: 'YANDEX_NDD',
+              pvzId: settings.defaultDropoffPvzId,
+              raw: settings.defaultDropoffPvzMeta,
+              addressFull:
+                typeof settings.defaultDropoffPvzMeta === 'object' && settings.defaultDropoffPvzMeta
+                  ? String((settings.defaultDropoffPvzMeta as Record<string, unknown>).addressFull ?? '')
+                  : undefined
+            }
+          : null
+      }
+    });
   } catch (error) {
     next(error);
+  }
+});
+
+sellerRoutes.put('/settings/source-platform-station', writeLimiter, async (req: AuthRequest, res, next) => {
+  try {
+    const payload = sourcePlatformStationSchema.parse(req.body ?? {});
+    const validatedStationId = await validateSourcePlatformStationId(payload.source_platform_station);
+
+    const profile = await sellerDeliveryProfileService.upsert(req.user!.userId, {
+      dropoffStationId: validatedStationId,
+      dropoffStationMeta: {
+        source: 'manual_input',
+        sourcePlatformStation: validatedStationId
+      }
+    });
+
+    return res.json({ data: profile });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'SELLER_STATION_ID_INVALID') {
+      return res.status(400).json({ error: { code: 'SELLER_STATION_ID_INVALID', message: 'Укажите корректный source_platform_station' } });
+    }
+    return next(error);
   }
 });
 
@@ -528,71 +606,39 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
     const rawDetail = payload.dropoffPvz.raw && typeof payload.dropoffPvz.raw === 'object' && !Array.isArray(payload.dropoffPvz.raw)
       ? (payload.dropoffPvz.raw as Record<string, unknown>)
       : null;
-    const detailId = rawDetail && typeof rawDetail.id === 'string' && rawDetail.id.trim()
+    const pickupPointId = rawDetail && typeof rawDetail.id === 'string' && rawDetail.id.trim()
       ? rawDetail.id.trim()
       : payload.dropoffPvz.pvzId;
-    console.info('[DROP_OFF_PVZ] rawDetail preview', {
-      operator_station_id: rawDetail?.operator_station_id,
-      station_id: rawDetail?.station_id,
-      data: rawDetail?.data,
-      pickup_point: rawDetail?.pickup_point,
-      point: rawDetail?.point
-    });
-    const operatorStationId = getOperatorStationId(rawDetail) ?? undefined;
-    const rawOperatorStationCandidate = [
-      rawDetail?.operator_station_id,
-      rawDetail?.operatorStationId,
-      rawDetail?.station_id,
-      rawDetail?.stationId,
-      (rawDetail?.data as Record<string, unknown> | undefined)?.operator_station_id,
-      (rawDetail?.pickup_point as Record<string, unknown> | undefined)?.operator_station_id,
-      (rawDetail?.point as Record<string, unknown> | undefined)?.operator_station_id
-    ].find((candidate) => typeof candidate === 'string' && candidate.trim());
-    const rawOperatorStationId = typeof rawOperatorStationCandidate === 'string'
-      ? rawOperatorStationCandidate.trim()
-      : undefined;
-    console.info('[DROP_OFF_PVZ] parsed', {
-      pvzId: detailId,
-      operatorStationId,
-      rawOperatorStationId,
-      rawKeys: Object.keys(rawDetail ?? {})
-    });
 
-    if (operatorStationId && (operatorStationId.includes('-') || !OPERATOR_STATION_ID_DIGITS_ONLY.test(operatorStationId))) {
-      return res.status(400).json({
-        error: {
-          code: 'OPERATOR_STATION_ID_INVALID',
-          message: 'Выбранная точка содержит некорректный station id для отгрузки. Выберите другую точку или проверьте raw в виджете.'
-        }
-      });
-    }
-
-    if (!operatorStationId && rawOperatorStationId && (rawOperatorStationId.includes('-') || !OPERATOR_STATION_ID_DIGITS_ONLY.test(rawOperatorStationId))) {
-      return res.status(400).json({
-        error: {
-          code: 'OPERATOR_STATION_ID_INVALID',
-          message: 'Выбранная точка содержит некорректный station id для отгрузки. Выберите другую точку или проверьте raw в виджете.'
-        }
-      });
-    }
-
+    let operatorStationId = getOperatorStationId(rawDetail, { allowUuid: false });
     if (!operatorStationId) {
+      operatorStationId = await resolveOperatorStationIdByPickupPointId(pickupPointId);
+    }
+
+    if (!normalizeDigitsStation(operatorStationId)) {
       return res.status(400).json({
         error: {
           code: 'OPERATOR_STATION_ID_MISSING',
-          message: 'Выбранная точка не содержит station id для отгрузки. Выберите другую точку или проверьте raw в виджете.'
+          message: 'Выбранная точка не содержит operator_station_id. Выберите другую точку.'
         }
       });
     }
 
+    console.info('[DROP_OFF_PVZ] selected', {
+      pickupPointId,
+      operatorStationId,
+      rawKeys: Object.keys(rawDetail ?? {})
+    });
+
     const normalizedRaw = {
       ...(rawDetail ?? {}),
-      pvzId: detailId,
+      pvzId: pickupPointId,
       operator_station_id: operatorStationId
     };
+
     const dropoffPvzMeta = {
       ...payload.dropoffPvz,
-      pvzId: detailId,
+      pvzId: pickupPointId,
       raw: normalizedRaw
     };
 
@@ -600,23 +646,49 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
       where: { sellerId: req.user!.userId },
       create: {
         sellerId: req.user!.userId,
-        defaultDropoffPvzId: detailId,
+        defaultDropoffPvzId: pickupPointId,
         defaultDropoffPvzMeta: dropoffPvzMeta as unknown as object
       },
       update: {
-        defaultDropoffPvzId: detailId,
+        defaultDropoffPvzId: pickupPointId,
         defaultDropoffPvzMeta: dropoffPvzMeta as unknown as object
       }
     });
 
     await sellerDeliveryProfileService.upsert(req.user!.userId, {
       dropoffStationId: operatorStationId,
-      dropoffStationMeta: dropoffPvzMeta as Record<string, unknown>
+      dropoffStationMeta: dropoffPvzMeta as unknown as Record<string, unknown>
     });
 
     res.json({ data: settings });
   } catch (error) {
     next(error);
+  }
+});
+
+
+sellerRoutes.post('/settings/dropoff-pvz/test-station', writeLimiter, async (req: AuthRequest, res, next) => {
+  try {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(403).json({ error: { code: 'FORBIDDEN' } });
+    }
+
+    const devStationId = process.env.YANDEX_NDD_DEV_OPERATOR_STATION_ID?.trim();
+    if (!devStationId || !/^\d+$/.test(devStationId)) {
+      return res.status(400).json({ error: { code: 'OPERATOR_STATION_ID_MISSING' } });
+    }
+
+    await sellerDeliveryProfileService.upsert(req.user!.userId, {
+      dropoffStationId: devStationId,
+      dropoffStationMeta: {
+        source: 'dev-endpoint',
+        sourcePlatformStation: devStationId
+      }
+    });
+
+    return res.json({ data: { source_platform_station: devStationId } });
+  } catch (error) {
+    return next(error);
   }
 });
 

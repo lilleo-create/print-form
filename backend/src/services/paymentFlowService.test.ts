@@ -32,6 +32,7 @@ test('startPayment double-click with same paymentAttemptKey -> 1 order, 1 paymen
   };
   (prisma.product.findFirst as any) = async () => ({ sellerId: 'seller-1' });
   (prisma.sellerSettings.findUnique as any) = async () => ({ defaultDropoffPvzId: 'dropoff-1', defaultDropoffPvzMeta: {} });
+  (prisma.sellerDeliveryProfile.findUnique as any) = async () => ({ dropoffStationId: '10022023854' });
   (orderUseCases.create as any) = async () => {
     orderCreateCalls += 1;
     if (orderCreateCalls === 1) {
@@ -81,6 +82,7 @@ test('startPayment with different paymentAttemptKey creates new order', async ()
   (prisma.order.findFirst as any) = async () => null;
   (prisma.product.findFirst as any) = async () => ({ sellerId: 'seller-1' });
   (prisma.sellerSettings.findUnique as any) = async () => ({ defaultDropoffPvzId: 'dropoff-1', defaultDropoffPvzMeta: {} });
+  (prisma.sellerDeliveryProfile.findUnique as any) = async () => ({ dropoffStationId: '10022023854' });
   (orderUseCases.create as any) = async ({ paymentAttemptKey }: any) => {
     createdOrders += 1;
     return { id: `order-${paymentAttemptKey}`, total: 100, currency: 'RUB', packagesCount: 1, orderLabels: [] };
@@ -128,4 +130,54 @@ test('webhook success makes order PAID and sets paidAt', async () => {
   await paymentFlowService.processWebhook({ paymentId: 'pay-1', status: 'success' });
   assert.equal(updatedOrderData.status, 'PAID');
   assert.ok(updatedOrderData.paidAt instanceof Date);
+});
+
+
+test('startPayment allows checkout when seller dropoff config is missing without blocking flags', async () => {
+  (prisma.order.findFirst as any) = async () => null;
+  (prisma.product.findFirst as any) = async () => ({ sellerId: 'seller-1' });
+  (prisma.sellerSettings.findUnique as any) = async () => ({ defaultDropoffPvzId: null, defaultDropoffPvzMeta: null });
+
+  let createdPayload: any = null;
+  (orderUseCases.create as any) = async (payload: any) => {
+    createdPayload = payload;
+    return {
+      id: 'order-missing-dropoff',
+      total: 100,
+      currency: 'RUB',
+      packagesCount: 1,
+      orderLabels: [],
+      sellerDropoffPvzId: null,
+      recipientName: payload.recipient.name,
+      recipientPhone: payload.recipient.phone
+    };
+  };
+  (prisma.order.update as any) = async ({ where, data }: any) => ({
+    id: where.id,
+    total: 100,
+    currency: 'RUB',
+    packagesCount: 1,
+    sellerDropoffPvzId: null,
+    ...data
+  });
+  (prisma.payment.findFirst as any) = async () => null;
+  (prisma.$transaction as any) = async (cb: any) =>
+    cb({
+      order: {
+        findUnique: async ({ where }: any) => ({ id: where.id, total: 100, currency: 'RUB', paymentId: null }),
+        updateMany: async () => ({ count: 1 })
+      },
+      payment: {
+        findUnique: async () => null,
+        create: async ({ data }: any) => ({ id: `pay-${data.orderId}`, provider: 'manual' }),
+        update: async () => ({}),
+        delete: async () => ({})
+      }
+    });
+
+  const result = await paymentFlowService.startPayment({ ...inputBase, paymentAttemptKey: 'attempt-missing-dropoff' });
+
+  assert.equal(createdPayload.sellerDropoffPvz, undefined);
+  assert.equal(result.deliveryConfigMissing, false);
+  assert.equal(result.blockingReason, null);
 });

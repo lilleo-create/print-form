@@ -58,13 +58,13 @@ export class YandexNddClient {
       }
     })();
 
-    if (process.env.NODE_ENV !== 'production') {
-      console.info('[YANDEX_NDD][auth]', {
-        hasBearerPrefix: tokenMeta.hasBearerPrefix,
-        tokenLength: tokenMeta.tokenLength,
-        tokenPreview: tokenMeta.tokenPreview
-      });
+    console.info('[YANDEX_NDD][auth]', {
+      hasBearerPrefix: tokenMeta.hasBearerPrefix,
+      tokenLength: tokenMeta.tokenLength,
+      tokenPreview: tokenMeta.tokenPreview
+    });
 
+    if (process.env.NODE_ENV !== 'production') {
       console.log('[YANDEX_NDD]', {
         requestId: init?.requestId ?? 'n/a',
         path,
@@ -148,6 +148,14 @@ export class YandexNddClient {
     }
 
     return response;
+  }
+
+
+  async pickupPointsList(body: JsonRecord = {}) {
+    return this.request<{ points: any[] }>('/api/b2b/platform/pickup-points/list', {
+      method: 'POST',
+      body: JSON.stringify(body)
+    });
   }
 
   requestCreate(body: JsonRecord) {

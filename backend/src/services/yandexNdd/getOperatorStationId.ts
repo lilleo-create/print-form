@@ -6,39 +6,86 @@ const asRecord = (value: unknown): Record<string, unknown> | null => {
   return value as Record<string, unknown>;
 };
 
-const STATION_ID_DIGITS_ONLY = /^\d{6,20}$/;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[47][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const DIGITS_RE = /^\d{6,20}$/;
 
-const toDigitsStationId = (value: unknown): string | null => {
+type StationIdParseOptions = {
+  allowUuid?: boolean;
+};
+
+export const normalizeStationId = (value: unknown, options: StationIdParseOptions = {}): string | null => {
+  const allowUuid = options.allowUuid ?? true;
   if (typeof value !== 'string') {
     return null;
   }
 
   const trimmed = value.trim();
-  if (!trimmed || trimmed.includes('-') || !STATION_ID_DIGITS_ONLY.test(trimmed)) {
+  if (!trimmed) {
+    return null;
+  }
+
+  if (!DIGITS_RE.test(trimmed) && !(allowUuid && UUID_RE.test(trimmed))) {
     return null;
   }
 
   return trimmed;
 };
 
-export const getOperatorStationId = (metaRaw: unknown): string | null => {
+export const normalizeDigitsStation = (value: unknown): string | null => {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed || !/^\d+$/.test(trimmed)) {
+    return null;
+  }
+
+  return trimmed;
+};
+
+export const isValidStationId = (value: unknown, options: StationIdParseOptions = {}): boolean =>
+  normalizeStationId(value, options) !== null;
+
+export const getOperatorStationId = (metaRaw: unknown, options: StationIdParseOptions = {}): string | null => {
   const raw = asRecord(metaRaw);
   if (!raw) {
     return null;
   }
 
+  const data = asRecord(raw.data);
+  const pickupPoint = asRecord(raw.pickup_point);
+  const point = asRecord(raw.point);
+
   const candidates: unknown[] = [
-    raw.operator_station_id,
-    raw.operatorStationId,
+    raw.platform_station_id,
+    raw.platformStationId,
     raw.station_id,
     raw.stationId,
-    asRecord(raw.data)?.operator_station_id,
-    asRecord(raw.pickup_point)?.operator_station_id,
-    asRecord(raw.point)?.operator_station_id
+    raw.operator_station_id,
+    raw.operatorStationId,
+    data?.platform_station_id,
+    data?.platformStationId,
+    data?.station_id,
+    data?.stationId,
+    data?.operator_station_id,
+    data?.operatorStationId,
+    pickupPoint?.platform_station_id,
+    pickupPoint?.platformStationId,
+    pickupPoint?.station_id,
+    pickupPoint?.stationId,
+    pickupPoint?.operator_station_id,
+    pickupPoint?.operatorStationId,
+    point?.platform_station_id,
+    point?.platformStationId,
+    point?.station_id,
+    point?.stationId,
+    point?.operator_station_id,
+    point?.operatorStationId
   ];
 
   for (const candidate of candidates) {
-    const stationId = toDigitsStationId(candidate);
+    const stationId = normalizeStationId(candidate, options);
     if (stationId) {
       return stationId;
     }

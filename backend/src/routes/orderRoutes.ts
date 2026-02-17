@@ -46,9 +46,6 @@ orderRoutes.post('/', authenticate, writeLimiter, async (req: AuthRequest, res, 
     }
 
     const sellerSettings = await prisma.sellerSettings.findUnique({ where: { sellerId: product.sellerId } });
-    if (!sellerSettings?.defaultDropoffPvzId) {
-      return res.status(400).json({ error: { code: 'SELLER_DROPOFF_PVZ_REQUIRED', message: 'Seller has no dropoff PVZ' } });
-    }
 
     const order = await orderUseCases.create({
       buyerId: req.user!.userId,
@@ -57,14 +54,16 @@ orderRoutes.post('/', authenticate, writeLimiter, async (req: AuthRequest, res, 
         ...payload.buyerPickupPvz,
         raw: payload.buyerPickupPvz.raw ?? {}
       },
-      sellerDropoffPvz: {
-        provider: 'YANDEX_NDD',
-        pvzId: sellerSettings.defaultDropoffPvzId,
-        raw: sellerSettings.defaultDropoffPvzMeta ?? {},
-        addressFull: typeof sellerSettings.defaultDropoffPvzMeta === 'object' && sellerSettings.defaultDropoffPvzMeta
-          ? String((sellerSettings.defaultDropoffPvzMeta as Record<string, unknown>).addressFull ?? '')
-          : undefined
-      }
+      sellerDropoffPvz: sellerSettings?.defaultDropoffPvzId
+        ? {
+            provider: 'YANDEX_NDD',
+            pvzId: sellerSettings.defaultDropoffPvzId,
+            raw: sellerSettings.defaultDropoffPvzMeta ?? {},
+            addressFull: typeof sellerSettings.defaultDropoffPvzMeta === 'object' && sellerSettings.defaultDropoffPvzMeta
+              ? String((sellerSettings.defaultDropoffPvzMeta as Record<string, unknown>).addressFull ?? '')
+              : undefined
+          }
+        : undefined
     });
 
     return res.status(201).json({ data: order, orderId: order.id });

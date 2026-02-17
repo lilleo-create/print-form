@@ -82,6 +82,11 @@ const isAccessError = (error: unknown) => {
   );
 };
 
+
+const DEV_TEST_PLATFORM_STATION_ID =
+  import.meta.env.VITE_YANDEX_NDD_PLATFORM_STATION_ID ||
+  'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924';
+
 export const SellerDashboardPage = () => {
   const navigate = useNavigate();
 
@@ -122,10 +127,9 @@ export const SellerDashboardPage = () => {
   // === Delivery profile ===
   const [dropoffStationId, setDropoffStationId] = useState('');
   const [dropoffStationAddress, setDropoffStationAddress] = useState('');
-  const [dropoffStationRaw, setDropoffStationRaw] = useState<Record<
-    string,
-    unknown
-  > | null>(null);
+  const [dropoffPvzId, setDropoffPvzId] = useState('');
+  const [dropoffPvzAddress, setDropoffPvzAddress] = useState('');
+  const [dropoffPvzRaw, setDropoffPvzRaw] = useState<Record<string, unknown> | null>(null);
   const [isDropoffModalOpen, setDropoffModalOpen] = useState(false);
 
   const [deliverySettingsMessage, setDeliverySettingsMessage] = useState<
@@ -229,21 +233,27 @@ export const SellerDashboardPage = () => {
       const profileResponse = await api.getSellerDeliveryProfile();
       const dropoffPvz = profileResponse.data?.dropoffPvz;
       const dropoffMeta = profileResponse.data?.defaultDropoffPvzMeta;
-      setDropoffStationId(
+      const stationId = profileResponse.data?.dropoffStationId ?? '';
+      setDropoffStationId(stationId);
+      setDropoffStationAddress(
+        typeof profileResponse.data?.dropoffStationMeta === 'object' &&
+          profileResponse.data?.dropoffStationMeta
+          ? String(
+              (profileResponse.data?.dropoffStationMeta as Record<string, unknown>)
+                .addressFull ?? ''
+            )
+          : ''
+      );
+      setDropoffPvzId(
         dropoffPvz?.pvzId ?? profileResponse.data?.defaultDropoffPvzId ?? ''
       );
-      setDropoffStationAddress(
-        dropoffPvz?.addressFull ??
-          dropoffMeta?.addressFull ??
-          profileResponse.data?.defaultDropoffPvzId ??
-          ''
-      );
+      setDropoffPvzAddress(dropoffPvz?.addressFull ?? dropoffMeta?.addressFull ?? '');
       const persistedRaw =
         dropoffPvz?.raw ??
         (dropoffMeta && typeof dropoffMeta === 'object'
           ? (dropoffMeta as Record<string, unknown>).raw
           : null);
-      setDropoffStationRaw(
+      setDropoffPvzRaw(
         persistedRaw &&
           typeof persistedRaw === 'object' &&
           !Array.isArray(persistedRaw)
@@ -430,7 +440,6 @@ export const SellerDashboardPage = () => {
       const response = await api.submitSellerKyc({
         dropoffStationId: dropoffStationId.trim(),
         dropoffStationMeta: {
-          ...(dropoffStationRaw ?? {}),
           addressFull: dropoffStationAddress.trim() || dropoffStationId.trim()
         }
       });
@@ -532,37 +541,41 @@ export const SellerDashboardPage = () => {
     setDeliverySettingsMessage(null);
     setDeliverySettingsError(null);
 
-    const pvzId = dropoffStationId.trim();
-    const addressFull = dropoffStationAddress.trim();
+    const stationId = dropoffStationId.trim();
+    const pvzId = dropoffPvzId.trim();
 
-    if (!pvzId) {
-      setDeliverySettingsError('Выберите ПВЗ сдачи через карту.');
+    if (!stationId) {
+      setDeliverySettingsError('Укажите source_platform_station.');
       return;
     }
 
     try {
-      await api.updateSellerDeliveryProfile({
-        dropoffPvz: {
-          provider: 'YANDEX_NDD',
-          pvzId,
-          raw: {
-            ...(dropoffStationRaw ?? {}),
-            pvzId
-          },
-          addressFull: addressFull || pvzId
-        }
-      });
+      await api.updateSourcePlatformStation(stationId);
+
+      if (pvzId) {
+        await api.updateSellerDeliveryProfile({
+          dropoffPvz: {
+            provider: 'YANDEX_NDD',
+            pvzId,
+            raw: {
+              ...(dropoffPvzRaw ?? {}),
+              pvzId
+            },
+            addressFull: dropoffPvzAddress.trim() || pvzId
+          }
+        });
+      }
 
       setDeliverySettingsMessage('Станция отгрузки сохранена.');
     } catch {
-      setDeliverySettingsError('Не удалось сохранить станцию отгрузки.');
+      setDeliverySettingsError('Не удалось сохранить station/PVZ.');
     }
   };
 
   const handleDropoffSelect = (selection: YaPvzSelection) => {
-    setDropoffStationId(selection.pvzId);
-    setDropoffStationAddress(selection.addressFull ?? '');
-    setDropoffStationRaw(
+    setDropoffPvzId(selection.pvzId);
+    setDropoffPvzAddress(selection.addressFull ?? '');
+    setDropoffPvzRaw(
       selection.raw &&
         typeof selection.raw === 'object' &&
         !Array.isArray(selection.raw)
@@ -1529,13 +1542,33 @@ export const SellerDashboardPage = () => {
                         <p className={styles.muted}>{dropoffStationAddress}</p>
                       ) : null}
 
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => setDropoffModalOpen(true)}
-                      >
-                        Выбрать ПВЗ сдачи через карту
-                      </Button>
+                      <div className={styles.inlineActions}>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => setDropoffModalOpen(true)}
+                        >
+                          Выбрать ПВЗ сдачи через карту
+                        </Button>
+                        {(import.meta.env.DEV || import.meta.env.MODE === 'test') && (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() => setDropoffStationId(DEV_TEST_PLATFORM_STATION_ID)}
+                          >
+                            Использовать тестовую станцию
+                          </Button>
+                        )}
+                      </div>
+
+                      {dropoffPvzId ? (
+                        <p className={styles.muted}>
+                          ПВЗ сдачи: {dropoffPvzId}
+                          {dropoffPvzAddress ? ` (${dropoffPvzAddress})` : ''}
+                        </p>
+                      ) : (
+                        <p className={styles.muted}>ПВЗ сдачи не выбран (необязательно, если station заполнен).</p>
+                      )}
                     </div>
                   </div>
 

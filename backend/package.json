@@ -18,7 +18,7 @@
     "shipments:sync": "tsx scripts/shipments-sync.ts"
   },
   "dependencies": {
-    "@prisma/client": "^5.18.0",
+    "@prisma/client": "^5.22.0",
     "axios": "^1.13.5",
     "bcryptjs": "^2.4.3",
     "bwip-js": "^4.8.0",
@@ -46,7 +46,7 @@
     "@types/node": "^25.1.0",
     "@types/pdfkit": "^0.17.5",
     "@types/supertest": "^6.0.3",
-    "prisma": "^5.18.0",
+    "prisma": "^5.22.0",
     "supertest": "^7.2.2",
     "ts-node": "^10.9.2",
     "tsx": "^4.21.0",

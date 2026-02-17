@@ -367,6 +367,13 @@
   align-items: center;
 }
 
+
+.inlineActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .uploadButton {
   display: inline-flex;
   align-items: center;
