@@ -3,6 +3,7 @@ export type YandexNddConfig = {
   baseUrl: string;
   token?: string;
   lang: string;
+  defaultPlatformStationId?: string;
 };
 
 export const NDD_TEST_PLATFORM_STATION_ID = 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924';
@@ -17,11 +18,15 @@ export const getYandexNddConfig = (): YandexNddConfig => {
   const baseUrl = rawBaseUrl.replace(/\/api\/?$/, '');
   const token = process.env.YANDEX_NDD_TOKEN || '';
   const lang = process.env.YANDEX_NDD_LANG || 'ru';
+  const defaultPlatformStationId =
+    process.env.YANDEX_NDD_DEFAULT_PLATFORM_STATION_ID ||
+    process.env.YANDEX_NDD_PLATFORM_STATION_ID ||
+    (isYandexNddTestEnvironment(baseUrl) ? NDD_TEST_PLATFORM_STATION_ID : undefined);
 
   // Никаких падений сервера из-за пустого токена
   if (!token) {
-    return { enabled: false, baseUrl, lang };
+    return { enabled: false, baseUrl, lang, defaultPlatformStationId };
   }
 
-  return { enabled: true, baseUrl, token, lang };
+  return { enabled: true, baseUrl, token, lang, defaultPlatformStationId };
 };
