@@ -62,7 +62,7 @@ test('creates default seller delivery profile on onboarding when profile is abse
   });
 });
 
-test('dropoff-pvz updates seller settings and does not overwrite source platform station', async () => {
+test('dropoff-pvz stores operator_station_id in seller delivery profile', async () => {
   const sellerDeliveryUpserts: unknown[] = [];
 
   (prisma.user.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ role: 'SELLER' });
@@ -74,7 +74,7 @@ test('dropoff-pvz updates seller settings and does not overwrite source platform
   });
   (prisma.sellerDeliveryProfile.upsert as unknown as (...args: unknown[]) => unknown) = async (args: unknown) => {
     sellerDeliveryUpserts.push(args);
-    return { sellerId: 'seller-2', dropoffStationId: 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924' };
+    return { sellerId: 'seller-2', dropoffStationId: '10035218565' };
   };
 
   const app = buildApp();
@@ -87,14 +87,15 @@ test('dropoff-pvz updates seller settings and does not overwrite source platform
       dropoffPvz: {
         provider: 'YANDEX_NDD',
         pvzId: 'pvz-widget-id',
-        raw: { id: 'pvz-widget-id', point_id: 'pvz-widget-id' },
+        raw: { id: 'pvz-widget-id', operator_station_id: '10035218565' },
         addressFull: 'Москва, ул. Пример, 1'
       }
     });
 
   assert.equal(dropoffResponse.status, 200);
-  assert.equal(sellerDeliveryUpserts.length, 0);
   assert.equal(dropoffResponse.body?.data?.defaultDropoffPvzId, 'pvz-widget-id');
+  assert.equal((sellerDeliveryUpserts[0] as any).update.dropoffStationId, '10035218565');
+  assert.equal((sellerDeliveryUpserts[0] as any).update.dropoffStationMeta.raw.operator_station_id, '10035218565');
 });
 
 test('settings returns both source platform station and dropoff pvz separately', async () => {
@@ -108,7 +109,7 @@ test('settings returns both source platform station and dropoff pvz separately',
   });
   (prisma.sellerDeliveryProfile.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({
     sellerId: 'seller-2',
-    dropoffStationId: 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924',
+    dropoffStationId: '10035218565',
     dropoffStationMeta: { source: 'manual_input' }
   });
 
@@ -120,7 +121,7 @@ test('settings returns both source platform station and dropoff pvz separately',
     .set('Authorization', auth);
 
   assert.equal(response.status, 200);
-  assert.equal(response.body?.data?.dropoffStationId, 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924');
+  assert.equal(response.body?.data?.dropoffStationId, '10035218565');
   assert.equal(response.body?.data?.defaultDropoffPvzId, 'pvz-123');
   assert.equal(response.body?.data?.dropoffPvz?.pvzId, 'pvz-123');
 });
@@ -128,11 +129,13 @@ test('settings returns both source platform station and dropoff pvz separately',
 test('dev endpoint sets test station for seller delivery profile', async () => {
   const sellerDeliveryUpserts: unknown[] = [];
 
+  process.env.YANDEX_NDD_DEV_OPERATOR_STATION_ID = '10035218565';
+
   (prisma.user.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ role: 'SELLER' });
   (prisma.sellerProfile.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ id: 'sp-1' });
   (prisma.sellerDeliveryProfile.upsert as unknown as (...args: unknown[]) => unknown) = async (args: unknown) => {
     sellerDeliveryUpserts.push(args);
-    return { sellerId: 'seller-2', dropoffStationId: '' };
+    return { sellerId: 'seller-2', dropoffStationId: '10035218565' };
   };
 
   const app = buildApp();
@@ -144,7 +147,7 @@ test('dev endpoint sets test station for seller delivery profile', async () => {
     .send({});
 
   assert.equal(response.status, 200);
-  assert.equal((sellerDeliveryUpserts[0] as any).update.dropoffStationId, 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924');
+  assert.equal((sellerDeliveryUpserts[0] as any).update.dropoffStationId, '10035218565');
 });
 
 test('manual source_platform_station is validated and saved to seller delivery profile', async () => {
