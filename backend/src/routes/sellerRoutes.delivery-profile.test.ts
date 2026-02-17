@@ -6,6 +6,7 @@ import request from 'supertest';
 import { sellerRoutes } from './sellerRoutes';
 import { prisma } from '../lib/prisma';
 import { env } from '../config/env';
+import { yandexDeliveryService } from '../services/yandexDeliveryService';
 
 const buildApp = () => {
   const app = express();
@@ -61,7 +62,7 @@ test('creates default seller delivery profile on onboarding when profile is abse
   });
 });
 
-test('returns OPERATOR_STATION_ID_MISSING when dropoff pvz has no station id', async () => {
+test('returns SELLER_DROPOFF_POINT_UNSUPPORTED when pickup point lookup has no station id', async () => {
   const sellerDeliveryUpserts: unknown[] = [];
 
   (prisma.user.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ role: 'SELLER' });
@@ -75,6 +76,10 @@ test('returns OPERATOR_STATION_ID_MISSING when dropoff pvz has no station id', a
     sellerDeliveryUpserts.push(args);
     return { sellerId: 'seller-2', dropoffStationId: '' };
   };
+  (yandexDeliveryService.getPickupPointDetails as unknown as (...args: unknown[]) => unknown) = async () => ({
+    point: { id: 'f2330eea-c993-4f50-9def-1af3d940cf2b' },
+    stationId: null
+  });
 
   const app = buildApp();
   const auth = `Bearer ${tokenFor('seller-2')}`;
@@ -96,12 +101,12 @@ test('returns OPERATOR_STATION_ID_MISSING when dropoff pvz has no station id', a
     });
 
   assert.equal(dropoffResponse.status, 400);
-  assert.equal(dropoffResponse.body?.error?.code, 'OPERATOR_STATION_ID_MISSING');
+  assert.equal(dropoffResponse.body?.error?.code, 'SELLER_DROPOFF_POINT_UNSUPPORTED');
   assert.equal(sellerDeliveryUpserts.length, 1);
 });
 
 
-test('accepts uuid station id in test NDD environment', async () => {
+test('saves station id resolved by pickup point lookup', async () => {
   const sellerDeliveryUpserts: unknown[] = [];
 
   (prisma.user.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ role: 'SELLER' });
@@ -115,6 +120,10 @@ test('accepts uuid station id in test NDD environment', async () => {
     sellerDeliveryUpserts.push(args);
     return { sellerId: 'seller-2', dropoffStationId: '' };
   };
+  (yandexDeliveryService.getPickupPointDetails as unknown as (...args: unknown[]) => unknown) = async () => ({
+    point: { id: 'f2330eea-c993-4f50-9def-1af3d940cf2b', platform_station_id: 'f2330eea-c993-4f50-9def-1af3d940cf2b' },
+    stationId: 'f2330eea-c993-4f50-9def-1af3d940cf2b'
+  });
 
   const app = buildApp();
   const auth = `Bearer ${tokenFor('seller-2')}`;
@@ -128,9 +137,7 @@ test('accepts uuid station id in test NDD environment', async () => {
       dropoffPvz: {
         provider: 'YANDEX_NDD',
         pvzId: 'f2330eea-c993-4f50-9def-1af3d940cf2b',
-        raw: {
-          operator_station_id: 'f2330eea-c993-4f50-9def-1af3d940cf2b'
-        },
+        raw: {},
         addressFull: 'Москва, ул. Пример, 1'
       }
     });
@@ -154,6 +161,14 @@ test('ensures seller delivery profile on settings and saves operator_station_id 
     sellerDeliveryUpserts.push(args);
     return { sellerId: 'seller-2', dropoffStationId: '' };
   };
+  (yandexDeliveryService.getPickupPointDetails as unknown as (...args: unknown[]) => unknown) = async () => ({
+    point: {
+      id: 'pvz-detail-id',
+      station_id: '123456',
+      platform_station_id: '123456'
+    },
+    stationId: '123456'
+  });
 
   const app = buildApp();
   const auth = `Bearer ${tokenFor('seller-2')}`;
@@ -197,6 +212,8 @@ test('ensures seller delivery profile on settings and saves operator_station_id 
   assert.equal(secondUpsert.update.dropoffStationId, '123456');
   assert.equal(secondUpsert.create.dropoffStationMeta.pvzId, 'pvz-detail-id');
   assert.equal(secondUpsert.create.dropoffStationMeta.raw.platform_station_id, '123456');
+  assert.equal(secondUpsert.create.dropoffStationMeta.resolvedStationId, '123456');
+  assert.equal(secondUpsert.create.dropoffStationMeta.source, 'pickup_points_lookup');
   assert.equal(secondUpsert.create.dropoffStationMeta.raw.pvzId, 'pvz-detail-id');
   assert.equal(secondUpsert.update.dropoffStationMeta.raw.platform_station_id, '123456');
 });

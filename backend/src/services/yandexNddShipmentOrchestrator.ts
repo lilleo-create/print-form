@@ -2,7 +2,7 @@ import { prisma } from '../lib/prisma';
 import { orderDeliveryService } from './orderDeliveryService';
 import { mapYandexStatusToInternal, shipmentService } from './shipmentService';
 import { yandexNddClient } from './yandexNdd/YandexNddClient';
-import { getOperatorStationId, normalizeStationId } from './yandexNdd/getOperatorStationId';
+import { normalizeStationId } from './yandexNdd/getOperatorStationId';
 import { getYandexNddConfig, isYandexNddTestEnvironment } from '../config/yandexNdd';
 
 const pickBestOffer = (response: Record<string, unknown>) => {
@@ -139,7 +139,7 @@ export const yandexNddShipmentOrchestrator = {
 
     if (!order) throw new Error('ORDER_NOT_FOUND');
     if (order.status !== 'PAID' || !order.paidAt) throw new Error('ORDER_NOT_PAID');
-    if (!order.sellerDropoffPvzId || !order.buyerPickupPvzId) throw new Error('PICKUP_POINT_REQUIRED');
+    if (!order.buyerPickupPvzId) throw new Error('PICKUP_POINT_REQUIRED');
 
     const deliveryMap = await orderDeliveryService.getByOrderIds([orderId]);
     const delivery = deliveryMap.get(orderId);
@@ -166,51 +166,25 @@ export const yandexNddShipmentOrchestrator = {
     }
 
     const stationIdPolicy = resolveStationIdPolicy();
-    const fromOrderRaw = getOperatorStationId((order.sellerDropoffPvzMeta as Record<string, unknown> | null)?.raw, stationIdPolicy);
-    const fromOrderMeta = getOperatorStationId(order.sellerDropoffPvzMeta, stationIdPolicy);
-    const fromProfileRaw = getOperatorStationId((sellerDeliveryProfile?.dropoffStationMeta as Record<string, unknown> | null)?.raw, stationIdPolicy);
-    const fromProfileMeta = getOperatorStationId(sellerDeliveryProfile?.dropoffStationMeta, stationIdPolicy);
     const profileDropoffRaw = sellerDeliveryProfile?.dropoffStationId?.trim() || null;
     const fromProfileId = normalizeStationId(profileDropoffRaw, stationIdPolicy);
     const profileDropoffLooksLikePvz = Boolean(profileDropoffRaw && !fromProfileId);
 
-    const candidates: Array<{ value: string | null; source: 'order.meta.raw' | 'order.meta' | 'profile.meta.raw' | 'profile.meta' | 'profile.dropoffStationId' }> = [
-      { value: fromOrderRaw, source: 'order.meta.raw' },
-      { value: fromOrderMeta, source: 'order.meta' },
-      { value: fromProfileRaw, source: 'profile.meta.raw' },
-      { value: fromProfileMeta, source: 'profile.meta' },
-      { value: fromProfileId, source: 'profile.dropoffStationId' }
-    ];
-
     console.info('[READY_TO_SHIP] station candidates', {
-      fromOrderRaw,
-      fromOrderMeta,
-      fromProfileRaw,
-      fromProfileMeta,
       profileDropoffRaw,
       fromProfileId,
       profileDropoffLooksLikePvz
     });
 
-    let sourceStationId: string | null = null;
-    let sourceStationFrom: 'order.meta.raw' | 'order.meta' | 'profile.meta.raw' | 'profile.meta' | 'profile.dropoffStationId' | 'none' = 'none';
-
-    for (const candidate of candidates) {
-      if (candidate.value) {
-        sourceStationId = candidate.value;
-        sourceStationFrom = candidate.source;
-        break;
-      }
-    }
+    const sourceStationId = fromProfileId;
+    const sourceStationFrom: 'profile.dropoffStationId' | 'none' = sourceStationId
+      ? 'profile.dropoffStationId'
+      : 'none';
 
     if (!sourceStationId) {
       console.error('[READY_TO_SHIP] SELLER_STATION_ID_REQUIRED', {
         sellerId,
         orderId,
-        fromOrderRaw,
-        fromOrderMeta,
-        fromProfileRaw,
-        fromProfileMeta,
         profileDropoffRaw,
         fromProfileId,
         profileDropoffLooksLikePvz
