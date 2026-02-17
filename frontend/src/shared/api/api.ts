@@ -292,6 +292,17 @@ export const api = {
     return apiClient.request<SellerDeliveryProfile | null>('/seller/settings');
   },
 
+
+  async updateSourcePlatformStation(sourcePlatformStation: string) {
+    return apiClient.request<SellerDeliveryProfile>(
+      '/seller/settings/source-platform-station',
+      {
+        method: 'PUT',
+        body: { source_platform_station: sourcePlatformStation }
+      }
+    );
+  },
+
   async updateSellerDeliveryProfile(payload: {
     dropoffPvz: {
       provider: 'YANDEX_NDD';
