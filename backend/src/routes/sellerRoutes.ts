@@ -544,8 +544,29 @@ const sellerDeliveryProfileSchema = z.object({
 sellerRoutes.get('/settings', async (req: AuthRequest, res, next) => {
   try {
     await ensureSellerDeliveryProfile(req.user!.userId);
-    const settings = await prisma.sellerSettings.findUnique({ where: { sellerId: req.user!.userId } });
-    res.json({ data: settings });
+    const [settings, deliveryProfile] = await Promise.all([
+      prisma.sellerSettings.findUnique({ where: { sellerId: req.user!.userId } }),
+      prisma.sellerDeliveryProfile.findUnique({ where: { sellerId: req.user!.userId } })
+    ]);
+
+    res.json({
+      data: {
+        ...(settings ?? { sellerId: req.user!.userId }),
+        dropoffStationId: deliveryProfile?.dropoffStationId ?? '',
+        dropoffStationMeta: deliveryProfile?.dropoffStationMeta ?? null,
+        dropoffPvz: settings?.defaultDropoffPvzId
+          ? {
+              provider: 'YANDEX_NDD',
+              pvzId: settings.defaultDropoffPvzId,
+              raw: settings.defaultDropoffPvzMeta,
+              addressFull:
+                typeof settings.defaultDropoffPvzMeta === 'object' && settings.defaultDropoffPvzMeta
+                  ? String((settings.defaultDropoffPvzMeta as Record<string, unknown>).addressFull ?? '')
+                  : undefined
+            }
+          : null
+      }
+    });
   } catch (error) {
     next(error);
   }
@@ -588,38 +609,11 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
       rawKeys: Object.keys(rawDetail ?? {})
     });
 
-    const pickupPointDetails = await yandexDeliveryService.getPickupPointDetails(detailId);
-
-    console.info('[DROP_OFF_PVZ] lookup result', {
-      pvzId: detailId,
-      found: Boolean(pickupPointDetails),
-      stationId: pickupPointDetails?.stationId ?? null,
-      pointKeys: pickupPointDetails ? Object.keys(pickupPointDetails.point ?? {}) : []
-    });
-
-    if (!pickupPointDetails?.stationId) {
-      return res.status(400).json({
-        error: {
-          code: 'SELLER_DROPOFF_POINT_UNSUPPORTED',
-          message: 'выбранный пункт нельзя использовать как точку отправления, выберите другой'
-        }
-      });
-    }
-
-    const stationId = pickupPointDetails.stationId;
-
     const normalizedRaw = {
       ...(rawDetail ?? {}),
-      pvzId: detailId,
-      lookup_point: pickupPointDetails.point,
-      platform_station_id: stationId,
-      station_id: stationId
+      pvzId: detailId
     };
 
-    console.info('[DROP_OFF_PVZ] saved resolved station', {
-      pvzId: detailId,
-      resolvedDropoffStationId: stationId
-    });
     const dropoffPvzMeta = {
       ...payload.dropoffPvz,
       pvzId: detailId,
@@ -639,16 +633,6 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
       }
     });
 
-    await sellerDeliveryProfileService.upsert(req.user!.userId, {
-      dropoffStationId: stationId,
-      dropoffStationMeta: {
-        ...dropoffPvzMeta,
-        resolvedStationId: stationId,
-        source: 'pickup_points_lookup',
-        point: pickupPointDetails.point
-      } as Record<string, unknown>
-    });
-
     res.json({ data: settings });
   } catch (error) {
     next(error);
@@ -662,36 +646,15 @@ sellerRoutes.post('/settings/dropoff-pvz/test-station', writeLimiter, async (req
       return res.status(403).json({ error: { code: 'FORBIDDEN' } });
     }
 
-    const dropoffPvzMeta = {
-      provider: 'YANDEX_NDD',
-      pvzId: 'ndd-test-station',
-      raw: {
+    await sellerDeliveryProfileService.upsert(req.user!.userId, {
+      dropoffStationId: NDD_TEST_PLATFORM_STATION_ID,
+      dropoffStationMeta: {
         source: 'dev-endpoint',
-        station_id: NDD_TEST_PLATFORM_STATION_ID,
-        platform_station_id: NDD_TEST_PLATFORM_STATION_ID
-      },
-      addressFull: 'NDD test platform station'
-    };
-
-    const settings = await prisma.sellerSettings.upsert({
-      where: { sellerId: req.user!.userId },
-      create: {
-        sellerId: req.user!.userId,
-        defaultDropoffPvzId: 'ndd-test-station',
-        defaultDropoffPvzMeta: dropoffPvzMeta as unknown as object
-      },
-      update: {
-        defaultDropoffPvzId: 'ndd-test-station',
-        defaultDropoffPvzMeta: dropoffPvzMeta as unknown as object
+        sourcePlatformStation: NDD_TEST_PLATFORM_STATION_ID
       }
     });
 
-    await sellerDeliveryProfileService.upsert(req.user!.userId, {
-      dropoffStationId: NDD_TEST_PLATFORM_STATION_ID,
-      dropoffStationMeta: dropoffPvzMeta as Record<string, unknown>
-    });
-
-    return res.json({ data: settings });
+    return res.json({ data: { source_platform_station: NDD_TEST_PLATFORM_STATION_ID } });
   } catch (error) {
     return next(error);
   }
