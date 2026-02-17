@@ -17,7 +17,7 @@ import { payoutService } from '../services/payoutService';
 import { shipmentService } from '../services/shipmentService';
 import { yandexDeliveryService } from '../services/yandexDeliveryService';
 import { sellerOrderDocumentsService } from '../services/sellerOrderDocumentsService';
-import { getOperatorStationId, normalizeStationId } from '../services/yandexNdd/getOperatorStationId';
+import { getOperatorStationId } from '../services/yandexNdd/getOperatorStationId';
 import { getYandexNddConfig, isYandexNddTestEnvironment, NDD_TEST_PLATFORM_STATION_ID } from '../config/yandexNdd';
 
 export const sellerRoutes = Router();
@@ -537,37 +537,33 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
     const detailId = rawDetail && typeof rawDetail.id === 'string' && rawDetail.id.trim()
       ? rawDetail.id.trim()
       : payload.dropoffPvz.pvzId;
-    console.info('[DROP_OFF_PVZ] rawDetail preview', {
-      operator_station_id: rawDetail?.operator_station_id,
-      station_id: rawDetail?.station_id,
-      data: rawDetail?.data,
-      pickup_point: rawDetail?.pickup_point,
-      point: rawDetail?.point
-    });
     const stationIdPolicy = resolveStationIdPolicy();
+    const detectedEnvironment = stationIdPolicy.allowUuid ? 'test' : 'production';
     const stationIdFromRaw = getOperatorStationId(rawDetail, stationIdPolicy) ?? undefined;
-    const stationIdFromPvzId = normalizeStationId(payload.dropoffPvz.pvzId, { allowUuid: false }) ?? undefined;
-    const stationIdFromTestFallback = !stationIdFromRaw && !stationIdFromPvzId && stationIdPolicy.allowUuid
-      ? NDD_TEST_PLATFORM_STATION_ID
-      : undefined;
-    const stationId = stationIdFromRaw ?? stationIdFromPvzId ?? stationIdFromTestFallback;
-    console.info('[DROP_OFF_PVZ] parsed', {
-      pvzId: detailId,
-      stationId,
-      stationIdFromRaw,
-      stationIdFromPvzId,
-      stationIdFromTestFallback,
-      rawKeys: Object.keys(rawDetail ?? {})
-    });
 
-    if (!stationIdFromRaw && !stationIdFromPvzId && !stationIdFromTestFallback) {
+    if (!stationIdFromRaw) {
+      console.info('[DROP_OFF_PVZ] OPERATOR_STATION_ID_MISSING', {
+        pvzId: detailId,
+        detectedEnvironment,
+        rawKeys: Object.keys(rawDetail ?? {}),
+        rawPreview: {
+          operator_station_id: rawDetail?.operator_station_id,
+          platform_station_id: rawDetail?.platform_station_id,
+          station_id: rawDetail?.station_id,
+          data: rawDetail?.data,
+          pickup_point: rawDetail?.pickup_point,
+          point: rawDetail?.point
+        }
+      });
       return res.status(400).json({
         error: {
-          code: 'STATION_ID_MISSING',
-          message: 'Выбранная точка не содержит station id/platform_station_id для отгрузки. Выберите другую точку или проверьте raw в виджете.'
+          code: 'OPERATOR_STATION_ID_MISSING',
+          message: 'Не удалось определить station_id/platform_station_id для точки отгрузки. Выберите точку заново и проверьте данные из виджета.'
         }
       });
     }
+
+    const stationId = stationIdFromRaw;
 
     if (!stationId) {
       return res.status(400).json({
@@ -583,9 +579,15 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
     const normalizedRaw = {
       ...(rawDetail ?? {}),
       pvzId: detailId,
-      station_id: stationId,
       platform_station_id: stationId
     };
+
+    console.info('[DROP_OFF_PVZ] saved', {
+      pvzId: detailId,
+      extractedStationId: stationId,
+      rawKeys: Object.keys(rawDetail ?? {}),
+      detectedEnvironment
+    });
     const dropoffPvzMeta = {
       ...payload.dropoffPvz,
       pvzId: detailId,

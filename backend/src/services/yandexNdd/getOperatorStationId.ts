@@ -6,7 +6,7 @@ const asRecord = (value: unknown): Record<string, unknown> | null => {
   return value as Record<string, unknown>;
 };
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[47][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DIGITS_RE = /^\d{6,20}$/;
 
 type StationIdParseOptions = {
@@ -40,22 +40,35 @@ export const getOperatorStationId = (metaRaw: unknown, options: StationIdParseOp
     return null;
   }
 
+  const data = asRecord(raw.data);
+  const pickupPoint = asRecord(raw.pickup_point);
+  const point = asRecord(raw.point);
+
   const candidates: unknown[] = [
-    raw.operator_station_id,
-    raw.operatorStationId,
-    raw.station_id,
-    raw.stationId,
     raw.platform_station_id,
     raw.platformStationId,
-    asRecord(raw.data)?.operator_station_id,
-    asRecord(raw.data)?.station_id,
-    asRecord(raw.data)?.platform_station_id,
-    asRecord(raw.pickup_point)?.operator_station_id,
-    asRecord(raw.pickup_point)?.station_id,
-    asRecord(raw.pickup_point)?.platform_station_id,
-    asRecord(raw.point)?.operator_station_id,
-    asRecord(raw.point)?.station_id,
-    asRecord(raw.point)?.platform_station_id
+    raw.station_id,
+    raw.stationId,
+    raw.operator_station_id,
+    raw.operatorStationId,
+    data?.platform_station_id,
+    data?.platformStationId,
+    data?.station_id,
+    data?.stationId,
+    data?.operator_station_id,
+    data?.operatorStationId,
+    pickupPoint?.platform_station_id,
+    pickupPoint?.platformStationId,
+    pickupPoint?.station_id,
+    pickupPoint?.stationId,
+    pickupPoint?.operator_station_id,
+    pickupPoint?.operatorStationId,
+    point?.platform_station_id,
+    point?.platformStationId,
+    point?.station_id,
+    point?.stationId,
+    point?.operator_station_id,
+    point?.operatorStationId
   ];
 
   for (const candidate of candidates) {

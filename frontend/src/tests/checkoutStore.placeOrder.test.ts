@@ -105,6 +105,33 @@ describe('useCheckoutStore.placeOrder payload', () => {
     await first;
   });
 
+
+  it('shows non-blocking warning when delivery config is missing on startPayment', async () => {
+    vi.mocked(checkoutApi.startPayment).mockResolvedValue({
+      orderId: 'order-1',
+      paymentId: 'pay-1',
+      paymentUrl: 'https://pay',
+      deliveryConfigMissing: true,
+      blockingReason: 'SELLER_DROPOFF_PVZ_REQUIRED'
+    });
+
+    useCheckoutStore.setState({
+      data: {
+        ...baseData,
+        selectedPickupPoint: {
+          provider: 'YANDEX_NDD',
+          pvzId: 'pvz-123',
+          addressFull: 'Москва, ПВЗ 123'
+        }
+      }
+    });
+
+    const result = await useCheckoutStore.getState().placeOrder();
+
+    expect(result?.paymentId).toBe('pay-1');
+    expect(useCheckoutStore.getState().error).toContain('Нужно настроить точку отгрузки продавца');
+  });
+
   it('does not send request when pvzId is missing and sets error', async () => {
     useCheckoutStore.setState({
       data: {

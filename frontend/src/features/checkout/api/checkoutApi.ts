@@ -199,6 +199,8 @@ export const checkoutApi = {
       orderId: string;
       paymentId: string;
       paymentUrl: string;
+      deliveryConfigMissing?: boolean;
+      blockingReason?: 'SELLER_DROPOFF_PVZ_REQUIRED' | null;
     }>('/payments/start', {
       method: 'POST',
       body: payload,

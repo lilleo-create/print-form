@@ -216,7 +216,13 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         }))
       });
 
-      set({ isSubmittingOrder: false });
+      set({
+        isSubmittingOrder: false,
+        error:
+          response.deliveryConfigMissing && response.blockingReason === 'SELLER_DROPOFF_PVZ_REQUIRED'
+            ? 'Нужно настроить точку отгрузки продавца. Оплата доступна, но отгрузка будет заблокирована до настройки.'
+            : null
+      });
       return { orderId: response.orderId, paymentId: response.paymentId, paymentUrl: response.paymentUrl };
     } catch (error) {
       set({
