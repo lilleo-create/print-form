@@ -131,7 +131,7 @@ test('ready-to-ship sends station_id/self_pickup_id and interval_utc from offers
 
 
 
-test('ready-to-ship uses seller delivery profile dropoffStationId even when meta has another station', async () => {
+test('ready-to-ship prioritizes seller delivery profile meta raw station over dropoffStationId', async () => {
   (prisma.order.findFirst as any) = async () => ({
     ...mockPaidOrder('order-from-profile-meta-raw'),
     sellerDropoffPvzMeta: { raw: { id: 'dropoff-1' } }
@@ -160,7 +160,7 @@ test('ready-to-ship uses seller delivery profile dropoffStationId even when meta
   (yandexNddClient.offersConfirm as any) = async () => ({ request_id: 'request-1', status: 'CREATED' });
 
   await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-from-profile-meta-raw');
-  assert.equal(stationId, '999001');
+  assert.equal(stationId, '999000');
 });
 
 test('ready-to-ship uses seller delivery profile station when order meta has no station id', async () => {
@@ -286,11 +286,11 @@ test('ready-to-ship logs explicit warning when profile dropoffStationId is not v
     dropoffStationMeta: { addressFull: 'Москва' }
   });
 
-  const errors: string[] = [];
-  const originalConsoleError = console.error;
-  console.error = ((...args: unknown[]) => {
-    errors.push(String(args[0]));
-  }) as typeof console.error;
+  const warnings: string[] = [];
+  const originalConsoleWarn = console.warn;
+  console.warn = ((...args: unknown[]) => {
+    warnings.push(String(args[0]));
+  }) as typeof console.warn;
 
   try {
     await assert.rejects(
@@ -298,10 +298,10 @@ test('ready-to-ship logs explicit warning when profile dropoffStationId is not v
       /SELLER_STATION_ID_REQUIRED/
     );
   } finally {
-    console.error = originalConsoleError;
+    console.warn = originalConsoleWarn;
   }
 
-  assert.ok(errors.some((entry) => entry.includes('dropoffStationId is present but not a valid station_id')));
+  assert.ok(warnings.some((entry) => entry.includes('dropoffStationId looks like pickup_point_id')));
 });
 
 test('ready-to-ship when NDD returns 400 variant maps NDD_OFFER_CREATE_FAILED', async () => {
@@ -378,40 +378,3 @@ test('ready-to-ship is idempotent and returns existing shipment', async () => {
   assert.equal(offersInfoCalled, 0);
 });
 
-
-test('ready-to-ship uses default platform station from config in test environment when seller station is missing', async () => {
-  process.env.NODE_ENV = 'test';
-  process.env.YANDEX_NDD_DEFAULT_PLATFORM_STATION_ID = '777888';
-  (prisma.sellerDeliveryProfile.findUnique as any) = async () => ({ dropoffStationId: '', dropoffStationMeta: null });
-  (prisma.order.findFirst as any) = async () => mockPaidOrder('order-default-station');
-
-  const deliveryServiceModule = await import('./orderDeliveryService');
-  (deliveryServiceModule.orderDeliveryService.getByOrderIds as any) = async () =>
-    new Map([['order-default-station', { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: 'pickup-1' } }]]);
-
-  const shipmentModule = await import('./shipmentService');
-  (shipmentModule.shipmentService.getByOrderId as any) = async () => null;
-  (shipmentModule.shipmentService.upsertForOrder as any) = async (payload: Record<string, unknown>) => ({ id: 'shipment-1', ...payload });
-  (shipmentModule.shipmentService.pushHistory as any) = async () => undefined;
-  (prisma.order.update as any) = async () => ({ id: 'order-default-station' });
-
-  let stationId: string | null = null;
-  (yandexNddClient.offersInfo as any) = async (src: string) => {
-    stationId = src;
-    return { intervals_utc: [{ from: 1, to: 2 }] };
-  };
-  (yandexNddClient.offersCreate as any) = async () => ({ offer_id: 'offer-1' });
-  (yandexNddClient.offersConfirm as any) = async () => ({ request_id: 'request-1', status: 'CREATED' });
-
-  await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-default-station');
-  assert.equal(stationId, '777888');
-});
-
-test('ready-to-ship does not use default platform station in production', async () => {
-  process.env.NODE_ENV = 'production';
-  process.env.YANDEX_NDD_DEFAULT_PLATFORM_STATION_ID = '777888';
-  (prisma.sellerDeliveryProfile.findUnique as any) = async () => ({ dropoffStationId: '', dropoffStationMeta: null });
-  (prisma.order.findFirst as any) = async () => mockPaidOrder('order-default-prod');
-
-  await assert.rejects(() => yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-default-prod'), /SELLER_STATION_ID_REQUIRED/);
-});

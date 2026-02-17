@@ -2,14 +2,14 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 
 type SellerDeliveryProfilePayload = {
-  dropoffStationId: string;
+  dropoffStationId: string | null;
   dropoffStationMeta?: Record<string, unknown>;
 };
 
 const toDto = (profile: {
   id: string;
   sellerId: string;
-  dropoffStationId: string;
+  dropoffStationId: string | null;
   dropoffStationMeta: unknown;
   createdAt: Date;
   updatedAt: Date;

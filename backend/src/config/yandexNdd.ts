@@ -6,22 +6,19 @@ export type YandexNddConfig = {
   defaultPlatformStationId?: string;
 };
 
-export const NDD_TEST_PLATFORM_STATION_ID = 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924';
-
 export const isYandexNddTestEnvironment = (baseUrl: string): boolean => {
   const normalized = baseUrl.toLowerCase();
   return normalized.includes('.tst.yandex.net');
 };
 
 export const getYandexNddConfig = (): YandexNddConfig => {
-  const rawBaseUrl = process.env.YANDEX_NDD_BASE_URL || 'https://b2b.taxi.tst.yandex.net';
+  const rawBaseUrl = process.env.YANDEX_NDD_BASE_URL || 'https://b2b-authproxy.taxi.yandex.net';
   const baseUrl = rawBaseUrl.replace(/\/api\/?$/, '');
   const token = process.env.YANDEX_NDD_TOKEN || '';
   const lang = process.env.YANDEX_NDD_LANG || 'ru';
   const defaultPlatformStationId =
     process.env.YANDEX_NDD_DEFAULT_PLATFORM_STATION_ID ||
-    process.env.YANDEX_NDD_PLATFORM_STATION_ID ||
-    (isYandexNddTestEnvironment(baseUrl) ? NDD_TEST_PLATFORM_STATION_ID : undefined);
+    process.env.YANDEX_NDD_PLATFORM_STATION_ID;
 
   // Никаких падений сервера из-за пустого токена
   if (!token) {

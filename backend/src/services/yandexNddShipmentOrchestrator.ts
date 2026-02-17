@@ -2,8 +2,7 @@ import { prisma } from '../lib/prisma';
 import { orderDeliveryService } from './orderDeliveryService';
 import { mapYandexStatusToInternal, shipmentService } from './shipmentService';
 import { yandexNddClient } from './yandexNdd/YandexNddClient';
-import { normalizeStationId } from './yandexNdd/getOperatorStationId';
-import { getYandexNddConfig, isYandexNddTestEnvironment } from '../config/yandexNdd';
+import { getOperatorStationId, normalizeDigitsStation } from './yandexNdd/getOperatorStationId';
 
 const pickBestOffer = (response: Record<string, unknown>) => {
   const offers = (response.offers as Record<string, unknown>[] | undefined) ?? [];
@@ -67,13 +66,6 @@ const extractIntervalUtc = (
 
   return null;
 };
-
-const resolveStationIdPolicy = () => {
-  const { baseUrl } = getYandexNddConfig();
-  return { allowUuid: isYandexNddTestEnvironment(baseUrl) };
-};
-
-const canUseDefaultStationFallback = () => process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
 
 const parseRecipientName = (order: any) => {
   const rawName =
@@ -157,35 +149,32 @@ export const yandexNddShipmentOrchestrator = {
       select: { dropoffStationId: true, dropoffStationMeta: true }
     });
 
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('[READY_TO_SHIP][ctx]', {
-        sellerId,
-        orderId,
-        orderSellerDropoffPvzId: (order as any).sellerDropoffPvzId,
-        hasSellerProfile: Boolean(sellerDeliveryProfile),
-        sellerProfileDropoffStationId: sellerDeliveryProfile?.dropoffStationId ?? null
-      });
-    }
-
-    const stationIdPolicy = resolveStationIdPolicy();
-    const profileDropoffRaw = sellerDeliveryProfile?.dropoffStationId?.trim() || null;
-    const fromProfileId = normalizeStationId(profileDropoffRaw, stationIdPolicy);
-    const profileDropoffLooksLikePvz = Boolean(profileDropoffRaw && !fromProfileId);
-
-    console.info('[READY_TO_SHIP] station candidates', {
-      profileDropoffRaw,
-      fromProfileId,
-      profileDropoffLooksLikePvz
+    console.info('[READY_TO_SHIP][ctx]', {
+      sellerId,
+      orderId,
+      orderSellerDropoffPvzId: (order as any).sellerDropoffPvzId,
+      hasSellerProfile: Boolean(sellerDeliveryProfile),
+      sellerProfileDropoffStationId: sellerDeliveryProfile?.dropoffStationId ?? null
     });
 
-    const configuredDefaultStationId = getYandexNddConfig().defaultPlatformStationId;
-    const fallbackDefaultStationId = normalizeStationId(configuredDefaultStationId, stationIdPolicy);
-    const sourceStationId = fromProfileId ?? (canUseDefaultStationFallback() ? fallbackDefaultStationId : null);
-    const sourceStationFrom: 'profile.dropoffStationId' | 'config.defaultPlatformStationId' | 'none' = fromProfileId
+    const profileDropoffRaw = sellerDeliveryProfile?.dropoffStationId?.trim() || null;
+    const fromProfileMetaRaw = getOperatorStationId(sellerDeliveryProfile?.dropoffStationMeta && typeof sellerDeliveryProfile.dropoffStationMeta === 'object'
+      ? (sellerDeliveryProfile.dropoffStationMeta as Record<string, unknown>).raw
+      : null, { allowUuid: false });
+    const fromProfileId = normalizeDigitsStation(profileDropoffRaw);
+
+    if (profileDropoffRaw && !fromProfileId) {
+      console.warn('[READY_TO_SHIP] dropoffStationId looks like pickup_point_id, expected operator_station_id digits');
+    }
+
+    const sourceStationId = fromProfileMetaRaw ?? fromProfileId;
+    const sourceStationFrom: 'profile.meta.raw' | 'profile.dropoffStationId' | 'none' = fromProfileMetaRaw
+      ? 'profile.meta.raw'
+      : fromProfileId
       ? 'profile.dropoffStationId'
-      : sourceStationId
-      ? 'config.defaultPlatformStationId'
       : 'none';
+
+    console.info('[READY_TO_SHIP] station resolved', { sourceStationId, from: sourceStationFrom });
 
     if (!sourceStationId) {
       console.error('[READY_TO_SHIP] SELLER_STATION_ID_REQUIRED', {
@@ -193,14 +182,8 @@ export const yandexNddShipmentOrchestrator = {
         orderId,
         profileDropoffRaw,
         fromProfileId,
-        profileDropoffLooksLikePvz,
-        configuredDefaultStationId,
-        fallbackDefaultStationId,
         nodeEnv: process.env.NODE_ENV
       });
-      if (profileDropoffLooksLikePvz) {
-        console.error('[READY_TO_SHIP] dropoffStationId is present but not a valid station_id/platform_station_id');
-      }
       throw new Error('SELLER_STATION_ID_REQUIRED');
     }
 
@@ -213,11 +196,7 @@ export const yandexNddShipmentOrchestrator = {
       });
     }
 
-    console.info('[NDD] using station_id', {
-      station_id: sourceStationId,
-      self_pickup_id: order.buyerPickupPvzId,
-      source: sourceStationFrom
-    });
+    console.info('[NDD] using ids', { station_id: sourceStationId, self_pickup_id: order.buyerPickupPvzId });
 
     const offersInfo = await yandexNddClient.offersInfo(
       sourceStationId,

@@ -31,6 +31,19 @@ export const normalizeStationId = (value: unknown, options: StationIdParseOption
   return trimmed;
 };
 
+export const normalizeDigitsStation = (value: unknown): string | null => {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed || !/^\d+$/.test(trimmed)) {
+    return null;
+  }
+
+  return trimmed;
+};
+
 export const isValidStationId = (value: unknown, options: StationIdParseOptions = {}): boolean =>
   normalizeStationId(value, options) !== null;
 
