@@ -8,6 +8,8 @@ const sellerId = 'seller-1';
 
 test.beforeEach(() => {
   delete process.env.YANDEX_NDD_OPERATOR_STATION_ID;
+  delete process.env.YANDEX_NDD_DEFAULT_PLATFORM_STATION_ID;
+  delete process.env.YANDEX_NDD_PLATFORM_STATION_ID;
   (prisma.sellerDeliveryProfile.findUnique as any) = async () => ({
     dropoffStationId: '10022023854',
     dropoffStationMeta: null
@@ -261,6 +263,7 @@ test('ready-to-ship ignores blank env override and uses profile station', async 
 });
 
 test('ready-to-ship fails with SELLER_STATION_ID_REQUIRED when station id is missing', async () => {
+  process.env.NODE_ENV = 'production';
   delete process.env.YANDEX_NDD_OPERATOR_STATION_ID;
   (prisma.sellerDeliveryProfile.findUnique as any) = async () => null;
   (prisma.order.findFirst as any) = async () => ({
@@ -272,6 +275,7 @@ test('ready-to-ship fails with SELLER_STATION_ID_REQUIRED when station id is mis
 });
 
 test('ready-to-ship logs explicit warning when profile dropoffStationId is not valid station id', async () => {
+  process.env.NODE_ENV = 'production';
   delete process.env.YANDEX_NDD_OPERATOR_STATION_ID;
   (prisma.order.findFirst as any) = async () => ({
     ...mockPaidOrder('order-profile-pvz-uuid'),
@@ -372,4 +376,42 @@ test('ready-to-ship is idempotent and returns existing shipment', async () => {
   const result = await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-1');
   assert.equal(result.id, 'ship-existing');
   assert.equal(offersInfoCalled, 0);
+});
+
+
+test('ready-to-ship uses default platform station from config in test environment when seller station is missing', async () => {
+  process.env.NODE_ENV = 'test';
+  process.env.YANDEX_NDD_DEFAULT_PLATFORM_STATION_ID = '777888';
+  (prisma.sellerDeliveryProfile.findUnique as any) = async () => ({ dropoffStationId: '', dropoffStationMeta: null });
+  (prisma.order.findFirst as any) = async () => mockPaidOrder('order-default-station');
+
+  const deliveryServiceModule = await import('./orderDeliveryService');
+  (deliveryServiceModule.orderDeliveryService.getByOrderIds as any) = async () =>
+    new Map([['order-default-station', { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: 'pickup-1' } }]]);
+
+  const shipmentModule = await import('./shipmentService');
+  (shipmentModule.shipmentService.getByOrderId as any) = async () => null;
+  (shipmentModule.shipmentService.upsertForOrder as any) = async (payload: Record<string, unknown>) => ({ id: 'shipment-1', ...payload });
+  (shipmentModule.shipmentService.pushHistory as any) = async () => undefined;
+  (prisma.order.update as any) = async () => ({ id: 'order-default-station' });
+
+  let stationId: string | null = null;
+  (yandexNddClient.offersInfo as any) = async (src: string) => {
+    stationId = src;
+    return { intervals_utc: [{ from: 1, to: 2 }] };
+  };
+  (yandexNddClient.offersCreate as any) = async () => ({ offer_id: 'offer-1' });
+  (yandexNddClient.offersConfirm as any) = async () => ({ request_id: 'request-1', status: 'CREATED' });
+
+  await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-default-station');
+  assert.equal(stationId, '777888');
+});
+
+test('ready-to-ship does not use default platform station in production', async () => {
+  process.env.NODE_ENV = 'production';
+  process.env.YANDEX_NDD_DEFAULT_PLATFORM_STATION_ID = '777888';
+  (prisma.sellerDeliveryProfile.findUnique as any) = async () => ({ dropoffStationId: '', dropoffStationMeta: null });
+  (prisma.order.findFirst as any) = async () => mockPaidOrder('order-default-prod');
+
+  await assert.rejects(() => yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-default-prod'), /SELLER_STATION_ID_REQUIRED/);
 });

@@ -133,11 +133,10 @@ test('webhook success makes order PAID and sets paidAt', async () => {
 });
 
 
-test('startPayment allows checkout when seller dropoff config is missing and returns warning flags', async () => {
+test('startPayment allows checkout when seller dropoff config is missing without blocking flags', async () => {
   (prisma.order.findFirst as any) = async () => null;
   (prisma.product.findFirst as any) = async () => ({ sellerId: 'seller-1' });
   (prisma.sellerSettings.findUnique as any) = async () => ({ defaultDropoffPvzId: null, defaultDropoffPvzMeta: null });
-  (prisma.sellerDeliveryProfile.findUnique as any) = async () => ({ dropoffStationId: '' });
 
   let createdPayload: any = null;
   (orderUseCases.create as any) = async (payload: any) => {
@@ -179,6 +178,6 @@ test('startPayment allows checkout when seller dropoff config is missing and ret
   const result = await paymentFlowService.startPayment({ ...inputBase, paymentAttemptKey: 'attempt-missing-dropoff' });
 
   assert.equal(createdPayload.sellerDropoffPvz, undefined);
-  assert.equal(result.deliveryConfigMissing, true);
-  assert.equal(result.blockingReason, 'SELLER_DROPOFF_PVZ_REQUIRED');
+  assert.equal(result.deliveryConfigMissing, false);
+  assert.equal(result.blockingReason, null);
 });

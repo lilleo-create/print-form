@@ -73,6 +73,8 @@ const resolveStationIdPolicy = () => {
   return { allowUuid: isYandexNddTestEnvironment(baseUrl) };
 };
 
+const canUseDefaultStationFallback = () => process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
+
 const parseRecipientName = (order: any) => {
   const rawName =
     order.recipientName ??
@@ -176,9 +178,13 @@ export const yandexNddShipmentOrchestrator = {
       profileDropoffLooksLikePvz
     });
 
-    const sourceStationId = fromProfileId;
-    const sourceStationFrom: 'profile.dropoffStationId' | 'none' = sourceStationId
+    const configuredDefaultStationId = getYandexNddConfig().defaultPlatformStationId;
+    const fallbackDefaultStationId = normalizeStationId(configuredDefaultStationId, stationIdPolicy);
+    const sourceStationId = fromProfileId ?? (canUseDefaultStationFallback() ? fallbackDefaultStationId : null);
+    const sourceStationFrom: 'profile.dropoffStationId' | 'config.defaultPlatformStationId' | 'none' = fromProfileId
       ? 'profile.dropoffStationId'
+      : sourceStationId
+      ? 'config.defaultPlatformStationId'
       : 'none';
 
     if (!sourceStationId) {
@@ -187,7 +193,10 @@ export const yandexNddShipmentOrchestrator = {
         orderId,
         profileDropoffRaw,
         fromProfileId,
-        profileDropoffLooksLikePvz
+        profileDropoffLooksLikePvz,
+        configuredDefaultStationId,
+        fallbackDefaultStationId,
+        nodeEnv: process.env.NODE_ENV
       });
       if (profileDropoffLooksLikePvz) {
         console.error('[READY_TO_SHIP] dropoffStationId is present but not a valid station_id/platform_station_id');

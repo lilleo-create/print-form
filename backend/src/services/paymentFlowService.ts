@@ -145,8 +145,8 @@ export const paymentFlowService = {
     const existingOrder = await prisma.order.findFirst({ where: { buyerId: input.buyerId, paymentAttemptKey: input.paymentAttemptKey } });
 
     let order = existingOrder;
-    let deliveryConfigMissing = false;
-    let blockingReason: 'SELLER_DROPOFF_PVZ_REQUIRED' | null = null;
+    const deliveryConfigMissing = false;
+    const blockingReason: null = null;
 
     if (!order) {
       const product = await prisma.product.findFirst({
@@ -158,16 +158,6 @@ export const paymentFlowService = {
       }
 
       const sellerSettings = await prisma.sellerSettings.findUnique({ where: { sellerId: product.sellerId } });
-      const sellerDeliveryProfile = await prisma.sellerDeliveryProfile.findUnique({
-        where: { sellerId: product.sellerId },
-        select: { dropoffStationId: true }
-      });
-      const hasDropoffPvzId = Boolean(sellerSettings?.defaultDropoffPvzId?.trim());
-      const hasDropoffStationId = Boolean(sellerDeliveryProfile?.dropoffStationId?.trim());
-      if (!hasDropoffPvzId || !hasDropoffStationId) {
-        deliveryConfigMissing = true;
-        blockingReason = 'SELLER_DROPOFF_PVZ_REQUIRED';
-      }
 
       try {
         const createdOrder = await orderUseCases.create({
@@ -221,10 +211,6 @@ export const paymentFlowService = {
       throw new Error('ORDER_CREATE_FAILED');
     }
 
-    if (!order.sellerDropoffPvzId?.trim()) {
-      deliveryConfigMissing = true;
-      blockingReason = 'SELLER_DROPOFF_PVZ_REQUIRED';
-    }
 
     const shouldRefreshLabels = !order.orderLabels || !Array.isArray(order.orderLabels) || order.orderLabels.length === 0;
     const shouldUpdateRecipient = !order.recipientName || !order.recipientPhone;

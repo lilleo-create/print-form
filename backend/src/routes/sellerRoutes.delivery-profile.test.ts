@@ -7,6 +7,7 @@ import { sellerRoutes } from './sellerRoutes';
 import { prisma } from '../lib/prisma';
 import { env } from '../config/env';
 import { yandexDeliveryService } from '../services/yandexDeliveryService';
+import { yandexNddClient } from '../services/yandexNdd/YandexNddClient';
 
 const buildApp = () => {
   const app = express();
@@ -243,4 +244,84 @@ test('dev endpoint sets test station for seller delivery profile', async () => {
 
   assert.equal(response.status, 200);
   assert.equal((sellerDeliveryUpserts[0] as any).update.dropoffStationId, 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924');
+});
+
+
+test('manual source_platform_station is validated and saved to seller delivery profile', async () => {
+  const sellerDeliveryUpserts: unknown[] = [];
+
+  (prisma.user.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ role: 'SELLER' });
+  (prisma.sellerProfile.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ id: 'sp-1' });
+  (prisma.sellerDeliveryProfile.upsert as unknown as (...args: unknown[]) => unknown) = async (args: unknown) => {
+    sellerDeliveryUpserts.push(args);
+    return { sellerId: 'seller-2', dropoffStationId: '123456' };
+  };
+  (yandexNddClient.offersInfo as unknown as (...args: unknown[]) => unknown) = async () => ({ intervals: [{ from: 1, to: 2 }] });
+
+  const app = buildApp();
+  const auth = `Bearer ${tokenFor('seller-2')}`;
+
+  const response = await request(app)
+    .put('/seller/settings/source-platform-station')
+    .set('Authorization', auth)
+    .send({ source_platform_station: '123456' });
+
+  assert.equal(response.status, 200);
+  assert.equal((sellerDeliveryUpserts[0] as any).update.dropoffStationId, '123456');
+});
+
+test('manual source_platform_station returns validation error for invalid station id', async () => {
+  (prisma.user.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ role: 'SELLER' });
+  (prisma.sellerProfile.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ id: 'sp-1' });
+
+  const app = buildApp();
+  const auth = `Bearer ${tokenFor('seller-2')}`;
+
+  const response = await request(app)
+    .put('/seller/settings/source-platform-station')
+    .set('Authorization', auth)
+    .send({ source_platform_station: 'pvz-id-from-widget' });
+
+  assert.equal(response.status, 400);
+  assert.equal(response.body?.error?.code, 'SELLER_STATION_ID_INVALID');
+});
+
+
+test('unsupported map point does not overwrite existing source station', async () => {
+  const sellerDeliveryUpserts: unknown[] = [];
+
+  (prisma.user.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ role: 'SELLER' });
+  (prisma.sellerProfile.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ id: 'sp-1' });
+  (prisma.sellerSettings.findUnique as unknown as (...args: unknown[]) => unknown) = async () => null;
+  (prisma.sellerSettings.upsert as unknown as (...args: unknown[]) => unknown) = async (args: unknown) => ({
+    sellerId: 'seller-2',
+    ...(args as { create: Record<string, unknown> }).create
+  });
+  (prisma.sellerDeliveryProfile.upsert as unknown as (...args: unknown[]) => unknown) = async (args: unknown) => {
+    sellerDeliveryUpserts.push(args);
+    return { sellerId: 'seller-2', dropoffStationId: '555666' };
+  };
+  (yandexDeliveryService.getPickupPointDetails as unknown as (...args: unknown[]) => unknown) = async () => ({
+    point: { id: 'unsupported-pvz' },
+    stationId: null
+  });
+
+  const app = buildApp();
+  const auth = `Bearer ${tokenFor('seller-2')}`;
+
+  const response = await request(app)
+    .put('/seller/settings/dropoff-pvz')
+    .set('Authorization', auth)
+    .send({
+      dropoffPvz: {
+        provider: 'YANDEX_NDD',
+        pvzId: 'unsupported-pvz',
+        raw: { id: 'unsupported-pvz' },
+        addressFull: 'Москва, ул. Пример, 1'
+      }
+    });
+
+  assert.equal(response.status, 400);
+  assert.equal(response.body?.error?.code, 'SELLER_DROPOFF_POINT_UNSUPPORTED');
+  assert.equal(sellerDeliveryUpserts.length, 0);
 });

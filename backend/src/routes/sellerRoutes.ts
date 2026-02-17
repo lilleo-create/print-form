@@ -17,7 +17,9 @@ import { payoutService } from '../services/payoutService';
 import { shipmentService } from '../services/shipmentService';
 import { yandexDeliveryService } from '../services/yandexDeliveryService';
 import { sellerOrderDocumentsService } from '../services/sellerOrderDocumentsService';
-import { NDD_TEST_PLATFORM_STATION_ID } from '../config/yandexNdd';
+import { NDD_TEST_PLATFORM_STATION_ID, getYandexNddConfig } from '../config/yandexNdd';
+import { yandexNddClient } from '../services/yandexNdd/YandexNddClient';
+import { normalizeStationId } from '../services/yandexNdd/getOperatorStationId';
 
 export const sellerRoutes = Router();
 
@@ -88,6 +90,30 @@ const ensureSellerDeliveryProfile = async (sellerId: string) => {
     create: { sellerId },
     update: {}
   });
+};
+
+const resolveValidationSelfPickupId = () => {
+  return process.env.YANDEX_NDD_VALIDATION_SELF_PICKUP_ID || NDD_TEST_PLATFORM_STATION_ID;
+};
+
+const validateSourcePlatformStationId = async (dropoffStationId: string) => {
+  const { baseUrl, defaultPlatformStationId } = getYandexNddConfig();
+  const normalized = normalizeStationId(dropoffStationId, { allowUuid: baseUrl.includes('.tst.yandex.net') });
+  if (!normalized) {
+    throw new Error('SELLER_STATION_ID_INVALID');
+  }
+
+  const selfPickupId = resolveValidationSelfPickupId();
+  try {
+    await yandexNddClient.offersInfo(normalized, selfPickupId, 'time_interval', true);
+  } catch (_error) {
+    if (defaultPlatformStationId && normalized === defaultPlatformStationId) {
+      return normalized;
+    }
+    throw new Error('SELLER_STATION_ID_INVALID');
+  }
+
+  return normalized;
 };
 
 sellerRoutes.post('/onboarding', requireAuth, writeLimiter, async (req: AuthRequest, res, next) => {
@@ -497,6 +523,10 @@ const sellerOrderStatusSchema = z.object({
 });
 
 
+const sourcePlatformStationSchema = z.object({
+  source_platform_station: z.string().min(1).trim()
+});
+
 const sellerDeliveryProfileSchema = z.object({
   dropoffPvz: z.object({
     provider: z.literal('YANDEX_NDD'),
@@ -518,6 +548,28 @@ sellerRoutes.get('/settings', async (req: AuthRequest, res, next) => {
     res.json({ data: settings });
   } catch (error) {
     next(error);
+  }
+});
+
+sellerRoutes.put('/settings/source-platform-station', writeLimiter, async (req: AuthRequest, res, next) => {
+  try {
+    const payload = sourcePlatformStationSchema.parse(req.body ?? {});
+    const validatedStationId = await validateSourcePlatformStationId(payload.source_platform_station);
+
+    const profile = await sellerDeliveryProfileService.upsert(req.user!.userId, {
+      dropoffStationId: validatedStationId,
+      dropoffStationMeta: {
+        source: 'manual_input',
+        sourcePlatformStation: validatedStationId
+      }
+    });
+
+    return res.json({ data: profile });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'SELLER_STATION_ID_INVALID') {
+      return res.status(400).json({ error: { code: 'SELLER_STATION_ID_INVALID', message: 'Укажите корректный source_platform_station' } });
+    }
+    return next(error);
   }
 });
 
