@@ -17,7 +17,7 @@ import { payoutService } from '../services/payoutService';
 import { shipmentService } from '../services/shipmentService';
 import { yandexDeliveryService } from '../services/yandexDeliveryService';
 import { sellerOrderDocumentsService } from '../services/sellerOrderDocumentsService';
-import { getOperatorStationId } from '../services/yandexNdd/getOperatorStationId';
+import { getOperatorStationId, normalizeStationId } from '../services/yandexNdd/getOperatorStationId';
 
 export const sellerRoutes = Router();
 
@@ -85,7 +85,7 @@ const sellerOnboardingSchema = z.object({
 const ensureSellerDeliveryProfile = async (sellerId: string) => {
   await prisma.sellerDeliveryProfile.upsert({
     where: { sellerId },
-    create: { sellerId, dropoffStationId: '' },
+    create: { sellerId },
     update: {}
   });
 };
@@ -510,8 +510,6 @@ const sellerDeliveryProfileSchema = z.object({
   })
 });
 
-const OPERATOR_STATION_ID_DIGITS_ONLY = /^\d{6,20}$/;
-
 sellerRoutes.get('/settings', async (req: AuthRequest, res, next) => {
   try {
     await ensureSellerDeliveryProfile(req.user!.userId);
@@ -538,49 +536,31 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
       pickup_point: rawDetail?.pickup_point,
       point: rawDetail?.point
     });
-    const operatorStationId = getOperatorStationId(rawDetail) ?? undefined;
-    const rawOperatorStationCandidate = [
-      rawDetail?.operator_station_id,
-      rawDetail?.operatorStationId,
-      rawDetail?.station_id,
-      rawDetail?.stationId,
-      (rawDetail?.data as Record<string, unknown> | undefined)?.operator_station_id,
-      (rawDetail?.pickup_point as Record<string, unknown> | undefined)?.operator_station_id,
-      (rawDetail?.point as Record<string, unknown> | undefined)?.operator_station_id
-    ].find((candidate) => typeof candidate === 'string' && candidate.trim());
-    const rawOperatorStationId = typeof rawOperatorStationCandidate === 'string'
-      ? rawOperatorStationCandidate.trim()
-      : undefined;
+    const stationIdFromRaw = getOperatorStationId(rawDetail) ?? undefined;
+    const stationIdFromPvzId = normalizeStationId(payload.dropoffPvz.pvzId) ?? undefined;
+    const stationId = stationIdFromRaw ?? stationIdFromPvzId;
     console.info('[DROP_OFF_PVZ] parsed', {
       pvzId: detailId,
-      operatorStationId,
-      rawOperatorStationId,
+      stationId,
+      stationIdFromRaw,
+      stationIdFromPvzId,
       rawKeys: Object.keys(rawDetail ?? {})
     });
 
-    if (operatorStationId && (operatorStationId.includes('-') || !OPERATOR_STATION_ID_DIGITS_ONLY.test(operatorStationId))) {
+    if (!stationIdFromRaw && !stationIdFromPvzId) {
       return res.status(400).json({
         error: {
-          code: 'OPERATOR_STATION_ID_INVALID',
-          message: 'Выбранная точка содержит некорректный station id для отгрузки. Выберите другую точку или проверьте raw в виджете.'
+          code: 'STATION_ID_MISSING',
+          message: 'Выбранная точка не содержит station id/platform_station_id для отгрузки. Выберите другую точку или проверьте raw в виджете.'
         }
       });
     }
 
-    if (!operatorStationId && rawOperatorStationId && (rawOperatorStationId.includes('-') || !OPERATOR_STATION_ID_DIGITS_ONLY.test(rawOperatorStationId))) {
+    if (!stationId) {
       return res.status(400).json({
         error: {
-          code: 'OPERATOR_STATION_ID_INVALID',
-          message: 'Выбранная точка содержит некорректный station id для отгрузки. Выберите другую точку или проверьте raw в виджете.'
-        }
-      });
-    }
-
-    if (!operatorStationId) {
-      return res.status(400).json({
-        error: {
-          code: 'OPERATOR_STATION_ID_MISSING',
-          message: 'Выбранная точка не содержит station id для отгрузки. Выберите другую точку или проверьте raw в виджете.'
+          code: 'STATION_ID_INVALID',
+          message: 'Выбранная точка содержит некорректный station id/platform_station_id для отгрузки. Разрешены UUID или digits-only.'
         }
       });
     }
@@ -588,7 +568,8 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
     const normalizedRaw = {
       ...(rawDetail ?? {}),
       pvzId: detailId,
-      operator_station_id: operatorStationId
+      station_id: stationId,
+      platform_station_id: stationId
     };
     const dropoffPvzMeta = {
       ...payload.dropoffPvz,
@@ -610,7 +591,7 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
     });
 
     await sellerDeliveryProfileService.upsert(req.user!.userId, {
-      dropoffStationId: operatorStationId,
+      dropoffStationId: stationId,
       dropoffStationMeta: dropoffPvzMeta as Record<string, unknown>
     });
 
