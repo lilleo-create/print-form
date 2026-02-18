@@ -47,6 +47,8 @@ export const normalizeDigitsStation = (value: unknown): string | null => {
   return value.trim();
 };
 
+export const toStationId = (value: unknown): string | null => normalizeDigitsStation(value);
+
 export const isValidStationId = (value: unknown, options: StationIdParseOptions = {}): boolean =>
   normalizeStationId(value, options) !== null;
 
@@ -61,34 +63,18 @@ export const getOperatorStationId = (metaRaw: unknown, _options: StationIdParseO
   const point = asRecord(raw.point);
 
   const candidates: unknown[] = [
-    raw.platform_station_id,
-    raw.platformStationId,
-    raw.station_id,
-    raw.stationId,
     raw.operator_station_id,
     raw.operatorStationId,
-    data?.platform_station_id,
-    data?.platformStationId,
-    data?.station_id,
-    data?.stationId,
     data?.operator_station_id,
     data?.operatorStationId,
-    pickupPoint?.platform_station_id,
-    pickupPoint?.platformStationId,
-    pickupPoint?.station_id,
-    pickupPoint?.stationId,
     pickupPoint?.operator_station_id,
     pickupPoint?.operatorStationId,
-    point?.platform_station_id,
-    point?.platformStationId,
-    point?.station_id,
-    point?.stationId,
     point?.operator_station_id,
     point?.operatorStationId
   ];
 
   for (const candidate of candidates) {
-    const stationId = normalizeDigitsStation(candidate);
+    const stationId = toStationId(candidate);
     if (stationId) {
       return stationId;
     }
