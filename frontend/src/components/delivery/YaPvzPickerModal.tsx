@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { api } from '../../shared/api';
 import styles from './YaPvzPickerModal.module.css';
 
 const YA_NDD_WIDGET_SRC = 'https://ndd-widget.landpro.site/widget.js';
@@ -16,9 +17,16 @@ type Props = {
   onClose: () => void;
   onSelect: (sel: YaPvzSelection) => void;
   city?: string;
+  geoId?: number;
   source_platform_station?: string;
   physical_dims_weight_gross?: number;
   requireSourceStation?: boolean;
+  onNoStationsInCity?: (hasNoStations: boolean) => void;
+};
+
+type DropoffStation = {
+  id: string;
+  position: { latitude?: number; longitude?: number } | null;
 };
 
 declare global {
@@ -55,18 +63,23 @@ export function YaPvzPickerModal({
   onClose,
   onSelect,
   city = 'Москва',
+  geoId,
   source_platform_station,
   physical_dims_weight_gross = 10000,
-  requireSourceStation = false
+  requireSourceStation = false,
+  onNoStationsInCity
 }: Props) {
   const containerIdRef = useRef(
     `delivery-widget-${Math.random().toString(16).slice(2)}`
   );
   const hostRef = useRef<HTMLDivElement | null>(null);
-  const widgetInitializedRef = useRef(false);
   const selectedOnceRef = useRef(false);
 
   const [error, setError] = useState<string | null>(null);
+  const [dropoffStations, setDropoffStations] = useState<DropoffStation[] | null>(
+    null
+  );
+  const usePreloadedStations = typeof geoId === 'number';
 
   useEffect(() => {
     if (!isOpen) return;
@@ -78,6 +91,7 @@ export function YaPvzPickerModal({
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [isOpen, onClose]);
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -107,6 +121,53 @@ export function YaPvzPickerModal({
 
   useEffect(() => {
     if (!isOpen) return;
+
+    let cancelled = false;
+    setDropoffStations(null);
+    setError(null);
+
+    const loadStations = async () => {
+      if (!usePreloadedStations) {
+        setDropoffStations([]);
+        onNoStationsInCity?.(false);
+        return;
+      }
+
+      try {
+        const response = await api.getSellerDropoffStations({ geoId: geoId as number, limit: 300 });
+        if (cancelled) return;
+        const points = (response.data.points ?? []).map((point: { id: string; position: { latitude?: number; longitude?: number } | null }) => ({
+          id: point.id,
+          position: point.position
+        }));
+        setDropoffStations(points);
+        const noStations = points.length === 0;
+        onNoStationsInCity?.(noStations);
+        if (noStations) {
+          setError(
+            'В этом городе нет доступных станций сдачи (warehouse). Попробуйте другой город.'
+          );
+        }
+      } catch {
+        if (cancelled) return;
+        setDropoffStations([]);
+        onNoStationsInCity?.(false);
+        setError('Не удалось загрузить станции сдачи. Попробуйте позже.');
+      }
+    };
+
+    void loadStations();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [geoId, isOpen, onNoStationsInCity, usePreloadedStations]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (dropoffStations === null) return;
+    if (usePreloadedStations && dropoffStations.length === 0) return;
+
     const host = hostRef.current;
     if (!host) return;
 
@@ -124,6 +185,7 @@ export function YaPvzPickerModal({
 
       const rect = host.getBoundingClientRect();
       const height = Math.max(600, Math.floor(rect.height));
+      const firstPoint = usePreloadedStations ? dropoffStations[0] : null;
 
       const params: Record<string, unknown> = {
         city,
@@ -131,10 +193,22 @@ export function YaPvzPickerModal({
         size: { width: '100%', height: `${height}px` },
         filter: {
           type: ['warehouse'],
+          pickup_point_ids: usePreloadedStations
+            ? dropoffStations.map((point) => point.id)
+            : undefined,
+          available_for_dropoff: true,
           is_yandex_branded: false,
           payment_methods: ['already_paid', 'card_on_receipt'],
           payment_methods_filter: 'or'
-        }
+        },
+        map: firstPoint?.position?.latitude && firstPoint?.position?.longitude
+          ? {
+              center: {
+                latitude: firstPoint.position.latitude,
+                longitude: firstPoint.position.longitude
+              }
+            }
+          : undefined
       };
 
       if (station) {
@@ -142,16 +216,13 @@ export function YaPvzPickerModal({
         params.physical_dims_weight_gross = physical_dims_weight_gross;
       }
 
-      debugLog('init height:', height);
+      debugLog('init height:', height, 'points', dropoffStations.length);
 
       window.YaDelivery.createWidget({
         containerId: containerIdRef.current,
         params
       });
 
-      widgetInitializedRef.current = true;
-
-      // Принудительный пересчёт
       requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
       setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
       setTimeout(() => window.dispatchEvent(new Event('resize')), 300);
@@ -166,7 +237,6 @@ export function YaPvzPickerModal({
       }, 1200);
     }
 
-    // ResizeObserver — чтобы кнопка больше никогда не исчезала
     const ro = new ResizeObserver(() => {
       window.dispatchEvent(new Event('resize'));
     });
@@ -176,11 +246,13 @@ export function YaPvzPickerModal({
       ro.disconnect();
     };
   }, [
-    isOpen,
     city,
-    source_platform_station,
+    dropoffStations,
+    isOpen,
     physical_dims_weight_gross,
-    requireSourceStation
+    requireSourceStation,
+    source_platform_station,
+    usePreloadedStations
   ]);
 
   useEffect(() => {
@@ -256,11 +328,16 @@ export function YaPvzPickerModal({
 
         <div className={styles.body}>
           {error && <div className={styles.error}>{error}</div>}
-          <div
-            id={containerIdRef.current}
-            ref={hostRef}
-            className={styles.widget}
-          />
+          {!error && usePreloadedStations && dropoffStations === null ? (
+            <div className={styles.error}>Загружаем станции сдачи…</div>
+          ) : null}
+          {!error ? (
+            <div
+              id={containerIdRef.current}
+              ref={hostRef}
+              className={styles.widget}
+            />
+          ) : null}
         </div>
       </div>
     </div>

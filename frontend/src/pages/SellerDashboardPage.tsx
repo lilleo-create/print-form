@@ -128,6 +128,7 @@ export const SellerDashboardPage = () => {
   const [dropoffPvzRaw, setDropoffPvzRaw] = useState<Record<string, unknown> | null>(null);
   const [isDropoffModalOpen, setDropoffModalOpen] = useState(false);
   const [isDropoffStationManual, setDropoffStationManual] = useState(false);
+  const [hasNoDropoffStationsInCity, setHasNoDropoffStationsInCity] = useState(false);
 
   const [deliverySettingsMessage, setDeliverySettingsMessage] = useState<
     string | null
@@ -538,7 +539,7 @@ export const SellerDashboardPage = () => {
     const pvzId = dropoffPvzId.trim();
 
     if (!pvzId) {
-      setDeliverySettingsError('Выберите ПВЗ сдачи на карте.');
+      setDeliverySettingsError('Выберите станцию сдачи (warehouse) на карте.');
       return;
     }
 
@@ -1568,22 +1569,28 @@ export const SellerDashboardPage = () => {
                           variant="secondary"
                           onClick={() => setDropoffModalOpen(true)}
                         >
-                          Выбрать ПВЗ сдачи через карту
+                          Выбрать станцию сдачи (warehouse) через карту
                         </Button>
                       </div>
 
                       {dropoffPvzId ? (
                         <p className={styles.muted}>
-                          ПВЗ сдачи: {dropoffPvzId}
+                          Станция сдачи (warehouse): {dropoffPvzId}
                           {dropoffPvzAddress ? ` (${dropoffPvzAddress})` : ''}
                         </p>
                       ) : (
-                        <p className={styles.muted}>ПВЗ сдачи не выбран.</p>
+                        <p className={styles.muted}>Станция сдачи (warehouse) не выбрана.</p>
                       )}
 
                       {deliverySettingsError && (
                         <p className={styles.error} style={{ marginTop: '0.5rem' }}>
                           {deliverySettingsError}
+                        </p>
+                      )}
+
+                      {hasNoDropoffStationsInCity && (
+                        <p className={styles.error} style={{ marginTop: '0.5rem' }}>
+                          Нет станций сдачи в этом городе
                         </p>
                       )}
                     </div>
@@ -1627,6 +1634,8 @@ export const SellerDashboardPage = () => {
                   setDropoffModalOpen(false);
                 }}
                 city="Москва"
+                geoId={213}
+                onNoStationsInCity={setHasNoDropoffStationsInCity}
                 physical_dims_weight_gross={10000}
               />
 
