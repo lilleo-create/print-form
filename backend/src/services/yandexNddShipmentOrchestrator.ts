@@ -2,7 +2,7 @@ import { prisma } from '../lib/prisma';
 import { orderDeliveryService } from './orderDeliveryService';
 import { mapYandexStatusToInternal, shipmentService } from './shipmentService';
 import { yandexNddClient } from './yandexNdd/YandexNddClient';
-import { getOperatorStationId, normalizeDigitsStation } from './yandexNdd/getOperatorStationId';
+import { getOperatorStationId, normalizeStationId } from './yandexNdd/getOperatorStationId';
 
 const pickBestOffer = (response: Record<string, unknown>) => {
   const offers = (response.offers as Record<string, unknown>[] | undefined) ?? [];
@@ -161,16 +161,10 @@ export const yandexNddShipmentOrchestrator = {
     const fromProfileMetaRaw = getOperatorStationId(sellerDeliveryProfile?.dropoffStationMeta && typeof sellerDeliveryProfile.dropoffStationMeta === 'object'
       ? (sellerDeliveryProfile.dropoffStationMeta as Record<string, unknown>).raw
       : null);
-    const fromProfileId = normalizeDigitsStation(profileDropoffRaw);
+    const fromProfileId = normalizeStationId(profileDropoffRaw, { allowUuid: true });
 
-    if (profileDropoffRaw && !fromProfileId) {
-      console.warn('[READY_TO_SHIP] dropoffStationId looks like pickup_point_id, expected operator_station_id digits');
-    }
-
-    const sourceStationId = fromProfileMetaRaw ?? fromProfileId;
-    const sourceStationFrom: 'profile.meta.raw' | 'profile.dropoffStationId' | 'none' = fromProfileMetaRaw
-      ? 'profile.meta.raw'
-      : fromProfileId
+    const sourceStationId = fromProfileId;
+    const sourceStationFrom: 'profile.dropoffStationId' | 'none' = fromProfileId
       ? 'profile.dropoffStationId'
       : 'none';
 
@@ -181,10 +175,15 @@ export const yandexNddShipmentOrchestrator = {
         sellerId,
         orderId,
         profileDropoffRaw,
+        fromProfileMetaRaw,
         fromProfileId,
         nodeEnv: process.env.NODE_ENV
       });
       throw new Error('SELLER_STATION_ID_REQUIRED');
+    }
+
+    if (sourceStationId === order.buyerPickupPvzId) {
+      throw new Error('STATION_ID_EQUALS_PICKUP_POINT_ID');
     }
 
     if (process.env.NODE_ENV !== 'production') {

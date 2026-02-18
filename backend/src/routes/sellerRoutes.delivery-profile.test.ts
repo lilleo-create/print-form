@@ -62,7 +62,7 @@ test('creates default seller delivery profile on onboarding when profile is abse
   });
 });
 
-test('dropoff-pvz stores operator_station_id in seller delivery profile', async () => {
+test('dropoff-pvz stores platform station_id in seller delivery profile and keeps operator_station_id optional', async () => {
   const sellerDeliveryUpserts: unknown[] = [];
 
   (prisma.user.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ role: 'SELLER' });
@@ -74,7 +74,7 @@ test('dropoff-pvz stores operator_station_id in seller delivery profile', async 
   });
   (prisma.sellerDeliveryProfile.upsert as unknown as (...args: unknown[]) => unknown) = async (args: unknown) => {
     sellerDeliveryUpserts.push(args);
-    return { sellerId: 'seller-2', dropoffStationId: '10035218565' };
+    return { sellerId: 'seller-2', dropoffStationId: 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924' };
   };
 
   const app = buildApp();
@@ -87,17 +87,52 @@ test('dropoff-pvz stores operator_station_id in seller delivery profile', async 
       dropoffPvz: {
         provider: 'YANDEX_NDD',
         pvzId: 'pvz-widget-id',
-        raw: { id: 'pvz-widget-id', operator_station_id: '10035218565' },
+        raw: { id: 'pvz-widget-id', stationId: 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924' },
         addressFull: 'Москва, ул. Пример, 1'
       }
     });
 
   assert.equal(dropoffResponse.status, 200);
-  assert.equal(dropoffResponse.body?.data?.defaultDropoffPvzId, 'pvz-widget-id');
-  assert.equal((sellerDeliveryUpserts[0] as any).update.dropoffStationId, '10035218565');
-  assert.equal((sellerDeliveryUpserts[0] as any).update.dropoffStationMeta.raw.operator_station_id, '10035218565');
+  assert.equal(dropoffResponse.body?.data?.defaultDropoffPvzId, 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924');
+  assert.equal((sellerDeliveryUpserts[0] as any).update.dropoffStationId, 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924');
+  assert.equal((sellerDeliveryUpserts[0] as any).update.dropoffStationMeta.raw.stationId, 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924');
 });
 
+
+
+
+test('dropoff-pvz accepts station id without operator_station_id', async () => {
+  const sellerDeliveryUpserts: unknown[] = [];
+
+  (prisma.user.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ role: 'SELLER' });
+  (prisma.sellerProfile.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ id: 'sp-1' });
+  (prisma.sellerSettings.upsert as unknown as (...args: unknown[]) => unknown) = async (args: unknown) => ({
+    sellerId: 'seller-2',
+    ...(args as { create: Record<string, unknown> }).create
+  });
+  (prisma.sellerDeliveryProfile.upsert as unknown as (...args: unknown[]) => unknown) = async (args: unknown) => {
+    sellerDeliveryUpserts.push(args);
+    return { sellerId: 'seller-2', dropoffStationId: 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924' };
+  };
+
+  const app = buildApp();
+  const auth = `Bearer ${tokenFor('seller-2')}`;
+
+  const response = await request(app)
+    .put('/seller/settings/dropoff-pvz')
+    .set('Authorization', auth)
+    .send({
+      dropoffPvz: {
+        provider: 'YANDEX_NDD',
+        pvzId: 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924',
+        raw: { stationId: 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924' }
+      }
+    });
+
+  assert.equal(response.status, 200);
+  assert.equal((sellerDeliveryUpserts[0] as any).update.dropoffStationId, 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924');
+  assert.equal((sellerDeliveryUpserts[0] as any).update.dropoffStationMeta.raw.operator_station_id, undefined);
+});
 
 test('dropoff-pvz returns DROP_OFF_NOT_AVAILABLE when point is unavailable for dropoff', async () => {
   (prisma.user.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ role: 'SELLER' });
@@ -113,7 +148,7 @@ test('dropoff-pvz returns DROP_OFF_NOT_AVAILABLE when point is unavailable for d
       dropoffPvz: {
         provider: 'YANDEX_NDD',
         pvzId: 'pvz-widget-id',
-        raw: { id: 'pvz-widget-id', available_for_dropoff: false },
+        raw: { id: 'pvz-widget-id', stationId: 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924', available_for_dropoff: false },
         addressFull: 'Москва, ул. Пример, 1'
       }
     });
@@ -127,8 +162,8 @@ test('settings returns both source platform station and dropoff pvz separately',
   (prisma.sellerDeliveryProfile.upsert as unknown as (...args: unknown[]) => unknown) = async () => ({ sellerId: 'seller-2' });
   (prisma.sellerSettings.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({
     sellerId: 'seller-2',
-    defaultDropoffPvzId: 'pvz-123',
-    defaultDropoffPvzMeta: { addressFull: 'Москва, ул. Пушкина', raw: { id: 'pvz-123' } }
+    defaultDropoffPvzId: 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924',
+    defaultDropoffPvzMeta: { addressFull: 'Москва, ул. Пушкина', raw: { stationId: 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924' } }
   });
   (prisma.sellerDeliveryProfile.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({
     sellerId: 'seller-2',
@@ -145,8 +180,8 @@ test('settings returns both source platform station and dropoff pvz separately',
 
   assert.equal(response.status, 200);
   assert.equal(response.body?.data?.dropoffStationId, '10035218565');
-  assert.equal(response.body?.data?.defaultDropoffPvzId, 'pvz-123');
-  assert.equal(response.body?.data?.dropoffPvz?.pvzId, 'pvz-123');
+  assert.equal(response.body?.data?.defaultDropoffPvzId, 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924');
+  assert.equal(response.body?.data?.dropoffPvz?.pvzId, 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924');
 });
 
 test('dev endpoint sets test station for seller delivery profile', async () => {
@@ -158,7 +193,7 @@ test('dev endpoint sets test station for seller delivery profile', async () => {
   (prisma.sellerProfile.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ id: 'sp-1' });
   (prisma.sellerDeliveryProfile.upsert as unknown as (...args: unknown[]) => unknown) = async (args: unknown) => {
     sellerDeliveryUpserts.push(args);
-    return { sellerId: 'seller-2', dropoffStationId: '10035218565' };
+    return { sellerId: 'seller-2', dropoffStationId: 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924' };
   };
 
   const app = buildApp();

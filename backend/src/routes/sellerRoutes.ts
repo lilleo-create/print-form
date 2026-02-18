@@ -19,8 +19,7 @@ import { yandexDeliveryService } from '../services/yandexDeliveryService';
 import { sellerOrderDocumentsService } from '../services/sellerOrderDocumentsService';
 import { getYandexNddConfig } from '../config/yandexNdd';
 import { yandexNddClient } from '../services/yandexNdd/YandexNddClient';
-import { getOperatorStationId, normalizeDigitsStation, normalizeStationId } from '../services/yandexNdd/getOperatorStationId';
-import { resolveOperatorStationIdByPickupPointId } from '../services/yandexNdd/resolveOperatorStationIdByPickupPointId';
+import { getOperatorStationId, normalizeStationId } from '../services/yandexNdd/getOperatorStationId';
 
 export const sellerRoutes = Router();
 
@@ -606,44 +605,38 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
     const rawDetail = payload.dropoffPvz.raw && typeof payload.dropoffPvz.raw === 'object' && !Array.isArray(payload.dropoffPvz.raw)
       ? (payload.dropoffPvz.raw as Record<string, unknown>)
       : null;
-    const detailId = payload.dropoffPvz.pvzId || (rawDetail && typeof rawDetail.id === 'string' ? rawDetail.id.trim() : '');
+    const candidateStationId =
+      (rawDetail && typeof rawDetail.stationId === 'string' ? rawDetail.stationId : null) ??
+      payload.dropoffPvz.pvzId ??
+      (rawDetail && typeof rawDetail.id === 'string' ? rawDetail.id : null);
+    const detailId = typeof candidateStationId === 'string' ? candidateStationId.trim() : '';
+    const stationId = normalizeStationId(detailId, { allowUuid: true });
 
-    if (!detailId) {
-      return res.status(400).json({ error: { code: 'DROP_OFF_PVZ_ID_REQUIRED', message: 'Не выбран pickup_point_id.' } });
+    if (!stationId) {
+      return res.status(400).json({ error: { code: 'DROP_OFF_PVZ_ID_REQUIRED', message: 'Не выбран station_id.' } });
     }
 
     if (rawDetail?.available_for_dropoff === false) {
       return res.status(400).json({ error: { code: 'DROP_OFF_NOT_AVAILABLE' } });
     }
 
-    let operatorStationId = getOperatorStationId(rawDetail);
-    if (!operatorStationId) {
-      operatorStationId = await resolveOperatorStationIdByPickupPointId(detailId);
-    }
-
-    if (!normalizeDigitsStation(operatorStationId)) {
-      return res.status(400).json({
-        error: {
-          code: 'OPERATOR_STATION_ID_MISSING',
-          message: 'Точка не подходит для отгрузки (нет operator_station_id). Выберите другую.'
-        }
-      });
-    }
+    const operatorStationId = getOperatorStationId(rawDetail);
 
     console.info('[DROP_OFF_PVZ]', {
-      pickupPointId: detailId,
+      stationId,
       operatorStationId
     });
 
     const normalizedRaw = {
       ...(rawDetail ?? {}),
-      pvzId: detailId,
-      operator_station_id: operatorStationId
+      stationId,
+      pvzId: stationId,
+      ...(operatorStationId ? { operator_station_id: operatorStationId } : {})
     };
 
     const dropoffPvzMeta = {
       ...payload.dropoffPvz,
-      pvzId: detailId,
+      pvzId: stationId,
       raw: normalizedRaw
     };
 
@@ -651,17 +644,17 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
       where: { sellerId: req.user!.userId },
       create: {
         sellerId: req.user!.userId,
-        defaultDropoffPvzId: detailId,
+        defaultDropoffPvzId: stationId,
         defaultDropoffPvzMeta: dropoffPvzMeta as unknown as object
       },
       update: {
-        defaultDropoffPvzId: detailId,
+        defaultDropoffPvzId: stationId,
         defaultDropoffPvzMeta: dropoffPvzMeta as unknown as object
       }
     });
 
     await sellerDeliveryProfileService.upsert(req.user!.userId, {
-      dropoffStationId: operatorStationId,
+      dropoffStationId: stationId,
       dropoffStationMeta: dropoffPvzMeta as unknown as Record<string, unknown>
     });
 

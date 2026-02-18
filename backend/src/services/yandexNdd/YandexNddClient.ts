@@ -25,14 +25,14 @@ export class YandexNddClient {
 
   private getAuthTokenMeta() {
     const rawToken = (process.env.YANDEX_NDD_TOKEN ?? this.config.token ?? '').trim();
-    const authHeader = `Bearer ${rawToken}`;
-    const hasBearerPrefix = authHeader.startsWith('Bearer ');
+    const tokenWithoutPrefix = rawToken.replace(/^Bearer\s+/i, '').trim();
+    const authHeader = `Bearer ${tokenWithoutPrefix}`;
 
     return {
-      hasBearerPrefix,
+      rawHadBearerPrefix: /^Bearer\s+/i.test(rawToken),
       authHeader,
-      tokenLength: rawToken.length,
-      tokenPreview: rawToken.slice(0, 10)
+      tokenLength: tokenWithoutPrefix.length,
+      tokenPreview: tokenWithoutPrefix.slice(0, 10)
     };
   }
 
@@ -59,7 +59,7 @@ export class YandexNddClient {
     })();
 
     console.info('[YANDEX_NDD][auth]', {
-      hasBearerPrefix: tokenMeta.hasBearerPrefix,
+      rawHadBearerPrefix: tokenMeta.rawHadBearerPrefix,
       tokenLength: tokenMeta.tokenLength,
       tokenPreview: tokenMeta.tokenPreview
     });
@@ -79,7 +79,7 @@ export class YandexNddClient {
         httpStatus: response.status,
         tokenPreview: tokenMeta.tokenPreview,
         tokenLength: tokenMeta.tokenLength,
-        hasBearerPrefix: tokenMeta.hasBearerPrefix,
+        rawHadBearerPrefix: tokenMeta.rawHadBearerPrefix,
         body: errorDetails
       });
 
