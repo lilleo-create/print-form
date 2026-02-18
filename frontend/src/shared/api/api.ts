@@ -20,6 +20,16 @@ import type {
 import { loadFromStorage } from '../lib/storage';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 
+
+export type SellerDropoffStation = {
+  id: string;
+  operator_station_id: string | null;
+  name: string;
+  addressFull: string | null;
+  position: { latitude?: number; longitude?: number } | null;
+  maxWeightGross: number | null;
+};
+
 export interface ApiError {
   code?: string;
   message?: string;
@@ -300,6 +310,15 @@ export const api = {
         method: 'PUT',
         body: { source_platform_station: sourcePlatformStation }
       }
+    );
+  },
+
+
+  async getSellerDropoffStations(params: { geoId: number; limit?: number }) {
+    const query = new URLSearchParams({ geoId: String(params.geoId) });
+    if (params.limit) query.set('limit', String(params.limit));
+    return apiClient.request<{ points: SellerDropoffStation[] }>(
+      `/seller/ndd/dropoff-stations?${query.toString()}`
     );
   },
 
