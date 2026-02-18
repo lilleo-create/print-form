@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, type SellerDropoffStation } from '../../shared/api/api';
 import { normalizeApiError } from '../../shared/api/client';
 import { Button } from '../../shared/ui/Button';
@@ -17,21 +17,8 @@ export const SellerDropoffStationPicker = ({ isOpen, geoId, onClose, onSelect }:
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchEmptyMessage, setSearchEmptyMessage] = useState<string | null>(null);
-
-  const loadStations = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await api.getSellerDropoffStations(geoId, 100);
-      setStations(response.data?.points ?? []);
-      setSearchEmptyMessage(null);
-    } catch (e) {
-      const normalized = normalizeApiError(e);
-      setError(normalized.message ?? 'Не удалось загрузить станции сдачи.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [detectedGeoId, setDetectedGeoId] = useState<number | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const filtered = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -42,43 +29,53 @@ export const SellerDropoffStationPicker = ({ isOpen, geoId, onClose, onSelect }:
     });
   }, [stations, query]);
 
-  useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-
-    const normalizedQuery = query.trim();
+  const runSearch = async (rawQuery: string) => {
+    const normalizedQuery = rawQuery.trim();
     if (normalizedQuery.length < 2) {
-      setError(null);
+      setStations([]);
       setSearchEmptyMessage(null);
+      setError(null);
       return;
     }
 
-    const timeout = window.setTimeout(async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const response = await api.searchSellerDropoffStations(normalizedQuery, geoId, 20);
-        const points = response.data?.points ?? [];
-        setStations(points);
-        setSearchEmptyMessage(points.length ? null : 'Станции сдачи рядом не найдены. Уточните адрес.');
-      } catch (e) {
-        const normalized = normalizeApiError(e);
-        if (
-          normalized.code === 'NDD_REQUEST_FAILED' &&
-          String(normalized.message ?? '').toLowerCase().includes('доступ')
-        ) {
-          setError('Нет доступа к NDD (проверь токен/BASE_URL).');
-        } else {
-          setError(normalized.message ?? 'Не удалось выполнить поиск станций сдачи рядом.');
-        }
-      } finally {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await api.searchSellerDropoffStations(normalizedQuery, 50, controller.signal);
+      const points = response.data?.points ?? [];
+      setStations(points);
+      setDetectedGeoId(response.data?.debug?.geoId ?? null);
+      setSearchEmptyMessage(points.length ? null : 'Станции сдачи рядом не найдены. Уточните запрос.');
+    } catch (e) {
+      if (controller.signal.aborted) {
+        return;
+      }
+      const normalized = normalizeApiError(e);
+      setError(normalized.message ?? 'Не удалось выполнить поиск станций сдачи рядом.');
+    } finally {
+      if (!controller.signal.aborted) {
         setLoading(false);
       }
-    }, 500);
+    }
+  };
+
+  useEffect(() => {
+    if (!isOpen) {
+      abortRef.current?.abort();
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      void runSearch(query);
+    }, 400);
 
     return () => window.clearTimeout(timeout);
-  }, [geoId, isOpen, query]);
+  }, [isOpen, query]);
 
   if (!isOpen) return null;
 
@@ -93,16 +90,18 @@ export const SellerDropoffStationPicker = ({ isOpen, geoId, onClose, onSelect }:
         </div>
 
         <div className={styles.actions}>
-          <Button type="button" onClick={loadStations} disabled={loading}>
-            {loading ? 'Загрузка…' : 'Загрузить станции'}
-          </Button>
           <input
             className={styles.search}
-            placeholder="Поиск по названию или адресу"
+            placeholder="Введите город, район или адрес (например, Москва)"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
+          <Button type="button" onClick={() => void runSearch(query)} disabled={loading}>
+            {loading ? 'Поиск…' : 'Найти'}
+          </Button>
         </div>
+
+        <p className={styles.muted}>Текущий geoId профиля: {geoId}{detectedGeoId ? ` · geoId поиска: ${detectedGeoId}` : ''}</p>
 
         {error && <p className={styles.error}>{error}</p>}
         {!error && searchEmptyMessage && <p className={styles.muted}>{searchEmptyMessage}</p>}

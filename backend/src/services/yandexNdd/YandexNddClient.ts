@@ -316,6 +316,20 @@ export class YandexNddClient {
     );
   }
 
+  async detectGeoIdByQuery(location: string): Promise<number | null> {
+    const response = await this.locationDetect({ location });
+    const variants =
+      ((response as any)?.variants ??
+        (response as any)?.result?.variants ??
+        []) as Array<{ geo_id?: number; geoId?: number }>;
+    const firstVariant = variants[0];
+    const rawGeoId = firstVariant?.geo_id ?? firstVariant?.geoId ?? null;
+    if (typeof rawGeoId !== 'number' || !Number.isFinite(rawGeoId) || rawGeoId <= 0) {
+      return null;
+    }
+    return rawGeoId;
+  }
+
   async getNearestDropoffStations202(
     coords: { latitude: number; longitude: number },
     limit = 20,
