@@ -530,65 +530,70 @@ export const SellerDashboardPage = () => {
     setDeliverySettingsMessage(null);
     setDeliverySettingsError(null);
 
-    const pvzId = dropoffPvzId.trim();
+    const stationId = dropoffStationId.trim() || dropoffPvzId.trim();
 
-    if (!pvzId) {
-      setDeliverySettingsError('Выберите станцию сдачи (warehouse) на карте.');
+    if (!stationId) {
+      setDeliverySettingsError('Выберите станцию сдачи (warehouse) в списке.');
       return;
     }
 
     try {
-      await api.updateSellerDeliveryProfile({
-        dropoffPvz: {
-          provider: 'YANDEX_NDD',
-          pvzId,
-          raw: dropoffPvzRaw,
-          addressFull: dropoffPvzAddress.trim() || pvzId
-        }
+      await api.updateSellerDropoffStation({
+        stationId,
+        addressFull: dropoffStationAddress.trim() || dropoffPvzAddress.trim() || stationId,
+        raw: dropoffPvzRaw,
+        geoId: 213,
+        query: dropoffStationAddress.trim() || undefined
       });
 
       const profileResponse = await api.getSellerDeliveryProfile();
-      const dropoffPvz = profileResponse.data?.dropoffPvz;
-      const dropoffMeta = profileResponse.data?.defaultDropoffPvzMeta;
-      const syncedStationId = profileResponse.data?.dropoffStationId ?? '';
-      setDropoffStationId(syncedStationId);
-      setDropoffStationAddress(
-        dropoffMeta?.addressFull ??
-          dropoffPvz?.addressFull ??
-          ''
-      );
-      setDropoffPvzId(
-        dropoffPvz?.pvzId ?? profileResponse.data?.defaultDropoffPvzId ?? pvzId
-      );
-      setDropoffPvzAddress(dropoffPvz?.addressFull ?? dropoffMeta?.addressFull ?? '');
+      const syncedStationId = profileResponse.data?.dropoffStationId ?? stationId;
+      const dropoffMeta = profileResponse.data?.dropoffStationMeta;
+      const metaAddress =
+        dropoffMeta && typeof dropoffMeta === 'object'
+          ? String((dropoffMeta as Record<string, unknown>).addressFull ?? '')
+          : '';
 
-      setDeliverySettingsMessage('Станция сдачи (warehouse) сохранена, station_id определён автоматически.');
+      setDropoffStationId(syncedStationId);
+      setDropoffStationAddress(metaAddress || dropoffStationAddress || dropoffPvzAddress);
+      setDropoffPvzId(syncedStationId);
+      setDropoffPvzAddress(metaAddress || dropoffPvzAddress);
+
+      setDeliverySettingsMessage('Станция сдачи (warehouse) сохранена.');
     } catch (error) {
       const normalized = normalizeApiError(error);
-      if (normalized.code === 'DROP_OFF_TYPE_INVALID') {
-        setDeliverySettingsError(
-          'Эта точка не является станцией сдачи. Выберите склад (warehouse).'
-        );
-      } else if (normalized.code === 'DROP_OFF_NOT_AVAILABLE') {
-        setDeliverySettingsError(
-          normalized.message ??
-            'Эта точка недоступна для отгрузки. Выберите другую станцию.'
-        );
-      } else if (normalized.code === 'DROP_OFF_PVZ_NOT_FOUND') {
-        setDeliverySettingsError(
-          normalized.message ?? 'Точка не найдена в NDD. Попробуйте выбрать другую.'
-        );
-      } else {
-        setDeliverySettingsError('Не удалось сохранить ПВЗ сдачи.');
-      }
+      setDeliverySettingsError(normalized.message ?? 'Не удалось сохранить station_id.');
     }
   };
 
-  const handleDropoffSelect = (selection: { id: string; addressFull: string | null; [key: string]: unknown }) => {
-    setDropoffPvzId(selection.id);
-    setDropoffPvzAddress(selection.addressFull ?? '');
-    setDropoffPvzRaw(selection as Record<string, unknown>);
-    setDropoffModalOpen(false);
+  const handleDropoffSelect = async (selection: { id: string; addressFull: string | null; [key: string]: unknown }) => {
+    setDeliverySettingsMessage(null);
+    setDeliverySettingsError(null);
+
+    try {
+      await api.updateSellerDropoffStation({
+        stationId: selection.id,
+        addressFull: selection.addressFull ?? selection.id,
+        raw: selection as Record<string, unknown>,
+        geoId: typeof selection.geoId === 'number' ? selection.geoId : 213,
+        query: selection.name ? String(selection.name) : undefined,
+        position:
+          selection.position && typeof selection.position === 'object'
+            ? (selection.position as { latitude?: number; longitude?: number })
+            : undefined
+      });
+
+      setDropoffStationId(selection.id);
+      setDropoffStationAddress(selection.addressFull ?? '');
+      setDropoffPvzId(selection.id);
+      setDropoffPvzAddress(selection.addressFull ?? '');
+      setDropoffPvzRaw(selection as Record<string, unknown>);
+      setDeliverySettingsMessage('Станция сдачи (warehouse) сохранена.');
+      setDropoffModalOpen(false);
+    } catch (error) {
+      const normalized = normalizeApiError(error);
+      setDeliverySettingsError(normalized.message ?? 'Не удалось сохранить станцию сдачи.');
+    }
   };
 
   const handleReadyToShip = async (orderId: string) => {
@@ -1579,9 +1584,9 @@ export const SellerDashboardPage = () => {
                   <Button
                     type="button"
                     onClick={handleSaveDeliveryProfile}
-                    disabled={!dropoffPvzId.trim()}
+                    disabled={!dropoffStationId.trim()}
                   >
-                    Сохранить доставку
+                    Сохранить station_id
                   </Button>
 
                   <Button

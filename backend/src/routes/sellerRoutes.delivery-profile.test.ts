@@ -20,6 +20,9 @@ const tokenFor = (userId: string, role: 'SELLER' | 'BUYER' = 'SELLER') =>
 
 
 test.beforeEach(() => {
+  (yandexNddClient.locationDetect as unknown as (...args: unknown[]) => unknown) = async () => ({
+    variants: [{ geo_id: 213, address: 'Москва' }]
+  });
   (yandexNddClient.pickupPointsList as unknown as (...args: unknown[]) => unknown) = async (body: any) => {
     const firstId = Array.isArray(body?.pickup_point_ids) ? String(body.pickup_point_ids[0] ?? '') : 'warehouse-guid-1';
     return {
@@ -302,6 +305,127 @@ test('dropoff-stations returns GEO_ID_REQUIRED when geoId is missing', async () 
 
   assert.equal(response.status, 400);
   assert.equal(response.body?.error?.code, 'GEO_ID_REQUIRED');
+});
+
+
+
+test('dropoff-stations search uses provided geoId and filters by query', async () => {
+  let locationDetectCalled = false;
+  let pickupBody: any = null;
+
+  (prisma.user.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ role: 'SELLER' });
+  (prisma.sellerProfile.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ id: 'sp-1' });
+  (yandexNddClient.locationDetect as unknown as (...args: unknown[]) => unknown) = async () => {
+    locationDetectCalled = true;
+    return { variants: [{ geo_id: 2 }] };
+  };
+  (yandexNddClient.pickupPointsList as unknown as (...args: unknown[]) => unknown) = async (body: any) => {
+    pickupBody = body;
+    return {
+      points: [
+        {
+          id: 'st-1',
+          operator_station_id: 'op-1',
+          name: 'Тушино склад',
+          address: { full_address: 'Москва, Тушино, 1', geo_id: 213 },
+          position: { latitude: 55.8, longitude: 37.4 }
+        },
+        {
+          id: 'st-2',
+          operator_station_id: 'op-2',
+          name: 'Другой склад',
+          address: { full_address: 'Москва, Лужники, 1', geo_id: 213 },
+          position: { latitude: 55.7, longitude: 37.5 }
+        }
+      ]
+    };
+  };
+
+  const app = buildApp();
+  const auth = `Bearer ${tokenFor('seller-2')}`;
+
+  const response = await request(app)
+    .get('/seller/ndd/dropoff-stations/search?q=Тушино&geoId=213&limit=20')
+    .set('Authorization', auth);
+
+  assert.equal(response.status, 200);
+  assert.equal(locationDetectCalled, false);
+  assert.equal(pickupBody.geo_id, 213);
+  assert.equal(response.body?.points?.length, 1);
+  assert.equal(response.body?.points?.[0]?.id, 'st-1');
+});
+
+test('dropoff-stations search detects geo id when geoId is missing', async () => {
+  let detectCalled = false;
+  let pickupBody: any = null;
+
+  (prisma.user.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ role: 'SELLER' });
+  (prisma.sellerProfile.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ id: 'sp-1' });
+  (yandexNddClient.locationDetect as unknown as (...args: unknown[]) => unknown) = async () => {
+    detectCalled = true;
+    return { variants: [{ geo_id: 54, address: 'Тушино' }] };
+  };
+  (yandexNddClient.pickupPointsList as unknown as (...args: unknown[]) => unknown) = async (body: any) => {
+    pickupBody = body;
+    return { points: [] };
+  };
+
+  const app = buildApp();
+  const auth = `Bearer ${tokenFor('seller-2')}`;
+
+  const response = await request(app)
+    .get('/seller/ndd/dropoff-stations/search?q=Тушино')
+    .set('Authorization', auth);
+
+  assert.equal(response.status, 200);
+  assert.equal(detectCalled, true);
+  assert.equal(pickupBody.geo_id, 54);
+});
+
+test('dropoff-stations search returns GEO_QUERY_REQUIRED for short query', async () => {
+  (prisma.user.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ role: 'SELLER' });
+  (prisma.sellerProfile.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ id: 'sp-1' });
+
+  const app = buildApp();
+  const auth = `Bearer ${tokenFor('seller-2')}`;
+
+  const response = await request(app)
+    .get('/seller/ndd/dropoff-stations/search?q=а')
+    .set('Authorization', auth);
+
+  assert.equal(response.status, 400);
+  assert.equal(response.body?.error?.code, 'GEO_QUERY_REQUIRED');
+});
+
+test('dropoff-station endpoint stores station without ndd lookup', async () => {
+  const sellerDeliveryUpserts: unknown[] = [];
+
+  (prisma.user.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ role: 'SELLER' });
+  (prisma.sellerProfile.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ id: 'sp-1' });
+  (prisma.sellerDeliveryProfile.upsert as unknown as (...args: unknown[]) => unknown) = async (args: unknown) => {
+    sellerDeliveryUpserts.push(args);
+    return { sellerId: 'seller-2', dropoffStationId: 'warehouse-1' };
+  };
+
+  const app = buildApp();
+  const auth = `Bearer ${tokenFor('seller-2')}`;
+
+  const response = await request(app)
+    .put('/seller/settings/dropoff-station')
+    .set('Authorization', auth)
+    .send({
+      stationId: 'warehouse-1',
+      addressFull: 'Москва, Тушино, 1',
+      geoId: 213,
+      query: 'Тушино',
+      position: { latitude: 55.8, longitude: 37.4 },
+      raw: { id: 'warehouse-1' }
+    });
+
+  assert.equal(response.status, 200);
+  assert.equal((sellerDeliveryUpserts[0] as any).update.dropoffStationId, 'warehouse-1');
+  assert.equal((sellerDeliveryUpserts[0] as any).update.dropoffStationMeta.source, 'ndd/2.02');
+  assert.equal((sellerDeliveryUpserts[0] as any).update.dropoffStationMeta.source_platform_station, 'warehouse-1');
 });
 
 test('dev endpoint sets test station for seller delivery profile', async () => {

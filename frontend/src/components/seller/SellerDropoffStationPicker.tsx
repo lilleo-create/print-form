@@ -121,6 +121,7 @@ export const SellerDropoffStationPicker = ({ isOpen, geoId, onClose, onSelect }:
                 >
                   <strong>{station.name ?? 'Без названия'}</strong>
                   <span>{station.addressFull ?? station.id}</span>
+                  <span>Выбрать</span>
                 </button>
               ))
             )}
