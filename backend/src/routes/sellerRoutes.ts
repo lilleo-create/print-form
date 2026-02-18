@@ -98,8 +98,8 @@ const resolveValidationSelfPickupId = () => {
 };
 
 const validateSourcePlatformStationId = async (dropoffStationId: string) => {
-  const { baseUrl, defaultPlatformStationId } = getYandexNddConfig();
-  const normalized = normalizeStationId(dropoffStationId, { allowUuid: baseUrl.includes('.tst.yandex.net') });
+  const { defaultPlatformStationId } = getYandexNddConfig();
+  const normalized = normalizeStationId(dropoffStationId, { allowUuid: true });
   if (!normalized) {
     throw new Error('SELLER_STATION_ID_INVALID');
   }
@@ -602,41 +602,49 @@ sellerRoutes.put('/settings/source-platform-station', writeLimiter, async (req: 
 sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest, res, next) => {
   try {
     const payload = sellerDeliveryProfileSchema.parse(req.body);
+    const pvzId = payload.dropoffPvz.pvzId.trim();
+    if (!pvzId) {
+      return res.status(400).json({ error: { code: 'DROP_OFF_PVZ_ID_REQUIRED', message: 'Не выбран id точки (pvzId).' } });
+    }
+
     const rawDetail = payload.dropoffPvz.raw && typeof payload.dropoffPvz.raw === 'object' && !Array.isArray(payload.dropoffPvz.raw)
       ? (payload.dropoffPvz.raw as Record<string, unknown>)
       : null;
-    const candidateStationId =
-      (rawDetail && typeof rawDetail.stationId === 'string' ? rawDetail.stationId : null) ??
-      payload.dropoffPvz.pvzId ??
-      (rawDetail && typeof rawDetail.id === 'string' ? rawDetail.id : null);
-    const detailId = typeof candidateStationId === 'string' ? candidateStationId.trim() : '';
-    const stationId = normalizeStationId(detailId, { allowUuid: true });
-
-    if (!stationId) {
-      return res.status(400).json({ error: { code: 'DROP_OFF_PVZ_ID_REQUIRED', message: 'Не выбран station_id.' } });
-    }
 
     if (rawDetail?.available_for_dropoff === false) {
       return res.status(400).json({ error: { code: 'DROP_OFF_NOT_AVAILABLE' } });
     }
 
+    const operatorStationIdRaw =
+      (rawDetail && typeof rawDetail.operator_station_id === 'string' ? rawDetail.operator_station_id : null)
+      ?? (rawDetail && typeof rawDetail.operatorStationId === 'string' ? rawDetail.operatorStationId : null)
+      ?? null;
+    const stationCandidate = (operatorStationIdRaw?.trim() || pvzId);
+    const sourcePlatformStation = normalizeStationId(stationCandidate, { allowUuid: true });
+    if (!sourcePlatformStation) {
+      return res.status(400).json({
+        error: {
+          code: 'SELLER_STATION_ID_INVALID',
+          message: 'Не удалось определить source_platform_station из выбранной точки.'
+        }
+      });
+    }
+
     const operatorStationId = getOperatorStationId(rawDetail);
 
-    console.info('[DROP_OFF_PVZ]', {
-      stationId,
-      operatorStationId
-    });
+    console.info('[DROP_OFF_PVZ] selected pvzId', { pvzId });
+    console.info('[DROP_OFF_PVZ] operator_station_id', { operatorStationId: operatorStationIdRaw });
+    console.info('[DROP_OFF_PVZ] computed source_platform_station', { sourcePlatformStation });
 
     const normalizedRaw = {
       ...(rawDetail ?? {}),
-      stationId,
-      pvzId: stationId,
+      pvzId,
       ...(operatorStationId ? { operator_station_id: operatorStationId } : {})
     };
 
     const dropoffPvzMeta = {
       ...payload.dropoffPvz,
-      pvzId: stationId,
+      pvzId,
       raw: normalizedRaw
     };
 
@@ -644,18 +652,23 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
       where: { sellerId: req.user!.userId },
       create: {
         sellerId: req.user!.userId,
-        defaultDropoffPvzId: stationId,
+        defaultDropoffPvzId: pvzId,
         defaultDropoffPvzMeta: dropoffPvzMeta as unknown as object
       },
       update: {
-        defaultDropoffPvzId: stationId,
+        defaultDropoffPvzId: pvzId,
         defaultDropoffPvzMeta: dropoffPvzMeta as unknown as object
       }
     });
 
     await sellerDeliveryProfileService.upsert(req.user!.userId, {
-      dropoffStationId: stationId,
-      dropoffStationMeta: dropoffPvzMeta as unknown as Record<string, unknown>
+      dropoffStationId: sourcePlatformStation,
+      dropoffStationMeta: {
+        source: 'pickup-points/list',
+        source_platform_station: sourcePlatformStation,
+        pvz_id: pvzId,
+        raw: normalizedRaw
+      }
     });
 
     res.json({ data: settings });
