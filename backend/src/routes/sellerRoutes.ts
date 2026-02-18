@@ -19,7 +19,7 @@ import { yandexDeliveryService } from '../services/yandexDeliveryService';
 import { sellerOrderDocumentsService } from '../services/sellerOrderDocumentsService';
 import { getYandexNddConfig } from '../config/yandexNdd';
 import { yandexNddClient } from '../services/yandexNdd/YandexNddClient';
-import { getOperatorStationId, normalizeStationId } from '../services/yandexNdd/getOperatorStationId';
+import { normalizeStationId } from '../services/yandexNdd/getOperatorStationId';
 
 export const sellerRoutes = Router();
 
@@ -602,51 +602,72 @@ sellerRoutes.put('/settings/source-platform-station', writeLimiter, async (req: 
 sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest, res, next) => {
   try {
     const payload = sellerDeliveryProfileSchema.parse(req.body);
-    const pvzId = payload.dropoffPvz.pvzId.trim();
+    const pvzId = String(payload.dropoffPvz.pvzId ?? '').trim();
     if (!pvzId) {
       return res.status(400).json({ error: { code: 'DROP_OFF_PVZ_ID_REQUIRED', message: 'Не выбран id точки (pvzId).' } });
     }
 
-    const rawDetail = payload.dropoffPvz.raw && typeof payload.dropoffPvz.raw === 'object' && !Array.isArray(payload.dropoffPvz.raw)
-      ? (payload.dropoffPvz.raw as Record<string, unknown>)
-      : null;
+    const listResp = await yandexNddClient.pickupPointsList({ pickup_point_ids: [pvzId] });
+    const points =
+      (listResp as any)?.points ??
+      (listResp as any)?.result?.points ??
+      [];
+    const point = Array.isArray(points) ? points[0] : null;
 
-    if (rawDetail?.available_for_dropoff === false) {
-      return res.status(400).json({ error: { code: 'DROP_OFF_NOT_AVAILABLE' } });
-    }
-
-    const operatorStationIdRaw =
-      (rawDetail && typeof rawDetail.operator_station_id === 'string' ? rawDetail.operator_station_id : null)
-      ?? (rawDetail && typeof rawDetail.operatorStationId === 'string' ? rawDetail.operatorStationId : null)
-      ?? null;
-    const stationCandidate = (operatorStationIdRaw?.trim() || pvzId);
-    const sourcePlatformStation = normalizeStationId(stationCandidate, { allowUuid: true });
-    if (!sourcePlatformStation) {
+    if (!point) {
       return res.status(400).json({
         error: {
-          code: 'SELLER_STATION_ID_INVALID',
-          message: 'Не удалось определить source_platform_station из выбранной точки.'
+          code: 'DROP_OFF_PVZ_NOT_FOUND',
+          message: 'Точка не найдена в NDD.'
         }
       });
     }
 
-    const operatorStationId = getOperatorStationId(rawDetail);
+    if ((point as any).available_for_dropoff === false) {
+      return res.status(400).json({
+        error: {
+          code: 'DROP_OFF_NOT_AVAILABLE',
+          message: 'Эта точка недоступна для отгрузки. Выберите другую.'
+        }
+      });
+    }
 
-    console.info('[DROP_OFF_PVZ] selected pvzId', { pvzId });
-    console.info('[DROP_OFF_PVZ] operator_station_id', { operatorStationId: operatorStationIdRaw });
-    console.info('[DROP_OFF_PVZ] computed source_platform_station', { sourcePlatformStation });
+    if ((point as any).type && (point as any).type !== 'warehouse') {
+      return res.status(400).json({
+        error: {
+          code: 'DROP_OFF_TYPE_INVALID',
+          message: 'Эта точка не является станцией сдачи (warehouse). Выберите склад/станцию отгрузки.'
+        }
+      });
+    }
 
-    const normalizedRaw = {
-      ...(rawDetail ?? {}),
-      pvzId,
-      ...(operatorStationId ? { operator_station_id: operatorStationId } : {})
-    };
+    const stationIdRaw = String((point as any).id ?? '').trim();
+    const sourcePlatformStation = normalizeStationId(stationIdRaw, { allowUuid: true });
+    if (!sourcePlatformStation) {
+      return res.status(400).json({
+        error: {
+          code: 'SELLER_STATION_ID_INVALID',
+          message: 'Не удалось определить source_platform_station для выбранной точки.'
+        }
+      });
+    }
 
     const dropoffPvzMeta = {
-      ...payload.dropoffPvz,
+      provider: 'YANDEX_NDD' as const,
       pvzId,
-      raw: normalizedRaw
+      addressFull:
+        payload.dropoffPvz.addressFull ??
+        ((point as any)?.address?.full_address ?? undefined),
+      raw: point
     };
+
+    console.info('[DROP_OFF_PVZ_RESOLVE]', {
+      pvzId,
+      type: (point as any).type,
+      available_for_dropoff: (point as any).available_for_dropoff,
+      operator_station_id: (point as any).operator_station_id,
+      sourcePlatformStation
+    });
 
     const settings = await prisma.sellerSettings.upsert({
       where: { sellerId: req.user!.userId },
@@ -665,9 +686,10 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
       dropoffStationId: sourcePlatformStation,
       dropoffStationMeta: {
         source: 'pickup-points/list',
-        source_platform_station: sourcePlatformStation,
         pvz_id: pvzId,
-        raw: normalizedRaw
+        source_platform_station: sourcePlatformStation,
+        operator_station_id: (point as any).operator_station_id ?? null,
+        raw: point
       }
     });
 

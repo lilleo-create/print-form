@@ -83,10 +83,6 @@ const isAccessError = (error: unknown) => {
 };
 
 
-const DEV_TEST_PLATFORM_STATION_ID =
-  import.meta.env.VITE_YANDEX_NDD_PLATFORM_STATION_ID ||
-  'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924';
-
 export const SellerDashboardPage = () => {
   const navigate = useNavigate();
 
@@ -238,13 +234,9 @@ export const SellerDashboardPage = () => {
       setDropoffStationId(stationId);
       setDropoffStationManual(false);
       setDropoffStationAddress(
-        typeof profileResponse.data?.dropoffStationMeta === 'object' &&
-          profileResponse.data?.dropoffStationMeta
-          ? String(
-              (profileResponse.data?.dropoffStationMeta as Record<string, unknown>)
-                .addressFull ?? ''
-            )
-          : ''
+        dropoffMeta?.addressFull ??
+          dropoffPvz?.addressFull ??
+          ''
       );
       setDropoffPvzId(
         dropoffPvz?.pvzId ?? profileResponse.data?.defaultDropoffPvzId ?? ''
@@ -543,43 +535,58 @@ export const SellerDashboardPage = () => {
     setDeliverySettingsMessage(null);
     setDeliverySettingsError(null);
 
-    const stationId = dropoffStationId.trim();
     const pvzId = dropoffPvzId.trim();
 
-    if (!pvzId && !stationId) {
-      setDeliverySettingsError('Выберите ПВЗ сдачи на карте или укажите source_platform_station вручную.');
+    if (!pvzId) {
+      setDeliverySettingsError('Выберите ПВЗ сдачи на карте.');
       return;
     }
 
     try {
-      if (pvzId) {
-        await api.updateSellerDeliveryProfile({
-          dropoffPvz: {
-            provider: 'YANDEX_NDD',
-            pvzId,
-            raw: {
-              ...(dropoffPvzRaw ?? {}),
-              pvzId
-            },
-            addressFull: dropoffPvzAddress.trim() || pvzId
-          }
-        });
-      }
-
-      if (stationId && isDropoffStationManual) {
-        await api.updateSourcePlatformStation(stationId);
-      }
+      await api.updateSellerDeliveryProfile({
+        dropoffPvz: {
+          provider: 'YANDEX_NDD',
+          pvzId,
+          raw: dropoffPvzRaw,
+          addressFull: dropoffPvzAddress.trim() || pvzId
+        }
+      });
 
       const profileResponse = await api.getSellerDeliveryProfile();
-      const syncedStationId = profileResponse.data?.dropoffStationId ?? stationId;
+      const dropoffPvz = profileResponse.data?.dropoffPvz;
+      const dropoffMeta = profileResponse.data?.defaultDropoffPvzMeta;
+      const syncedStationId = profileResponse.data?.dropoffStationId ?? '';
       setDropoffStationId(syncedStationId);
       setDropoffStationManual(false);
+      setDropoffStationAddress(
+        dropoffMeta?.addressFull ??
+          dropoffPvz?.addressFull ??
+          ''
+      );
+      setDropoffPvzId(
+        dropoffPvz?.pvzId ?? profileResponse.data?.defaultDropoffPvzId ?? pvzId
+      );
+      setDropoffPvzAddress(dropoffPvz?.addressFull ?? dropoffMeta?.addressFull ?? '');
 
-      setDeliverySettingsMessage(pvzId
-        ? 'ПВЗ сдачи сохранён, source_platform_station определён автоматически.'
-        : 'Станция отгрузки сохранена.');
-    } catch {
-      setDeliverySettingsError('Не удалось сохранить station/PVZ.');
+      setDeliverySettingsMessage('Станция сдачи (warehouse) сохранена, station_id определён автоматически.');
+    } catch (error) {
+      const normalized = normalizeApiError(error);
+      if (normalized.code === 'DROP_OFF_TYPE_INVALID') {
+        setDeliverySettingsError(
+          'Эта точка не является станцией сдачи. Выберите склад (warehouse).'
+        );
+      } else if (normalized.code === 'DROP_OFF_NOT_AVAILABLE') {
+        setDeliverySettingsError(
+          normalized.message ??
+            'Эта точка недоступна для отгрузки. Выберите другую станцию.'
+        );
+      } else if (normalized.code === 'DROP_OFF_PVZ_NOT_FOUND') {
+        setDeliverySettingsError(
+          normalized.message ?? 'Точка не найдена в NDD. Попробуйте выбрать другую.'
+        );
+      } else {
+        setDeliverySettingsError('Не удалось сохранить ПВЗ сдачи.');
+      }
     }
   };
 
@@ -597,12 +604,10 @@ export const SellerDashboardPage = () => {
     setDropoffPvzRaw(raw);
 
     if (!isDropoffStationManual) {
-      const operatorStation =
-        (typeof raw?.operator_station_id === 'string' && raw.operator_station_id.trim()) ||
-        (typeof raw?.operatorStationId === 'string' && raw.operatorStationId.trim()) ||
-        selection.pvzId;
-      setDropoffStationId(operatorStation);
+      setDropoffStationId('');
     }
+
+    void handleSaveDeliveryProfile();
   };
 
   const handleReadyToShip = async (orderId: string) => {
@@ -1549,16 +1554,9 @@ export const SellerDashboardPage = () => {
                       <span className={styles.muted}>
                         Станция отгрузки (source_platform_station)
                       </span>
-
-                      <input
-                        className={styles.input}
-                        value={dropoffStationId}
-                        onChange={(event) => {
-                          setDropoffStationManual(true);
-                          setDropoffStationId(event.target.value);
-                        }}
-                        placeholder="GUID станции"
-                      />
+                      <p>
+                        {dropoffStationId || 'Не определена'}
+                      </p>
 
                       {dropoffStationAddress ? (
                         <p className={styles.muted}>{dropoffStationAddress}</p>
@@ -1572,18 +1570,6 @@ export const SellerDashboardPage = () => {
                         >
                           Выбрать ПВЗ сдачи через карту
                         </Button>
-                        {(import.meta.env.DEV || import.meta.env.MODE === 'test') && (
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            onClick={() => {
-                              setDropoffStationManual(true);
-                              setDropoffStationId(DEV_TEST_PLATFORM_STATION_ID);
-                            }}
-                          >
-                            Использовать тестовую станцию
-                          </Button>
-                        )}
                       </div>
 
                       {dropoffPvzId ? (
@@ -1593,6 +1579,12 @@ export const SellerDashboardPage = () => {
                         </p>
                       ) : (
                         <p className={styles.muted}>ПВЗ сдачи не выбран.</p>
+                      )}
+
+                      {deliverySettingsError && (
+                        <p className={styles.error} style={{ marginTop: '0.5rem' }}>
+                          {deliverySettingsError}
+                        </p>
                       )}
                     </div>
                   </div>
@@ -1605,7 +1597,7 @@ export const SellerDashboardPage = () => {
                   <Button
                     type="button"
                     onClick={handleSaveDeliveryProfile}
-                    disabled={!dropoffPvzId.trim() && !dropoffStationId.trim()}
+                    disabled={!dropoffPvzId.trim()}
                   >
                     Сохранить доставку
                   </Button>

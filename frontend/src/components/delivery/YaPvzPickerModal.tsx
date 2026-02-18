@@ -130,7 +130,7 @@ export function YaPvzPickerModal({
         show_select_button: true,
         size: { width: '100%', height: `${height}px` },
         filter: {
-          type: ['pickup_point', 'terminal'],
+          type: ['warehouse'],
           is_yandex_branded: false,
           payment_methods: ['already_paid', 'card_on_receipt'],
           payment_methods_filter: 'or'
@@ -239,7 +239,12 @@ export function YaPvzPickerModal({
     <div className={styles.overlay} onClick={onClose}>
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
         <div className={styles.header}>
-          <span>Выберите пункт выдачи</span>
+          <div>
+            <span>Выберите станцию сдачи (warehouse)</span>
+            <p style={{ fontSize: '0.875rem', color: '#666', marginTop: '0.25rem', marginBottom: 0 }}>
+              Для сдачи заказов доступны только склады (warehouse). Обычные ПВЗ не подходят.
+            </p>
+          </div>
           <button
             className={styles.closeButton}
             onClick={onClose}
