@@ -18,6 +18,26 @@ const buildApp = () => {
 const tokenFor = (userId: string, role: 'SELLER' | 'BUYER' = 'SELLER') =>
   jwt.sign({ userId, role, scope: 'access' }, env.jwtSecret);
 
+
+test.beforeEach(() => {
+  (yandexNddClient.pickupPointsList as unknown as (...args: unknown[]) => unknown) = async (body: any) => {
+    const firstId = Array.isArray(body?.pickup_point_ids) ? String(body.pickup_point_ids[0] ?? '') : 'warehouse-guid-1';
+    return {
+      points: [
+        {
+          id: firstId || 'warehouse-guid-1',
+          type: 'warehouse',
+          available_for_dropoff: true,
+          operator_station_id: '10029618814',
+          name: 'Склад по умолчанию',
+          address: { full_address: 'Москва, тестовый адрес' },
+          position: { latitude: 55.75, longitude: 37.61 }
+        }
+      ]
+    };
+  };
+});
+
 test('creates default seller delivery profile on onboarding when profile is absent', async () => {
   let upsertPayload: unknown = null;
 
@@ -62,7 +82,7 @@ test('creates default seller delivery profile on onboarding when profile is abse
   });
 });
 
-test('dropoff-pvz stores pvzId in settings and operator_station_id as source_platform_station', async () => {
+test('dropoff-pvz stores pvzId in settings and platform GUID as source_platform_station', async () => {
   const sellerDeliveryUpserts: unknown[] = [];
 
   (prisma.user.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ role: 'SELLER' });
@@ -77,6 +97,16 @@ test('dropoff-pvz stores pvzId in settings and operator_station_id as source_pla
     return { sellerId: 'seller-2', dropoffStationId: 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924' };
   };
 
+  (yandexNddClient.pickupPointsList as unknown as (...args: unknown[]) => unknown) = async () => ({
+    points: [
+      {
+        id: 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924',
+        type: 'warehouse',
+        available_for_dropoff: true,
+        operator_station_id: '10029618814'
+      }
+    ]
+  });
   const app = buildApp();
   const auth = `Bearer ${tokenFor('seller-2')}`;
 
@@ -163,6 +193,18 @@ test('dropoff-pvz returns DROP_OFF_NOT_AVAILABLE when point is unavailable for d
   (prisma.user.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ role: 'SELLER' });
   (prisma.sellerProfile.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ id: 'sp-1' });
 
+
+  (yandexNddClient.pickupPointsList as unknown as (...args: unknown[]) => unknown) = async () => ({
+    points: [
+      {
+        id: 'warehouse-id-1',
+        type: 'warehouse',
+        available_for_dropoff: false,
+        operator_station_id: '10029618814'
+      }
+    ]
+  });
+
   const app = buildApp();
   const auth = `Bearer ${tokenFor('seller-2')}`;
 
@@ -211,20 +253,23 @@ test('settings returns both source platform station and dropoff pvz separately',
 
 
 test('dropoff-stations returns normalized warehouse points by geo id', async () => {
+  let requestBody: any = null;
   (prisma.user.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ role: 'SELLER' });
   (prisma.sellerProfile.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ id: 'sp-1' });
-  (yandexNddClient.pickupPointsList as unknown as (...args: unknown[]) => unknown) = async () => ({
-    points: [
-      {
-        id: 'warehouse-id-1',
-        operator_station_id: 'operator-station-1',
-        name: 'Склад 1',
-        address: { full_address: 'Москва, Примерная, 1' },
-        position: { latitude: 55.75, longitude: 37.61 },
-        max_weight_gross: 25000
-      }
-    ]
-  });
+  (yandexNddClient.pickupPointsList as unknown as (...args: unknown[]) => unknown) = async (body: any) => {
+    requestBody = body;
+    return {
+      points: [
+        {
+          id: 'warehouse-id-1',
+          operator_station_id: 'operator-station-1',
+          name: 'Склад 1',
+          address: { full_address: 'Москва, Примерная, 1', geoId: 213 },
+          position: { latitude: 55.75, longitude: 37.61 }
+        }
+      ]
+    };
+  };
 
   const app = buildApp();
   const auth = `Bearer ${tokenFor('seller-2')}`;
@@ -234,9 +279,29 @@ test('dropoff-stations returns normalized warehouse points by geo id', async () 
     .set('Authorization', auth);
 
   assert.equal(response.status, 200);
+  assert.equal(requestBody.geo_id, 213);
+  assert.equal(requestBody.type, 'warehouse');
+  assert.equal(requestBody.available_for_dropoff, true);
   assert.equal(response.body?.points?.length, 1);
   assert.equal(response.body?.points?.[0]?.id, 'warehouse-id-1');
   assert.equal(response.body?.points?.[0]?.addressFull, 'Москва, Примерная, 1');
+  assert.equal(response.body?.points?.[0]?.geoId, 213);
+});
+
+
+test('dropoff-stations returns GEO_ID_REQUIRED when geoId is missing', async () => {
+  (prisma.user.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ role: 'SELLER' });
+  (prisma.sellerProfile.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ id: 'sp-1' });
+
+  const app = buildApp();
+  const auth = `Bearer ${tokenFor('seller-2')}`;
+
+  const response = await request(app)
+    .get('/seller/ndd/dropoff-stations')
+    .set('Authorization', auth);
+
+  assert.equal(response.status, 400);
+  assert.equal(response.body?.error?.code, 'GEO_ID_REQUIRED');
 });
 
 test('dev endpoint sets test station for seller delivery profile', async () => {

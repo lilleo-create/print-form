@@ -55,6 +55,27 @@ const extractSmartCaptchaDetails = (bodyText: string): SmartCaptchaDetails => {
   };
 };
 
+
+const toSnakeCaseKey = (key: string) =>
+  key
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/[-\s]+/g, '_')
+    .toLowerCase();
+
+const toSnakeCaseDeep = (value: unknown): unknown => {
+  if (Array.isArray(value)) {
+    return value.map((item) => toSnakeCaseDeep(item));
+  }
+
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+
+  return Object.entries(value as Record<string, unknown>).reduce<Record<string, unknown>>((acc, [key, nested]) => {
+    acc[toSnakeCaseKey(key)] = toSnakeCaseDeep(nested);
+    return acc;
+  }, {});
+};
 const isHtmlBody = (contentType: string | null, bodyText: string) => {
   const normalized = bodyText.trimStart();
   return (
@@ -272,9 +293,10 @@ export class YandexNddClient {
 
 
   async pickupPointsList(body: JsonRecord = {}) {
+    const payload = toSnakeCaseDeep(body) as JsonRecord;
     return this.request<{ points: any[] }>('/api/b2b/platform/pickup-points/list', {
       method: 'POST',
-      body: JSON.stringify(body)
+      body: JSON.stringify(payload)
     });
   }
 

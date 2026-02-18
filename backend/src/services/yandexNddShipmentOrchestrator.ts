@@ -69,6 +69,12 @@ const extractIntervalUtc = (
   return null;
 };
 
+
+const isNumericId = (value: string) => /^\d+$/.test(value);
+
+const isUuidLike = (value: string) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+
 const parseRecipientName = (order: any) => {
   const rawName =
     order.recipientName ??
@@ -190,6 +196,15 @@ export const yandexNddShipmentOrchestrator = {
       throw new Error('SELLER_STATION_ID_REQUIRED');
     }
 
+    if (isNumericId(sourceStationId)) {
+      throw new Error('SELLER_STATION_ID_INVALID_FORMAT: сохранён operator_station_id вместо platform GUID');
+    }
+
+    const selfPickupId = String(order.buyerPickupPvzId ?? '').trim();
+    if (isUuidLike(selfPickupId) && selfPickupId === sourceStationId) {
+      throw new Error('ID_TYPE_MISMATCH');
+    }
+
     if (sourceStationId === order.buyerPickupPvzId) {
       throw new Error('STATION_ID_EQUALS_PICKUP_POINT_ID');
     }
@@ -198,18 +213,18 @@ export const yandexNddShipmentOrchestrator = {
       console.log('[NDD readyToShip stations]', {
         orderId,
         station_id: sourceStationId,
-        self_pickup_id: order.buyerPickupPvzId,
+        self_pickup_id: selfPickupId,
         source: sourceStationFrom
       });
     }
 
-    console.info('[NDD] using ids', { station_id: sourceStationId, self_pickup_id: order.buyerPickupPvzId });
+    console.info('[NDD] using ids', { station_id: sourceStationId, self_pickup_id: selfPickupId });
 
     let offersInfo: Record<string, unknown>;
     try {
       offersInfo = await yandexNddClient.offersInfo(
         sourceStationId,
-        order.buyerPickupPvzId,
+        selfPickupId,
         'time_interval',
         true
       );
@@ -257,7 +272,7 @@ export const yandexNddShipmentOrchestrator = {
 
     const offersBody: Record<string, unknown> = {
       station_id: sourceStationId,
-      self_pickup_id: order.buyerPickupPvzId,
+      self_pickup_id: selfPickupId,
       interval_utc: intervalUtc,
       last_mile_policy: 'time_interval',
       info: {

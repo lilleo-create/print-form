@@ -17,10 +17,7 @@ import { SellerActions } from '../components/seller/SellerActions';
 import { SellerErrorState } from '../components/seller/SellerErrorState';
 import { SellerHeader } from '../components/seller/SellerHeader';
 import { SellerStatsCard } from '../components/seller/SellerStatsCard';
-import {
-  YaPvzPickerModal,
-  type YaPvzSelection
-} from '../components/delivery/YaPvzPickerModal';
+import { SellerDropoffStationPicker } from '../components/seller/SellerDropoffStationPicker';
 import {
   SellerProductModal,
   SellerProductPayload
@@ -127,8 +124,6 @@ export const SellerDashboardPage = () => {
   const [dropoffPvzAddress, setDropoffPvzAddress] = useState('');
   const [dropoffPvzRaw, setDropoffPvzRaw] = useState<Record<string, unknown> | null>(null);
   const [isDropoffModalOpen, setDropoffModalOpen] = useState(false);
-  const [isDropoffStationManual, setDropoffStationManual] = useState(false);
-  const [hasNoDropoffStationsInCity, setHasNoDropoffStationsInCity] = useState(false);
 
   const [deliverySettingsMessage, setDeliverySettingsMessage] = useState<
     string | null
@@ -233,7 +228,6 @@ export const SellerDashboardPage = () => {
       const dropoffMeta = profileResponse.data?.defaultDropoffPvzMeta;
       const stationId = profileResponse.data?.dropoffStationId ?? '';
       setDropoffStationId(stationId);
-      setDropoffStationManual(false);
       setDropoffStationAddress(
         dropoffMeta?.addressFull ??
           dropoffPvz?.addressFull ??
@@ -558,7 +552,6 @@ export const SellerDashboardPage = () => {
       const dropoffMeta = profileResponse.data?.defaultDropoffPvzMeta;
       const syncedStationId = profileResponse.data?.dropoffStationId ?? '';
       setDropoffStationId(syncedStationId);
-      setDropoffStationManual(false);
       setDropoffStationAddress(
         dropoffMeta?.addressFull ??
           dropoffPvz?.addressFull ??
@@ -591,24 +584,11 @@ export const SellerDashboardPage = () => {
     }
   };
 
-  const handleDropoffSelect = (selection: YaPvzSelection) => {
-    setDropoffPvzId(selection.pvzId);
+  const handleDropoffSelect = (selection: { id: string; addressFull: string | null; [key: string]: unknown }) => {
+    setDropoffPvzId(selection.id);
     setDropoffPvzAddress(selection.addressFull ?? '');
-
-    const raw =
-      selection.raw &&
-      typeof selection.raw === 'object' &&
-      !Array.isArray(selection.raw)
-        ? (selection.raw as Record<string, unknown>)
-        : null;
-
-    setDropoffPvzRaw(raw);
-
-    if (!isDropoffStationManual) {
-      setDropoffStationId('');
-    }
-
-    void handleSaveDeliveryProfile();
+    setDropoffPvzRaw(selection as Record<string, unknown>);
+    setDropoffModalOpen(false);
   };
 
   const handleReadyToShip = async (orderId: string) => {
@@ -1569,7 +1549,7 @@ export const SellerDashboardPage = () => {
                           variant="secondary"
                           onClick={() => setDropoffModalOpen(true)}
                         >
-                          Выбрать станцию сдачи (warehouse) через карту
+                          Выбрать станцию сдачи (warehouse)
                         </Button>
                       </div>
 
@@ -1588,11 +1568,6 @@ export const SellerDashboardPage = () => {
                         </p>
                       )}
 
-                      {hasNoDropoffStationsInCity && (
-                        <p className={styles.error} style={{ marginTop: '0.5rem' }}>
-                          Нет станций сдачи в этом городе
-                        </p>
-                      )}
                     </div>
                   </div>
 
@@ -1626,17 +1601,11 @@ export const SellerDashboardPage = () => {
                 </div>
               )}
 
-              <YaPvzPickerModal
+              <SellerDropoffStationPicker
                 isOpen={isDropoffModalOpen}
                 onClose={() => setDropoffModalOpen(false)}
-                onSelect={(sel) => {
-                  handleDropoffSelect(sel);
-                  setDropoffModalOpen(false);
-                }}
-                city="Москва"
+                onSelect={handleDropoffSelect}
                 geoId={213}
-                onNoStationsInCity={setHasNoDropoffStationsInCity}
-                physical_dims_weight_gross={10000}
               />
 
               {isModalOpen && (

@@ -18,7 +18,7 @@ import { shipmentService } from '../services/shipmentService';
 import { yandexDeliveryService } from '../services/yandexDeliveryService';
 import { sellerOrderDocumentsService } from '../services/sellerOrderDocumentsService';
 import { getYandexNddConfig } from '../config/yandexNdd';
-import { yandexNddClient } from '../services/yandexNdd/YandexNddClient';
+import { YandexNddHttpError, yandexNddClient } from '../services/yandexNdd/YandexNddClient';
 import { normalizeStationId } from '../services/yandexNdd/getOperatorStationId';
 
 export const sellerRoutes = Router();
@@ -584,11 +584,28 @@ sellerRoutes.get('/settings', async (req: AuthRequest, res, next) => {
 
 sellerRoutes.get('/ndd/dropoff-stations', async (req: AuthRequest, res, next) => {
   try {
-    const { geoId, limit = 200 } = dropoffStationsQuerySchema.parse(req.query ?? {});
+    const geoIdRaw = typeof req.query?.geoId === 'string' ? req.query.geoId : String(req.query?.geoId ?? '');
+    const geoId = Number(geoIdRaw);
+    if (!geoIdRaw.trim() || Number.isNaN(geoId) || !Number.isFinite(geoId) || geoId <= 0) {
+      return res.status(400).json({
+        error: {
+          code: 'GEO_ID_REQUIRED',
+          message: 'geoId обязателен'
+        }
+      });
+    }
+
+    const { limit = 100 } = dropoffStationsQuerySchema.parse({
+      geoId,
+      limit: req.query?.limit
+    });
+
     const listResp = await yandexNddClient.pickupPointsList({
       geo_id: geoId,
+      type: 'warehouse',
       available_for_dropoff: true,
-      type: 'warehouse'
+      is_yandex_branded: false,
+      is_not_branded_partner_station: true
     });
 
     const pointsRaw =
@@ -601,20 +618,31 @@ sellerRoutes.get('/ndd/dropoff-stations', async (req: AuthRequest, res, next) =>
       .map((point: Record<string, any>) => ({
         id: String(point?.id ?? ''),
         operator_station_id: point?.operator_station_id ?? null,
-        name: typeof point?.name === 'string' ? point.name : '',
+        name: typeof point?.name === 'string' ? point.name : null,
         addressFull: point?.address?.full_address ?? null,
+        geoId: point?.address?.geoId ?? point?.address?.geo_id ?? null,
         position: point?.position ?? null,
-        maxWeightGross:
-          typeof point?.physical_dims_weight_gross === 'number'
-            ? point.physical_dims_weight_gross
-            : typeof point?.max_weight_gross === 'number'
-              ? point.max_weight_gross
-              : null
+        maxWeightGross: null
       }))
       .filter((point: { id: string }) => point.id);
 
+    console.info('[DROP_OFF_STATIONS]', {
+      geoId,
+      count: points.length,
+      sample: points[0]?.id
+    });
+
     return res.json({ points });
   } catch (error) {
+    if (error instanceof YandexNddHttpError && error.code === 'NDD_REQUEST_FAILED') {
+      return res.status(502).json({
+        error: {
+          code: 'NDD_REQUEST_FAILED',
+          message: 'Не удалось получить станции сдачи из NDD.',
+          details: (error as any).details ?? null
+        }
+      });
+    }
     return next(error);
   }
 });
@@ -683,8 +711,8 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
       });
     }
 
-    const stationIdRaw = String((point as any).id ?? '').trim();
-    if (!stationIdRaw) {
+    const dropoffStationId = String((point as any).id ?? '').trim();
+    if (!dropoffStationId) {
       return res.status(400).json({
         error: {
           code: 'SELLER_STATION_ID_INVALID',
@@ -707,7 +735,7 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
       type: (point as any).type,
       available_for_dropoff: (point as any).available_for_dropoff,
       operator_station_id: (point as any).operator_station_id,
-      sourcePlatformStation: stationIdRaw
+      sourcePlatformStation: dropoffStationId
     });
 
     const settings = await prisma.sellerSettings.upsert({
@@ -724,11 +752,11 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
     });
 
     await sellerDeliveryProfileService.upsert(req.user!.userId, {
-      dropoffStationId: stationIdRaw,
+      dropoffStationId,
       dropoffStationMeta: {
         source: 'pickup-points/list',
         pvz_id: pvzId,
-        source_platform_station: stationIdRaw,
+        source_platform_station: dropoffStationId,
         operator_station_id: (point as any).operator_station_id ?? null,
         raw: point
       }
