@@ -1,8 +1,10 @@
 import { prisma } from '../lib/prisma';
 import { orderDeliveryService } from './orderDeliveryService';
 import { mapYandexStatusToInternal, shipmentService } from './shipmentService';
-import { yandexNddClient } from './yandexNdd/YandexNddClient';
+import { YandexNddHttpError, yandexNddClient } from './yandexNdd/YandexNddClient';
 import { getOperatorStationId, normalizeStationId } from './yandexNdd/getOperatorStationId';
+
+const readyToShipSingleFlight = new Map<string, Promise<any>>();
 
 const pickBestOffer = (response: Record<string, unknown>) => {
   const offers = (response.offers as Record<string, unknown>[] | undefined) ?? [];
@@ -105,6 +107,12 @@ const findOfferId = (
 
 export const yandexNddShipmentOrchestrator = {
   readyToShip: async (sellerId: string, orderId: string) => {
+    const inFlight = readyToShipSingleFlight.get(orderId);
+    if (inFlight) {
+      return inFlight;
+    }
+
+    const runPromise = (async () => {
     const order = await prisma.order.findFirst({
       where: {
         id: orderId,
@@ -197,12 +205,27 @@ export const yandexNddShipmentOrchestrator = {
 
     console.info('[NDD] using ids', { station_id: sourceStationId, self_pickup_id: order.buyerPickupPvzId });
 
-    const offersInfo = await yandexNddClient.offersInfo(
-      sourceStationId,
-      order.buyerPickupPvzId,
-      'time_interval',
-      true
-    );
+    let offersInfo: Record<string, unknown>;
+    try {
+      offersInfo = await yandexNddClient.offersInfo(
+        sourceStationId,
+        order.buyerPickupPvzId,
+        'time_interval',
+        true
+      );
+    } catch (error) {
+      if (error instanceof YandexNddHttpError && error.code === 'YANDEX_SMARTCAPTCHA_BLOCK') {
+        const details =
+          error.details && typeof error.details === 'object'
+            ? (error.details as Record<string, unknown>)
+            : {};
+        console.warn('[NDD] blocked by SmartCaptcha', {
+          uniqueKey: typeof details.uniqueKey === 'string' ? details.uniqueKey : undefined
+        });
+        throw new YandexNddHttpError('YANDEX_IP_BLOCKED', error.path, error.status, error.raw, error.details);
+      }
+      throw error;
+    }
     const intervalUtc = extractIntervalUtc(offersInfo);
     if (!intervalUtc) {
       throw new Error('NDD_INTERVAL_REQUIRED');
@@ -339,6 +362,15 @@ export const yandexNddShipmentOrchestrator = {
 
     await shipmentService.pushHistory(updated.id, internalStatus, statusRaw);
     return updated;
+    })();
+
+    readyToShipSingleFlight.set(orderId, runPromise);
+
+    try {
+      return await runPromise;
+    } finally {
+      readyToShipSingleFlight.delete(orderId);
+    }
   },
 
   syncStatuses: async () => {

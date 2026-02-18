@@ -12,8 +12,20 @@ export const isYandexNddTestEnvironment = (baseUrl: string): boolean => {
 };
 
 export const getYandexNddConfig = (): YandexNddConfig => {
-  const rawBaseUrl = process.env.YANDEX_NDD_BASE_URL || 'https://b2b-authproxy.taxi.yandex.net';
-  const baseUrl = rawBaseUrl.replace(/\/api\/?$/, '');
+  const defaultBaseUrl = 'https://b2b-authproxy.taxi.yandex.net';
+  const rawBaseUrl = process.env.YANDEX_NDD_BASE_URL || defaultBaseUrl;
+  const normalizedRawBaseUrl = rawBaseUrl.trim().replace(/\/+$/, '');
+  const baseUrlWithoutApi = normalizedRawBaseUrl.replace(/\/api\/?$/, '');
+  const shouldForceProdAuthProxy =
+    process.env.NODE_ENV === 'production' && baseUrlWithoutApi.includes('b2b.taxi.yandex.net');
+  const baseUrl = shouldForceProdAuthProxy ? defaultBaseUrl : baseUrlWithoutApi;
+
+  if (shouldForceProdAuthProxy) {
+    console.warn('[YANDEX_NDD] overriding deprecated production base URL', {
+      providedBaseUrl: rawBaseUrl,
+      forcedBaseUrl: defaultBaseUrl
+    });
+  }
   const token = process.env.YANDEX_NDD_TOKEN || '';
   const lang = process.env.YANDEX_NDD_LANG || 'ru';
   const defaultPlatformStationId =
