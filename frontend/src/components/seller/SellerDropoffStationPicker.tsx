@@ -46,17 +46,17 @@ export const SellerDropoffStationPicker = ({ isOpen, geoId, onClose, onSelect }:
     setError(null);
 
     try {
-      const response = await api.searchSellerDropoffStations(normalizedQuery, 50, controller.signal);
+      const response = await api.searchSellerDropoffStations(normalizedQuery, 213, 50, controller.signal);
       const points = response.data?.points ?? [];
       setStations(points);
       setDetectedGeoId(response.data?.debug?.geoId ?? null);
-      setSearchEmptyMessage(points.length ? null : 'Станции сдачи рядом не найдены. Уточните запрос.');
+      setSearchEmptyMessage(points.length ? null : 'Пункты приёма не найдены. Уточните запрос.');
     } catch (e) {
       if (controller.signal.aborted) {
         return;
       }
       const normalized = normalizeApiError(e);
-      setError(normalized.message ?? 'Не удалось выполнить поиск станций сдачи рядом.');
+      setError(normalized.message ?? 'Не удалось выполнить поиск пунктов приёма.');
     } finally {
       if (!controller.signal.aborted) {
         setLoading(false);
@@ -83,7 +83,7 @@ export const SellerDropoffStationPicker = ({ isOpen, geoId, onClose, onSelect }:
     <div className={styles.overlay}>
       <div className={styles.modal}>
         <div className={styles.header}>
-          <h3>Станция сдачи (warehouse)</h3>
+          <h3>Пункты приёма (как физлицо)</h3>
           <Button type="button" variant="ghost" onClick={onClose}>
             Закрыть
           </Button>
@@ -92,7 +92,7 @@ export const SellerDropoffStationPicker = ({ isOpen, geoId, onClose, onSelect }:
         <div className={styles.actions}>
           <input
             className={styles.search}
-            placeholder="Введите город, район или адрес (например, Москва)"
+            placeholder="Введите город, район или адрес (например, Тушино)"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
@@ -101,7 +101,7 @@ export const SellerDropoffStationPicker = ({ isOpen, geoId, onClose, onSelect }:
           </Button>
         </div>
 
-        <p className={styles.muted}>Текущий geoId профиля: {geoId}{detectedGeoId ? ` · geoId поиска: ${detectedGeoId}` : ''}</p>
+        <p className={styles.muted}>Показываем пункты приёма для сдачи C2C (физлицо). geoId: {detectedGeoId ?? geoId}</p>
 
         {error && <p className={styles.error}>{error}</p>}
         {!error && searchEmptyMessage && <p className={styles.muted}>{searchEmptyMessage}</p>}
@@ -109,7 +109,7 @@ export const SellerDropoffStationPicker = ({ isOpen, geoId, onClose, onSelect }:
         <div className={styles.body}>
           <div className={styles.list}>
             {filtered.length === 0 ? (
-              <p className={styles.muted}>Станции не найдены.</p>
+              <p className={styles.muted}>Пункты приёма не найдены.</p>
             ) : (
               filtered.map((station) => (
                 <button

@@ -529,17 +529,18 @@ export const SellerDashboardPage = () => {
     const stationId = dropoffStationId.trim();
 
     if (!stationId) {
-      setDeliverySettingsError('Выберите станцию сдачи (warehouse) в списке.');
+      setDeliverySettingsError('Выберите пункт приёма в списке.');
       return;
     }
 
     try {
-      await api.updateSellerDropoffStation({
-        stationId,
-        addressFull: dropoffStationAddress.trim() || stationId,
-        raw: dropoffPvzRaw,
-        geoId: 213,
-        query: dropoffStationAddress.trim() || undefined
+      await api.updateSellerDeliveryProfile({
+        dropoffPvz: {
+          provider: 'YANDEX_NDD',
+          pvzId: stationId,
+          raw: dropoffPvzRaw,
+          addressFull: dropoffStationAddress.trim() || undefined
+        }
       });
 
       const profileResponse = await api.getSellerDeliveryProfile();
@@ -554,10 +555,10 @@ export const SellerDashboardPage = () => {
       setDropoffStationAddress(metaAddress || dropoffStationAddress || dropoffPvzAddress);
       setDropoffPvzAddress(metaAddress || dropoffPvzAddress);
 
-      setDeliverySettingsMessage('Станция сдачи (warehouse) сохранена.');
+      setDeliverySettingsMessage('Пункт приёма сохранён.');
     } catch (error) {
       const normalized = normalizeApiError(error);
-      setDeliverySettingsError(normalized.message ?? 'Не удалось сохранить station_id.');
+      setDeliverySettingsError(normalized.message ?? 'Не удалось сохранить пункт приёма.');
     }
   };
 
@@ -566,27 +567,24 @@ export const SellerDashboardPage = () => {
     setDeliverySettingsError(null);
 
     try {
-      await api.updateSellerDropoffStation({
-        stationId: selection.id,
-        addressFull: selection.addressFull ?? selection.id,
-        raw: selection as Record<string, unknown>,
-        geoId: typeof selection.geoId === 'number' ? selection.geoId : 213,
-        query: selection.name ? String(selection.name) : undefined,
-        position:
-          selection.position && typeof selection.position === 'object'
-            ? (selection.position as { latitude?: number; longitude?: number })
-            : undefined
+      await api.updateSellerDeliveryProfile({
+        dropoffPvz: {
+          provider: 'YANDEX_NDD',
+          pvzId: selection.id,
+          raw: selection as Record<string, unknown>,
+          addressFull: selection.addressFull ?? undefined
+        }
       });
 
       setDropoffStationId(selection.id);
       setDropoffStationAddress(selection.addressFull ?? '');
       setDropoffPvzAddress(selection.addressFull ?? '');
       setDropoffPvzRaw(selection as Record<string, unknown>);
-      setDeliverySettingsMessage('Станция сдачи (warehouse) сохранена.');
+      setDeliverySettingsMessage('Пункт приёма сохранён.');
       setDropoffModalOpen(false);
     } catch (error) {
       const normalized = normalizeApiError(error);
-      setDeliverySettingsError(normalized.message ?? 'Не удалось сохранить станцию сдачи.');
+      setDeliverySettingsError(normalized.message ?? 'Не удалось сохранить пункт приёма.');
     }
   };
 
@@ -1532,7 +1530,7 @@ export const SellerDashboardPage = () => {
                   <div className={styles.settingsGrid}>
                     <div>
                       <span className={styles.muted}>
-                        Станция отгрузки (source_platform_station)
+                        Пункт приёма (C2C dropoff)
                       </span>
                       <p>
                         {dropoffStationId || 'Не определена'}
@@ -1548,17 +1546,17 @@ export const SellerDashboardPage = () => {
                           variant="secondary"
                           onClick={() => setDropoffModalOpen(true)}
                         >
-                          Выбрать станцию сдачи (warehouse)
+                          Выбрать пункт приёма (как физлицо)
                         </Button>
                       </div>
 
                       {dropoffStationId ? (
                         <p className={styles.muted}>
-                          Станция сдачи (warehouse): {dropoffStationId}
+                          Пункт приёма: {dropoffStationId}
                           {dropoffStationAddress ? ` (${dropoffStationAddress})` : ''}
                         </p>
                       ) : (
-                        <p className={styles.muted}>Станция сдачи (warehouse) не выбрана.</p>
+                        <p className={styles.muted}>Пункт приёма не выбран.</p>
                       )}
 
                       {deliverySettingsError && (
@@ -1580,7 +1578,7 @@ export const SellerDashboardPage = () => {
                     onClick={handleSaveDeliveryProfile}
                     disabled={!dropoffStationId.trim()}
                   >
-                    Сохранить station_id
+                    Сохранить пункт приёма
                   </Button>
 
                   <Button
