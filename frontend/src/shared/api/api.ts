@@ -24,10 +24,9 @@ import { STORAGE_KEYS } from '../constants/storageKeys';
 export type SellerDropoffStation = {
   id: string;
   operator_station_id: string | null;
-  name: string;
+  name: string | null;
   addressFull: string | null;
   position: { latitude?: number; longitude?: number } | null;
-  maxWeightGross: number | null;
 };
 
 export interface ApiError {
@@ -314,9 +313,19 @@ export const api = {
   },
 
 
-  async getSellerDropoffStations(params: { geoId: number; limit?: number }) {
-    const query = new URLSearchParams({ geoId: String(params.geoId) });
-    if (params.limit) query.set('limit', String(params.limit));
+  async getSellerDropoffStations(
+    geoIdOrParams: number | { geoId: number; limit?: number },
+    limitArg?: number
+  ) {
+    const geoId =
+      typeof geoIdOrParams === 'number' ? geoIdOrParams : geoIdOrParams.geoId;
+    const limit =
+      typeof geoIdOrParams === 'number'
+        ? limitArg
+        : geoIdOrParams.limit;
+
+    const query = new URLSearchParams({ geoId: String(geoId) });
+    if (limit) query.set('limit', String(limit));
     return apiClient.request<{ points: SellerDropoffStation[] }>(
       `/seller/ndd/dropoff-stations?${query.toString()}`
     );
@@ -437,7 +446,7 @@ export const api = {
       requiresOtp?: boolean;
       tempToken?: string;
       user?: {
-        name: string;
+        name: string | null;
         role: string;
         email: string;
         id: string;
@@ -449,7 +458,7 @@ export const api = {
   },
 
   async register(payload: {
-    name: string;
+    name: string | null;
     email: string;
     password: string;
     phone: string;
@@ -460,7 +469,7 @@ export const api = {
       requiresOtp?: boolean;
       tempToken?: string;
       user?: {
-        name: string;
+        name: string | null;
         role: string;
         email: string;
         id: string;
@@ -500,7 +509,7 @@ export const api = {
     return apiClient.request<{
       accessToken?: string;
       user?: {
-        name: string;
+        name: string | null;
         role: string;
         email: string;
         id: string;
@@ -546,7 +555,7 @@ export const api = {
   async me() {
     return apiClient.request<{
       id: string;
-      name: string;
+      name: string | null;
       role: string;
       email: string;
     }>('/me');
@@ -561,7 +570,7 @@ export const api = {
     return apiClient.request<{
       data: {
         id: string;
-        name: string;
+        name: string | null;
         role: string;
         email: string;
         phone?: string | null;
@@ -582,7 +591,7 @@ export const api = {
   },
 
   async submitSellerOnboarding(payload: {
-    name: string;
+    name: string | null;
     phone: string;
     status: 'ИП' | 'ООО' | 'Самозанятый';
     storeName: string;
@@ -592,7 +601,7 @@ export const api = {
   }) {
     return apiClient.request<{
       id: string;
-      name: string;
+      name: string | null;
       email: string;
       phone?: string | null;
       role: string;
