@@ -36,6 +36,24 @@ test('sets strict Authorization header as Bearer <token> when env token is store
   assert.equal(capturedHeaders?.get('Authorization'), 'Bearer abcdefghijklmnop');
 });
 
+
+
+test('normalizes token when env value already contains Bearer prefix', async () => {
+  process.env.YANDEX_NDD_TOKEN = 'Bearer prefixed-token';
+  let capturedHeaders: Headers | undefined;
+
+  globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    capturedHeaders = new Headers(init?.headers ?? {});
+    return new Response(JSON.stringify({ ok: true }), { status: 200 });
+  }) as typeof fetch;
+
+  const client = new YandexNddClient();
+  await client.offersCreate({});
+
+  assert.ok(capturedHeaders);
+  assert.equal(capturedHeaders?.get('Authorization'), 'Bearer prefixed-token');
+});
+
 test('offersInfo sends expected query params', async () => {
   process.env.YANDEX_NDD_TOKEN = 'token';
   let url = '';
@@ -73,10 +91,10 @@ test('logs token preview/length and Bearer prefix flag on failed responses', asy
   const [, authPayload] = consoleInfoSpy.mock.calls.find((call) => call.arguments[0] === '[YANDEX_NDD][auth]')?.arguments ?? [];
   assert.equal(authPayload.tokenPreview, 'abcdefghij');
   assert.equal(authPayload.tokenLength, 15);
-  assert.equal(authPayload.hasBearerPrefix, true);
+  assert.equal(authPayload.rawHadBearerPrefix, false);
 
   const [, payload] = consoleErrorSpy.mock.calls[0]?.arguments ?? [];
   assert.equal(payload.tokenPreview, 'abcdefghij');
   assert.equal(payload.tokenLength, 15);
-  assert.equal(payload.hasBearerPrefix, true);
+  assert.equal(payload.rawHadBearerPrefix, false);
 });
