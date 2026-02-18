@@ -333,10 +333,14 @@ export const api = {
     );
   },
 
-  async searchSellerDropoffStations(q: string, geoId = 213, limit = 20) {
-    const query = new URLSearchParams({ q, geoId: String(geoId), limit: String(limit) });
-    return apiClient.request<{ points: SellerDropoffStation[] }>(
-      `/seller/ndd/dropoff-stations/search?${query.toString()}`
+  async searchSellerDropoffStations(query: string, limit = 20, signal?: AbortSignal) {
+    return apiClient.request<{ points: SellerDropoffStation[]; debug?: { geoId?: number } }>(
+      '/seller/ndd/dropoff-stations/search',
+      {
+        method: 'POST',
+        body: { query, limit },
+        signal
+      }
     );
   },
 

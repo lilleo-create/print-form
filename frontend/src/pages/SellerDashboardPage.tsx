@@ -120,7 +120,6 @@ export const SellerDashboardPage = () => {
   // === Delivery profile ===
   const [dropoffStationId, setDropoffStationId] = useState('');
   const [dropoffStationAddress, setDropoffStationAddress] = useState('');
-  const [dropoffPvzId, setDropoffPvzId] = useState('');
   const [dropoffPvzAddress, setDropoffPvzAddress] = useState('');
   const [dropoffPvzRaw, setDropoffPvzRaw] = useState<Record<string, unknown> | null>(null);
   const [isDropoffModalOpen, setDropoffModalOpen] = useState(false);
@@ -232,9 +231,6 @@ export const SellerDashboardPage = () => {
         dropoffMeta?.addressFull ??
           dropoffPvz?.addressFull ??
           ''
-      );
-      setDropoffPvzId(
-        dropoffPvz?.pvzId ?? profileResponse.data?.defaultDropoffPvzId ?? ''
       );
       setDropoffPvzAddress(dropoffPvz?.addressFull ?? dropoffMeta?.addressFull ?? '');
       const persistedRaw =
@@ -530,7 +526,7 @@ export const SellerDashboardPage = () => {
     setDeliverySettingsMessage(null);
     setDeliverySettingsError(null);
 
-    const stationId = dropoffStationId.trim() || dropoffPvzId.trim();
+    const stationId = dropoffStationId.trim();
 
     if (!stationId) {
       setDeliverySettingsError('Выберите станцию сдачи (warehouse) в списке.');
@@ -540,7 +536,7 @@ export const SellerDashboardPage = () => {
     try {
       await api.updateSellerDropoffStation({
         stationId,
-        addressFull: dropoffStationAddress.trim() || dropoffPvzAddress.trim() || stationId,
+        addressFull: dropoffStationAddress.trim() || stationId,
         raw: dropoffPvzRaw,
         geoId: 213,
         query: dropoffStationAddress.trim() || undefined
@@ -556,7 +552,6 @@ export const SellerDashboardPage = () => {
 
       setDropoffStationId(syncedStationId);
       setDropoffStationAddress(metaAddress || dropoffStationAddress || dropoffPvzAddress);
-      setDropoffPvzId(syncedStationId);
       setDropoffPvzAddress(metaAddress || dropoffPvzAddress);
 
       setDeliverySettingsMessage('Станция сдачи (warehouse) сохранена.');
@@ -585,7 +580,6 @@ export const SellerDashboardPage = () => {
 
       setDropoffStationId(selection.id);
       setDropoffStationAddress(selection.addressFull ?? '');
-      setDropoffPvzId(selection.id);
       setDropoffPvzAddress(selection.addressFull ?? '');
       setDropoffPvzRaw(selection as Record<string, unknown>);
       setDeliverySettingsMessage('Станция сдачи (warehouse) сохранена.');
@@ -1558,10 +1552,10 @@ export const SellerDashboardPage = () => {
                         </Button>
                       </div>
 
-                      {dropoffPvzId ? (
+                      {dropoffStationId ? (
                         <p className={styles.muted}>
-                          Станция сдачи (warehouse): {dropoffPvzId}
-                          {dropoffPvzAddress ? ` (${dropoffPvzAddress})` : ''}
+                          Станция сдачи (warehouse): {dropoffStationId}
+                          {dropoffStationAddress ? ` (${dropoffStationAddress})` : ''}
                         </p>
                       ) : (
                         <p className={styles.muted}>Станция сдачи (warehouse) не выбрана.</p>

@@ -551,9 +551,8 @@ const dropoffStationsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(500).optional()
 });
 
-const dropoffStationsSearchQuerySchema = z.object({
-  q: z.string().trim().min(2),
-  geoId: z.coerce.number().int().positive().optional(),
+const dropoffStationsSearchBodySchema = z.object({
+  query: z.string().trim().min(2),
   limit: z.coerce.number().int().min(1).max(100).default(20)
 });
 
@@ -667,49 +666,27 @@ sellerRoutes.get('/ndd/dropoff-stations', async (req: AuthRequest, res, next) =>
   }
 });
 
-sellerRoutes.get('/ndd/dropoff-stations/search', async (req: AuthRequest, res, next) => {
+sellerRoutes.post('/ndd/dropoff-stations/search', async (req: AuthRequest, res, next) => {
   try {
-    const { q, geoId, limit } = dropoffStationsSearchQuerySchema.parse({
-      q: req.query?.q,
-      geoId: req.query?.geoId,
-      limit: req.query?.limit
-    });
+    const { query, limit } = dropoffStationsSearchBodySchema.parse(req.body ?? {});
 
-    const normalizedQuery = q.trim().toLowerCase();
+    const geoId = await yandexNddClient.detectGeoIdByQuery(query);
 
-    let geoIdUsed: number | null = geoId ?? null;
-    let detectedGeoId: number | null = null;
-
-    if (!geoIdUsed) {
-      const detectResponse = await yandexNddClient.locationDetect({ location: q });
-      const variants =
-        ((detectResponse as any)?.variants ??
-          (detectResponse as any)?.result?.variants ??
-          []) as Array<Record<string, unknown>>;
-
-      const firstVariant = variants[0] ?? null;
-      const rawDetectedGeoId = firstVariant?.geo_id ?? firstVariant?.geoId ?? null;
-      if (typeof rawDetectedGeoId === 'number' && Number.isFinite(rawDetectedGeoId) && rawDetectedGeoId > 0) {
-        detectedGeoId = rawDetectedGeoId;
-        geoIdUsed = rawDetectedGeoId;
-      }
-    }
-
-    if (!geoIdUsed) {
-      console.info('[NDD_DROP_OFF_SEARCH]', {
-        q,
-        geoIdUsed,
-        detectedGeoId,
-        pointsBefore: 0,
-        pointsAfter: 0
+    if (!geoId) {
+      return res.status(502).json({
+        error: {
+          code: 'GEOCODE_FAILED',
+          message: 'Не удалось определить geoId через NDD location/detect.'
+        }
       });
-      return res.json({ points: [] });
     }
 
     const listResp = await yandexNddClient.pickupPointsList({
-      geo_id: geoIdUsed,
+      geo_id: geoId,
       type: 'warehouse',
-      available_for_dropoff: true
+      available_for_dropoff: true,
+      is_yandex_branded: false,
+      is_not_branded_partner_station: true
     });
     const pointsRaw =
       (listResp as any)?.points ??
@@ -726,29 +703,22 @@ sellerRoutes.get('/ndd/dropoff-stations/search', async (req: AuthRequest, res, n
         position: point?.position ?? null,
         maxWeightGross: null
       }))
-      .filter((point: { id: string }) => point.id);
-
-    const points = normalizedPoints
-      .filter((point: { name: string | null; addressFull: string | null }) =>
-        `${point.name ?? ''} ${point.addressFull ?? ''}`.toLowerCase().includes(normalizedQuery)
-      )
+      .filter((point: { id: string }) => point.id)
       .slice(0, limit);
 
     console.info('[NDD_DROP_OFF_SEARCH]', {
-      q,
-      geoIdUsed,
-      detectedGeoId,
-      pointsBefore: normalizedPoints.length,
-      pointsAfter: points.length
+      query,
+      geoId,
+      points: normalizedPoints.length
     });
 
-    return res.json({ points });
+    return res.json({ points: normalizedPoints, debug: { geoId } });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({
         error: {
           code: 'GEO_QUERY_REQUIRED',
-          message: 'Параметр q обязателен и должен быть не короче 2 символов.'
+          message: 'Параметр query обязателен и должен быть не короче 2 символов.'
         }
       });
     }
@@ -782,12 +752,13 @@ sellerRoutes.put('/settings/dropoff-station', writeLimiter, async (req: AuthRequ
   try {
     const payload = dropoffStationSaveSchema.parse(req.body ?? {});
     const stationId = payload.stationId.trim();
+    const validatedStationId = await validateSourcePlatformStationId(stationId);
 
     const profile = await sellerDeliveryProfileService.upsert(req.user!.userId, {
-      dropoffStationId: stationId,
+      dropoffStationId: validatedStationId,
       dropoffStationMeta: {
-        source: 'ndd/2.02',
-        source_platform_station: stationId,
+        source: 'ndd/location_detect+pickup_points_list',
+        source_platform_station: validatedStationId,
         addressFull: payload.addressFull,
         geoId: payload.geoId,
         query: payload.query,
@@ -803,6 +774,14 @@ sellerRoutes.put('/settings/dropoff-station', writeLimiter, async (req: AuthRequ
         error: {
           code: 'DROP_OFF_STATION_ID_REQUIRED',
           message: 'Не выбран id станции сдачи (stationId).'
+        }
+      });
+    }
+    if (error instanceof Error && error.message === 'SELLER_STATION_ID_INVALID') {
+      return res.status(400).json({
+        error: {
+          code: 'SELLER_STATION_ID_INVALID',
+          message: 'Укажите корректный stationId.'
         }
       });
     }
@@ -836,6 +815,10 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
   try {
     const payload = sellerDeliveryProfileSchema.parse(req.body);
     const pvzId = String(payload.dropoffPvz.pvzId ?? '').trim();
+    console.info('[DROP_OFF_PVZ_SAVE]', {
+      pvzId,
+      looksLikeDigits: /^\d+$/.test(pvzId)
+    });
     if (!pvzId) {
       return res.status(400).json({ error: { code: 'DROP_OFF_PVZ_ID_REQUIRED', message: 'Не выбран id точки (pvzId).' } });
     }
