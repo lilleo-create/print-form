@@ -305,6 +305,17 @@ export class YandexNddClient {
     });
   }
 
+  async locationDetect(body: { location: string }) {
+    const payload = toSnakeCaseDeep(body) as JsonRecord;
+    return this.request<{ variants?: Array<{ geo_id?: number; geoId?: number; address?: string }> }>(
+      '/api/b2b/platform/location/detect',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      }
+    );
+  }
+
   async getNearestDropoffStations202(
     coords: { latitude: number; longitude: number },
     limit = 20,

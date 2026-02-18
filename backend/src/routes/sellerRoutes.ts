@@ -553,41 +553,23 @@ const dropoffStationsQuerySchema = z.object({
 
 const dropoffStationsSearchQuerySchema = z.object({
   q: z.string().trim().min(2),
-  geoId: z.coerce.number().int().positive().default(213),
+  geoId: z.coerce.number().int().positive().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20)
 });
 
-const geocodeAddress = async (query: string) => {
-  const params = new URLSearchParams({
-    geocode: query,
-    format: 'json',
-    results: '1',
-    lang: 'ru_RU'
-  });
-  const response = await fetch(`https://geocode-maps.yandex.ru/1.x/?${params.toString()}`);
-  if (!response.ok) {
-    throw new Error(`GEOCODER_HTTP_${response.status}`);
-  }
-
-  const payload = (await response.json()) as any;
-  const first = payload?.response?.GeoObjectCollection?.featureMember?.[0]?.GeoObject;
-  const pos = String(first?.Point?.pos ?? '').trim();
-  if (!pos) {
-    return null;
-  }
-
-  const [lonRaw, latRaw] = pos.split(' ');
-  const latitude = Number(latRaw);
-  const longitude = Number(lonRaw);
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-    return null;
-  }
-
-  return {
-    latitude,
-    longitude
-  };
-};
+const dropoffStationSaveSchema = z.object({
+  stationId: z.string().trim().min(1),
+  addressFull: z.string().optional(),
+  raw: z.unknown().optional(),
+  geoId: z.coerce.number().int().positive().optional(),
+  query: z.string().optional(),
+  position: z
+    .object({
+      latitude: z.coerce.number(),
+      longitude: z.coerce.number()
+    })
+    .optional()
+});
 
 sellerRoutes.get('/settings', async (req: AuthRequest, res, next) => {
   try {
@@ -693,41 +675,48 @@ sellerRoutes.get('/ndd/dropoff-stations/search', async (req: AuthRequest, res, n
       limit: req.query?.limit
     });
 
-    const coords = await geocodeAddress(q);
-    if (!coords) {
-      console.info('[NDD_DROP_OFF_SEARCH]', {
-        q,
-        geoId,
-        coords: null,
-        stationIdsCount: 0,
-        pointsCount: 0
-      });
-      return res.json({ points: [], message: 'Ничего не найдено' });
+    const normalizedQuery = q.trim().toLowerCase();
+
+    let geoIdUsed: number | null = geoId ?? null;
+    let detectedGeoId: number | null = null;
+
+    if (!geoIdUsed) {
+      const detectResponse = await yandexNddClient.locationDetect({ location: q });
+      const variants =
+        ((detectResponse as any)?.variants ??
+          (detectResponse as any)?.result?.variants ??
+          []) as Array<Record<string, unknown>>;
+
+      const firstVariant = variants[0] ?? null;
+      const rawDetectedGeoId = firstVariant?.geo_id ?? firstVariant?.geoId ?? null;
+      if (typeof rawDetectedGeoId === 'number' && Number.isFinite(rawDetectedGeoId) && rawDetectedGeoId > 0) {
+        detectedGeoId = rawDetectedGeoId;
+        geoIdUsed = rawDetectedGeoId;
+      }
     }
 
-    const nearestStations = await yandexNddClient.getNearestDropoffStations202(coords, limit);
-    const stationIds = nearestStations.map((item) => item.stationId).filter(Boolean);
-    const maxWeightByStationId = new Map(nearestStations.map((item) => [item.stationId, item.maxWeightGross]));
-
-    if (!stationIds.length) {
+    if (!geoIdUsed) {
       console.info('[NDD_DROP_OFF_SEARCH]', {
         q,
-        geoId,
-        coords,
-        stationIdsCount: 0,
-        pointsCount: 0
+        geoIdUsed,
+        detectedGeoId,
+        pointsBefore: 0,
+        pointsAfter: 0
       });
       return res.json({ points: [] });
     }
 
-    const listResp = await yandexNddClient.pickupPointsList({ pickup_point_ids: stationIds });
+    const listResp = await yandexNddClient.pickupPointsList({
+      geo_id: geoIdUsed,
+      type: 'warehouse',
+      available_for_dropoff: true
+    });
     const pointsRaw =
       (listResp as any)?.points ??
       (listResp as any)?.result?.points ??
       [];
 
-    const points = (Array.isArray(pointsRaw) ? pointsRaw : [])
-      .filter((point: Record<string, any>) => point?.type === 'warehouse' && point?.available_for_dropoff === true)
+    const normalizedPoints = (Array.isArray(pointsRaw) ? pointsRaw : [])
       .map((point: Record<string, any>) => ({
         id: String(point?.id ?? ''),
         operator_station_id: point?.operator_station_id ?? null,
@@ -735,16 +724,22 @@ sellerRoutes.get('/ndd/dropoff-stations/search', async (req: AuthRequest, res, n
         addressFull: point?.address?.full_address ?? null,
         geoId: point?.address?.geoId ?? point?.address?.geo_id ?? null,
         position: point?.position ?? null,
-        maxWeightGross: maxWeightByStationId.get(String(point?.id ?? '')) ?? null
+        maxWeightGross: null
       }))
       .filter((point: { id: string }) => point.id);
 
+    const points = normalizedPoints
+      .filter((point: { name: string | null; addressFull: string | null }) =>
+        `${point.name ?? ''} ${point.addressFull ?? ''}`.toLowerCase().includes(normalizedQuery)
+      )
+      .slice(0, limit);
+
     console.info('[NDD_DROP_OFF_SEARCH]', {
       q,
-      geoId,
-      coords,
-      stationIdsCount: stationIds.length,
-      pointsCount: points.length
+      geoIdUsed,
+      detectedGeoId,
+      pointsBefore: normalizedPoints.length,
+      pointsAfter: points.length
     });
 
     return res.json({ points });
@@ -752,31 +747,19 @@ sellerRoutes.get('/ndd/dropoff-stations/search', async (req: AuthRequest, res, n
     if (error instanceof z.ZodError) {
       return res.status(400).json({
         error: {
-          code: 'VALIDATION_ERROR',
+          code: 'GEO_QUERY_REQUIRED',
           message: 'Параметр q обязателен и должен быть не короче 2 символов.'
-        }
-      });
-    }
-
-    if (error instanceof Error && error.message.startsWith('GEOCODER_HTTP_')) {
-      return res.status(502).json({
-        error: {
-          code: 'NDD_REQUEST_FAILED',
-          message: 'Не удалось выполнить поиск адреса для станций сдачи.',
-          details: error.message
         }
       });
     }
 
     if (error instanceof YandexNddHttpError && error.code === 'NDD_REQUEST_FAILED') {
       const unauthorized = error.status === 401 || error.status === 403;
-      return res.status(unauthorized ? 502 : 400).json({
+      return res.status(502).json({
         error: {
           code: 'NDD_REQUEST_FAILED',
-          message: unauthorized
-            ? 'Нет доступа к NDD (проверь токен/BASE_URL).'
-            : 'Не удалось получить станции сдачи из NDD.',
-          details: (error as any).details ?? null
+          message: unauthorized ? 'Нет доступа к NDD (проверь токен/BASE_URL).' : 'Не удалось получить станции сдачи из NDD.',
+          details: unauthorized ? 'unauthorized' : (error as any).details ?? null
         }
       });
     }
@@ -791,6 +774,38 @@ sellerRoutes.get('/ndd/dropoff-stations/search', async (req: AuthRequest, res, n
       });
     }
 
+    return next(error);
+  }
+});
+
+sellerRoutes.put('/settings/dropoff-station', writeLimiter, async (req: AuthRequest, res, next) => {
+  try {
+    const payload = dropoffStationSaveSchema.parse(req.body ?? {});
+    const stationId = payload.stationId.trim();
+
+    const profile = await sellerDeliveryProfileService.upsert(req.user!.userId, {
+      dropoffStationId: stationId,
+      dropoffStationMeta: {
+        source: 'ndd/2.02',
+        source_platform_station: stationId,
+        addressFull: payload.addressFull,
+        geoId: payload.geoId,
+        query: payload.query,
+        position: payload.position,
+        raw: payload.raw ?? null
+      }
+    });
+
+    return res.json({ data: profile });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        error: {
+          code: 'DROP_OFF_STATION_ID_REQUIRED',
+          message: 'Не выбран id станции сдачи (stationId).'
+        }
+      });
+    }
     return next(error);
   }
 });
