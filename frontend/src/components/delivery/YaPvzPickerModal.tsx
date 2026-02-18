@@ -186,8 +186,23 @@ export function YaPvzPickerModal({
   useEffect(() => {
     const onPointSelected = (event: Event) => {
       const detail = (event as CustomEvent<Record<string, unknown>>).detail;
-      const id = detail?.id;
+      const id =
+        (typeof detail?.id === 'string' && detail.id.trim()) ||
+        (detail?.point && typeof (detail.point as Record<string, unknown>).id === 'string'
+          ? String((detail.point as Record<string, unknown>).id).trim()
+          : '');
       if (!id || selectedOnceRef.current) return;
+
+      console.debug('[YaPvzPickerModal] point selected', {
+        id,
+        operator_station_id:
+          detail?.operator_station_id ??
+          (detail?.point && (detail.point as Record<string, unknown>).operator_station_id),
+        type: detail?.type ?? (detail?.point && (detail.point as Record<string, unknown>).type),
+        available_for_dropoff:
+          detail?.available_for_dropoff ??
+          (detail?.point && (detail.point as Record<string, unknown>).available_for_dropoff)
+      });
 
       selectedOnceRef.current = true;
 

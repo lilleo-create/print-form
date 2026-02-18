@@ -62,7 +62,7 @@ test('creates default seller delivery profile on onboarding when profile is abse
   });
 });
 
-test('dropoff-pvz stores platform station_id in seller delivery profile and keeps operator_station_id optional', async () => {
+test('dropoff-pvz stores pvzId in settings and operator_station_id as source_platform_station', async () => {
   const sellerDeliveryUpserts: unknown[] = [];
 
   (prisma.user.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ role: 'SELLER' });
@@ -87,21 +87,22 @@ test('dropoff-pvz stores platform station_id in seller delivery profile and keep
       dropoffPvz: {
         provider: 'YANDEX_NDD',
         pvzId: 'pvz-widget-id',
-        raw: { id: 'pvz-widget-id', stationId: 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924' },
+        raw: { id: 'pvz-widget-id', operator_station_id: 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924' },
         addressFull: 'Москва, ул. Пример, 1'
       }
     });
 
   assert.equal(dropoffResponse.status, 200);
-  assert.equal(dropoffResponse.body?.data?.defaultDropoffPvzId, 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924');
+  assert.equal(dropoffResponse.body?.data?.defaultDropoffPvzId, 'pvz-widget-id');
   assert.equal((sellerDeliveryUpserts[0] as any).update.dropoffStationId, 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924');
-  assert.equal((sellerDeliveryUpserts[0] as any).update.dropoffStationMeta.raw.stationId, 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924');
+  assert.equal((sellerDeliveryUpserts[0] as any).update.dropoffStationMeta.source_platform_station, 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924');
+  assert.equal((sellerDeliveryUpserts[0] as any).update.dropoffStationMeta.pvz_id, 'pvz-widget-id');
 });
 
 
 
 
-test('dropoff-pvz accepts station id without operator_station_id', async () => {
+test('dropoff-pvz derives source_platform_station from pvzId when operator_station_id is missing', async () => {
   const sellerDeliveryUpserts: unknown[] = [];
 
   (prisma.user.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ role: 'SELLER' });
@@ -131,7 +132,31 @@ test('dropoff-pvz accepts station id without operator_station_id', async () => {
 
   assert.equal(response.status, 200);
   assert.equal((sellerDeliveryUpserts[0] as any).update.dropoffStationId, 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924');
-  assert.equal((sellerDeliveryUpserts[0] as any).update.dropoffStationMeta.raw.operator_station_id, undefined);
+  assert.equal((sellerDeliveryUpserts[0] as any).update.dropoffStationMeta.source_platform_station, 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924');
+});
+
+
+
+test('dropoff-pvz returns DROP_OFF_PVZ_ID_REQUIRED when pvzId is empty', async () => {
+  (prisma.user.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ role: 'SELLER' });
+  (prisma.sellerProfile.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ id: 'sp-1' });
+
+  const app = buildApp();
+  const auth = `Bearer ${tokenFor('seller-2')}`;
+
+  const response = await request(app)
+    .put('/seller/settings/dropoff-pvz')
+    .set('Authorization', auth)
+    .send({
+      dropoffPvz: {
+        provider: 'YANDEX_NDD',
+        pvzId: '   ',
+        raw: { id: 'pvz-widget-id' }
+      }
+    });
+
+  assert.equal(response.status, 400);
+  assert.equal(response.body?.error?.code, 'DROP_OFF_PVZ_ID_REQUIRED');
 });
 
 test('dropoff-pvz returns DROP_OFF_NOT_AVAILABLE when point is unavailable for dropoff', async () => {

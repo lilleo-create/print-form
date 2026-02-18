@@ -131,6 +131,7 @@ export const SellerDashboardPage = () => {
   const [dropoffPvzAddress, setDropoffPvzAddress] = useState('');
   const [dropoffPvzRaw, setDropoffPvzRaw] = useState<Record<string, unknown> | null>(null);
   const [isDropoffModalOpen, setDropoffModalOpen] = useState(false);
+  const [isDropoffStationManual, setDropoffStationManual] = useState(false);
 
   const [deliverySettingsMessage, setDeliverySettingsMessage] = useState<
     string | null
@@ -235,6 +236,7 @@ export const SellerDashboardPage = () => {
       const dropoffMeta = profileResponse.data?.defaultDropoffPvzMeta;
       const stationId = profileResponse.data?.dropoffStationId ?? '';
       setDropoffStationId(stationId);
+      setDropoffStationManual(false);
       setDropoffStationAddress(
         typeof profileResponse.data?.dropoffStationMeta === 'object' &&
           profileResponse.data?.dropoffStationMeta
@@ -544,14 +546,12 @@ export const SellerDashboardPage = () => {
     const stationId = dropoffStationId.trim();
     const pvzId = dropoffPvzId.trim();
 
-    if (!stationId) {
-      setDeliverySettingsError('Укажите source_platform_station.');
+    if (!pvzId && !stationId) {
+      setDeliverySettingsError('Выберите ПВЗ сдачи на карте или укажите source_platform_station вручную.');
       return;
     }
 
     try {
-      await api.updateSourcePlatformStation(stationId);
-
       if (pvzId) {
         await api.updateSellerDeliveryProfile({
           dropoffPvz: {
@@ -566,7 +566,18 @@ export const SellerDashboardPage = () => {
         });
       }
 
-      setDeliverySettingsMessage('Станция отгрузки сохранена.');
+      if (stationId && isDropoffStationManual) {
+        await api.updateSourcePlatformStation(stationId);
+      }
+
+      const profileResponse = await api.getSellerDeliveryProfile();
+      const syncedStationId = profileResponse.data?.dropoffStationId ?? stationId;
+      setDropoffStationId(syncedStationId);
+      setDropoffStationManual(false);
+
+      setDeliverySettingsMessage(pvzId
+        ? 'ПВЗ сдачи сохранён, source_platform_station определён автоматически.'
+        : 'Станция отгрузки сохранена.');
     } catch {
       setDeliverySettingsError('Не удалось сохранить station/PVZ.');
     }
@@ -575,13 +586,23 @@ export const SellerDashboardPage = () => {
   const handleDropoffSelect = (selection: YaPvzSelection) => {
     setDropoffPvzId(selection.pvzId);
     setDropoffPvzAddress(selection.addressFull ?? '');
-    setDropoffPvzRaw(
+
+    const raw =
       selection.raw &&
-        typeof selection.raw === 'object' &&
-        !Array.isArray(selection.raw)
+      typeof selection.raw === 'object' &&
+      !Array.isArray(selection.raw)
         ? (selection.raw as Record<string, unknown>)
-        : null
-    );
+        : null;
+
+    setDropoffPvzRaw(raw);
+
+    if (!isDropoffStationManual) {
+      const operatorStation =
+        (typeof raw?.operator_station_id === 'string' && raw.operator_station_id.trim()) ||
+        (typeof raw?.operatorStationId === 'string' && raw.operatorStationId.trim()) ||
+        selection.pvzId;
+      setDropoffStationId(operatorStation);
+    }
   };
 
   const handleReadyToShip = async (orderId: string) => {
@@ -1532,9 +1553,10 @@ export const SellerDashboardPage = () => {
                       <input
                         className={styles.input}
                         value={dropoffStationId}
-                        onChange={(event) =>
-                          setDropoffStationId(event.target.value)
-                        }
+                        onChange={(event) => {
+                          setDropoffStationManual(true);
+                          setDropoffStationId(event.target.value);
+                        }}
                         placeholder="GUID станции"
                       />
 
@@ -1554,7 +1576,10 @@ export const SellerDashboardPage = () => {
                           <Button
                             type="button"
                             variant="secondary"
-                            onClick={() => setDropoffStationId(DEV_TEST_PLATFORM_STATION_ID)}
+                            onClick={() => {
+                              setDropoffStationManual(true);
+                              setDropoffStationId(DEV_TEST_PLATFORM_STATION_ID);
+                            }}
                           >
                             Использовать тестовую станцию
                           </Button>
@@ -1567,7 +1592,7 @@ export const SellerDashboardPage = () => {
                           {dropoffPvzAddress ? ` (${dropoffPvzAddress})` : ''}
                         </p>
                       ) : (
-                        <p className={styles.muted}>ПВЗ сдачи не выбран (необязательно, если station заполнен).</p>
+                        <p className={styles.muted}>ПВЗ сдачи не выбран.</p>
                       )}
                     </div>
                   </div>
@@ -1580,7 +1605,7 @@ export const SellerDashboardPage = () => {
                   <Button
                     type="button"
                     onClick={handleSaveDeliveryProfile}
-                    disabled={!dropoffStationId.trim()}
+                    disabled={!dropoffPvzId.trim() && !dropoffStationId.trim()}
                   >
                     Сохранить доставку
                   </Button>
