@@ -42,6 +42,15 @@ export const errorHandler = (
 
 
   if (error instanceof YandexNddHttpError) {
+    if (error.code === 'YANDEX_SMARTCAPTCHA_BLOCK' || error.code === 'YANDEX_IP_BLOCKED') {
+      return res.status(503).json({
+        error: {
+          code: 'YANDEX_IP_BLOCKED',
+          details: error.details
+        }
+      });
+    }
+
     if (error.status === 401) {
       return res.status(401).json({ error: { code: 'NDD_UNAUTHORIZED', details: error.details } });
     }

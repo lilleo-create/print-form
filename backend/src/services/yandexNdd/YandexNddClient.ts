@@ -2,6 +2,16 @@ import { getYandexNddConfig } from '../../config/yandexNdd';
 
 type JsonRecord = Record<string, unknown>;
 
+type SmartCaptchaDetails = {
+  uniqueKey?: string;
+  hintUrl?: string;
+};
+
+type CacheEntry = {
+  expiresAt: number;
+  value: JsonRecord;
+};
+
 export class YandexNddHttpError extends Error {
   code: string;
   path: string;
@@ -20,8 +30,43 @@ export class YandexNddHttpError extends Error {
   }
 }
 
+const OFFERS_INFO_CACHE_TTL_MS = 180_000;
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const shouldRetryStatus = (status: number) => status === 429 || status >= 500;
+
+const extractSmartCaptchaDetails = (bodyText: string): SmartCaptchaDetails => {
+  const uniqueKeyPatterns = [
+    /uniqueKey\s*[:=]\s*["']?([A-Za-z0-9_-]{6,})/i,
+    /unique[_-]?key["'\s:=>]+([A-Za-z0-9_-]{6,})/i,
+    /\bkey=([A-Za-z0-9_-]{6,})/i
+  ];
+
+  const uniqueKey = uniqueKeyPatterns
+    .map((pattern) => bodyText.match(pattern)?.[1])
+    .find((candidate) => Boolean(candidate));
+
+  const hintUrl = bodyText.match(/https?:\/\/[^"'\s<]+/i)?.[0];
+
+  return {
+    ...(uniqueKey ? { uniqueKey } : {}),
+    ...(hintUrl ? { hintUrl } : {})
+  };
+};
+
+const isHtmlBody = (contentType: string | null, bodyText: string) => {
+  const normalized = bodyText.trimStart();
+  return (
+    (contentType ?? '').toLowerCase().includes('text/html') ||
+    normalized.startsWith('<!DOCTYPE html') ||
+    normalized.startsWith('<html')
+  );
+};
+
 export class YandexNddClient {
   private readonly config = getYandexNddConfig();
+  private readonly offersInfoCache = new Map<string, CacheEntry>();
 
   private getAuthTokenMeta() {
     const rawToken = (process.env.YANDEX_NDD_TOKEN ?? this.config.token ?? '').trim();
@@ -36,19 +81,42 @@ export class YandexNddClient {
     };
   }
 
-  private async request<T>(path: string, init?: RequestInit & { requestId?: string }): Promise<T> {
-    const tokenMeta = this.getAuthTokenMeta();
+  private buildUrl(path: string): string {
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    if (!normalizedPath.startsWith('/api/b2b/platform/')) {
+      throw new Error(`NDD_INVALID_PATH:${normalizedPath}`);
+    }
+    const base = this.config.baseUrl.endsWith('/') ? this.config.baseUrl : `${this.config.baseUrl}/`;
+    return new URL(normalizedPath.slice(1), base).toString();
+  }
+
+  private async performRequest<T>(
+    path: string,
+    tokenMeta: ReturnType<YandexNddClient['getAuthTokenMeta']>,
+    init?: RequestInit & { requestId?: string }
+  ): Promise<T> {
     const headers = new Headers(init?.headers ?? {});
     headers.set('Authorization', tokenMeta.authHeader);
-    headers.set('Content-Type', 'application/json');
+    headers.set('Accept', 'application/json');
     headers.set('Accept-Language', this.config.lang);
+    headers.set('User-Agent', 'print-form-backend/1.0');
+    if (init?.body) {
+      headers.set('Content-Type', 'application/json');
+    }
 
-    const response = await fetch(`${this.config.baseUrl}${path}`, {
+    const response = await fetch(this.buildUrl(path), {
       ...init,
       headers
     });
 
     const bodyText = await response.text();
+    const contentType = response.headers.get('content-type');
+
+    if (isHtmlBody(contentType, bodyText)) {
+      const details = extractSmartCaptchaDetails(bodyText);
+      throw new YandexNddHttpError('YANDEX_SMARTCAPTCHA_BLOCK', path, response.status, bodyText, details);
+    }
+
     const errorDetails = (() => {
       if (!bodyText) return null;
       try {
@@ -58,31 +126,7 @@ export class YandexNddClient {
       }
     })();
 
-    console.info('[YANDEX_NDD][auth]', {
-      rawHadBearerPrefix: tokenMeta.rawHadBearerPrefix,
-      tokenLength: tokenMeta.tokenLength,
-      tokenPreview: tokenMeta.tokenPreview
-    });
-
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('[YANDEX_NDD]', {
-        requestId: init?.requestId ?? 'n/a',
-        path,
-        httpStatus: response.status
-      });
-    }
-
     if (!response.ok) {
-      console.error('[YANDEX_NDD] non-2xx response', {
-        requestId: init?.requestId ?? 'n/a',
-        path,
-        httpStatus: response.status,
-        tokenPreview: tokenMeta.tokenPreview,
-        tokenLength: tokenMeta.tokenLength,
-        rawHadBearerPrefix: tokenMeta.rawHadBearerPrefix,
-        body: errorDetails
-      });
-
       const code = path === '/api/b2b/platform/offers/create' ? 'NDD_OFFER_CREATE_FAILED' : 'NDD_REQUEST_FAILED';
       throw new YandexNddHttpError(code, path, response.status, bodyText, errorDetails);
     }
@@ -92,6 +136,71 @@ export class YandexNddClient {
     }
 
     return JSON.parse(bodyText) as T;
+  }
+
+  private async request<T>(path: string, init?: RequestInit & { requestId?: string }): Promise<T> {
+    const tokenMeta = this.getAuthTokenMeta();
+
+    console.info('[YANDEX_NDD][auth]', {
+      rawHadBearerPrefix: tokenMeta.rawHadBearerPrefix,
+      tokenLength: tokenMeta.tokenLength,
+      tokenPreview: tokenMeta.tokenPreview
+    });
+
+    const maxAttempts = 3;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        const response = await this.performRequest<T>(path, tokenMeta, init);
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[YANDEX_NDD]', {
+            requestId: init?.requestId ?? 'n/a',
+            path,
+            httpStatus: 200,
+            attempt
+          });
+        }
+        return response;
+      } catch (error) {
+        if (!(error instanceof YandexNddHttpError)) {
+          throw error;
+        }
+
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[YANDEX_NDD]', {
+            requestId: init?.requestId ?? 'n/a',
+            path,
+            httpStatus: error.status,
+            attempt
+          });
+        }
+
+        const retryable =
+          error.code !== 'YANDEX_SMARTCAPTCHA_BLOCK' &&
+          error.status !== 403 &&
+          shouldRetryStatus(error.status) &&
+          attempt < maxAttempts;
+
+        if (!retryable) {
+          console.error('[YANDEX_NDD] non-2xx response', {
+            requestId: init?.requestId ?? 'n/a',
+            path,
+            httpStatus: error.status,
+            tokenPreview: tokenMeta.tokenPreview,
+            tokenLength: tokenMeta.tokenLength,
+            rawHadBearerPrefix: tokenMeta.rawHadBearerPrefix,
+            body: error.details
+          });
+          throw error;
+        }
+
+        const backoffMs = 250 * 2 ** (attempt - 1);
+        const jitterMs = Math.floor(Math.random() * 150);
+        await wait(backoffMs + jitterMs);
+      }
+    }
+
+    throw new Error('NDD_REQUEST_RETRY_EXHAUSTED');
   }
 
   async offersCreate(body: JsonRecord) {
@@ -118,12 +227,23 @@ export class YandexNddClient {
       last_mile_policy: lastMilePolicy,
       send_unix: String(sendUnix)
     });
+    const cacheKey = `offersInfo:${stationId}:${selfPickupId}:${lastMilePolicy}`;
+    const cached = this.offersInfoCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value;
+    }
+
     if (process.env.NODE_ENV !== 'production') {
       console.log('[NDD offers/info params]', Object.fromEntries(query.entries()));
     }
 
     const response = await this.request<JsonRecord>(`/api/b2b/platform/offers/info?${query.toString()}`, {
       method: 'GET'
+    });
+
+    this.offersInfoCache.set(cacheKey, {
+      expiresAt: Date.now() + OFFERS_INFO_CACHE_TTL_MS,
+      value: response
     });
 
     if (process.env.NODE_ENV !== 'production') {
@@ -166,17 +286,25 @@ export class YandexNddClient {
   }
 
   requestInfo(requestId: string) {
-    return this.request<JsonRecord>(`/api/b2b/platform/request/info?request_id=${encodeURIComponent(requestId)}`, {
-      method: 'GET',
-      requestId
-    });
+    const query = new URLSearchParams({ request_id: requestId });
+    return this.request<JsonRecord>(`/api/b2b/platform/request/info?${query.toString()}`);
   }
 
   requestHistory(requestId: string) {
-    return this.request<JsonRecord>(`/api/b2b/platform/request/history?request_id=${encodeURIComponent(requestId)}`, {
-      method: 'GET',
-      requestId
+    const query = new URLSearchParams({ request_id: requestId });
+    return this.request<JsonRecord>(`/api/b2b/platform/request/history?${query.toString()}`);
+  }
+
+  requestCancel(requestId: string) {
+    return this.request<JsonRecord>('/api/b2b/platform/request/cancel', {
+      method: 'POST',
+      body: JSON.stringify({ request_id: requestId })
     });
+  }
+
+  requestCancelInfo(requestId: string) {
+    const query = new URLSearchParams({ request_id: requestId });
+    return this.request<JsonRecord>(`/api/b2b/platform/request/cancel_info?${query.toString()}`);
   }
 
   generateLabels(requestIds: string[]) {
@@ -186,10 +314,22 @@ export class YandexNddClient {
     });
   }
 
-  requestCancel(body: JsonRecord) {
-    return this.request<JsonRecord>('/api/b2b/platform/request/cancel', {
+  getLabels(payload: JsonRecord) {
+    return this.request<JsonRecord>('/api/b2b/platform/request/get-labels', {
       method: 'POST',
-      body: JSON.stringify(body)
+      body: JSON.stringify(payload)
+    });
+  }
+
+  actualInfo(requestId: string) {
+    const query = new URLSearchParams({ request_id: requestId });
+    return this.request<JsonRecord>(`/api/b2b/platform/request/actual_info?${query.toString()}`);
+  }
+
+  listRequests(payload: JsonRecord) {
+    return this.request<JsonRecord>('/api/b2b/platform/request/list', {
+      method: 'POST',
+      body: JSON.stringify(payload)
     });
   }
 }

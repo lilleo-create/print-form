@@ -42,3 +42,13 @@ test('YandexNddHttpError 403 no_permissions maps to NDD_NO_PERMISSIONS', () => {
   assert.equal(ctx.get().statusCode, 403);
   assert.deepEqual(ctx.get().payload, { error: { code: 'NDD_NO_PERMISSIONS', details: { code: 'no_permissions' } } });
 });
+
+test('Yandex SmartCaptcha block maps to YANDEX_IP_BLOCKED and 503', () => {
+  const ctx = makeRes();
+  const error = new YandexNddHttpError('YANDEX_SMARTCAPTCHA_BLOCK', '/api/b2b/platform/offers/info', 403, '<html>', {
+    uniqueKey: 'abc123'
+  });
+  errorHandler(error, {} as any, ctx.res, (() => {}) as any);
+  assert.equal(ctx.get().statusCode, 503);
+  assert.deepEqual(ctx.get().payload, { error: { code: 'YANDEX_IP_BLOCKED', details: { uniqueKey: 'abc123' } } });
+});

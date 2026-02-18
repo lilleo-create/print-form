@@ -398,3 +398,56 @@ test('ready-to-ship is idempotent and returns existing shipment', async () => {
   assert.equal(offersInfoCalled, 0);
 });
 
+test('ready-to-ship uses single-flight for concurrent calls by orderId', async () => {
+  (prisma.order.findFirst as any) = async () => mockPaidOrder('order-single-flight');
+
+  const deliveryServiceModule = await import('./orderDeliveryService');
+  (deliveryServiceModule.orderDeliveryService.getByOrderIds as any) = async () =>
+    new Map([['order-single-flight', { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: 'pickup-1' } }]]);
+
+  const shipmentModule = await import('./shipmentService');
+  (shipmentModule.shipmentService.getByOrderId as any) = async () => null;
+  (shipmentModule.shipmentService.upsertForOrder as any) = async (payload: Record<string, unknown>) => ({ id: 'shipment-1', ...payload });
+  (shipmentModule.shipmentService.pushHistory as any) = async () => undefined;
+  (prisma.order.update as any) = async () => ({ id: 'order-single-flight' });
+
+  let offersInfoCalled = 0;
+  (yandexNddClient.offersInfo as any) = async () => {
+    offersInfoCalled += 1;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    return { intervals_utc: [{ from: 1, to: 2 }] };
+  };
+  (yandexNddClient.offersCreate as any) = async () => ({ offer_id: 'offer-1' });
+  (yandexNddClient.offersConfirm as any) = async () => ({ request_id: 'request-1', status: 'CREATED' });
+
+  const [first, second] = await Promise.all([
+    yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-single-flight'),
+    yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-single-flight')
+  ]);
+
+  assert.equal(offersInfoCalled, 1);
+  assert.equal(first.requestId, 'request-1');
+  assert.equal(second.requestId, 'request-1');
+});
+
+test('ready-to-ship remaps smartcaptcha block to YANDEX_IP_BLOCKED', async () => {
+  (prisma.order.findFirst as any) = async () => mockPaidOrder('order-smartcaptcha');
+
+  const deliveryServiceModule = await import('./orderDeliveryService');
+  (deliveryServiceModule.orderDeliveryService.getByOrderIds as any) = async () =>
+    new Map([['order-smartcaptcha', { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: 'pickup-1' } }]]);
+
+  const shipmentModule = await import('./shipmentService');
+  (shipmentModule.shipmentService.getByOrderId as any) = async () => null;
+
+  (yandexNddClient.offersInfo as any) = async () => {
+    throw new YandexNddHttpError('YANDEX_SMARTCAPTCHA_BLOCK', '/api/b2b/platform/offers/info', 403, '<html/>', {
+      uniqueKey: 'abc123'
+    });
+  };
+
+  await assert.rejects(
+    () => yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-smartcaptcha'),
+    (err: any) => err instanceof YandexNddHttpError && err.code === 'YANDEX_IP_BLOCKED' && err.status === 403
+  );
+});
