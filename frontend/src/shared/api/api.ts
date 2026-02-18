@@ -333,12 +333,12 @@ export const api = {
     );
   },
 
-  async searchSellerDropoffStations(query: string, limit = 20, signal?: AbortSignal) {
+  async searchSellerDropoffStations(query: string, geoId?: number, limit = 50, signal?: AbortSignal) {
     return apiClient.request<{ points: SellerDropoffStation[]; debug?: { geoId?: number } }>(
       '/seller/ndd/dropoff-stations/search',
       {
         method: 'POST',
-        body: { query, limit },
+        body: { query, geoId, limit },
         signal
       }
     );

@@ -553,7 +553,18 @@ const dropoffStationsQuerySchema = z.object({
 
 const dropoffStationsSearchBodySchema = z.object({
   query: z.string().trim().min(2),
-  limit: z.coerce.number().int().min(1).max(100).default(20)
+  geoId: z.coerce.number().int().positive().optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50)
+});
+
+const mapSellerDropoffPoint = (point: Record<string, any>) => ({
+  id: String(point?.id ?? ''),
+  operator_station_id: point?.operator_station_id ?? null,
+  name: typeof point?.name === 'string' ? point.name : null,
+  addressFull: point?.address?.full_address ?? null,
+  geoId: point?.address?.geoId ?? point?.address?.geo_id ?? null,
+  position: point?.position ?? null,
+  maxWeightGross: null
 });
 
 const dropoffStationSaveSchema = z.object({
@@ -668,9 +679,9 @@ sellerRoutes.get('/ndd/dropoff-stations', async (req: AuthRequest, res, next) =>
 
 sellerRoutes.post('/ndd/dropoff-stations/search', async (req: AuthRequest, res, next) => {
   try {
-    const { query, limit } = dropoffStationsSearchBodySchema.parse(req.body ?? {});
+    const { query, geoId: providedGeoId, limit } = dropoffStationsSearchBodySchema.parse(req.body ?? {});
 
-    const geoId = await yandexNddClient.detectGeoIdByQuery(query);
+    const geoId = providedGeoId ?? (await yandexNddClient.detectGeoIdByQuery(query));
 
     if (!geoId) {
       return res.status(502).json({
@@ -681,28 +692,29 @@ sellerRoutes.post('/ndd/dropoff-stations/search', async (req: AuthRequest, res, 
       });
     }
 
-    const listResp = await yandexNddClient.pickupPointsList({
+    const pickupPointResp = await yandexNddClient.pickupPointsList({
       geo_id: geoId,
-      type: 'warehouse',
-      available_for_dropoff: true,
-      is_yandex_branded: false,
-      is_not_branded_partner_station: true
+      type: 'pickup_point',
+      available_for_c2c_dropoff: true
     });
-    const pointsRaw =
-      (listResp as any)?.points ??
-      (listResp as any)?.result?.points ??
+
+    const terminalResp = await yandexNddClient.pickupPointsList({
+      geo_id: geoId,
+      type: 'terminal',
+      available_for_c2c_dropoff: true
+    });
+
+    const pickupPointsRaw =
+      (pickupPointResp as any)?.points ??
+      (pickupPointResp as any)?.result?.points ??
+      [];
+    const terminalPointsRaw =
+      (terminalResp as any)?.points ??
+      (terminalResp as any)?.result?.points ??
       [];
 
-    const normalizedPoints = (Array.isArray(pointsRaw) ? pointsRaw : [])
-      .map((point: Record<string, any>) => ({
-        id: String(point?.id ?? ''),
-        operator_station_id: point?.operator_station_id ?? null,
-        name: typeof point?.name === 'string' ? point.name : null,
-        addressFull: point?.address?.full_address ?? null,
-        geoId: point?.address?.geoId ?? point?.address?.geo_id ?? null,
-        position: point?.position ?? null,
-        maxWeightGross: null
-      }))
+    const normalizedPoints = [...(Array.isArray(pickupPointsRaw) ? pickupPointsRaw : []), ...(Array.isArray(terminalPointsRaw) ? terminalPointsRaw : [])]
+      .map((point: Record<string, any>) => mapSellerDropoffPoint(point))
       .filter((point: { id: string }) => point.id)
       .slice(0, limit);
 
@@ -729,7 +741,9 @@ sellerRoutes.post('/ndd/dropoff-stations/search', async (req: AuthRequest, res, 
         error: {
           code: 'NDD_REQUEST_FAILED',
           message: unauthorized ? 'Нет доступа к NDD (проверь токен/BASE_URL).' : 'Не удалось получить станции сдачи из NDD.',
-          details: unauthorized ? 'unauthorized' : (error as any).details ?? null
+          details: unauthorized
+            ? { code: 'unauthorized', message: 'Not authorized request' }
+            : (error as any).details ?? null
         }
       });
     }
@@ -839,7 +853,7 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
       });
     }
 
-    if ((point as any).available_for_dropoff === false) {
+    if ((point as any).available_for_c2c_dropoff === false || (point as any).available_for_dropoff === false) {
       return res.status(400).json({
         error: {
           code: 'DROP_OFF_NOT_AVAILABLE',
@@ -848,11 +862,11 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
       });
     }
 
-    if ((point as any).type && (point as any).type !== 'warehouse') {
+    if ((point as any).type && !['pickup_point', 'terminal', 'warehouse'].includes((point as any).type)) {
       return res.status(400).json({
         error: {
           code: 'DROP_OFF_TYPE_INVALID',
-          message: 'Эта точка не является станцией сдачи (warehouse). Выберите склад/станцию отгрузки.'
+          message: 'Эта точка не поддерживает сдачу отправлений. Выберите пункт приёма.'
         }
       });
     }
