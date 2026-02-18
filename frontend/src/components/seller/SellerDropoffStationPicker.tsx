@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api, type SellerDropoffStation } from '../../shared/api/api';
 import { normalizeApiError } from '../../shared/api/client';
 import { Button } from '../../shared/ui/Button';
@@ -16,6 +16,7 @@ export const SellerDropoffStationPicker = ({ isOpen, geoId, onClose, onSelect }:
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchEmptyMessage, setSearchEmptyMessage] = useState<string | null>(null);
 
   const loadStations = async () => {
     setLoading(true);
@@ -23,6 +24,7 @@ export const SellerDropoffStationPicker = ({ isOpen, geoId, onClose, onSelect }:
     try {
       const response = await api.getSellerDropoffStations(geoId, 100);
       setStations(response.data?.points ?? []);
+      setSearchEmptyMessage(null);
     } catch (e) {
       const normalized = normalizeApiError(e);
       setError(normalized.message ?? 'Не удалось загрузить станции сдачи.');
@@ -39,6 +41,44 @@ export const SellerDropoffStationPicker = ({ isOpen, geoId, onClose, onSelect }:
       return haystack.includes(normalizedQuery);
     });
   }, [stations, query]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const normalizedQuery = query.trim();
+    if (normalizedQuery.length < 2) {
+      setError(null);
+      setSearchEmptyMessage(null);
+      return;
+    }
+
+    const timeout = window.setTimeout(async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const response = await api.searchSellerDropoffStations(normalizedQuery, geoId, 20);
+        const points = response.data?.points ?? [];
+        setStations(points);
+        setSearchEmptyMessage(points.length ? null : 'Станции сдачи рядом не найдены. Уточните адрес.');
+      } catch (e) {
+        const normalized = normalizeApiError(e);
+        if (
+          normalized.code === 'NDD_REQUEST_FAILED' &&
+          String(normalized.message ?? '').toLowerCase().includes('доступ')
+        ) {
+          setError('Нет доступа к NDD (проверь токен/BASE_URL).');
+        } else {
+          setError(normalized.message ?? 'Не удалось выполнить поиск станций сдачи рядом.');
+        }
+      } finally {
+        setLoading(false);
+      }
+    }, 500);
+
+    return () => window.clearTimeout(timeout);
+  }, [geoId, isOpen, query]);
 
   if (!isOpen) return null;
 
@@ -65,6 +105,7 @@ export const SellerDropoffStationPicker = ({ isOpen, geoId, onClose, onSelect }:
         </div>
 
         {error && <p className={styles.error}>{error}</p>}
+        {!error && searchEmptyMessage && <p className={styles.muted}>{searchEmptyMessage}</p>}
 
         <div className={styles.body}>
           <div className={styles.list}>

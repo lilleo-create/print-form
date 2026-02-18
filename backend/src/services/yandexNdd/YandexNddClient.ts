@@ -2,6 +2,11 @@ import { getYandexNddConfig } from '../../config/yandexNdd';
 
 type JsonRecord = Record<string, unknown>;
 
+type DropoffStation202Item = {
+  stationId: string;
+  maxWeightGross: number | null;
+};
+
 type SmartCaptchaDetails = {
   uniqueKey?: string;
   hintUrl?: string;
@@ -298,6 +303,62 @@ export class YandexNddClient {
       method: 'POST',
       body: JSON.stringify(payload)
     });
+  }
+
+  async getNearestDropoffStations202(
+    coords: { latitude: number; longitude: number },
+    limit = 20,
+    weightGross?: number
+  ): Promise<DropoffStation202Item[]> {
+    const payload = toSnakeCaseDeep({
+      lat: coords.latitude,
+      lon: coords.longitude,
+      limit,
+      ...(typeof weightGross === 'number' ? { weightGross } : {})
+    }) as JsonRecord;
+
+    const response = await this.request<JsonRecord>('/api/b2b/platform/stations/closest', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+
+    const rawStations =
+      (response as any)?.stations ??
+      (response as any)?.result?.stations ??
+      (response as any)?.station_ids ??
+      (response as any)?.result?.station_ids ??
+      [];
+
+    const normalized = (Array.isArray(rawStations) ? rawStations : [])
+      .map((item: any) => {
+        if (typeof item === 'string') {
+          return { stationId: item, maxWeightGross: null };
+        }
+
+        const stationIdRaw =
+          item?.station_id ??
+          item?.stationId ??
+          item?.id ??
+          item?.operator_station_id ??
+          null;
+
+        const stationId = typeof stationIdRaw === 'string' ? stationIdRaw.trim() : '';
+        if (!stationId) {
+          return null;
+        }
+
+        const maxWeightRaw = item?.max_weight_gross ?? item?.maxWeightGross ?? null;
+        const maxWeightGross =
+          typeof maxWeightRaw === 'number' && Number.isFinite(maxWeightRaw) ? maxWeightRaw : null;
+
+        return {
+          stationId,
+          maxWeightGross
+        };
+      })
+      .filter((item: DropoffStation202Item | null): item is DropoffStation202Item => Boolean(item));
+
+    return normalized;
   }
 
   requestCreate(body: JsonRecord) {

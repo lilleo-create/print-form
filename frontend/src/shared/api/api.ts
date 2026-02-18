@@ -26,7 +26,9 @@ export type SellerDropoffStation = {
   operator_station_id: string | null;
   name: string | null;
   addressFull: string | null;
+  geoId?: number | null;
   position: { latitude?: number; longitude?: number } | null;
+  maxWeightGross?: number | null;
 };
 
 export interface ApiError {
@@ -328,6 +330,13 @@ export const api = {
     if (limit) query.set('limit', String(limit));
     return apiClient.request<{ points: SellerDropoffStation[] }>(
       `/seller/ndd/dropoff-stations?${query.toString()}`
+    );
+  },
+
+  async searchSellerDropoffStations(q: string, geoId = 213, limit = 20) {
+    const query = new URLSearchParams({ q, geoId: String(geoId), limit: String(limit) });
+    return apiClient.request<{ points: SellerDropoffStation[]; message?: string }>(
+      `/seller/ndd/dropoff-stations/search?${query.toString()}`
     );
   },
 
