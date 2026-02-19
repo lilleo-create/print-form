@@ -16,6 +16,7 @@ type Props = {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (sel: YaPvzSelection) => void;
+  mode?: 'pickup' | 'warehouse';
   city?: string;
   geoId?: number;
   source_platform_station?: string;
@@ -62,6 +63,7 @@ export function YaPvzPickerModal({
   isOpen,
   onClose,
   onSelect,
+  mode = 'pickup',
   city = 'Москва',
   geoId,
   source_platform_station,
@@ -79,7 +81,8 @@ export function YaPvzPickerModal({
   const [dropoffStations, setDropoffStations] = useState<DropoffStation[] | null>(
     null
   );
-  const usePreloadedStations = typeof geoId === 'number';
+  const warehouseMode = mode === 'warehouse';
+  const usePreloadedStations = warehouseMode && typeof geoId === 'number';
 
   useEffect(() => {
     if (!isOpen) return;
@@ -136,17 +139,40 @@ export function YaPvzPickerModal({
       try {
         const response = await api.getSellerDropoffStations({ geoId: geoId as number, limit: 300 });
         if (cancelled) return;
-        const points = (response.data.points ?? []).map((point: { id: string; position: { latitude?: number; longitude?: number } | null }) => ({
-          id: point.id,
-          position: point.position
-        }));
+        const incoming = Array.isArray(response.data.points) ? response.data.points : [];
+        const reasons = {
+          missingId: 0,
+          missingPosition: 0
+        };
+        const points = incoming
+          .map((point: { id: string; position: { latitude?: number; longitude?: number } | null }) => ({
+            id: String(point.id ?? '').trim(),
+            position: point.position
+          }))
+          .filter((point) => {
+            if (!point.id) {
+              reasons.missingId += 1;
+              return false;
+            }
+            if (!point.position?.latitude || !point.position?.longitude) {
+              reasons.missingPosition += 1;
+            }
+            return true;
+          });
+
+        console.info('[YaPvzPickerModal] station points diagnostics', {
+          mode,
+          incomingStationsCount: incoming.length,
+          afterFiltersCount: points.length,
+          pointsCount: points.length,
+          filterReasons: reasons
+        });
+
         setDropoffStations(points);
         const noStations = points.length === 0;
         onNoStationsInCity?.(noStations);
         if (noStations) {
-          setError(
-            'В этом городе нет доступных станций сдачи (warehouse). Попробуйте другой город.'
-          );
+          setError('В этом городе нет доступных станций сдачи (warehouse). Попробуйте другой город.');
         }
       } catch {
         if (cancelled) return;
@@ -161,7 +187,7 @@ export function YaPvzPickerModal({
     return () => {
       cancelled = true;
     };
-  }, [geoId, isOpen, onNoStationsInCity, usePreloadedStations]);
+  }, [geoId, isOpen, mode, onNoStationsInCity, usePreloadedStations]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -187,16 +213,33 @@ export function YaPvzPickerModal({
       const height = Math.max(600, Math.floor(rect.height));
       const firstPoint = usePreloadedStations ? dropoffStations[0] : null;
 
+      const isUuid = (value: string) =>
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+      const stationIds = usePreloadedStations
+        ? dropoffStations.map((point) => point.id).filter(Boolean)
+        : [];
+      const warehouseIdsLookLikePvz =
+        warehouseMode && stationIds.length > 0 && stationIds.every((id) => isUuid(id));
+
+      if (warehouseIdsLookLikePvz) {
+        console.warn('[YaPvzPickerModal] warehouse mode received UUID-like station ids; disabling strict warehouse type filter to avoid empty map', {
+          mode,
+          stationIdsCount: stationIds.length
+        });
+      }
+
       const params: Record<string, unknown> = {
         city,
         show_select_button: true,
         size: { width: '100%', height: `${height}px` },
         filter: {
-          type: ['warehouse'],
-          pickup_point_ids: usePreloadedStations
-            ? dropoffStations.map((point) => point.id)
-            : undefined,
-          available_for_dropoff: true,
+          type: warehouseMode
+            ? warehouseIdsLookLikePvz
+              ? undefined
+              : ['warehouse']
+            : ['pickup_point', 'terminal'],
+          pickup_point_ids: stationIds.length ? stationIds : undefined,
+          available_for_dropoff: warehouseMode ? true : undefined,
           is_yandex_branded: false,
           payment_methods: ['already_paid', 'card_on_receipt'],
           payment_methods_filter: 'or'
@@ -211,7 +254,7 @@ export function YaPvzPickerModal({
           : undefined
       };
 
-      if (station) {
+      if (warehouseMode && station) {
         params.source_platform_station = station;
         params.physical_dims_weight_gross = physical_dims_weight_gross;
       }
@@ -249,6 +292,7 @@ export function YaPvzPickerModal({
     city,
     dropoffStations,
     isOpen,
+    mode,
     physical_dims_weight_gross,
     requireSourceStation,
     source_platform_station,
@@ -312,10 +356,16 @@ export function YaPvzPickerModal({
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
         <div className={styles.header}>
           <div>
-            <span>Выберите станцию сдачи (warehouse)</span>
-            <p style={{ fontSize: '0.875rem', color: '#666', marginTop: '0.25rem', marginBottom: 0 }}>
-              Для сдачи заказов доступны только склады (warehouse). Обычные ПВЗ не подходят.
-            </p>
+            <span>{warehouseMode ? 'Выберите станцию сдачи (warehouse)' : 'Выберите пункт выдачи'}</span>
+            {warehouseMode ? (
+              <p style={{ fontSize: '0.875rem', color: '#666', marginTop: '0.25rem', marginBottom: 0 }}>
+                Для сдачи заказов доступны только склады (warehouse). Обычные ПВЗ не подходят.
+              </p>
+            ) : (
+              <p style={{ fontSize: '0.875rem', color: '#666', marginTop: '0.25rem', marginBottom: 0 }}>
+                Выберите ПВЗ или постамат для получения заказа.
+              </p>
+            )}
           </div>
           <button
             className={styles.closeButton}
@@ -329,7 +379,7 @@ export function YaPvzPickerModal({
         <div className={styles.body}>
           {error && <div className={styles.error}>{error}</div>}
           {!error && usePreloadedStations && dropoffStations === null ? (
-            <div className={styles.error}>Загружаем станции сдачи…</div>
+            <div className={styles.error}>{warehouseMode ? 'Загружаем станции сдачи…' : 'Загружаем пункты выдачи…'}</div>
           ) : null}
           {!error ? (
             <div
