@@ -7,11 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum DropoffSchedule {
-  DAILY
-  WEEKDAYS
-}
-
 model User {
   id                     String                 @id @default(cuid())
   email                  String                 @unique
@@ -25,21 +20,21 @@ model User {
   createdAt              DateTime               @default(now())
   updatedAt              DateTime               @updatedAt
   addresses              Address[]
+  chatThreads            ChatThread[]
   contacts               Contact[]
   orders                 Order[]
-  returnRequests         ReturnRequest[]
-  chatThreads            ChatThread[]
+  payouts                Payout[]
+  moderatedProducts      Product[]              @relation("ProductModerator")
   products               Product[]
   refreshTokens          RefreshToken[]
+  returnRequests         ReturnRequest[]
+  moderatedReviews       Review[]               @relation("ReviewModerator")
   reviews                Review[]
+  sellerDeliveryProfile  SellerDeliveryProfile?
   reviewedKycSubmissions SellerKycSubmission[]  @relation("KycReviewer")
   sellerKycSubmissions   SellerKycSubmission[]
   sellerProfile          SellerProfile?
   sellerSettings         SellerSettings?
-  sellerDeliveryProfile  SellerDeliveryProfile?
-  moderatedProducts      Product[]              @relation("ProductModerator")
-  moderatedReviews       Review[]               @relation("ReviewModerator")
-  payouts                Payout[]
 }
 
 model SellerProfile {
@@ -85,7 +80,6 @@ model Product {
   size                  String
   technology            String
   printTime             String
-  productionTimeHours   Int
   color                 String
   deliveryDateEstimated DateTime?
   weightGrossG          Int?
@@ -101,8 +95,8 @@ model Product {
   createdAt             DateTime                @default(now())
   updatedAt             DateTime                @updatedAt
   orderItems            OrderItem[]
-  seller                User                    @relation(fields: [sellerId], references: [id])
   moderatedBy           User?                   @relation("ProductModerator", fields: [moderatedById], references: [id])
+  seller                User                    @relation(fields: [sellerId], references: [id])
   images                ProductImage[]
   specs                 ProductSpec[]
   variants              ProductVariant[]
@@ -160,9 +154,9 @@ model Review {
   moderatedById    String?
   createdAt        DateTime               @default(now())
   updatedAt        DateTime               @updatedAt
+  moderatedBy      User?                  @relation("ReviewModerator", fields: [moderatedById], references: [id])
   product          Product                @relation(fields: [productId], references: [id])
   user             User?                  @relation(fields: [userId], references: [id])
-  moderatedBy      User?                  @relation("ReviewModerator", fields: [moderatedById], references: [id])
 
   @@index([productId])
   @@index([createdAt])
@@ -186,11 +180,6 @@ model Order {
   buyerPickupPvzMeta   Json?
   sellerDropoffPvzId   String?
   sellerDropoffPvzMeta Json?
-  recipientName        String?
-  recipientPhone       String?
-  recipientEmail       String?
-  packagesCount        Int                  @default(1)
-  orderLabels          Json?
   yandexOfferId        String?
   yandexRequestId      String?
   yandexStatus         String?
@@ -198,37 +187,42 @@ model Order {
   yandexCourierOrderId String?
   yandexSelfPickupCode Json?
   yandexActualInfo     Json?
+  payoutStatus         String               @default("HOLD")
+  readyForShipmentAt   DateTime?
+  dropoffDeadlineAt    DateTime?
   paymentAttemptKey    String?
   paymentProvider      String?
   paymentId            String?
   paidAt               DateTime?
-  payoutStatus         String               @default("HOLD")
-  readyForShipmentAt   DateTime?
-  dropoffDeadlineAt    DateTime?
+  recipientName        String?
+  recipientPhone       String?
+  recipientEmail       String?
+  packagesCount        Int                  @default(1)
+  orderLabels          Json?
   buyer                User                 @relation(fields: [buyerId], references: [id])
   contact              Contact?             @relation("OrderContact", fields: [contactId], references: [id])
   shippingAddress      Address?             @relation("OrderShippingAddress", fields: [shippingAddressId], references: [id])
-  items                OrderItem[]
-  payments             Payment[]
-  shipment             OrderShipment?
   deliveryEvents       OrderDeliveryEvent[]
+  items                OrderItem[]
+  shipment             OrderShipment?
+  payments             Payment[]
   payout               Payout?
+  order_shipments      order_shipments?
 
   @@unique([buyerId, paymentAttemptKey])
 }
 
-
 model Payout {
-  id        String   @id @default(cuid())
-  orderId   String   @unique
+  id        String    @id @default(cuid())
+  orderId   String    @unique
   sellerId  String
   amount    Int
   currency  String
-  status    String   @default("HOLD")
-  createdAt DateTime @default(now())
+  status    String    @default("HOLD")
+  createdAt DateTime  @default(now())
   paidAt    DateTime?
-  order     Order    @relation(fields: [orderId], references: [id])
-  seller    User     @relation(fields: [sellerId], references: [id])
+  order     Order     @relation(fields: [orderId], references: [id])
+  seller    User      @relation(fields: [sellerId], references: [id])
 
   @@index([sellerId, status])
 }
@@ -261,9 +255,8 @@ model OrderDeliveryEvent {
 model SellerDeliveryProfile {
   id                 String   @id @default(cuid())
   sellerId           String   @unique
-  dropoffStationId   String?
+  dropoffStationId   String
   dropoffStationMeta Json?
-  dropoffSchedule    DropoffSchedule @default(WEEKDAYS)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
   seller             User     @relation(fields: [sellerId], references: [id])
@@ -321,10 +314,10 @@ model ReturnRequest {
   adminComment String?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
-  user         User          @relation(fields: [userId], references: [id])
+  chatThread   ChatThread?
   items        ReturnItem[]
   photos       ReturnPhoto[]
-  chatThread   ChatThread?
+  user         User          @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([status])
@@ -336,8 +329,8 @@ model ReturnItem {
   orderItemId     String
   quantity        Int           @default(1)
   createdAt       DateTime      @default(now())
-  returnRequest   ReturnRequest @relation(fields: [returnRequestId], references: [id])
   orderItem       OrderItem     @relation(fields: [orderItemId], references: [id])
+  returnRequest   ReturnRequest @relation(fields: [returnRequestId], references: [id])
 
   @@index([returnRequestId])
   @@index([orderItemId])
@@ -362,9 +355,9 @@ model ChatThread {
   lastMessageAt   DateTime?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
-  user            User             @relation(fields: [userId], references: [id])
-  returnRequest   ReturnRequest?   @relation(fields: [returnRequestId], references: [id])
   messages        ChatMessage[]
+  returnRequest   ReturnRequest?   @relation(fields: [returnRequestId], references: [id])
+  user            User             @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([status])
@@ -508,6 +501,72 @@ model PhoneOtp {
   @@index([expiresAt])
 }
 
+model favorites {
+  user_id    String
+  product_id String
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@id([user_id, product_id])
+}
+
+model order_delivery_data {
+  order_id         String   @id
+  delivery_payload Json
+  updated_at       DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model order_shipment_status_history {
+  id              String          @id
+  shipment_id     String
+  status          String
+  payload_raw     Json?
+  created_at      DateTime        @default(now()) @db.Timestamptz(6)
+  order_shipments order_shipments @relation(fields: [shipment_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model order_shipments {
+  id                            String                          @id
+  order_id                      String                          @unique
+  provider                      String
+  delivery_method               String
+  source_station_id             String
+  source_station_snapshot       Json?
+  destination_station_id        String
+  destination_station_snapshot  Json?
+  offer_payload                 String?
+  request_id                    String?
+  status                        String
+  status_raw                    Json?
+  last_sync_at                  DateTime?                       @db.Timestamptz(6)
+  created_at                    DateTime                        @default(now()) @db.Timestamptz(6)
+  updated_at                    DateTime                        @default(now()) @db.Timestamptz(6)
+  order_shipment_status_history order_shipment_status_history[]
+  Order                         Order                           @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model user_checkout_preferences {
+  user_id           String   @id
+  delivery_method   String   @default("COURIER")
+  delivery_sub_type String?
+  delivery_provider String?
+  payment_method    String   @default("CARD")
+  selected_card_id  String?
+  pickup_point_id   String?
+  pickup_provider   String?
+  pickup_point_json Json?
+  updated_at        DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model user_saved_cards {
+  id         String   @id
+  user_id    String
+  brand      String
+  last4      String
+  exp_month  Int
+  exp_year   Int
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+}
+
 enum Role {
   BUYER
   SELLER
@@ -526,7 +585,6 @@ enum ProductModerationStatus {
 enum OrderStatus {
   CREATED
   PAID
-  PAYMENT_FAILED
   READY_FOR_SHIPMENT
   PRINTING
   HANDED_TO_DELIVERY
@@ -535,6 +593,7 @@ enum OrderStatus {
   CANCELLED
   RETURNED
   EXPIRED
+  PAYMENT_FAILED
 }
 
 enum ReviewStatus {
