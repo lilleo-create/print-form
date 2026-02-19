@@ -293,20 +293,22 @@ export const yandexNddShipmentOrchestrator = {
     });
 
     let offersInfo: Record<string, unknown>;
+    const last_mile_policy = 'self_pickup';
+    console.info('[NDD_POLICY_FIXED]', {
+      orderId,
+      last_mile_policy,
+      sourceStationId,
+      self_pickup_id: selfPickupId
+    });
     console.info('[READY_TO_SHIP] offers/info params', {
       orderId,
-      sourceStationId,
+      station_id: sourceStationId,
       self_pickup_id: selfPickupId,
-      last_mile_policy: 'time_interval',
+      last_mile_policy,
       send_unix: true
     });
     try {
-      offersInfo = await yandexNddClient.offersInfo(
-        sourceStationId,
-        selfPickupId,
-        'time_interval',
-        true
-      );
+      offersInfo = await yandexNddClient.offersInfo(sourceStationId, selfPickupId, true);
     } catch (error) {
       if (error instanceof YandexNddHttpError && error.code === 'YANDEX_SMARTCAPTCHA_BLOCK') {
         const details =
@@ -379,7 +381,7 @@ export const yandexNddShipmentOrchestrator = {
         }
       },
       interval_utc: intervalUtc,
-      last_mile_policy: 'time_interval',
+      last_mile_policy,
       info: {
         operator_request_id: order.id
       },

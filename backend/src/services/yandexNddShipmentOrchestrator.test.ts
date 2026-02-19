@@ -126,7 +126,7 @@ test('ready-to-ship sends source.platform_station.platform_id and destination pl
   assert.equal(offersPayload?.source?.platform_station?.platform_id, '10029618814');
   assert.equal(offersPayload?.destination?.platform_station?.platform_id, '0193d98fb6fe76ce9ac1bbf9ea33d2f7');
   assert.deepEqual(offersPayload?.interval_utc, interval);
-  assert.equal(offersPayload?.last_mile_policy, 'time_interval');
+  assert.equal(offersPayload?.last_mile_policy, 'self_pickup');
 });
 
 

@@ -110,7 +110,7 @@ const validateResolvedPlatformStationId = async (platformStationId: string | nul
   }
 
   try {
-    await yandexNddClient.offersInfo(platformStationId, validationSelfPickupId, 'time_interval', true);
+    await yandexNddClient.offersInfo(platformStationId, validationSelfPickupId, true);
     return { validatedPlatformStationId: platformStationId, warningCode: null };
   } catch (error) {
     if (error instanceof YandexNddHttpError) {
@@ -151,7 +151,7 @@ const validateSourcePlatformStationId = async (dropoffStationId: string) => {
   }
 
   try {
-    await yandexNddClient.offersInfo(normalized, selfPickupId, 'time_interval', true);
+    await yandexNddClient.offersInfo(normalized, selfPickupId, true);
   } catch (_error) {
     if (defaultPlatformStationId && normalized === defaultPlatformStationId) {
       return normalized;

@@ -71,7 +71,7 @@ test('offersInfo sends expected query params', async () => {
   assert.match(url, /offers\/info\?/);
   assert.match(url, /station_id=station-1/);
   assert.match(url, /self_pickup_id=pvz-1/);
-  assert.match(url, /last_mile_policy=time_interval/);
+  assert.match(url, /last_mile_policy=self_pickup/);
   assert.match(url, /send_unix=true/);
 });
 

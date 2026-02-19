@@ -238,7 +238,8 @@ export class YandexNddClient {
     return response;
   }
 
-  async offersInfo(stationId: string, selfPickupId: string, lastMilePolicy = 'time_interval', sendUnix = true) {
+  async offersInfo(stationId: string, selfPickupId: string, sendUnix = true) {
+    const lastMilePolicy = 'self_pickup';
     const query = new URLSearchParams({
       station_id: stationId,
       self_pickup_id: selfPickupId,
