@@ -661,9 +661,3 @@ enum ChatMessageAuthorRole {
   USER
   ADMIN
 }
-
-enum DropoffSchedule {
-  DAILY
-  WEEKLY
-  // MONTHLY  // если нужно
-}
