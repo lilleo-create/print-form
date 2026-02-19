@@ -121,7 +121,6 @@ export const SellerDashboardPage = () => {
   const [dropoffStationId, setDropoffStationId] = useState('');
   const [dropoffStationAddress, setDropoffStationAddress] = useState('');
   const [dropoffPvzAddress, setDropoffPvzAddress] = useState('');
-  const [dropoffPvzRaw, setDropoffPvzRaw] = useState<Record<string, unknown> | null>(null);
   const [dropoffSchedule, setDropoffSchedule] = useState<'DAILY' | 'WEEKDAYS'>('WEEKDAYS');
   const [isDropoffModalOpen, setDropoffModalOpen] = useState(false);
 
@@ -235,18 +234,6 @@ export const SellerDashboardPage = () => {
       );
       setDropoffPvzAddress(dropoffPvz?.addressFull ?? dropoffMeta?.addressFull ?? '');
       setDropoffSchedule(profileResponse.data?.dropoffSchedule === 'DAILY' ? 'DAILY' : 'WEEKDAYS');
-      const persistedRaw =
-        dropoffPvz?.raw ??
-        (dropoffMeta && typeof dropoffMeta === 'object'
-          ? (dropoffMeta as Record<string, unknown>).raw
-          : null);
-      setDropoffPvzRaw(
-        persistedRaw &&
-          typeof persistedRaw === 'object' &&
-          !Array.isArray(persistedRaw)
-          ? (persistedRaw as Record<string, unknown>)
-          : null
-      );
     } catch (error) {
       setOrders([]);
       setOrdersView([]);
@@ -552,10 +539,7 @@ export const SellerDashboardPage = () => {
     try {
       await api.updateSellerDropoffPvz({
         dropoffPvz: {
-          provider: 'YANDEX_NDD',
-          pvzId: stationId,
-          raw: dropoffPvzRaw,
-          addressFull: dropoffStationAddress.trim() || undefined
+          pvzId: stationId
         }
       });
 
@@ -578,24 +562,28 @@ export const SellerDashboardPage = () => {
     }
   };
 
-  const handleDropoffSelect = async (selection: { id: string; addressFull: string | null; [key: string]: unknown }) => {
+  const handleDropoffSelect = async (selection: { pvzId?: string | null; id?: string | null; addressFull?: string; [key: string]: unknown }) => {
     setDeliverySettingsMessage(null);
     setDeliverySettingsError(null);
+
+    const selectedId = selection.pvzId ?? selection.id ?? null;
+    const canContinue = typeof selectedId === 'string' && selectedId.trim().length > 0;
+
+    if (!canContinue) {
+      setDeliverySettingsError('Не удалось определить pvzId выбранной точки. Выберите другой пункт.');
+      return;
+    }
 
     try {
       await api.updateSellerDropoffPvz({
         dropoffPvz: {
-          provider: 'YANDEX_NDD',
-          pvzId: selection.id,
-          raw: selection as Record<string, unknown>,
-          addressFull: selection.addressFull ?? undefined
+          pvzId: selectedId
         }
       });
 
-      setDropoffStationId(selection.id);
+      setDropoffStationId(selectedId);
       setDropoffStationAddress(selection.addressFull ?? '');
       setDropoffPvzAddress(selection.addressFull ?? '');
-      setDropoffPvzRaw(selection as Record<string, unknown>);
       setDeliverySettingsMessage('Пункт приёма сохранён.');
       setDropoffModalOpen(false);
     } catch (error) {

@@ -17,6 +17,8 @@ const formatDistance = (distanceMeters?: number | null) => {
   return `${(distanceMeters / 1000).toFixed(1)} км`;
 };
 
+const getSelectableId = (station: SellerDropoffStation): string | null => station.pvzId ?? station.id ?? null;
+
 export const SellerDropoffStationPicker = ({ isOpen, geoId, onClose, onSelect }: Props) => {
   const [stations, setStations] = useState<SellerDropoffStation[]>([]);
   const [query, setQuery] = useState('');
@@ -30,7 +32,7 @@ export const SellerDropoffStationPicker = ({ isOpen, geoId, onClose, onSelect }:
   const stationRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   const selectedStation = useMemo(
-    () => stations.find((station) => station.id === selectedId) ?? null,
+    () => stations.find((station) => getSelectableId(station) === selectedId) ?? null,
     [stations, selectedId]
   );
 
@@ -55,7 +57,13 @@ export const SellerDropoffStationPicker = ({ isOpen, geoId, onClose, onSelect }:
       const points = response.data?.points ?? [];
       const geocode = response.data?.debug?.geocode;
       setStations(points);
-      setSelectedId((prev) => (prev && points.some((point) => point.id === prev) ? prev : points[0]?.id ?? null));
+      setSelectedId((prev) => {
+        if (prev && points.some((point) => getSelectableId(point) === prev)) {
+          return prev;
+        }
+        const firstSelectable = points.map(getSelectableId).find((id): id is string => Boolean(id));
+        return firstSelectable ?? null;
+      });
       setDetectedGeoId(response.data?.debug?.geoId ?? null);
       setMapCenter(geocode ? [geocode.lon, geocode.lat] : null);
       setSearchEmptyMessage(points.length ? null : 'Пункты приёма не найдены. Уточните запрос.');
@@ -124,17 +132,25 @@ export const SellerDropoffStationPicker = ({ isOpen, geoId, onClose, onSelect }:
             {stations.length === 0 ? (
               <p className={styles.muted}>Пункты приёма не найдены.</p>
             ) : (
-              stations.map((station) => {
-                const active = station.id === selectedId;
+              stations.map((station, index) => {
+                const selectableId = getSelectableId(station);
+                const active = selectableId === selectedId;
+                const itemKey = selectableId ?? `${station.name ?? 'station'}-${index}`;
 
                 return (
                   <button
-                    key={station.id}
+                    key={itemKey}
                     type="button"
                     ref={(el) => {
-                      stationRefs.current[station.id] = el;
+                      if (!selectableId) {
+                        return;
+                      }
+                      stationRefs.current[selectableId] = el;
                     }}
-                    onClick={() => setSelectedId(station.id)}
+                    onClick={() => {
+                      if (!selectableId) return;
+                      setSelectedId(selectableId);
+                    }}
                     className={`${styles.stationButton} ${active ? styles.stationButtonActive : ''}`}
                   >
                     <div className={styles.stationName}>{station.name ?? 'Пункт выдачи'}</div>
@@ -160,7 +176,7 @@ export const SellerDropoffStationPicker = ({ isOpen, geoId, onClose, onSelect }:
           <Button
             type="button"
             onClick={() => selectedStation && onSelect(selectedStation)}
-            disabled={!selectedStation}
+            disabled={typeof selectedId !== 'string' || selectedId.trim().length === 0 || !selectedStation}
           >
             Выбрать пункт
           </Button>
