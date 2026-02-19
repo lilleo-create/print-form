@@ -265,7 +265,8 @@ test('dropoff-stations returns normalized warehouse points by geo id', async () 
       points: [
         {
           id: 'warehouse-id-1',
-          operator_station_id: 'operator-station-1',
+          station_id: '10035218565',
+          operator_station_id: '10029618814',
           name: 'Склад 1',
           address: { full_address: 'Москва, Примерная, 1', geoId: 213 },
           position: { latitude: 55.75, longitude: 37.61 }
@@ -286,7 +287,8 @@ test('dropoff-stations returns normalized warehouse points by geo id', async () 
   assert.equal(requestBody.type, 'warehouse');
   assert.equal(requestBody.available_for_dropoff, true);
   assert.equal(response.body?.points?.length, 1);
-  assert.equal(response.body?.points?.[0]?.id, 'warehouse-id-1');
+  assert.equal(response.body?.points?.[0]?.id, '10035218565');
+  assert.equal(response.body?.points?.[0]?.pvzId, 'warehouse-id-1');
   assert.equal(response.body?.points?.[0]?.addressFull, 'Москва, Примерная, 1');
   assert.equal(response.body?.points?.[0]?.geoId, 213);
 });
