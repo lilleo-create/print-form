@@ -34,7 +34,6 @@ export interface Product {
   ratingAvg?: number;
   ratingCount?: number;
   material: MaterialType;
-  size: string;
   technology: TechnologyType;
   printTime: string;
   productionTimeHours?: number;

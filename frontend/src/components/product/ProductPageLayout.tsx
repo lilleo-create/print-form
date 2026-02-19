@@ -41,7 +41,6 @@ const normalizeProductSpecs = (product: Product | null): SpecItem[] => {
 
   return [
     { name: 'Материал', value: (product as { material?: string }).material ?? '' },
-    { name: 'Размер', value: (product as { size?: string }).size ?? '' },
     { name: 'Технология', value: (product as { technology?: string }).technology ?? '' },
     { name: 'Время печати', value: (product as { printTime?: string }).printTime ?? '' },
     { name: 'Цвет', value: (product as { color?: string }).color ?? '' }

@@ -6,7 +6,6 @@ export const productUseCases = {
     query?: string;
     category?: string;
     material?: string;
-    size?: string;
     minPrice?: number;
     maxPrice?: number;
     sort?: 'createdAt' | 'rating' | 'price';

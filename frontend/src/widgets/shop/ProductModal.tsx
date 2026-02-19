@@ -40,10 +40,6 @@ export const ProductModal = () => {
                 <strong>{product.material}</strong>
               </li>
               <li>
-                <span>Размер</span>
-                <strong>{product.size}</strong>
-              </li>
-              <li>
                 <span>Технология</span>
                 <strong>{product.technology}</strong>
               </li>
@@ -58,7 +54,7 @@ export const ProductModal = () => {
               {product.dxCm && product.dyCm && product.dzCm ? (
                 <li>
                   <span>Габариты</span>
-                  <strong>{product.dxCm}×{product.dyCm}×{product.dzCm} см{product.weightGrossG ? `, ${product.weightGrossG} г` : ''}</strong>
+                  <strong>{product.dxCm} × {product.dyCm} × {product.dzCm} см{product.weightGrossG ? `, ${product.weightGrossG} г` : ''}</strong>
                 </li>
               ) : null}
             </ul>

@@ -6,7 +6,6 @@ export interface CatalogFilters {
   category?: string;
   material?: string;
   price?: string;
-  size?: string;
   sort?: 'createdAt' | 'rating';
   order?: 'asc' | 'desc';
   page?: number;
@@ -24,7 +23,6 @@ export const useCatalog = (filters: CatalogFilters, enabled = true) => {
         category: filters.category ?? '',
         material: filters.material ?? '',
         price: filters.price ?? '',
-        size: filters.size ?? '',
         sort: filters.sort ?? '',
         order: filters.order ?? '',
         page: filters.page ?? '',
@@ -34,7 +32,6 @@ export const useCatalog = (filters: CatalogFilters, enabled = true) => {
       filters.category,
       filters.material,
       filters.price,
-      filters.size,
       filters.sort,
       filters.order,
       filters.page,

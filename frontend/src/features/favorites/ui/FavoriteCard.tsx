@@ -56,7 +56,6 @@ export const FavoriteCard = ({ item }: FavoriteCardProps) => {
               image: item.image ?? '',
               description: item.shortSpec ?? item.title,
               material: 'PLA',
-              size: '—',
               technology: 'FDM',
               printTime: '—',
               color: '—',

@@ -77,7 +77,6 @@ model Product {
   videoUrls             String[]                @default([])
   description           String
   material              String
-  size                  String
   technology            String
   printTime             String
   color                 String
@@ -607,6 +606,11 @@ enum ReviewModerationStatus {
   APPROVED
   REJECTED
   NEEDS_EDIT
+}
+
+enum DropoffSchedule {
+  DAILY
+  WEEKDAYS
 }
 
 enum OtpPurpose {

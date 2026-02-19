@@ -93,7 +93,6 @@ export const api = {
       category?: string;
       material?: string;
       price?: string;
-      size?: string;
       sort?: 'createdAt' | 'rating' | 'price';
       order?: 'asc' | 'desc';
       page?: number;
@@ -108,7 +107,6 @@ export const api = {
     const params = new URLSearchParams();
     if (filters?.category) params.set('category', filters.category);
     if (filters?.material) params.set('material', filters.material);
-    if (filters?.size) params.set('size', filters.size);
     if (filters?.price) {
       const [min, max] = filters.price.split('-');
       if (min) params.set('minPrice', min);
@@ -139,7 +137,6 @@ export const api = {
     return apiClient.request<{
       categories: string[];
       materials: string[];
-      sizes: string[];
     }>(`/shops/${shopId}/filters`, { signal: opts?.signal });
   },
 
@@ -217,8 +214,7 @@ export const api = {
     return {
       data: {
         categories: categoriesResponse.data.map((category) => category.title),
-        materials: [],
-        sizes: []
+        materials: []
       }
     };
   },
@@ -253,7 +249,6 @@ export const api = {
     price: number;
     material: string;
     category: string;
-    size: string;
     technology: string;
     printTime: string;
     color: string;
@@ -264,7 +259,6 @@ export const api = {
     dzCm?: number;
     imageUrls: string[];
     videoUrls?: string[];
-    productionTimeHours: number;
   }) {
     return apiClient.request<Product>('/seller/products', {
       method: 'POST',
@@ -279,7 +273,6 @@ export const api = {
       price?: number;
       material?: string;
       category?: string;
-      size?: string;
       technology?: string;
       printTime?: string;
       color?: string;
@@ -290,7 +283,6 @@ export const api = {
       dzCm?: number;
       imageUrls?: string[];
       videoUrls?: string[];
-      productionTimeHours?: number;
     }
   ) {
     return apiClient.request<Product>(`/seller/products/${id}`, {

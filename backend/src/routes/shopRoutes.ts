@@ -53,7 +53,7 @@ shopRoutes.get('/:shopId/filters', publicReadLimiter, async (req, res, next) => 
   try {
     const { shopId } = paramsSchema.parse(req.params);
     const productWhere = { sellerId: shopId, moderationStatus: 'APPROVED' } as const;
-    const [categories, materials, sizes] = await Promise.all([
+    const [categories, materials] = await Promise.all([
       prisma.product.findMany({
         where: productWhere,
         distinct: ['category'],
@@ -63,18 +63,12 @@ shopRoutes.get('/:shopId/filters', publicReadLimiter, async (req, res, next) => 
         where: productWhere,
         distinct: ['material'],
         select: { material: true }
-      }),
-      prisma.product.findMany({
-        where: productWhere,
-        distinct: ['size'],
-        select: { size: true }
       })
     ]);
     res.json({
       data: {
         categories: categories.map((item) => item.category).filter(Boolean).sort(),
-        materials: materials.map((item) => item.material).filter(Boolean).sort(),
-        sizes: sizes.map((item) => item.size).filter(Boolean).sort()
+        materials: materials.map((item) => item.material).filter(Boolean).sort()
       }
     });
   } catch (error) {
