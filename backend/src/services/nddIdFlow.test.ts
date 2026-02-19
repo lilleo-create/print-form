@@ -53,7 +53,7 @@ test('uses platform station for station_id and pvzId for self_pickup_id', async 
   assert.deepEqual(infoArgs, ['200000001', '0193d98fb6fe76ce9ac1bbf9ea33d2f7']);
 });
 
-test('throws SELLER_STATION_ID_REQUIRED when platform station is missing', async () => {
+test('uses seller default dropoff pvz when platform station is missing', async () => {
   await setupBaseMocks('order-no-seller-station');
   (prisma.sellerDeliveryProfile.findUnique as any) = async () => ({
     dropoffPvzId: 'pvz-dropoff',
@@ -62,7 +62,8 @@ test('throws SELLER_STATION_ID_REQUIRED when platform station is missing', async
     dropoffStationMeta: null
   });
 
-  await assert.rejects(() => yandexNddShipmentOrchestrator.readyToShip('seller-1', 'order-no-seller-station'), /SELLER_STATION_ID_REQUIRED/);
+  const shipment = await yandexNddShipmentOrchestrator.readyToShip('seller-1', 'order-no-seller-station');
+  assert.equal(shipment.requestId, 'request-1');
 });
 
 test('throws VALIDATION_ERROR when buyer pvz id is digits (operator id passed as pvz)', async () => {

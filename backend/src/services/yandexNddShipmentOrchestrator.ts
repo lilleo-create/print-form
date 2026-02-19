@@ -3,10 +3,8 @@ import { prisma } from '../lib/prisma';
 import { orderDeliveryService } from './orderDeliveryService';
 import { mapYandexStatusToInternal, shipmentService } from './shipmentService';
 import { YandexNddHttpError, yandexNddClient } from './yandexNdd/YandexNddClient';
-import { looksLikeDigits, looksLikePvzId, NddValidationError } from './yandexNdd/nddIdSemantics';
+import { looksLikePvzId, NddValidationError } from './yandexNdd/nddIdSemantics';
 import { resolvePlatformStationIdByPickupPointId } from './yandexNdd/resolvePlatformStationIdByPickupPointId';
-import { getYandexNddConfig } from '../config/yandexNdd';
-import { normalizeDigitsStation } from './yandexNdd/getOperatorStationId';
 
 const readyToShipSingleFlight = new Map<string, Promise<any>>();
 
@@ -42,8 +40,8 @@ const extractBuyerPickupMetaIds = (meta: unknown): { platformStationId: string |
   const platformCandidate = getTrimmedString(raw?.buyerPickupPlatformStationId) ?? getTrimmedString(direct?.buyerPickupPlatformStationId);
   const operatorCandidate = getTrimmedString(raw?.buyerPickupOperatorStationId) ?? getTrimmedString(direct?.buyerPickupOperatorStationId) ?? getTrimmedString(raw?.operator_station_id);
   return {
-    platformStationId: platformCandidate && looksLikeDigits(platformCandidate) ? platformCandidate : null,
-    operatorStationId: operatorCandidate && looksLikeDigits(operatorCandidate) ? operatorCandidate : null
+    platformStationId: platformCandidate,
+    operatorStationId: operatorCandidate
   };
 };
 
@@ -188,32 +186,17 @@ export const yandexNddShipmentOrchestrator = {
       sellerProfileDropoffPlatformStationId: sellerDeliveryProfile?.dropoffPlatformStationId ?? null
     });
 
-    const profileStationId = normalizeDigitsStation(sellerDeliveryProfile?.dropoffPlatformStationId);
-    const fallbackStationId = normalizeDigitsStation(getYandexNddConfig().defaultPlatformStationId);
-    const sourceStationId = profileStationId || (process.env.NODE_ENV === 'production' ? null : fallbackStationId);
-    const sourceStationFrom: 'profile.dropoffPlatformStationId' | 'config.defaultPlatformStationId' | 'none' = profileStationId
-      ? 'profile.dropoffPlatformStationId'
-      : sourceStationId
-        ? 'config.defaultPlatformStationId'
-        : 'none';
+    const sourceStationId =
+      getTrimmedString(sellerDeliveryProfile?.dropoffPlatformStationId) ??
+      getTrimmedString(sellerDeliveryProfile?.dropoffPvzId) ??
+      getTrimmedString(order.sellerDropoffPvzId) ??
+      null;
 
-    console.info('[READY_TO_SHIP] seller station resolved', {
-      sellerId,
-      orderId,
+    console.info('[NDD_SOURCE_STATION]', {
       sourceStationId,
-      from: sourceStationFrom,
-      profileDropoffPlatformStationId: profileStationId,
-      fallbackDefaultPlatformStationId: fallbackStationId,
-      fallbackUsed: sourceStationFrom === 'config.defaultPlatformStationId'
+      fromProfile: sellerDeliveryProfile?.dropoffPvzId ?? null,
+      dropoffPlatformStationId: sellerDeliveryProfile?.dropoffPlatformStationId ?? null
     });
-
-    if (sourceStationFrom === 'config.defaultPlatformStationId') {
-      console.warn('[READY_TO_SHIP] using development fallback seller station id', {
-        sellerId,
-        orderId,
-        fallbackDefaultPlatformStationId: fallbackStationId
-      });
-    }
 
     if (!sourceStationId) {
       console.error('[READY_TO_SHIP] SELLER_STATION_ID_REQUIRED', {
@@ -221,7 +204,7 @@ export const yandexNddShipmentOrchestrator = {
         orderId,
         dropoffPvzId: sellerDeliveryProfile?.dropoffPvzId ?? null,
         rawSellerDropoffPlatformStationId: sellerDeliveryProfile?.dropoffPlatformStationId ?? null,
-        nodeEnv: process.env.NODE_ENV
+        defaultDropoffPvzId: sellerDeliveryProfile?.dropoffPvzId ?? null
       });
       throw new NddValidationError(
         'SELLER_STATION_ID_REQUIRED',
@@ -283,10 +266,6 @@ export const yandexNddShipmentOrchestrator = {
       sellerDropoffPlatformStationId: sourceStationId
     });
 
-    if (!looksLikeDigits(sourceStationId)) {
-      throw new NddValidationError('SELLER_STATION_ID_REQUIRED', 'Продавец не настроил точку сдачи (station_id платформы). Выберите пункт сдачи в настройках.');
-    }
-
     if (!looksLikePvzId(selfPickupId)) {
       throw new NddValidationError('VALIDATION_ERROR', 'self_pickup_id должен быть pickup point id (pvzId).');
     }
@@ -294,21 +273,21 @@ export const yandexNddShipmentOrchestrator = {
     if (process.env.NODE_ENV !== 'production') {
       console.log('[NDD readyToShip stations]', {
         orderId,
-        station_id: sourceStationId,
+        sourceStationId,
         self_pickup_id: selfPickupId,
-        source: sourceStationFrom
+        source: 'sellerProfile.dropoffPlatformStationId|sellerProfile.dropoffPvzId|order.sellerDropoffPvzId'
       });
     }
 
     console.info('[NDD] using ids', {
-      station_id: sourceStationId,
+      sourceStationId,
       self_pickup_id: selfPickupId,
       source_fields: {
-        seller: sourceStationFrom,
+        seller: 'sellerProfile.dropoffPlatformStationId|sellerProfile.dropoffPvzId|order.sellerDropoffPvzId',
         buyer: 'order.buyerPickupPvzId'
       },
       shapes: {
-        station_id: looksLikeDigits(sourceStationId) ? 'digits' : 'invalid',
+        sourceStationId: 'string',
         self_pickup_id: looksLikePvzId(selfPickupId) ? 'pvz' : 'invalid'
       }
     });
@@ -316,7 +295,7 @@ export const yandexNddShipmentOrchestrator = {
     let offersInfo: Record<string, unknown>;
     console.info('[READY_TO_SHIP] offers/info params', {
       orderId,
-      station_id: sourceStationId,
+      sourceStationId,
       self_pickup_id: selfPickupId,
       last_mile_policy: 'time_interval',
       send_unix: true
@@ -349,7 +328,7 @@ export const yandexNddShipmentOrchestrator = {
         if (detailsCode === 'validation_error') {
           console.error('[READY_TO_SHIP] offers/info validation_error', {
             orderId,
-            station_id: sourceStationId,
+            sourceStationId,
             self_pickup_id: selfPickupId,
             body: error.details
           });
@@ -388,8 +367,17 @@ export const yandexNddShipmentOrchestrator = {
     );
 
     const offersBody: Record<string, unknown> = {
-      station_id: sourceStationId,
-      self_pickup_id: selfPickupId,
+      source: {
+        platform_station: {
+          platform_id: sourceStationId
+        }
+      },
+      destination: {
+        type: 'platform_station',
+        platform_station: {
+          platform_id: selfPickupId
+        }
+      },
       interval_utc: intervalUtc,
       last_mile_policy: 'time_interval',
       info: {
