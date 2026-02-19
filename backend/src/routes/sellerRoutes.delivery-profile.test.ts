@@ -85,7 +85,7 @@ test('creates default seller delivery profile on onboarding when profile is abse
   });
 });
 
-test('dropoff-pvz stores pvzId in settings and platform GUID as source_platform_station', async () => {
+test('dropoff-pvz stores pvzId in settings and numeric operator station as source_platform_station', async () => {
   const sellerDeliveryUpserts: unknown[] = [];
 
   (prisma.user.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ role: 'SELLER' });
@@ -127,15 +127,15 @@ test('dropoff-pvz stores pvzId in settings and platform GUID as source_platform_
 
   assert.equal(dropoffResponse.status, 200);
   assert.equal(dropoffResponse.body?.data?.defaultDropoffPvzId, 'pvz-widget-id');
-  assert.equal((sellerDeliveryUpserts[0] as any).update.dropoffStationId, 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924');
-  assert.equal((sellerDeliveryUpserts[0] as any).update.dropoffStationMeta.source_platform_station, 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924');
+  assert.equal((sellerDeliveryUpserts[0] as any).update.dropoffStationId, '10029618814');
+  assert.equal((sellerDeliveryUpserts[0] as any).update.dropoffStationMeta.source_platform_station, '10029618814');
   assert.equal((sellerDeliveryUpserts[0] as any).update.dropoffStationMeta.pvz_id, 'pvz-widget-id');
 });
 
 
 
 
-test('dropoff-pvz derives source_platform_station from pvzId when operator_station_id is missing', async () => {
+test('dropoff-pvz returns validation error when operator_station_id is missing', async () => {
   const sellerDeliveryUpserts: unknown[] = [];
 
   (prisma.user.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ role: 'SELLER' });
@@ -163,9 +163,9 @@ test('dropoff-pvz derives source_platform_station from pvzId when operator_stati
       }
     });
 
-  assert.equal(response.status, 200);
-  assert.equal((sellerDeliveryUpserts[0] as any).update.dropoffStationId, 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924');
-  assert.equal((sellerDeliveryUpserts[0] as any).update.dropoffStationMeta.source_platform_station, 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924');
+  assert.equal(response.status, 400);
+  assert.equal(response.body?.error?.code, 'SELLER_STATION_ID_INVALID');
+  assert.equal(sellerDeliveryUpserts.length, 0);
 });
 
 

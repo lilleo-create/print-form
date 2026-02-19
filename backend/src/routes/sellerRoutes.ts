@@ -19,7 +19,7 @@ import { yandexDeliveryService } from '../services/yandexDeliveryService';
 import { sellerOrderDocumentsService } from '../services/sellerOrderDocumentsService';
 import { getYandexNddConfig } from '../config/yandexNdd';
 import { YandexNddHttpError, yandexNddClient } from '../services/yandexNdd/YandexNddClient';
-import { normalizeStationId } from '../services/yandexNdd/getOperatorStationId';
+import { getOperatorStationId, normalizeDigitsStation } from '../services/yandexNdd/getOperatorStationId';
 import { haversineDistanceMeters } from '../utils/geo';
 import { TtlCache } from '../utils/cache';
 
@@ -101,7 +101,7 @@ const resolveValidationSelfPickupId = () => {
 
 const validateSourcePlatformStationId = async (dropoffStationId: string) => {
   const { defaultPlatformStationId } = getYandexNddConfig();
-  const normalized = normalizeStationId(dropoffStationId, { allowUuid: true });
+  const normalized = normalizeDigitsStation(dropoffStationId);
   if (!normalized) {
     throw new Error('SELLER_STATION_ID_INVALID');
   }
@@ -1011,7 +1011,9 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
       });
     }
 
-    const dropoffStationId = String((point as any).id ?? '').trim();
+    const dropoffStationId =
+      normalizeDigitsStation((point as any).operator_station_id) ??
+      normalizeDigitsStation(getOperatorStationId(point));
     if (!dropoffStationId) {
       return res.status(400).json({
         error: {
@@ -1057,7 +1059,7 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
         source: 'pickup-points/list',
         pvz_id: pvzId,
         source_platform_station: dropoffStationId,
-        operator_station_id: (point as any).operator_station_id ?? null,
+        operator_station_id: dropoffStationId,
         raw: point
       }
     });
