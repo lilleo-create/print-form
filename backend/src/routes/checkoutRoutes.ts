@@ -4,6 +4,7 @@ import { requireAuth, type AuthRequest } from '../middleware/authMiddleware';
 import { writeLimiter } from '../middleware/rateLimiters';
 import { prisma } from '../lib/prisma';
 import { yandexDeliveryService } from '../services/yandexDeliveryService';
+import { resolveOperatorStationIdByPickupPointId } from '../services/yandexNdd/resolveOperatorStationIdByPickupPointId';
 
 export const checkoutRoutes = Router();
 
@@ -389,14 +390,36 @@ checkoutRoutes.put('/address', requireAuth, writeLimiter, async (req: AuthReques
 checkoutRoutes.put('/pickup', requireAuth, writeLimiter, async (req: AuthRequest, res, next) => {
   try {
     const payload = pickupSchema.parse(req.body);
-    const buyerPickupStationId =
+    let buyerPickupStationId =
       payload.pickupPoint.buyerPickupStationId ?? payload.pickupPoint.operator_station_id ?? null;
+
+    if (!buyerPickupStationId) {
+      buyerPickupStationId = await resolveOperatorStationIdByPickupPointId(payload.pickupPoint.id);
+    }
+
+    const rawPickupPoint = {
+      ...payload.pickupPoint,
+      id: payload.pickupPoint.id,
+      buyerPickupPointId: payload.pickupPoint.id,
+      buyerPickupStationId,
+      addressFull: payload.pickupPoint.fullAddress
+    };
+
     const pickupPointJson = {
       ...payload.pickupPoint,
       buyerPickupPointId: payload.pickupPoint.id,
       buyerPickupStationId,
-      raw: payload.pickupPoint
+      addressFull: payload.pickupPoint.fullAddress,
+      raw: rawPickupPoint
     };
+
+    console.info('[CHECKOUT][buyer_pvz_saved]', {
+      buyerId: req.user!.userId,
+      buyerPickupPvzId: payload.pickupPoint.id,
+      buyerPickupStationId,
+      addressFull: payload.pickupPoint.fullAddress
+    });
+
     await ensureCheckoutTables();
 
     await prisma.$executeRawUnsafe(

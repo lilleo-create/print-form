@@ -14,6 +14,7 @@ test.beforeEach(() => {
     dropoffStationId: '10029618814',
     dropoffStationMeta: null
   });
+  (yandexNddClient.pickupPointsList as any) = async () => ({ points: [] });
 });
 
 const mockPaidOrder = (id: string) => ({
@@ -141,6 +142,52 @@ test('ready-to-ship fails with BUYER_STATION_ID_REQUIRED when buyer station id i
   await assert.rejects(
     () => yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-no-buyer-station'),
     /BUYER_STATION_ID_REQUIRED/
+  );
+});
+
+test('ready-to-ship backfills buyer station id from pickup-points/list', async () => {
+  (prisma.order.findFirst as any) = async () => ({
+    ...mockPaidOrder('order-backfill'),
+    buyerPickupPvzId: '0193d98fb6fe76ce9ac1bbf9ea33d2f7',
+    buyerPickupPvzMeta: { raw: { id: '0193d98fb6fe76ce9ac1bbf9ea33d2f7' } }
+  });
+
+  const deliveryServiceModule = await import('./orderDeliveryService');
+  (deliveryServiceModule.orderDeliveryService.getByOrderIds as any) = async () =>
+    new Map([['order-backfill', { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: '0193d98fb6fe76ce9ac1bbf9ea33d2f7' } }]]);
+
+  const shipmentModule = await import('./shipmentService');
+  (shipmentModule.shipmentService.getByOrderId as any) = async () => null;
+  (shipmentModule.shipmentService.upsertForOrder as any) = async (payload: Record<string, unknown>) => ({ id: 'shipment-1', ...payload });
+  (shipmentModule.shipmentService.pushHistory as any) = async () => undefined;
+
+  const updates: any[] = [];
+  (prisma.order.update as any) = async (payload: any) => {
+    updates.push(payload);
+    return { id: payload.where.id };
+  };
+
+  (yandexNddClient.pickupPointsList as any) = async () => ({
+    points: [{ id: '0193d98fb6fe76ce9ac1bbf9ea33d2f7', operator_station_id: '10027909485' }]
+  });
+
+  let offersInfoSelfPickupId = '';
+  (yandexNddClient.offersInfo as any) = async (_stationId: string, selfPickupId: string) => {
+    offersInfoSelfPickupId = selfPickupId;
+    return { intervals_utc: [{ from: 1700001000, to: 1700004600 }] };
+  };
+  (yandexNddClient.offersCreate as any) = async () => ({ offer_id: 'offer-backfill' });
+  (yandexNddClient.offersConfirm as any) = async () => ({ request_id: 'request-backfill', status: 'CREATED' });
+
+  await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-backfill');
+
+  assert.equal(offersInfoSelfPickupId, '10027909485');
+  assert.ok(
+    updates.some(
+      (entry) =>
+        entry?.data?.buyerPickupPvzMeta?.buyerPickupStationId === '10027909485' &&
+        entry?.data?.buyerPickupPvzMeta?.raw?.buyerPickupStationId === '10027909485'
+    )
   );
 });
 

@@ -24,6 +24,47 @@ type StartPaymentInput = {
 
 const buildPaymentUrl = (paymentId: string) => `https://payment.local/checkout/${paymentId}`;
 
+const asRecord = (value: unknown): Record<string, unknown> | null => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+
+  return value as Record<string, unknown>;
+};
+
+const normalizeDigits = (value: unknown): string | null => {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return /^\d+$/.test(trimmed) ? trimmed : null;
+};
+
+const normalizeBuyerPickupPvz = (input: StartPaymentInput['buyerPickupPvz']) => {
+  const raw = asRecord(input.raw) ?? {};
+  const buyerPickupStationId =
+    normalizeDigits(input.buyerPickupStationId) ??
+    normalizeDigits(raw.buyerPickupStationId) ??
+    normalizeDigits(raw.operator_station_id) ??
+    null;
+
+  const normalizedRaw = {
+    ...raw,
+    id: input.pvzId,
+    buyerPickupPointId: input.pvzId,
+    buyerPickupStationId,
+    addressFull: input.addressFull ?? (typeof raw.addressFull === 'string' ? raw.addressFull : undefined),
+    fullAddress: input.addressFull ?? (typeof raw.fullAddress === 'string' ? raw.fullAddress : undefined)
+  };
+
+  return {
+    ...input,
+    buyerPickupStationId: buyerPickupStationId ?? undefined,
+    raw: normalizedRaw
+  };
+};
+
 const buildOrderLabels = (orderId: string, packagesCount: number) => {
   const shortId = orderId.replace(/[^a-zA-Z0-9]/g, '').slice(-7).toUpperCase();
   return Array.from({ length: packagesCount }, (_, index) => {
@@ -161,13 +202,12 @@ export const paymentFlowService = {
       const sellerSettings = await prisma.sellerSettings.findUnique({ where: { sellerId: product.sellerId } });
 
       try {
+        const normalizedBuyerPickupPvz = normalizeBuyerPickupPvz(input.buyerPickupPvz);
+
         const createdOrder = await orderUseCases.create({
           buyerId: input.buyerId,
           paymentAttemptKey: input.paymentAttemptKey,
-          buyerPickupPvz: {
-            ...input.buyerPickupPvz,
-            raw: input.buyerPickupPvz.raw ?? {}
-          },
+          buyerPickupPvz: normalizedBuyerPickupPvz,
           sellerDropoffPvz: sellerSettings?.defaultDropoffPvzId
             ? {
                 provider: 'YANDEX_NDD',
@@ -212,6 +252,14 @@ export const paymentFlowService = {
       throw new Error('ORDER_CREATE_FAILED');
     }
 
+
+    const normalizedBuyerPickupPvz = normalizeBuyerPickupPvz(input.buyerPickupPvz);
+    console.info('[PAYMENT][buyer_pvz]', {
+      buyerId: input.buyerId,
+      buyerPickupPvzId: input.buyerPickupPvz.pvzId,
+      buyerPickupStationId: normalizedBuyerPickupPvz.buyerPickupStationId ?? null,
+      addressFull: input.buyerPickupPvz.addressFull ?? null
+    });
 
     const shouldRefreshLabels = !order.orderLabels || !Array.isArray(order.orderLabels) || order.orderLabels.length === 0;
     const shouldUpdateRecipient = !order.recipientName || !order.recipientPhone;
