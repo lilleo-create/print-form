@@ -20,7 +20,6 @@ import { sellerOrderDocumentsService } from '../services/sellerOrderDocumentsSer
 import { getYandexNddConfig } from '../config/yandexNdd';
 import { YandexNddHttpError, yandexNddClient } from '../services/yandexNdd/YandexNddClient';
 import { normalizeDigitsStation } from '../services/yandexNdd/getOperatorStationId';
-import { resolvePlatformStationIdByPickupPointId } from '../services/yandexNdd/resolvePlatformStationIdByPickupPointId';
 import { haversineDistanceMeters } from '../utils/geo';
 import { TtlCache } from '../utils/cache';
 
@@ -141,7 +140,7 @@ const validateResolvedPlatformStationId = async (platformStationId: string | nul
 
 const validateSourcePlatformStationId = async (dropoffStationId: string) => {
   const { defaultPlatformStationId } = getYandexNddConfig();
-  const normalized = normalizeDigitsStation(dropoffStationId);
+  const normalized = normalizeUuid(dropoffStationId);
   if (!normalized) {
     throw new Error('SELLER_STATION_ID_INVALID');
   }
@@ -162,6 +161,18 @@ const validateSourcePlatformStationId = async (dropoffStationId: string) => {
 
   return normalized;
 };
+
+const normalizeUuid = (value: unknown): string | null => {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const trimmed = value.trim().toLowerCase();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(trimmed)
+    ? trimmed
+    : null;
+};
+
+const normalizeOperatorStationDigits = (value: unknown): string | null => normalizeDigitsStation(value);
 
 sellerRoutes.post('/onboarding', requireAuth, writeLimiter, async (req: AuthRequest, res, next) => {
   try {
@@ -650,16 +661,18 @@ const geocodeAddress = async (query: string) => {
 
 const readPlatformStationId = (point: Record<string, any>): string | null => {
   const station = point?.station && typeof point.station === 'object' ? point.station : null;
+  const platformStation = point?.platform_station && typeof point.platform_station === 'object' ? point.platform_station : null;
   const candidates = [
-    point?.station_id,
     point?.platform_station_id,
+    platformStation?.platform_id,
+    point?.station_id,
     station?.id,
-    station?.station_id,
+    station?.platform_id,
     station?.platform_station_id
   ];
 
   for (const candidate of candidates) {
-    const normalized = normalizeDigitsStation(candidate);
+    const normalized = normalizeUuid(candidate);
     if (normalized) {
       return normalized;
     }
@@ -669,10 +682,9 @@ const readPlatformStationId = (point: Record<string, any>): string | null => {
 };
 
 const mapSellerDropoffPoint = (point: Record<string, any>) => ({
-  id: typeof point?.id === 'string' ? point.id : null,
   pvzId: typeof point?.id === 'string' ? point.id : null,
-  platform_station_id: readPlatformStationId(point),
-  operator_station_id: normalizeDigitsStation(point?.operator_station_id),
+  platformStationId: readPlatformStationId(point),
+  operatorStationId: normalizeOperatorStationDigits(point?.operator_station_id),
   name: typeof point?.name === 'string' ? point.name : null,
   addressFull: point?.address?.full_address ?? null,
   instruction: typeof point?.instruction === 'string' ? point.instruction : null,
@@ -680,6 +692,7 @@ const mapSellerDropoffPoint = (point: Record<string, any>) => ({
   position: point?.position ?? null,
   available_for_c2c_dropoff:
     typeof point?.available_for_c2c_dropoff === 'boolean' ? point.available_for_c2c_dropoff : null,
+  available_for_dropoff: typeof point?.available_for_dropoff === 'boolean' ? point.available_for_dropoff : null,
   maxWeightGross: null,
   distanceMeters: null as number | null
 });
@@ -749,20 +762,51 @@ sellerRoutes.get('/ndd/dropoff-stations', async (req: AuthRequest, res, next) =>
       limit: req.query?.limit
     });
 
-    const listResp = await yandexNddClient.pickupPointsList({
+    const pickupPointResp = await yandexNddClient.pickupPointsList({
       geo_id: geoId,
-      type: 'warehouse',
+      type: 'pickup_point',
       available_for_dropoff: true,
+      available_for_c2c_dropoff: true,
       is_yandex_branded: false,
       is_not_branded_partner_station: true
     });
 
-    const pointsRaw =
-      (listResp as any)?.points ??
-      (listResp as any)?.result?.points ??
+    const terminalResp = await yandexNddClient.pickupPointsList({
+      geo_id: geoId,
+      type: 'terminal',
+      available_for_dropoff: true,
+      available_for_c2c_dropoff: true,
+      is_yandex_branded: false,
+      is_not_branded_partner_station: true
+    });
+
+    const warehouseResp = await yandexNddClient.pickupPointsList({
+      geo_id: geoId,
+      type: 'warehouse',
+      available_for_dropoff: true,
+      available_for_c2c_dropoff: true,
+      is_yandex_branded: false,
+      is_not_branded_partner_station: true
+    });
+
+    const pickupPointsRaw =
+      (pickupPointResp as any)?.points ??
+      (pickupPointResp as any)?.result?.points ??
+      [];
+    const terminalPointsRaw =
+      (terminalResp as any)?.points ??
+      (terminalResp as any)?.result?.points ??
+      [];
+    const warehousePointsRaw =
+      (warehouseResp as any)?.points ??
+      (warehouseResp as any)?.result?.points ??
       [];
 
-    const incomingPoints = Array.isArray(pointsRaw) ? pointsRaw : [];
+    const incomingPoints = [
+      ...(Array.isArray(pickupPointsRaw) ? pickupPointsRaw : []),
+      ...(Array.isArray(terminalPointsRaw) ? terminalPointsRaw : []),
+      ...(Array.isArray(warehousePointsRaw) ? warehousePointsRaw : [])
+    ];
     const droppedReasons = {
       missingId: 0,
       outOfLimit: Math.max(incomingPoints.length - limit, 0)
@@ -770,23 +814,13 @@ sellerRoutes.get('/ndd/dropoff-stations', async (req: AuthRequest, res, next) =>
 
     const points = incomingPoints
       .slice(0, limit)
-      .map((point: Record<string, any>) => ({
-        id: readPlatformStationId(point),
-        pvzId: typeof point?.id === 'string' ? point.id : null,
-        operator_station_id: normalizeDigitsStation(point?.operator_station_id),
-        name: typeof point?.name === 'string' ? point.name : null,
-        addressFull: point?.address?.full_address ?? null,
-        geoId: point?.address?.geoId ?? point?.address?.geo_id ?? null,
-        position: point?.position ?? null,
-        maxWeightGross: null
-      }))
-      .filter((point: { id: string | null }) => {
-        if (!point.id) {
-          droppedReasons.missingId += 1;
-          return false;
-        }
-        return true;
-      });
+      .map((point: Record<string, any>) => mapSellerDropoffPoint(point));
+
+    for (const point of points) {
+      if (!point.pvzId) {
+        droppedReasons.missingId += 1;
+      }
+    }
 
     console.info('[DROP_OFF_STATIONS]', {
       geoId,
@@ -794,7 +828,7 @@ sellerRoutes.get('/ndd/dropoff-stations', async (req: AuthRequest, res, next) =>
       afterFiltersCount: points.length,
       pointsCount: points.length,
       filterReasons: droppedReasons,
-      sample: points[0]?.id
+      sample: points[0]?.platformStationId
     });
 
     return res.json({ points });
@@ -821,7 +855,9 @@ sellerRoutes.post('/ndd/dropoff-stations/search', async (req: AuthRequest, res, 
     const pickupPointResp = await yandexNddClient.pickupPointsList({
       geo_id: geoId,
       type: 'pickup_point',
+      available_for_dropoff: true,
       available_for_c2c_dropoff: true,
+      is_yandex_branded: false,
       is_not_branded_partner_station: true,
       limit: MAX_FETCH_LIMIT
     });
@@ -829,7 +865,19 @@ sellerRoutes.post('/ndd/dropoff-stations/search', async (req: AuthRequest, res, 
     const terminalResp = await yandexNddClient.pickupPointsList({
       geo_id: geoId,
       type: 'terminal',
+      available_for_dropoff: true,
       available_for_c2c_dropoff: true,
+      is_yandex_branded: false,
+      is_not_branded_partner_station: true,
+      limit: MAX_FETCH_LIMIT
+    });
+
+    const warehouseResp = await yandexNddClient.pickupPointsList({
+      geo_id: geoId,
+      type: 'warehouse',
+      available_for_dropoff: true,
+      available_for_c2c_dropoff: true,
+      is_yandex_branded: false,
       is_not_branded_partner_station: true,
       limit: MAX_FETCH_LIMIT
     });
@@ -842,8 +890,16 @@ sellerRoutes.post('/ndd/dropoff-stations/search', async (req: AuthRequest, res, 
       (terminalResp as any)?.points ??
       (terminalResp as any)?.result?.points ??
       [];
+    const warehousePointsRaw =
+      (warehouseResp as any)?.points ??
+      (warehouseResp as any)?.result?.points ??
+      [];
 
-    const allPoints = [...(Array.isArray(pickupPointsRaw) ? pickupPointsRaw : []), ...(Array.isArray(terminalPointsRaw) ? terminalPointsRaw : [])];
+    const allPoints = [
+      ...(Array.isArray(pickupPointsRaw) ? pickupPointsRaw : []),
+      ...(Array.isArray(terminalPointsRaw) ? terminalPointsRaw : []),
+      ...(Array.isArray(warehousePointsRaw) ? warehousePointsRaw : [])
+    ];
     const rawPointsCount = allPoints.length;
 
     if (allPoints.length >= MAX_FETCH_LIMIT) {
@@ -852,7 +908,7 @@ sellerRoutes.post('/ndd/dropoff-stations/search', async (req: AuthRequest, res, 
 
     const normalizedPoints = allPoints
       .map((point: Record<string, any>) => mapSellerDropoffPoint(point))
-      .filter((point) => Boolean(point.pvzId ?? point.id))
+      .filter((point) => Boolean(point.pvzId))
       .filter((point) => point.available_for_c2c_dropoff !== false);
 
     const isAddressSearch = queryLooksLikeAddress(query);
@@ -899,6 +955,7 @@ sellerRoutes.post('/ndd/dropoff-stations/search', async (req: AuthRequest, res, 
       geoId,
       rawPointsCount,
       normalizedPointsCount: normalizedPoints.length,
+      outputPointsCount: resultPoints.length,
       points: resultPoints.length,
       geocoded: Boolean(geocode)
     });
@@ -1078,9 +1135,8 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
       });
     }
 
-    const resolved = await resolvePlatformStationIdByPickupPointId(pvzId);
-    const operatorStationId = resolved.operatorStationId;
-    const platformStationId = resolved.platformStationId;
+    const operatorStationId = normalizeOperatorStationDigits((point as any).operator_station_id);
+    const platformStationId = readPlatformStationId(point as Record<string, any>);
     const validationResult = await validateResolvedPlatformStationId(platformStationId, pvzId);
 
     const dropoffPvzMeta = {
@@ -1096,8 +1152,9 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
       pvzId,
       type: (point as any).type,
       available_for_dropoff: (point as any).available_for_dropoff,
-      operator_station_id: operatorStationId,
-      platform_station_id: platformStationId
+      available_for_c2c_dropoff: (point as any).available_for_c2c_dropoff,
+      operatorStationId,
+      platformStationId
     });
 
     const settings = await prisma.sellerSettings.upsert({
@@ -1120,10 +1177,15 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
       dropoffStationMeta: {
         source: 'pickup-points/list',
         pvz_id: pvzId,
-        source_platform_station: platformStationId,
+        platform_station_id: platformStationId,
         operator_station_id: operatorStationId,
         raw: point
       }
+    });
+
+    await prisma.sellerDeliveryProfile.update({
+      where: { sellerId: req.user!.userId },
+      data: { dropoffStationId: platformStationId }
     });
 
     if (!platformStationId) {
