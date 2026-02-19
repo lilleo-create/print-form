@@ -264,7 +264,7 @@ export const api = {
     dzCm?: number;
     imageUrls: string[];
     videoUrls?: string[];
-    deliveryDateEstimated?: string;
+    productionTimeHours: number;
   }) {
     return apiClient.request<Product>('/seller/products', {
       method: 'POST',
@@ -290,7 +290,7 @@ export const api = {
       dzCm?: number;
       imageUrls?: string[];
       videoUrls?: string[];
-      deliveryDateEstimated?: string;
+      productionTimeHours?: number;
     }
   ) {
     return apiClient.request<Product>(`/seller/products/${id}`, {
@@ -408,7 +408,14 @@ export const api = {
     );
   },
 
-  async updateSellerDeliveryProfile(payload: {
+  async updateSellerDeliveryProfile(payload: { dropoffSchedule: 'DAILY' | 'WEEKDAYS' }) {
+    return apiClient.request<SellerDeliveryProfile>(
+      '/seller/settings',
+      { method: 'PUT', body: payload }
+    );
+  },
+
+  async updateSellerDropoffPvz(payload: {
     dropoffPvz: {
       provider: 'YANDEX_NDD';
       pvzId: string;

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requireAuth, type AuthRequest } from '../middleware/authMiddleware';
 import { writeLimiter } from '../middleware/rateLimiters';
 import { prisma } from '../lib/prisma';
+import { yandexDeliveryService } from '../services/yandexDeliveryService';
 
 export const checkoutRoutes = Router();
 
@@ -150,6 +151,29 @@ const getBrand = (cardNumber: string) => {
   return 'CARD';
 };
 
+
+const resolveDeliveryDaysFromOffer = (offer: Record<string, unknown> | null): number | null => {
+  if (!offer) return null;
+
+  const direct = offer.delivery_days;
+  if (typeof direct === 'number' && Number.isFinite(direct) && direct >= 0) {
+    return Math.ceil(direct);
+  }
+
+  const delivery = offer.delivery;
+  if (delivery && typeof delivery === 'object' && !Array.isArray(delivery)) {
+    const days = (delivery as Record<string, unknown>).days;
+    if (typeof days === 'number' && Number.isFinite(days) && days >= 0) {
+      return Math.ceil(days);
+    }
+  }
+
+  return null;
+};
+
+const computeDropoffLagDays = (dropoffSchedule: 'DAILY' | 'WEEKDAYS' | null | undefined) =>
+  dropoffSchedule === 'DAILY' ? 0 : 1;
+
 const getCheckoutData = async (userId: string) => {
   await ensureCheckoutTables();
 
@@ -181,11 +205,81 @@ const getCheckoutData = async (userId: string) => {
       image: true,
       descriptionShort: true,
       sku: true,
-      deliveryDateEstimated: true
+      sellerId: true,
+      productionTimeHours: true,
+      weightGrossG: true,
+      dxCm: true,
+      dyCm: true,
+      dzCm: true
     }
   });
 
   const parsedPickupPoint = pickupPointSchema.safeParse(prefs?.pickup_point_json);
+
+  const selectedPickupPointId = parsedPickupPoint.success ? parsedPickupPoint.data.id : null;
+  const sellerIds = Array.from(new Set(products.map((item) => item.sellerId).filter((value): value is string => Boolean(value))));
+  const deliveryProfiles = sellerIds.length
+    ? await prisma.sellerDeliveryProfile.findMany({
+        where: { sellerId: { in: sellerIds } },
+        select: { sellerId: true, dropoffStationId: true, dropoffSchedule: true }
+      })
+    : [];
+  const profileBySellerId = new Map(deliveryProfiles.map((profile) => [profile.sellerId, profile]));
+
+  const cartItems = await Promise.all(
+    products.map(async (item) => {
+      const profile = item.sellerId ? profileBySellerId.get(item.sellerId) : null;
+      const deliveryDays =
+        selectedPickupPointId && profile?.dropoffStationId
+          ? await (async () => {
+              try {
+                const offersResponse = await yandexDeliveryService.createOffers({
+                  station_id: profile.dropoffStationId,
+                  self_pickup_id: selectedPickupPointId,
+                  payment_method: 'already_paid',
+                  places: [
+                    {
+                      physical_dims: {
+                        dx: item.dxCm ?? 10,
+                        dy: item.dyCm ?? 10,
+                        dz: item.dzCm ?? 10,
+                        weight_gross: item.weightGrossG ?? 100
+                      }
+                    }
+                  ]
+                });
+                const offersRaw = Array.isArray((offersResponse as Record<string, unknown>).offers)
+                  ? ((offersResponse as Record<string, unknown>).offers as Record<string, unknown>[])
+                  : [];
+                const bestOffer = offersRaw[0] ?? null;
+                return resolveDeliveryDaysFromOffer(bestOffer);
+              } catch {
+                return null;
+              }
+            })()
+          : null;
+
+      const productionDays = Math.ceil(item.productionTimeHours / 24);
+      const dropoffLagDays = computeDropoffLagDays(profile?.dropoffSchedule);
+      const etaMinDays = deliveryDays === null ? null : productionDays + dropoffLagDays + deliveryDays;
+      const etaMaxDays = etaMinDays === null ? null : etaMinDays + 1;
+
+      return {
+        productId: item.id,
+        title: item.title,
+        price: item.price,
+        quantity: 1,
+        image: item.image,
+        shortSpec: item.descriptionShort || item.sku,
+        productionTimeHours: item.productionTimeHours,
+        deliveryDays,
+        etaMinDays,
+        etaMaxDays,
+        dimensions: item.dxCm && item.dyCm && item.dzCm ? { dxCm: item.dxCm, dyCm: item.dyCm, dzCm: item.dzCm } : null,
+        weightGrossG: item.weightGrossG ?? null
+      };
+    })
+  );
 
   return {
     recipient: {
@@ -218,16 +312,7 @@ const getCheckoutData = async (userId: string) => {
       expMonth: card.exp_month,
       expYear: card.exp_year
     })),
-    cartItems: products.map((item, index) => ({
-      productId: item.id,
-      title: item.title,
-      price: item.price,
-      quantity: 1,
-      image: item.image,
-      shortSpec: item.descriptionShort || item.sku,
-      deliveryDate: item.deliveryDateEstimated?.toISOString() ?? null,
-      deliveryEtaDays: item.deliveryDateEstimated ? null : index + 1
-    }))
+    cartItems
   };
 };
 

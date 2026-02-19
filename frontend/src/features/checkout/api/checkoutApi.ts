@@ -52,8 +52,12 @@ export type CheckoutDto = {
     quantity: number;
     image?: string | null;
     shortSpec?: string | null;
-    deliveryDate?: string | null;
-    deliveryEtaDays?: number | null;
+    productionTimeHours: number;
+    deliveryDays?: number | null;
+    etaMinDays?: number | null;
+    etaMaxDays?: number | null;
+    dimensions?: { dxCm: number; dyCm: number; dzCm: number } | null;
+    weightGrossG?: number | null;
   }>;
 };
 

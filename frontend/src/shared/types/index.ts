@@ -37,6 +37,7 @@ export interface Product {
   size: string;
   technology: TechnologyType;
   printTime: string;
+  productionTimeHours?: number;
   color: string;
   sellerId: string | null;
   createdAt?: string;
@@ -44,8 +45,6 @@ export interface Product {
   images?: ProductImage[];
   variants?: ProductVariant[];
   specs?: ProductSpec[];
-  deliveryDateNearest?: string;
-  deliveryDateEstimated?: string;
   imageUrls?: string[];
   videoUrls?: string[];
   weightGrossG?: number;
@@ -264,6 +263,7 @@ export interface SellerDeliveryProfile {
   // legacy, если где-то ещё используется
   dropoffStationId?: string;
   dropoffStationMeta?: { addressFull?: string };
+  dropoffSchedule?: 'DAILY' | 'WEEKDAYS';
 }
 
 

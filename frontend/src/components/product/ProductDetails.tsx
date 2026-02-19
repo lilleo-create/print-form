@@ -5,7 +5,6 @@ import { Rating } from '../../shared/ui/Rating';
 import { Button } from '../../shared/ui/Button';
 import { useCartStore } from '../../app/store/cartStore';
 import styles from '../../pages/ProductPage.module.css';
-import { formatDeliveryDate } from '../../shared/lib/formatDeliveryDate';
 import { ProductActionsInline } from '../../pages/ProductPage/components/ProductActionsInline/ProductActionsInline';
 import { useFavoritesStore } from '../../features/favorites/model/useFavoritesStore';
 import { ShareModal } from '../../features/share/ui/ShareModal';
@@ -47,7 +46,6 @@ export const ProductDetails = ({ product, ratingCount, reviewsCount }: ProductDe
     setIsShareOpen(true);
   };
 
-  const deliveryLabel = formatDeliveryDate(product.deliveryDateNearest);
 
   return (
     <div className={styles.details}>
@@ -76,12 +74,20 @@ export const ProductDetails = ({ product, ratingCount, reviewsCount }: ProductDe
         </div>
       </div>
 
-      <div className={styles.priceBlock}>
+            <div className={styles.priceBlock}>
         <span className={styles.price}>
           {Number((product as any).price ?? 0).toLocaleString('ru-RU')} ₽
         </span>
-        {deliveryLabel ? <span className={styles.delivery}>Ближайшая дата доставки: {deliveryLabel}</span> : null}
+        <span className={styles.delivery}>Изготовление: {product.productionTimeHours ?? 24} часов</span>
+        {product.dxCm && product.dyCm && product.dzCm ? (
+          <span className={styles.delivery}>
+            Размер: {product.dxCm}×{product.dyCm}×{product.dzCm} см{product.weightGrossG ? `, вес: ${product.weightGrossG} г` : ''}
+          </span>
+        ) : product.weightGrossG ? (
+          <span className={styles.delivery}>Вес: {product.weightGrossG} г</span>
+        ) : null}
       </div>
+
 
       <div className={styles.sku}>Артикул: {(product as any).sku ?? '—'}</div>
 
