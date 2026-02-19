@@ -95,8 +95,10 @@ export const errorHandler = (
       error.message === 'SELLER_DROPOFF_REQUIRED' ||
       error.message === 'SELLER_DROPOFF_PVZ_REQUIRED' ||
       error.message === 'BUYER_PICKUP_REQUIRED' ||
+      error.message === 'BUYER_PVZ_REQUIRED' ||
       error.message === 'SELLER_STATION_ID_REQUIRED' ||
       error.message === 'BUYER_STATION_ID_REQUIRED' ||
+      error.message === 'ORDER_DELIVERY_OFFER_FAILED' ||
       error.message === 'VALIDATION_ERROR' ||
       error.message === 'SHIPPING_ADDRESS_REQUIRED' ||
       error.message === 'DELIVERY_DESTINATION_REQUIRED' ||

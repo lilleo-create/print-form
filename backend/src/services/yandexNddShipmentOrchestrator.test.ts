@@ -23,8 +23,8 @@ const mockPaidOrder = (id: string) => ({
   paidAt: new Date(),
   sellerDropoffPvzId: 'dropoff-1',
   sellerDropoffPvzMeta: { raw: { id: 'dropoff-1', operator_station_id: '10029618814' } },
-  buyerPickupPvzId: 'pickup-1',
-  buyerPickupPvzMeta: { buyerPickupStationId: '10027909485', raw: { id: 'pickup-1', operator_station_id: '10027909485' } },
+  buyerPickupPvzId: '0193d98fb6fe76ce9ac1bbf9ea33d2f7',
+  buyerPickupPvzMeta: { buyerPickupStationId: '10027909485', raw: { id: '0193d98fb6fe76ce9ac1bbf9ea33d2f7', operator_station_id: '10027909485' } },
   recipientName: 'Иван Иванов',
   recipientPhone: '+79990000001',
   shippingAddressId: null,
@@ -63,14 +63,14 @@ test('ready-to-ship fails with PICKUP_POINT_REQUIRED', async () => {
     buyerPickupPvzId: null
   });
 
-  await assert.rejects(() => yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-2'), /PICKUP_POINT_REQUIRED/);
+  await assert.rejects(() => yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-2'), /BUYER_PVZ_REQUIRED/);
 });
 
 test('ready-to-ship calls offers/info -> offers/create -> offers/confirm in order', async () => {
   (prisma.order.findFirst as any) = async () => mockPaidOrder('order-seq');
   const deliveryServiceModule = await import('./orderDeliveryService');
   (deliveryServiceModule.orderDeliveryService.getByOrderIds as any) = async () =>
-    new Map([['order-seq', { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: 'pickup-1' } }]]);
+    new Map([['order-seq', { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: '0193d98fb6fe76ce9ac1bbf9ea33d2f7' } }]]);
 
   const shipmentModule = await import('./shipmentService');
   (shipmentModule.shipmentService.getByOrderId as any) = async () => null;
@@ -103,7 +103,7 @@ test('ready-to-ship sends station_id/self_pickup_id and interval_utc from offers
   (prisma.order.findFirst as any) = async () => mockPaidOrder('order-7');
   const deliveryServiceModule = await import('./orderDeliveryService');
   (deliveryServiceModule.orderDeliveryService.getByOrderIds as any) = async () =>
-    new Map([['order-7', { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: 'pickup-1' } }]]);
+    new Map([['order-7', { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: '0193d98fb6fe76ce9ac1bbf9ea33d2f7' } }]]);
 
   const shipmentModule = await import('./shipmentService');
   (shipmentModule.shipmentService.getByOrderId as any) = async () => null;
@@ -124,7 +124,7 @@ test('ready-to-ship sends station_id/self_pickup_id and interval_utc from offers
   await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-7');
 
   assert.equal(offersPayload?.station_id, '10029618814');
-  assert.equal(offersPayload?.self_pickup_id, '10027909485');
+  assert.equal(offersPayload?.self_pickup_id, '0193d98fb6fe76ce9ac1bbf9ea33d2f7');
   assert.deepEqual(offersPayload?.interval_utc, interval);
   assert.equal(offersPayload?.last_mile_policy, 'time_interval');
 });
@@ -136,7 +136,7 @@ test('ready-to-ship sends station_id/self_pickup_id and interval_utc from offers
 test('ready-to-ship fails with BUYER_STATION_ID_REQUIRED when buyer station id is missing', async () => {
   (prisma.order.findFirst as any) = async () => ({
     ...mockPaidOrder('order-no-buyer-station'),
-    buyerPickupPvzMeta: { raw: { id: 'pickup-1' } }
+    buyerPickupPvzMeta: { raw: { id: '0193d98fb6fe76ce9ac1bbf9ea33d2f7' } }
   });
 
   await assert.rejects(
@@ -215,7 +215,7 @@ test('ready-to-ship uses meta.operator_station_id when profile station id is not
 
   const deliveryServiceModule = await import('./orderDeliveryService');
   (deliveryServiceModule.orderDeliveryService.getByOrderIds as any) = async () =>
-    new Map([['order-from-profile-meta-raw', { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: 'pickup-1' } }]]);
+    new Map([['order-from-profile-meta-raw', { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: '0193d98fb6fe76ce9ac1bbf9ea33d2f7' } }]]);
 
   const shipmentModule = await import('./shipmentService');
   (shipmentModule.shipmentService.getByOrderId as any) = async () => null;
@@ -248,7 +248,7 @@ test('ready-to-ship uses seller delivery profile station when order meta has no 
 
   const deliveryServiceModule = await import('./orderDeliveryService');
   (deliveryServiceModule.orderDeliveryService.getByOrderIds as any) = async () =>
-    new Map([['order-from-profile', { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: 'pickup-1' } }]]);
+    new Map([['order-from-profile', { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: '0193d98fb6fe76ce9ac1bbf9ea33d2f7' } }]]);
 
   const shipmentModule = await import('./shipmentService');
   (shipmentModule.shipmentService.getByOrderId as any) = async () => null;
@@ -281,7 +281,7 @@ test('ready-to-ship trims seller profile dropoffStationId before station normali
 
   const deliveryServiceModule = await import('./orderDeliveryService');
   (deliveryServiceModule.orderDeliveryService.getByOrderIds as any) = async () =>
-    new Map([['order-from-profile-trimmed', { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: 'pickup-1' } }]]);
+    new Map([['order-from-profile-trimmed', { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: '0193d98fb6fe76ce9ac1bbf9ea33d2f7' } }]]);
 
   const shipmentModule = await import('./shipmentService');
   (shipmentModule.shipmentService.getByOrderId as any) = async () => null;
@@ -314,7 +314,7 @@ test('ready-to-ship ignores blank env override and uses profile station', async 
 
   const deliveryServiceModule = await import('./orderDeliveryService');
   (deliveryServiceModule.orderDeliveryService.getByOrderIds as any) = async () =>
-    new Map([['order-blank-env', { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: 'pickup-1' } }]]);
+    new Map([['order-blank-env', { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: '0193d98fb6fe76ce9ac1bbf9ea33d2f7' } }]]);
 
   const shipmentModule = await import('./shipmentService');
   (shipmentModule.shipmentService.getByOrderId as any) = async () => null;
@@ -359,7 +359,7 @@ test('ready-to-ship accepts numeric station id from seller profile', async () =>
 
   const deliveryServiceModule = await import('./orderDeliveryService');
   (deliveryServiceModule.orderDeliveryService.getByOrderIds as any) = async () =>
-    new Map([['order-numeric-station', { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: 'pickup-1' } }]]);
+    new Map([['order-numeric-station', { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: '0193d98fb6fe76ce9ac1bbf9ea33d2f7' } }]]);
 
   const shipmentModule = await import('./shipmentService');
   (shipmentModule.shipmentService.getByOrderId as any) = async () => null;
@@ -391,7 +391,7 @@ test('ready-to-ship falls back to meta.operator_station_id when profile id is uu
 
   const deliveryServiceModule = await import('./orderDeliveryService');
   (deliveryServiceModule.orderDeliveryService.getByOrderIds as any) = async () =>
-    new Map([['order-profile-station-uuid', { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: 'pickup-1' } }]]);
+    new Map([['order-profile-station-uuid', { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: '0193d98fb6fe76ce9ac1bbf9ea33d2f7' } }]]);
 
   const shipmentModule = await import('./shipmentService');
   (shipmentModule.shipmentService.getByOrderId as any) = async () => null;
@@ -432,7 +432,7 @@ test('ready-to-ship when NDD returns 400 variant maps NDD_OFFER_CREATE_FAILED', 
   (prisma.order.findFirst as any) = async () => mockPaidOrder('order-6');
   const deliveryServiceModule = await import('./orderDeliveryService');
   (deliveryServiceModule.orderDeliveryService.getByOrderIds as any) = async () =>
-    new Map([['order-6', { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: 'pickup-1' } }]]);
+    new Map([['order-6', { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: '0193d98fb6fe76ce9ac1bbf9ea33d2f7' } }]]);
 
   const shipmentModule = await import('./shipmentService');
   (shipmentModule.shipmentService.getByOrderId as any) = async () => null;
@@ -455,7 +455,7 @@ test('ready-to-ship falls back to request/create when offers/confirm has no requ
   (prisma.order.findFirst as any) = async () => mockPaidOrder('order-request-create');
   const deliveryServiceModule = await import('./orderDeliveryService');
   (deliveryServiceModule.orderDeliveryService.getByOrderIds as any) = async () =>
-    new Map([['order-request-create', { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: 'pickup-1' } }]]);
+    new Map([['order-request-create', { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: '0193d98fb6fe76ce9ac1bbf9ea33d2f7' } }]]);
 
   const shipmentModule = await import('./shipmentService');
   let savedShipment: Record<string, unknown> | null = null;
@@ -486,7 +486,7 @@ test('ready-to-ship is idempotent and returns existing shipment', async () => {
 
   const deliveryServiceModule = await import('./orderDeliveryService');
   (deliveryServiceModule.orderDeliveryService.getByOrderIds as any) = async () =>
-    new Map([['order-1', { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: 'pickup-1' } }]]);
+    new Map([['order-1', { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: '0193d98fb6fe76ce9ac1bbf9ea33d2f7' } }]]);
 
   const shipmentModule = await import('./shipmentService');
   (shipmentModule.shipmentService.getByOrderId as any) = async () => ({ id: 'ship-existing', requestId: 'req-existing' });
@@ -507,7 +507,7 @@ test('ready-to-ship uses single-flight for concurrent calls by orderId', async (
 
   const deliveryServiceModule = await import('./orderDeliveryService');
   (deliveryServiceModule.orderDeliveryService.getByOrderIds as any) = async () =>
-    new Map([['order-single-flight', { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: 'pickup-1' } }]]);
+    new Map([['order-single-flight', { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: '0193d98fb6fe76ce9ac1bbf9ea33d2f7' } }]]);
 
   const shipmentModule = await import('./shipmentService');
   (shipmentModule.shipmentService.getByOrderId as any) = async () => null;
@@ -539,7 +539,7 @@ test('ready-to-ship remaps smartcaptcha block to YANDEX_IP_BLOCKED', async () =>
 
   const deliveryServiceModule = await import('./orderDeliveryService');
   (deliveryServiceModule.orderDeliveryService.getByOrderIds as any) = async () =>
-    new Map([['order-smartcaptcha', { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: 'pickup-1' } }]]);
+    new Map([['order-smartcaptcha', { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: '0193d98fb6fe76ce9ac1bbf9ea33d2f7' } }]]);
 
   const shipmentModule = await import('./shipmentService');
   (shipmentModule.shipmentService.getByOrderId as any) = async () => null;

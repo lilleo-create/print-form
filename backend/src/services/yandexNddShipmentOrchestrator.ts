@@ -162,7 +162,7 @@ export const yandexNddShipmentOrchestrator = {
 
     if (!order) throw new Error('ORDER_NOT_FOUND');
     if (order.status !== 'PAID' || !order.paidAt) throw new Error('ORDER_NOT_PAID');
-    if (!order.buyerPickupPvzId) throw new Error('PICKUP_POINT_REQUIRED');
+    if (!order.buyerPickupPvzId) throw new Error('BUYER_PVZ_REQUIRED');
 
     const deliveryMap = await orderDeliveryService.getByOrderIds([orderId]);
     const delivery = deliveryMap.get(orderId);
@@ -204,6 +204,9 @@ export const yandexNddShipmentOrchestrator = {
     }
 
     const buyerPickupPointId = String(order.buyerPickupPvzId ?? '').trim();
+    if (!buyerPickupPointId) {
+      throw new Error('BUYER_PVZ_REQUIRED');
+    }
     let buyerPickupMeta = asRecord(order.buyerPickupPvzMeta) ?? {};
     let buyerMetaIds = extractBuyerPickupMetaIds(buyerPickupMeta);
 
@@ -253,7 +256,7 @@ export const yandexNddShipmentOrchestrator = {
 
     console.info('[READY_TO_SHIP] ids', {
       buyerPickupPointId,
-buyerPickupPlatformStationId: buyerMetaIds.platformStationId,
+      buyerPickupPlatformStationId: buyerMetaIds.platformStationId,
       buyerPickupOperatorStationId: buyerMetaIds.operatorStationId,
       sellerDropoffPlatformStationId: sourceStationId
     });
@@ -289,6 +292,13 @@ buyerPickupPlatformStationId: buyerMetaIds.platformStationId,
     });
 
     let offersInfo: Record<string, unknown>;
+    console.info('[READY_TO_SHIP] offers/info params', {
+      orderId,
+      station_id: sourceStationId,
+      self_pickup_id: selfPickupId,
+      last_mile_policy: 'time_interval',
+      send_unix: true
+    });
     try {
       offersInfo = await yandexNddClient.offersInfo(
         sourceStationId,
@@ -306,6 +316,23 @@ buyerPickupPlatformStationId: buyerMetaIds.platformStationId,
           uniqueKey: typeof details.uniqueKey === 'string' ? details.uniqueKey : undefined
         });
         throw new YandexNddHttpError('YANDEX_IP_BLOCKED', error.path, error.status, error.raw, error.details);
+      }
+
+      if (error instanceof YandexNddHttpError) {
+        const details =
+          error.details && typeof error.details === 'object'
+            ? (error.details as Record<string, unknown>)
+            : null;
+        const detailsCode = String(details?.code ?? '');
+        if (detailsCode === 'validation_error') {
+          console.error('[READY_TO_SHIP] offers/info validation_error', {
+            orderId,
+            station_id: sourceStationId,
+            self_pickup_id: selfPickupId,
+            body: error.details
+          });
+          throw new Error('ORDER_DELIVERY_OFFER_FAILED');
+        }
       }
       throw error;
     }

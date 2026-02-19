@@ -100,6 +100,45 @@ const resolveValidationSelfPickupId = () => {
   return value || null;
 };
 
+const validateResolvedPlatformStationId = async (platformStationId: string | null, fallbackSelfPickupId: string) => {
+  if (!platformStationId) {
+    return { validatedPlatformStationId: null, warningCode: 'SELLER_STATION_ID_REQUIRED' as const };
+  }
+
+  const validationSelfPickupId = resolveValidationSelfPickupId() ?? fallbackSelfPickupId;
+  if (!validationSelfPickupId) {
+    return { validatedPlatformStationId: platformStationId, warningCode: null };
+  }
+
+  try {
+    await yandexNddClient.offersInfo(platformStationId, validationSelfPickupId, 'time_interval', true);
+    return { validatedPlatformStationId: platformStationId, warningCode: null };
+  } catch (error) {
+    if (error instanceof YandexNddHttpError) {
+      const details =
+        error.details && typeof error.details === 'object'
+          ? (error.details as Record<string, unknown>)
+          : null;
+      const detailsCode = String(details?.code ?? '');
+      if (detailsCode === 'validation_error') {
+        console.warn('[DROP_OFF_PVZ_VALIDATE_STATION] validation_error', {
+          platformStationId,
+          validationSelfPickupId,
+          details: error.details
+        });
+        return { validatedPlatformStationId: null, warningCode: 'SELLER_STATION_ID_REQUIRED' as const };
+      }
+    }
+
+    console.warn('[DROP_OFF_PVZ_VALIDATE_STATION] skipped', {
+      platformStationId,
+      validationSelfPickupId,
+      reason: error instanceof Error ? error.message : String(error)
+    });
+    return { validatedPlatformStationId: platformStationId, warningCode: 'SELLER_STATION_VALIDATION_SKIPPED' as const };
+  }
+};
+
 const validateSourcePlatformStationId = async (dropoffStationId: string) => {
   const { defaultPlatformStationId } = getYandexNddConfig();
   const normalized = normalizeDigitsStation(dropoffStationId);
@@ -1016,6 +1055,7 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
     const resolved = await resolvePlatformStationIdByPickupPointId(pvzId);
     const operatorStationId = resolved.operatorStationId;
     const platformStationId = resolved.platformStationId;
+    const validationResult = await validateResolvedPlatformStationId(platformStationId, pvzId);
 
     const dropoffPvzMeta = {
       provider: 'YANDEX_NDD' as const,
@@ -1050,22 +1090,32 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
     await sellerDeliveryProfileService.upsert(req.user!.userId, {
       dropoffPvzId: pvzId,
       dropoffOperatorStationId: operatorStationId,
-      dropoffPlatformStationId: platformStationId,
+      dropoffPlatformStationId: validationResult.validatedPlatformStationId,
       dropoffStationMeta: {
         source: 'pickup-points/list',
         pvz_id: pvzId,
-        source_platform_station: platformStationId,
+        source_platform_station: validationResult.validatedPlatformStationId,
         operator_station_id: operatorStationId,
         raw: point
       }
     });
 
-    if (!platformStationId) {
+    if (!validationResult.validatedPlatformStationId) {
       return res.status(202).json({
         data: settings,
         warning: {
           code: 'SELLER_STATION_ID_REQUIRED',
-          message: 'ПВЗ сохранён, но станция платформы не определена: обратитесь в поддержку или выберите другой ПВЗ.'
+          message: 'ПВЗ сохранён, но station_id платформы не определён или не прошёл проверку offers/info. Выберите другой ПВЗ или обратитесь в поддержку.'
+        }
+      });
+    }
+
+    if (validationResult.warningCode === 'SELLER_STATION_VALIDATION_SKIPPED') {
+      return res.status(202).json({
+        data: settings,
+        warning: {
+          code: 'SELLER_STATION_VALIDATION_SKIPPED',
+          message: 'ПВЗ сохранён, но проверка station_id через offers/info недоступна. Проверьте отправку тестового заказа.'
         }
       });
     }
