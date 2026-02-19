@@ -359,6 +359,39 @@ test('dropoff-stations search uses provided geoId and requests pickup_point + te
   assert.equal(response.body?.points?.length, 4);
 });
 
+test('dropoff-stations search keeps c2c points without platform station id', async () => {
+  (prisma.user.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ role: 'SELLER' });
+  (prisma.sellerProfile.findUnique as unknown as (...args: unknown[]) => unknown) = async () => ({ id: 'sp-1' });
+  (yandexNddClient.pickupPointsList as unknown as (...args: unknown[]) => unknown) = async () => ({
+    points: [
+      {
+        id: '0193d98fb6fe76ce9ac1bbf9ea33d2f7',
+        operator_station_id: '10029618814',
+        name: 'ПВЗ Тест',
+        address: { full_address: 'Москва, Тестовая, 1', geo_id: 213 },
+        position: { latitude: 55.8, longitude: 37.4 },
+        station_id: null,
+        platform_station_id: null
+      }
+    ]
+  });
+
+  const app = buildApp();
+  const auth = `Bearer ${tokenFor('seller-2')}`;
+
+  const response = await request(app)
+    .post('/seller/ndd/dropoff-stations/search')
+    .set('Authorization', auth)
+    .send({ query: 'Тест', geoId: 213, limit: 20 });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body?.points?.length, 2);
+  assert.equal(response.body?.points?.[0]?.id, '0193d98fb6fe76ce9ac1bbf9ea33d2f7');
+  assert.equal(response.body?.points?.[0]?.pvzId, '0193d98fb6fe76ce9ac1bbf9ea33d2f7');
+  assert.equal(response.body?.points?.[0]?.platform_station_id, null);
+  assert.equal(response.body?.points?.[0]?.operator_station_id, '10029618814');
+});
+
 test('dropoff-stations search detects geo id when geoId is missing', async () => {
   let detectCalled = false;
   const pickupBodies: any[] = [];
