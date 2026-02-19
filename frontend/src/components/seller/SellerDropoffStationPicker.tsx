@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { SellerDropoffMap } from '../SellerDropoffMap';
 import { api, type SellerDropoffStation } from '../../shared/api/api';
 import { normalizeApiError } from '../../shared/api/client';
 import { Button } from '../../shared/ui/Button';
@@ -18,7 +19,13 @@ export const SellerDropoffStationPicker = ({ isOpen, geoId, onClose, onSelect }:
   const [error, setError] = useState<string | null>(null);
   const [searchEmptyMessage, setSearchEmptyMessage] = useState<string | null>(null);
   const [detectedGeoId, setDetectedGeoId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  const selectedStation = useMemo(
+    () => stations.find((station) => station.id === selectedId) ?? null,
+    [stations, selectedId]
+  );
 
   const filtered = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -49,6 +56,7 @@ export const SellerDropoffStationPicker = ({ isOpen, geoId, onClose, onSelect }:
       const response = await api.searchSellerDropoffStations(normalizedQuery, 213, 50, controller.signal);
       const points = response.data?.points ?? [];
       setStations(points);
+      setSelectedId((prev) => (prev && points.some((point) => point.id === prev) ? prev : points[0]?.id ?? null));
       setDetectedGeoId(response.data?.debug?.geoId ?? null);
       setSearchEmptyMessage(points.length ? null : 'Пункты приёма не найдены. Уточните запрос.');
     } catch (e) {
@@ -106,28 +114,62 @@ export const SellerDropoffStationPicker = ({ isOpen, geoId, onClose, onSelect }:
         {error && <p className={styles.error}>{error}</p>}
         {!error && searchEmptyMessage && <p className={styles.muted}>{searchEmptyMessage}</p>}
 
-        <div className={styles.body}>
-          <div className={styles.list}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 16,
+            height: 420
+          }}
+        >
+          <div style={{ overflow: 'auto' }}>
             {filtered.length === 0 ? (
               <p className={styles.muted}>Пункты приёма не найдены.</p>
             ) : (
-              filtered.map((station) => (
-                <button
-                  key={station.id}
-                  type="button"
-                  className={styles.stationButton}
-                  onClick={() => onSelect(station)}
-                >
-                  <strong>{station.name ?? 'Без названия'}</strong>
-                  <span>{station.addressFull ?? station.id}</span>
-                  <span>Выбрать</span>
-                </button>
-              ))
+              filtered.map((station) => {
+                const active = station.id === selectedId;
+
+                return (
+                  <button
+                    key={station.id}
+                    type="button"
+                    onClick={() => setSelectedId(station.id)}
+                    style={{
+                      width: '100%',
+                      textAlign: 'left',
+                      padding: 12,
+                      border: 'none',
+                      background: active ? '#f3f3f3' : 'transparent',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <div style={{ fontWeight: 600 }}>{station.name ?? 'Пункт выдачи'}</div>
+
+                    <div style={{ fontSize: 13, opacity: 0.7 }}>
+                      {station.addressFull ?? 'Адрес не указан'}
+                    </div>
+                  </button>
+                );
+              })
             )}
           </div>
-          <div className={styles.mapPlaceholder}>
-            Карта будет добавлена позже. Сейчас доступен стабильный выбор из списка.
+
+          <div style={{ height: '100%', borderRadius: 12, overflow: 'hidden' }}>
+            <SellerDropoffMap points={filtered} selectedId={selectedId} onSelect={setSelectedId} />
           </div>
+        </div>
+
+        <div className={styles.footerActions}>
+          <Button type="button" variant="ghost" onClick={onClose}>
+            Отмена
+          </Button>
+          <Button
+            type="button"
+            onClick={() => selectedStation && onSelect(selectedStation)}
+            disabled={!selectedStation}
+          >
+            Выбрать пункт
+          </Button>
         </div>
       </div>
     </div>

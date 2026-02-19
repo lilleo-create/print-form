@@ -42,6 +42,37 @@ export const apiClient = createFetchClient(baseUrl);
 
 type UploadResponse = { data: { urls: string[] } };
 
+
+const normalizeSellerDropoffStation = (point: Record<string, unknown>): SellerDropoffStation => ({
+  id: String(point.id ?? ''),
+  operator_station_id:
+    typeof point.operator_station_id === 'string' || point.operator_station_id === null
+      ? (point.operator_station_id as string | null)
+      : null,
+  name: typeof point.name === 'string' ? point.name : null,
+  addressFull:
+    typeof point.addressFull === 'string'
+      ? point.addressFull
+      : typeof (point.address as Record<string, unknown> | undefined)?.full_address === 'string'
+        ? String((point.address as Record<string, unknown>).full_address)
+        : null,
+  geoId: typeof point.geoId === 'number' ? point.geoId : null,
+  position:
+    point.position && typeof point.position === 'object'
+      ? {
+          latitude:
+            typeof (point.position as Record<string, unknown>).latitude === 'number'
+              ? ((point.position as Record<string, unknown>).latitude as number)
+              : undefined,
+          longitude:
+            typeof (point.position as Record<string, unknown>).longitude === 'number'
+              ? ((point.position as Record<string, unknown>).longitude as number)
+              : undefined
+        }
+      : null,
+  maxWeightGross: typeof point.maxWeightGross === 'number' ? point.maxWeightGross : null
+});
+
 const normalizeUploadUrl = (u: string) => {
   if (!u) return u;
   if (u.startsWith('http://') || u.startsWith('https://')) return u;
@@ -328,13 +359,20 @@ export const api = {
 
     const query = new URLSearchParams({ geoId: String(geoId) });
     if (limit) query.set('limit', String(limit));
-    return apiClient.request<{ points: SellerDropoffStation[] }>(
+    const response = await apiClient.request<{ points: Record<string, unknown>[] }>(
       `/seller/ndd/dropoff-stations?${query.toString()}`
     );
+
+    return {
+      ...response,
+      data: {
+        points: (response.data?.points ?? []).map(normalizeSellerDropoffStation)
+      }
+    };
   },
 
   async searchSellerDropoffStations(query: string, geoId?: number, limit = 50, signal?: AbortSignal) {
-    return apiClient.request<{ points: SellerDropoffStation[]; debug?: { geoId?: number } }>(
+    const response = await apiClient.request<{ points: Record<string, unknown>[]; debug?: { geoId?: number } }>(
       '/seller/ndd/dropoff-stations/search',
       {
         method: 'POST',
@@ -342,6 +380,14 @@ export const api = {
         signal
       }
     );
+
+    return {
+      ...response,
+      data: {
+        points: (response.data?.points ?? []).map(normalizeSellerDropoffStation),
+        debug: response.data?.debug
+      }
+    };
   },
 
 
