@@ -19,7 +19,8 @@ import { yandexDeliveryService } from '../services/yandexDeliveryService';
 import { sellerOrderDocumentsService } from '../services/sellerOrderDocumentsService';
 import { getYandexNddConfig } from '../config/yandexNdd';
 import { YandexNddHttpError, yandexNddClient } from '../services/yandexNdd/YandexNddClient';
-import { getOperatorStationId, normalizeDigitsStation } from '../services/yandexNdd/getOperatorStationId';
+import { normalizeDigitsStation } from '../services/yandexNdd/getOperatorStationId';
+import { resolvePlatformStationIdByPickupPointId } from '../services/yandexNdd/resolvePlatformStationIdByPickupPointId';
 import { haversineDistanceMeters } from '../utils/geo';
 import { TtlCache } from '../utils/cache';
 
@@ -89,7 +90,7 @@ const sellerOnboardingSchema = z.object({
 const ensureSellerDeliveryProfile = async (sellerId: string) => {
   await prisma.sellerDeliveryProfile.upsert({
     where: { sellerId },
-    create: { sellerId, dropoffSchedule: DropoffSchedule.DAILY, dropoffStationId: "" },
+    create: { sellerId, dropoffSchedule: DropoffSchedule.DAILY },
     update: {}
   });
 };
@@ -287,13 +288,13 @@ sellerRoutes.post('/kyc/submit', writeLimiter, async (req: AuthRequest, res, nex
   try {
     const payload = z
       .object({
-        dropoffStationId: z.string().optional(),
+        dropoffPlatformStationId: z.string().optional(),
         dropoffStationMeta: z.record(z.string(), z.unknown()).optional()
       })
       .parse(req.body ?? {});
 
-    const dropoffStationId = payload.dropoffStationId?.trim();
-    if (!dropoffStationId) {
+    const dropoffPlatformStationId = payload.dropoffPlatformStationId?.trim();
+    if (!dropoffPlatformStationId) {
       return res.status(400).json({
         error: {
           code: 'SELLER_STATION_ID_REQUIRED',
@@ -303,7 +304,7 @@ sellerRoutes.post('/kyc/submit', writeLimiter, async (req: AuthRequest, res, nex
     }
 
     await sellerDeliveryProfileService.upsert(req.user!.userId, {
-      dropoffStationId,
+      dropoffPlatformStationId,
       dropoffStationMeta: payload.dropoffStationMeta
     });
 
@@ -647,7 +648,8 @@ sellerRoutes.get('/settings', async (req: AuthRequest, res, next) => {
     res.json({
       data: {
         ...(settings ?? { sellerId: req.user!.userId }),
-        dropoffStationId: deliveryProfile?.dropoffStationId ?? null,
+        dropoffPlatformStationId: deliveryProfile?.dropoffPlatformStationId ?? null,
+        dropoffOperatorStationId: deliveryProfile?.dropoffOperatorStationId ?? null,
         dropoffStationMeta: deliveryProfile?.dropoffStationMeta ?? null,
         dropoffSchedule: deliveryProfile?.dropoffSchedule ?? 'DAILY',
         dropoffPvz: settings?.defaultDropoffPvzId
@@ -909,7 +911,7 @@ sellerRoutes.put('/settings/dropoff-station', writeLimiter, async (req: AuthRequ
     const validatedStationId = await validateSourcePlatformStationId(stationId);
 
     const profile = await sellerDeliveryProfileService.upsert(req.user!.userId, {
-      dropoffStationId: validatedStationId,
+      dropoffPlatformStationId: validatedStationId,
       dropoffStationMeta: {
         source: 'ndd/location_detect+pickup_points_list',
         source_platform_station: validatedStationId,
@@ -949,7 +951,7 @@ sellerRoutes.put('/settings/source-platform-station', writeLimiter, async (req: 
     const validatedStationId = await validateSourcePlatformStationId(payload.source_platform_station);
 
     const profile = await sellerDeliveryProfileService.upsert(req.user!.userId, {
-      dropoffStationId: validatedStationId,
+      dropoffPlatformStationId: validatedStationId,
       dropoffStationMeta: {
         source: 'manual_input',
         sourcePlatformStation: validatedStationId
@@ -1011,17 +1013,9 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
       });
     }
 
-    const dropoffStationId =
-      normalizeDigitsStation((point as any).operator_station_id) ??
-      normalizeDigitsStation(getOperatorStationId(point));
-    if (!dropoffStationId) {
-      return res.status(400).json({
-        error: {
-          code: 'SELLER_STATION_ID_INVALID',
-          message: 'Не удалось определить source_platform_station для выбранной точки.'
-        }
-      });
-    }
+    const resolved = await resolvePlatformStationIdByPickupPointId(pvzId);
+    const operatorStationId = resolved.operatorStationId;
+    const platformStationId = resolved.platformStationId;
 
     const dropoffPvzMeta = {
       provider: 'YANDEX_NDD' as const,
@@ -1036,8 +1030,8 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
       pvzId,
       type: (point as any).type,
       available_for_dropoff: (point as any).available_for_dropoff,
-      operator_station_id: (point as any).operator_station_id,
-      sourcePlatformStation: dropoffStationId
+      operator_station_id: operatorStationId,
+      platform_station_id: platformStationId
     });
 
     const settings = await prisma.sellerSettings.upsert({
@@ -1054,15 +1048,27 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
     });
 
     await sellerDeliveryProfileService.upsert(req.user!.userId, {
-      dropoffStationId,
+      dropoffPvzId: pvzId,
+      dropoffOperatorStationId: operatorStationId,
+      dropoffPlatformStationId: platformStationId,
       dropoffStationMeta: {
         source: 'pickup-points/list',
         pvz_id: pvzId,
-        source_platform_station: dropoffStationId,
-        operator_station_id: dropoffStationId,
+        source_platform_station: platformStationId,
+        operator_station_id: operatorStationId,
         raw: point
       }
     });
+
+    if (!platformStationId) {
+      return res.status(202).json({
+        data: settings,
+        warning: {
+          code: 'SELLER_STATION_ID_REQUIRED',
+          message: 'ПВЗ сохранён, но станция платформы не определена: обратитесь в поддержку или выберите другой ПВЗ.'
+        }
+      });
+    }
 
     res.json({ data: settings });
   } catch (error) {
@@ -1083,7 +1089,7 @@ sellerRoutes.post('/settings/dropoff-pvz/test-station', writeLimiter, async (req
     }
 
     await sellerDeliveryProfileService.upsert(req.user!.userId, {
-      dropoffStationId: devStationId,
+      dropoffPlatformStationId: devStationId,
       dropoffStationMeta: {
         source: 'dev-endpoint',
         sourcePlatformStation: devStationId
