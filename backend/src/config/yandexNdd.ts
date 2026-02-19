@@ -1,3 +1,5 @@
+import { normalizeDigitsStation } from '../services/yandexNdd/getOperatorStationId';
+
 export type YandexNddConfig = {
   enabled: boolean;
   baseUrl: string;
@@ -28,14 +30,21 @@ export const getYandexNddConfig = (): YandexNddConfig => {
   }
   const token = process.env.YANDEX_NDD_TOKEN || '';
   const lang = process.env.YANDEX_NDD_LANG || 'ru';
-  const defaultPlatformStationId =
+  const rawDefaultPlatformStationId =
     process.env.YANDEX_NDD_DEFAULT_PLATFORM_STATION_ID ||
     process.env.YANDEX_NDD_PLATFORM_STATION_ID;
+  const defaultPlatformStationId = normalizeDigitsStation(rawDefaultPlatformStationId);
+
+  if (rawDefaultPlatformStationId && !defaultPlatformStationId) {
+    console.warn('[YANDEX_NDD] ignore invalid defaultPlatformStationId: value must contain digits only', {
+      provided: rawDefaultPlatformStationId
+    });
+  }
 
   // Никаких падений сервера из-за пустого токена
   if (!token) {
-    return { enabled: false, baseUrl, lang, defaultPlatformStationId };
+    return { enabled: false, baseUrl, lang, defaultPlatformStationId: defaultPlatformStationId ?? undefined };
   }
 
-  return { enabled: true, baseUrl, token, lang, defaultPlatformStationId };
+  return { enabled: true, baseUrl, token, lang, defaultPlatformStationId: defaultPlatformStationId ?? undefined };
 };

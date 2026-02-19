@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from 'express';
 import { MulterError } from 'multer';
 import { ZodError } from 'zod';
 import { YandexNddHttpError } from '../services/yandexNdd/YandexNddClient';
+import { NddValidationError } from '../services/yandexNdd/nddIdSemantics';
 
 const mapMulterErrorCode = (code: string) => {
   switch (code) {
@@ -40,6 +41,17 @@ export const errorHandler = (
     return res.status(400).json({ error: { code: 'RETURN_UPLOAD_FILE_TYPE_INVALID' } });
   }
 
+
+
+  if (error instanceof NddValidationError) {
+    const status = error.code === 'SELLER_STATION_ID_REQUIRED' ? 409 : 400;
+    return res.status(status).json({
+      error: {
+        code: error.code,
+        message: error.message
+      }
+    });
+  }
 
   if (error instanceof YandexNddHttpError) {
     if (error.code === 'YANDEX_SMARTCAPTCHA_BLOCK' || error.code === 'YANDEX_IP_BLOCKED') {
