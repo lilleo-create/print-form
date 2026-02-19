@@ -78,7 +78,6 @@ model Product {
   description           String
   material              String
   technology            String
-  printTime             String                  @default("24 часа")
   productionTimeHours   Int?                    @default(24)
   color                 String
   deliveryDateEstimated DateTime?
