@@ -26,6 +26,24 @@ const asRecord = (value: unknown): Record<string, unknown> | undefined =>
     ? (value as Record<string, unknown>)
     : undefined;
 
+const getTrimmedString = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim();
+  return normalized.length ? normalized : null;
+};
+
+const extractBuyerPickupStationIdRaw = (meta: unknown): string | null => {
+  const direct = asRecord(meta);
+  const raw = asRecord(direct?.raw);
+  return (
+    getTrimmedString(direct?.buyerPickupStationId) ??
+    getTrimmedString(direct?.operator_station_id) ??
+    getTrimmedString(raw?.buyerPickupStationId) ??
+    getTrimmedString(raw?.operator_station_id) ??
+    null
+  );
+};
+
 const extractYandexStatus = (payload: Record<string, unknown>) => {
   const status =
     (payload.status as string | undefined) ??
@@ -198,12 +216,28 @@ export const yandexNddShipmentOrchestrator = {
       throw new Error('SELLER_STATION_ID_REQUIRED');
     }
 
-    const selfPickupId = String(order.buyerPickupPvzId ?? '').trim();
+    const buyerPickupPointId = String(order.buyerPickupPvzId ?? '').trim();
+    const buyerPickupStationIdRaw = extractBuyerPickupStationIdRaw(order.buyerPickupPvzMeta);
+    if (!buyerPickupStationIdRaw) {
+      throw new Error('BUYER_STATION_ID_REQUIRED');
+    }
+    const selfPickupId = buyerPickupStationIdRaw;
+
+    console.info('[READY_TO_SHIP] ids', {
+      buyerPickupPointId,
+      buyerPickupStationId: selfPickupId,
+      sellerDropoffStationId: sourceStationId
+    });
+
+    if (!/^\d+$/.test(sourceStationId) || !/^\d+$/.test(selfPickupId)) {
+      throw new Error('VALIDATION_ERROR');
+    }
+
     if (isUuidLike(selfPickupId) && selfPickupId === sourceStationId) {
       throw new Error('ID_TYPE_MISMATCH');
     }
 
-    if (sourceStationId === order.buyerPickupPvzId) {
+    if (sourceStationId === buyerPickupPointId) {
       throw new Error('STATION_ID_EQUALS_PICKUP_POINT_ID');
     }
 
