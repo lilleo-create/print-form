@@ -699,7 +699,13 @@ sellerRoutes.get('/ndd/dropoff-stations', async (req: AuthRequest, res, next) =>
       (listResp as any)?.result?.points ??
       [];
 
-    const points = (Array.isArray(pointsRaw) ? pointsRaw : [])
+    const incomingPoints = Array.isArray(pointsRaw) ? pointsRaw : [];
+    const droppedReasons = {
+      missingId: 0,
+      outOfLimit: Math.max(incomingPoints.length - limit, 0)
+    };
+
+    const points = incomingPoints
       .slice(0, limit)
       .map((point: Record<string, any>) => ({
         id: String(point?.id ?? ''),
@@ -710,11 +716,20 @@ sellerRoutes.get('/ndd/dropoff-stations', async (req: AuthRequest, res, next) =>
         position: point?.position ?? null,
         maxWeightGross: null
       }))
-      .filter((point: { id: string }) => point.id);
+      .filter((point: { id: string }) => {
+        if (!point.id) {
+          droppedReasons.missingId += 1;
+          return false;
+        }
+        return true;
+      });
 
     console.info('[DROP_OFF_STATIONS]', {
       geoId,
-      count: points.length,
+      incomingStationsCount: incomingPoints.length,
+      afterFiltersCount: points.length,
+      pointsCount: points.length,
+      filterReasons: droppedReasons,
       sample: points[0]?.id
     });
 

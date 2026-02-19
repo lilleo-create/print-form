@@ -164,6 +164,7 @@ export const CheckoutLayout = () => {
       </aside>
 
       <YaPvzPickerModal
+        mode="pickup"
         isOpen={isPvzOpen}
         onClose={() => setPvzOpen(false)}
         onSelect={(sel) => {
@@ -183,8 +184,6 @@ export const CheckoutLayout = () => {
           setPvzOpen(false);
         }}
         city={data.address?.city ?? 'Москва'}
-        source_platform_station={data.sellerDropoffStationId ?? ''}
-        physical_dims_weight_gross={10000}
       />
 
       <RecipientModal
