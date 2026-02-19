@@ -259,14 +259,14 @@ model OrderDeliveryEvent {
 }
 
 model SellerDeliveryProfile {
-  id                 String   @id @default(cuid())
-  sellerId           String   @unique
-  dropoffStationId   String?
+  id                 String          @id @default(cuid())
+  sellerId           String          @unique
+  dropoffStationId   String
   dropoffStationMeta Json?
-  dropoffSchedule    DropoffSchedule @default(WEEKDAYS)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  seller             User     @relation(fields: [sellerId], references: [id])
+  dropoffSchedule    DropoffSchedule @default(DAILY)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  seller             User            @relation(fields: [sellerId], references: [id])
 }
 
 model OrderShipment {
