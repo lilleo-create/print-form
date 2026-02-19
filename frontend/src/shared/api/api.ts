@@ -22,12 +22,14 @@ import { STORAGE_KEYS } from '../constants/storageKeys';
 
 
 export type SellerDropoffStation = {
-  id: string;
-  operator_station_id: string | null;
-  name: string | null;
-  addressFull: string | null;
+  pvzId?: string | null;
+  id?: string | null;
+  platformStationId?: string | null;
+  operatorStationId?: string | null;
+  name?: string;
+  addressFull?: string;
   geoId?: number | null;
-  position: { latitude?: number; longitude?: number } | null;
+  position?: { latitude: number; longitude: number } | null;
   maxWeightGross?: number | null;
   distanceMeters?: number | null;
 };
@@ -45,30 +47,35 @@ type UploadResponse = { data: { urls: string[] } };
 
 
 const normalizeSellerDropoffStation = (point: Record<string, unknown>): SellerDropoffStation => ({
-  id: String(point.id ?? ''),
-  operator_station_id:
-    typeof point.operator_station_id === 'string' || point.operator_station_id === null
-      ? (point.operator_station_id as string | null)
-      : null,
-  name: typeof point.name === 'string' ? point.name : null,
+  pvzId:
+    typeof point.pvzId === 'string'
+      ? point.pvzId
+      : typeof point.id === 'string'
+        ? point.id
+        : null,
+  id: typeof point.id === 'string' ? point.id : null,
+  platformStationId: typeof point.platformStationId === 'string' ? point.platformStationId : null,
+  operatorStationId:
+    typeof point.operatorStationId === 'string'
+      ? point.operatorStationId
+      : typeof point.operator_station_id === 'string'
+        ? point.operator_station_id
+        : null,
+  name: typeof point.name === 'string' ? point.name : undefined,
   addressFull:
     typeof point.addressFull === 'string'
       ? point.addressFull
       : typeof (point.address as Record<string, unknown> | undefined)?.full_address === 'string'
         ? String((point.address as Record<string, unknown>).full_address)
-        : null,
+        : undefined,
   geoId: typeof point.geoId === 'number' ? point.geoId : null,
   position:
     point.position && typeof point.position === 'object'
+      && typeof (point.position as Record<string, unknown>).latitude === 'number'
+      && typeof (point.position as Record<string, unknown>).longitude === 'number'
       ? {
-          latitude:
-            typeof (point.position as Record<string, unknown>).latitude === 'number'
-              ? ((point.position as Record<string, unknown>).latitude as number)
-              : undefined,
-          longitude:
-            typeof (point.position as Record<string, unknown>).longitude === 'number'
-              ? ((point.position as Record<string, unknown>).longitude as number)
-              : undefined
+          latitude: (point.position as Record<string, unknown>).latitude as number,
+          longitude: (point.position as Record<string, unknown>).longitude as number
         }
       : null,
   maxWeightGross: typeof point.maxWeightGross === 'number' ? point.maxWeightGross : null,
@@ -409,10 +416,7 @@ export const api = {
 
   async updateSellerDropoffPvz(payload: {
     dropoffPvz: {
-      provider: 'YANDEX_NDD';
       pvzId: string;
-      raw: Record<string, unknown> | null;
-      addressFull?: string;
     };
   }) {
     return apiClient.request<SellerDeliveryProfile>(

@@ -146,9 +146,9 @@ export function YaPvzPickerModal({
           missingPosition: 0
         };
         const points = incoming
-          .map((point: { id: string; position: { latitude?: number; longitude?: number } | null }) => ({
-            id: String(point.id ?? '').trim(),
-            position: point.position
+          .map((point) => ({
+            id: String(point.pvzId ?? point.id ?? '').trim(),
+            position: point.position ?? null
           }))
           .filter((point) => {
             if (!point.id) {

@@ -16,6 +16,8 @@ function toCoord(point: SellerDropoffStation) {
   return [lon, lat] as [number, number];
 }
 
+const getSelectableId = (point: SellerDropoffStation): string | null => point.pvzId ?? point.id ?? null;
+
 const averageCenter = (coords: [number, number][]): [number, number] | null => {
   if (!coords.length) return null;
   const [lonSum, latSum] = coords.reduce<[number, number]>((acc, item) => [acc[0] + item[0], acc[1] + item[1]], [0, 0]);
@@ -73,7 +75,7 @@ function SellerDropoffMapInner({ points, selectedId, onSelect, preferredCenter }
   );
 
   const center = useMemo(() => {
-    const selected = points.find((point) => point.id === selectedId);
+    const selected = points.find((point) => getSelectableId(point) === selectedId);
     const selectedCoord = selected ? toCoord(selected) : null;
     return selectedCoord ?? preferredCenter ?? averageCenter(coords) ?? [37.6173, 55.7558];
   }, [points, selectedId, coords, preferredCenter]);
@@ -101,24 +103,32 @@ function SellerDropoffMapInner({ points, selectedId, onSelect, preferredCenter }
       {points.map((point) => {
         const coord = toCoord(point);
         if (!coord) return null;
+        const selectableId = getSelectableId(point);
+        const markerKey = selectableId ?? `${coord[0]}-${coord[1]}`;
 
-        const active = point.id === selectedId;
+        const active = selectableId === selectedId;
 
         return (
-          <YMapMarker key={point.id} coordinates={coord}>
-            <button
-              type="button"
-              aria-label={`Выбрать пункт ${point.name ?? point.id}`}
-              onClick={() => onSelect(point.id)}
-              style={{
-                width: active ? 18 : 14,
-                height: active ? 18 : 14,
-                borderRadius: 999,
-                background: active ? 'black' : '#444',
-                border: '2px solid white',
-                cursor: 'pointer'
-              }}
-            />
+          <YMapMarker key={markerKey} coordinates={coord}>
+            <div style={{ pointerEvents: 'auto', transform: 'translate(-50%, -50%)' }}>
+              <button
+                type="button"
+                aria-label={`Выбрать пункт ${point.name ?? selectableId ?? 'без id'}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!selectableId) return;
+                  onSelect(selectableId);
+                }}
+                style={{
+                  width: active ? 18 : 14,
+                  height: active ? 18 : 14,
+                  borderRadius: 999,
+                  background: 'black',
+                  border: '2px solid white',
+                  cursor: 'pointer'
+                }}
+              />
+            </div>
           </YMapMarker>
         );
       })}

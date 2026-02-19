@@ -562,9 +562,9 @@ const sellerSettingsSchema = z.object({
 
 const sellerDeliveryProfileSchema = z.object({
   dropoffPvz: z.object({
-    provider: z.literal('YANDEX_NDD'),
-    pvzId: z.string().min(1).trim(),
-    raw: z.unknown(),
+    pvzId: z.string().trim().min(1),
+    provider: z.literal('YANDEX_NDD').optional(),
+    raw: z.unknown().optional(),
     addressFull: z.string().optional(),
     country: z.string().optional(),
     locality: z.string().optional(),
@@ -1093,10 +1093,7 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
   try {
     const payload = sellerDeliveryProfileSchema.parse(req.body);
     const pvzId = String(payload.dropoffPvz.pvzId ?? '').trim();
-    console.info('[DROP_OFF_PVZ_SAVE]', {
-      pvzId,
-      looksLikeDigits: /^\d+$/.test(pvzId)
-    });
+    console.info('[DROP_OFF_SAVE]', { pvzId });
     if (!pvzId) {
       return res.status(400).json({ error: { code: 'DROP_OFF_PVZ_ID_REQUIRED', message: 'Не выбран id точки (pvzId).' } });
     }
