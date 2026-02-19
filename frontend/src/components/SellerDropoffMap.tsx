@@ -17,9 +17,29 @@ function toCoord(point: SellerDropoffStation) {
 
 export function SellerDropoffMap({ points, selectedId, onSelect }: Props) {
   const [ui, setUi] = useState<YmapsReactUi | null>(null);
+  const [errorText, setErrorText] = useState<string | null>(null);
 
   useEffect(() => {
-    getYmaps().then(setUi).catch(console.error);
+    let alive = true;
+
+    getYmaps()
+      .then((mapsUi) => {
+        if (!alive) return;
+        setUi(mapsUi);
+      })
+      .catch((e: unknown) => {
+        if (!alive) return;
+        const msg = String((e as { message?: string })?.message || e);
+        if (msg.includes('YMAPS_KEY_MISSING')) {
+          setErrorText('Нет VITE_YMAPS_API_KEY. Добавь его в .env фронта и перезапусти Vite.');
+          return;
+        }
+        setErrorText(`Карта не загрузилась: ${msg}`);
+      });
+
+    return () => {
+      alive = false;
+    };
   }, []);
 
   const coords = useMemo(
@@ -33,6 +53,7 @@ export function SellerDropoffMap({ points, selectedId, onSelect }: Props) {
     return selectedCoord ?? coords[0] ?? [37.6173, 55.7558];
   }, [points, selectedId, coords]);
 
+  if (errorText) return <div>{errorText}</div>;
   if (!ui) return <div>Загрузка карты…</div>;
 
   const {
