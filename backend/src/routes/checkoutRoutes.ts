@@ -172,7 +172,7 @@ const resolveDeliveryDaysFromOffer = (offer: Record<string, unknown> | null): nu
 };
 
 const computeDropoffLagDays = (dropoffSchedule: 'DAILY' | 'WEEKDAYS' | null | undefined) =>
-  dropoffSchedule === 'DAILY' ? 0 : 1;
+  dropoffSchedule === 'WEEKDAYS' ? 1 : 0;
 
 const getCheckoutData = async (userId: string) => {
   await ensureCheckoutTables();
