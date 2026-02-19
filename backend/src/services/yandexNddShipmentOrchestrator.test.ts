@@ -23,7 +23,7 @@ const mockPaidOrder = (id: string) => ({
   sellerDropoffPvzId: 'dropoff-1',
   sellerDropoffPvzMeta: { raw: { id: 'dropoff-1', operator_station_id: '10029618814' } },
   buyerPickupPvzId: 'pickup-1',
-  buyerPickupPvzMeta: null,
+  buyerPickupPvzMeta: { buyerPickupStationId: '10027909485', raw: { id: 'pickup-1', operator_station_id: '10027909485' } },
   recipientName: 'Иван Иванов',
   recipientPhone: '+79990000001',
   shippingAddressId: null,
@@ -123,13 +123,38 @@ test('ready-to-ship sends station_id/self_pickup_id and interval_utc from offers
   await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-7');
 
   assert.equal(offersPayload?.station_id, '10029618814');
-  assert.equal(offersPayload?.self_pickup_id, 'pickup-1');
+  assert.equal(offersPayload?.self_pickup_id, '10027909485');
   assert.deepEqual(offersPayload?.interval_utc, interval);
   assert.equal(offersPayload?.last_mile_policy, 'time_interval');
 });
 
 
 
+
+
+test('ready-to-ship fails with BUYER_STATION_ID_REQUIRED when buyer station id is missing', async () => {
+  (prisma.order.findFirst as any) = async () => ({
+    ...mockPaidOrder('order-no-buyer-station'),
+    buyerPickupPvzMeta: { raw: { id: 'pickup-1' } }
+  });
+
+  await assert.rejects(
+    () => yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-no-buyer-station'),
+    /BUYER_STATION_ID_REQUIRED/
+  );
+});
+
+test('ready-to-ship fails with VALIDATION_ERROR when buyer station id is not digits', async () => {
+  (prisma.order.findFirst as any) = async () => ({
+    ...mockPaidOrder('order-invalid-buyer-station'),
+    buyerPickupPvzMeta: { buyerPickupStationId: 'abc123', raw: { id: 'pickup-1', operator_station_id: 'abc123' } }
+  });
+
+  await assert.rejects(
+    () => yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-invalid-buyer-station'),
+    /VALIDATION_ERROR/
+  );
+});
 
 test('ready-to-ship uses meta.operator_station_id when profile station id is not numeric', async () => {
   (prisma.order.findFirst as any) = async () => ({
@@ -138,7 +163,7 @@ test('ready-to-ship uses meta.operator_station_id when profile station id is not
   });
   (prisma.sellerDeliveryProfile.findUnique as any) = async () => ({
     dropoffStationId: 'ac17e5dd-0001-4111-8111-111111111111',
-    dropoffStationMeta: { raw: { operator_station_id: '999000' } }
+    dropoffStationMeta: { operator_station_id: '999000' }
   });
 
   const deliveryServiceModule = await import('./orderDeliveryService');

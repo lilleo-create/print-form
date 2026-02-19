@@ -8,6 +8,7 @@ export type PaymentMethodCode = 'CARD' | 'SBP';
 export type YaPvzSelection = {
   provider: 'YANDEX_NDD';
   pvzId: string;
+  buyerPickupStationId?: string;
   addressFull?: string;
   raw?: unknown;
 };
@@ -79,10 +80,17 @@ const normalizePickupPoint = (pickupPoint: unknown): YaPvzSelection | null => {
       : typeof raw.fullAddress === 'string'
         ? raw.fullAddress
         : undefined;
+  const buyerPickupStationId =
+    typeof raw.buyerPickupStationId === 'string'
+      ? raw.buyerPickupStationId
+      : typeof raw.operator_station_id === 'string'
+        ? raw.operator_station_id
+        : undefined;
 
   return {
     provider: 'YANDEX_NDD',
     pvzId,
+    buyerPickupStationId,
     addressFull,
     raw: raw.raw ?? pickupPoint
   };
@@ -120,6 +128,9 @@ export const checkoutApi = {
           id: payload.pickupPoint.pvzId,
           fullAddress:
             payload.pickupPoint.addressFull ?? payload.pickupPoint.pvzId,
+          ...(payload.pickupPoint.buyerPickupStationId
+            ? { operator_station_id: payload.pickupPoint.buyerPickupStationId }
+            : {}),
           ...(payload.pickupPoint.raw &&
           typeof payload.pickupPoint.raw === 'object'
             ? (payload.pickupPoint.raw as Record<string, unknown>)

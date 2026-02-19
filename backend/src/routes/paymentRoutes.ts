@@ -17,6 +17,7 @@ const startSchema = z.object({
   buyerPickupPvz: z.object({
     provider: z.literal('YANDEX_NDD'),
     pvzId: z.string().min(1),
+    buyerPickupStationId: z.string().regex(/^\d+$/).optional(),
     addressFull: z.string().optional(),
     raw: z.unknown().optional()
   }),

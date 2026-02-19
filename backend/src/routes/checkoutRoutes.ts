@@ -25,6 +25,9 @@ const addressSchema = z.object({
 
 const pickupPointSchema = z.object({
   id: z.string().min(1),
+  buyerPickupPointId: z.string().optional(),
+  buyerPickupStationId: z.string().regex(/^\d+$/).nullable().optional(),
+  operator_station_id: z.string().regex(/^\d+$/).nullable().optional(),
   fullAddress: z.string().min(1),
   country: z.string().optional(),
   locality: z.string().optional(),
@@ -386,6 +389,14 @@ checkoutRoutes.put('/address', requireAuth, writeLimiter, async (req: AuthReques
 checkoutRoutes.put('/pickup', requireAuth, writeLimiter, async (req: AuthRequest, res, next) => {
   try {
     const payload = pickupSchema.parse(req.body);
+    const buyerPickupStationId =
+      payload.pickupPoint.buyerPickupStationId ?? payload.pickupPoint.operator_station_id ?? null;
+    const pickupPointJson = {
+      ...payload.pickupPoint,
+      buyerPickupPointId: payload.pickupPoint.id,
+      buyerPickupStationId,
+      raw: payload.pickupPoint
+    };
     await ensureCheckoutTables();
 
     await prisma.$executeRawUnsafe(
@@ -403,7 +414,7 @@ checkoutRoutes.put('/pickup', requireAuth, writeLimiter, async (req: AuthRequest
       req.user!.userId,
       payload.pickupPoint.id,
       payload.provider,
-      JSON.stringify(payload.pickupPoint)
+      JSON.stringify(pickupPointJson)
     );
 
     res.json({ ok: true });

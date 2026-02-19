@@ -16,6 +16,7 @@ type StartPaymentInput = {
   buyerPickupPvz: {
     provider: 'YANDEX_NDD';
     pvzId: string;
+    buyerPickupStationId?: string;
     addressFull?: string;
     raw?: unknown;
   };
