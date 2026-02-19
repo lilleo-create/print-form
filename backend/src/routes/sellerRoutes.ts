@@ -669,8 +669,9 @@ const readPlatformStationId = (point: Record<string, any>): string | null => {
 };
 
 const mapSellerDropoffPoint = (point: Record<string, any>) => ({
-  id: readPlatformStationId(point),
+  id: typeof point?.id === 'string' ? point.id : null,
   pvzId: typeof point?.id === 'string' ? point.id : null,
+  platform_station_id: readPlatformStationId(point),
   operator_station_id: normalizeDigitsStation(point?.operator_station_id),
   name: typeof point?.name === 'string' ? point.name : null,
   addressFull: point?.address?.full_address ?? null,
@@ -843,6 +844,7 @@ sellerRoutes.post('/ndd/dropoff-stations/search', async (req: AuthRequest, res, 
       [];
 
     const allPoints = [...(Array.isArray(pickupPointsRaw) ? pickupPointsRaw : []), ...(Array.isArray(terminalPointsRaw) ? terminalPointsRaw : [])];
+    const rawPointsCount = allPoints.length;
 
     if (allPoints.length >= MAX_FETCH_LIMIT) {
       console.info('[NDD_DROP_OFF_SEARCH] reached fetch cap', { geoId, count: allPoints.length, cap: MAX_FETCH_LIMIT });
@@ -850,7 +852,7 @@ sellerRoutes.post('/ndd/dropoff-stations/search', async (req: AuthRequest, res, 
 
     const normalizedPoints = allPoints
       .map((point: Record<string, any>) => mapSellerDropoffPoint(point))
-      .filter((point) => Boolean(point.id))
+      .filter((point) => Boolean(point.pvzId ?? point.id))
       .filter((point) => point.available_for_c2c_dropoff !== false);
 
     const isAddressSearch = queryLooksLikeAddress(query);
@@ -895,6 +897,8 @@ sellerRoutes.post('/ndd/dropoff-stations/search', async (req: AuthRequest, res, 
     console.info('[NDD_DROP_OFF_SEARCH]', {
       query,
       geoId,
+      rawPointsCount,
+      normalizedPointsCount: normalizedPoints.length,
       points: resultPoints.length,
       geocoded: Boolean(geocode)
     });
