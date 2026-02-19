@@ -1,5 +1,5 @@
 import React from 'react';
-import ReactDOM from 'react-dom/client';
+import ReactDOM from 'react-dom';
 
 type YMapComponentProps = Record<string, unknown>;
 
@@ -65,7 +65,6 @@ export async function getYmaps() {
   loading = (async () => {
     const key = import.meta.env.VITE_YMAPS_API_KEY;
     if (!key) {
-      console.error('[YMaps] Missing env VITE_YMAPS_API_KEY');
       throw new Error('YMAPS_KEY_MISSING');
     }
 
