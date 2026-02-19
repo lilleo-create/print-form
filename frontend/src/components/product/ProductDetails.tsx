@@ -8,6 +8,7 @@ import styles from '../../pages/ProductPage.module.css';
 import { ProductActionsInline } from '../../pages/ProductPage/components/ProductActionsInline/ProductActionsInline';
 import { useFavoritesStore } from '../../features/favorites/model/useFavoritesStore';
 import { ShareModal } from '../../features/share/ui/ShareModal';
+import { formatNearestDeliveryLabel } from './utils';
 
 type ProductDetailsProps = {
   product: Product;
@@ -46,6 +47,10 @@ export const ProductDetails = ({ product, ratingCount, reviewsCount }: ProductDe
     setIsShareOpen(true);
   };
 
+  const nearestDeliveryLabel = formatNearestDeliveryLabel(
+    product.deliveryDateEstimated,
+    product.productionTimeHours
+  );
 
   return (
     <div className={styles.details}>
@@ -78,7 +83,7 @@ export const ProductDetails = ({ product, ratingCount, reviewsCount }: ProductDe
         <span className={styles.price}>
           {Number((product as any).price ?? 0).toLocaleString('ru-RU')} ₽
         </span>
-        <span className={styles.delivery}>Изготовление: {product.productionTimeHours ?? 24} часов</span>
+        <span className={styles.delivery}>Ближайшая доставка: {nearestDeliveryLabel}</span>
         {product.dxCm && product.dyCm && product.dzCm ? (
           <span className={styles.delivery}>
             Размер: {product.dxCm} × {product.dyCm} × {product.dzCm} см{product.weightGrossG ? `, вес: ${product.weightGrossG} г` : ''}

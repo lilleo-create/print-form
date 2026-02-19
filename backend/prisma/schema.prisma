@@ -78,7 +78,8 @@ model Product {
   description           String
   material              String
   technology            String
-  printTime             String
+  printTime             String                  @default("24 часа")
+  productionTimeHours   Int?                    @default(24)
   color                 String
   deliveryDateEstimated DateTime?
   weightGrossG          Int?
@@ -662,8 +663,3 @@ enum ChatMessageAuthorRole {
   ADMIN
 }
 
-enum DropoffSchedule {
-  DAILY
-  WEEKLY
-  // MONTHLY  // если нужно
-}

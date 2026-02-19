@@ -35,8 +35,9 @@ export interface Product {
   ratingCount?: number;
   material: MaterialType;
   technology: TechnologyType;
-  printTime: string;
+  printTime?: string;
   productionTimeHours?: number;
+  deliveryDateEstimated?: string | null;
   color: string;
   sellerId: string | null;
   createdAt?: string;
