@@ -9,7 +9,7 @@
 }
 
 .modal {
-  width: min(960px, 92vw);
+  width: min(1100px, 94vw);
   max-height: 88vh;
   overflow: auto;
   background: #fff;
@@ -27,7 +27,7 @@
   margin: 1rem 0;
   display: grid;
   gap: 0.75rem;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: 1fr auto;
 }
 
 .search {
@@ -38,15 +38,16 @@
 
 .body {
   display: grid;
-  grid-template-columns: 1.2fr 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 1rem;
 }
 
 .list {
   display: grid;
   gap: 0.5rem;
-  max-height: 60vh;
+  max-height: 480px;
   overflow-y: auto;
+  padding-right: 4px;
 }
 
 .stationButton {
@@ -63,11 +64,30 @@
   border-color: #3b82f6;
 }
 
-.mapPlaceholder {
-  border: 1px dashed #cbd5e1;
-  border-radius: 12px;
-  padding: 1rem;
+.stationButtonActive {
+  background: #f8fafc;
+  border-color: #3b82f6;
+}
+
+.stationName {
+  font-weight: 600;
+}
+
+.stationAddress {
+  font-size: 13px;
   color: #64748b;
+}
+
+.stationDistance {
+  font-size: 12px;
+  color: #334155;
+}
+
+.mapContainer {
+  height: 460px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #dbe2ea;
 }
 
 .muted {
@@ -88,5 +108,9 @@
 @media (max-width: 860px) {
   .body {
     grid-template-columns: 1fr;
+  }
+
+  .mapContainer {
+    height: 420px;
   }
 }

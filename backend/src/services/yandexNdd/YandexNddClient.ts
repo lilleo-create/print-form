@@ -100,10 +100,8 @@ export class YandexNddClient {
     const authHeader = `Bearer ${tokenWithoutPrefix}`;
 
     return {
-      rawHadBearerPrefix: /^Bearer\s+/i.test(rawToken),
       authHeader,
-      tokenLength: tokenWithoutPrefix.length,
-      tokenPreview: tokenWithoutPrefix.slice(0, 10)
+      tokenLength: tokenWithoutPrefix.length
     };
   }
 
@@ -167,11 +165,7 @@ export class YandexNddClient {
   private async request<T>(path: string, init?: RequestInit & { requestId?: string }): Promise<T> {
     const tokenMeta = this.getAuthTokenMeta();
 
-    console.info('[YANDEX_NDD][auth]', {
-      rawHadBearerPrefix: tokenMeta.rawHadBearerPrefix,
-      tokenLength: tokenMeta.tokenLength,
-      tokenPreview: tokenMeta.tokenPreview
-    });
+    console.info('[YANDEX_NDD][auth]', { tokenLength: tokenMeta.tokenLength });
 
     const maxAttempts = 3;
 
@@ -212,9 +206,7 @@ export class YandexNddClient {
             requestId: init?.requestId ?? 'n/a',
             path,
             httpStatus: error.status,
-            tokenPreview: tokenMeta.tokenPreview,
             tokenLength: tokenMeta.tokenLength,
-            rawHadBearerPrefix: tokenMeta.rawHadBearerPrefix,
             body: error.details
           });
           throw error;

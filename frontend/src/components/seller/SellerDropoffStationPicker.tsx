@@ -12,6 +12,11 @@ type Props = {
   onSelect: (station: SellerDropoffStation) => void;
 };
 
+const formatDistance = (distanceMeters?: number | null) => {
+  if (typeof distanceMeters !== 'number') return null;
+  return `${(distanceMeters / 1000).toFixed(1)} км`;
+};
+
 export const SellerDropoffStationPicker = ({ isOpen, geoId, onClose, onSelect }: Props) => {
   const [stations, setStations] = useState<SellerDropoffStation[]>([]);
   const [query, setQuery] = useState('');
@@ -19,22 +24,15 @@ export const SellerDropoffStationPicker = ({ isOpen, geoId, onClose, onSelect }:
   const [error, setError] = useState<string | null>(null);
   const [searchEmptyMessage, setSearchEmptyMessage] = useState<string | null>(null);
   const [detectedGeoId, setDetectedGeoId] = useState<number | null>(null);
+  const [mapCenter, setMapCenter] = useState<[number, number] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const stationRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   const selectedStation = useMemo(
     () => stations.find((station) => station.id === selectedId) ?? null,
     [stations, selectedId]
   );
-
-  const filtered = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    if (!normalizedQuery) return stations;
-    return stations.filter((station) => {
-      const haystack = `${station.name ?? ''} ${station.addressFull ?? ''}`.toLowerCase();
-      return haystack.includes(normalizedQuery);
-    });
-  }, [stations, query]);
 
   const runSearch = async (rawQuery: string) => {
     const normalizedQuery = rawQuery.trim();
@@ -53,11 +51,13 @@ export const SellerDropoffStationPicker = ({ isOpen, geoId, onClose, onSelect }:
     setError(null);
 
     try {
-      const response = await api.searchSellerDropoffStations(normalizedQuery, 213, 50, controller.signal);
+      const response = await api.searchSellerDropoffStations(normalizedQuery, geoId, 100, controller.signal);
       const points = response.data?.points ?? [];
+      const geocode = response.data?.debug?.geocode;
       setStations(points);
       setSelectedId((prev) => (prev && points.some((point) => point.id === prev) ? prev : points[0]?.id ?? null));
       setDetectedGeoId(response.data?.debug?.geoId ?? null);
+      setMapCenter(geocode ? [geocode.lon, geocode.lat] : null);
       setSearchEmptyMessage(points.length ? null : 'Пункты приёма не найдены. Уточните запрос.');
     } catch (e) {
       if (controller.signal.aborted) {
@@ -71,6 +71,11 @@ export const SellerDropoffStationPicker = ({ isOpen, geoId, onClose, onSelect }:
       }
     }
   };
+
+  useEffect(() => {
+    if (!selectedId) return;
+    stationRefs.current[selectedId]?.scrollIntoView({ block: 'nearest' });
+  }, [selectedId]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -100,7 +105,7 @@ export const SellerDropoffStationPicker = ({ isOpen, geoId, onClose, onSelect }:
         <div className={styles.actions}>
           <input
             className={styles.search}
-            placeholder="Введите город, район или адрес (например, Тушино)"
+            placeholder="Введите улицу и дом (например, Генерала Кузнецова 18)"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
@@ -114,48 +119,37 @@ export const SellerDropoffStationPicker = ({ isOpen, geoId, onClose, onSelect }:
         {error && <p className={styles.error}>{error}</p>}
         {!error && searchEmptyMessage && <p className={styles.muted}>{searchEmptyMessage}</p>}
 
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: 16,
-            height: 420
-          }}
-        >
-          <div style={{ overflow: 'auto' }}>
-            {filtered.length === 0 ? (
+        <div className={styles.body}>
+          <div className={styles.list}>
+            {stations.length === 0 ? (
               <p className={styles.muted}>Пункты приёма не найдены.</p>
             ) : (
-              filtered.map((station) => {
+              stations.map((station) => {
                 const active = station.id === selectedId;
 
                 return (
                   <button
                     key={station.id}
                     type="button"
-                    onClick={() => setSelectedId(station.id)}
-                    style={{
-                      width: '100%',
-                      textAlign: 'left',
-                      padding: 12,
-                      border: 'none',
-                      background: active ? '#f3f3f3' : 'transparent',
-                      cursor: 'pointer'
+                    ref={(el) => {
+                      stationRefs.current[station.id] = el;
                     }}
+                    onClick={() => setSelectedId(station.id)}
+                    className={`${styles.stationButton} ${active ? styles.stationButtonActive : ''}`}
                   >
-                    <div style={{ fontWeight: 600 }}>{station.name ?? 'Пункт выдачи'}</div>
-
-                    <div style={{ fontSize: 13, opacity: 0.7 }}>
-                      {station.addressFull ?? 'Адрес не указан'}
-                    </div>
+                    <div className={styles.stationName}>{station.name ?? 'Пункт выдачи'}</div>
+                    <div className={styles.stationAddress}>{station.addressFull ?? 'Адрес не указан'}</div>
+                    {formatDistance(station.distanceMeters) && (
+                      <div className={styles.stationDistance}>{formatDistance(station.distanceMeters)}</div>
+                    )}
                   </button>
                 );
               })
             )}
           </div>
 
-          <div style={{ height: '100%', borderRadius: 12, overflow: 'hidden' }}>
-            <SellerDropoffMap points={filtered} selectedId={selectedId} onSelect={setSelectedId} />
+          <div className={styles.mapContainer}>
+            <SellerDropoffMap points={stations} selectedId={selectedId} onSelect={setSelectedId} preferredCenter={mapCenter} />
           </div>
         </div>
 

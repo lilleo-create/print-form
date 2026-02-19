@@ -20,6 +20,8 @@ import { sellerOrderDocumentsService } from '../services/sellerOrderDocumentsSer
 import { getYandexNddConfig } from '../config/yandexNdd';
 import { YandexNddHttpError, yandexNddClient } from '../services/yandexNdd/YandexNddClient';
 import { normalizeStationId } from '../services/yandexNdd/getOperatorStationId';
+import { haversineDistanceMeters } from '../utils/geo';
+import { TtlCache } from '../utils/cache';
 
 export const sellerRoutes = Router();
 
@@ -554,17 +556,95 @@ const dropoffStationsQuerySchema = z.object({
 const dropoffStationsSearchBodySchema = z.object({
   query: z.string().trim().min(2),
   geoId: z.coerce.number().int().positive().optional(),
-  limit: z.coerce.number().int().min(1).max(100).default(50)
+  limit: z.coerce.number().int().min(1).max(500).default(50)
 });
+
+const MAX_FETCH_LIMIT = 5000;
+const GEOCODER_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const geocoderCache = new TtlCache<string, { lat: number; lon: number; precision?: string | null; text?: string | null }>(500);
+
+const normalizeText = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/ё/g, 'е')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const queryLooksLikeAddress = (query: string) => /\d/.test(query) && query.trim().length > 6;
+
+const hasCoordinates = (
+  point: ReturnType<typeof mapSellerDropoffPoint>
+): point is ReturnType<typeof mapSellerDropoffPoint> & { position: { latitude: number; longitude: number } } =>
+  typeof point.position?.latitude === 'number' && typeof point.position?.longitude === 'number';
+
+const tokenize = (value: string) => normalizeText(value).split(' ').filter(Boolean);
+
+const textSearchRank = (query: string, point: ReturnType<typeof mapSellerDropoffPoint>) => {
+  const haystack = normalizeText(`${point.name ?? ''} ${point.addressFull ?? ''} ${(point as any).instruction ?? ''}`);
+  const tokens = tokenize(query);
+  if (!tokens.length) {
+    return 0;
+  }
+  const matches = tokens.filter((token) => haystack.includes(token)).length;
+  return matches / tokens.length;
+};
+
+const geocodeAddress = async (query: string) => {
+  const apiKey = process.env.YMAPS_GEOCODER_API_KEY?.trim();
+  if (!apiKey) {
+    return null;
+  }
+
+  const cacheKey = normalizeText(query);
+  const cached = geocoderCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  const geocode = `${query}, Москва`;
+  const url = new URL('https://geocode-maps.yandex.ru/1.x/');
+  url.searchParams.set('apikey', apiKey);
+  url.searchParams.set('format', 'json');
+  url.searchParams.set('lang', 'ru_RU');
+  url.searchParams.set('geocode', geocode);
+
+  const response = await fetch(url.toString());
+  if (!response.ok) {
+    return null;
+  }
+
+  const payload = (await response.json()) as any;
+  const first = payload?.response?.GeoObjectCollection?.featureMember?.[0]?.GeoObject;
+  const pos = String(first?.Point?.pos ?? '').trim();
+  const [lonRaw, latRaw] = pos.split(' ');
+  const lat = Number(latRaw);
+  const lon = Number(lonRaw);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    return null;
+  }
+
+  const value = {
+    lat,
+    lon,
+    precision: first?.metaDataProperty?.GeocoderMetaData?.precision ?? null,
+    text: first?.metaDataProperty?.GeocoderMetaData?.text ?? null
+  };
+  geocoderCache.set(cacheKey, value, GEOCODER_TTL_MS);
+  return value;
+};
 
 const mapSellerDropoffPoint = (point: Record<string, any>) => ({
   id: String(point?.id ?? ''),
   operator_station_id: point?.operator_station_id ?? null,
   name: typeof point?.name === 'string' ? point.name : null,
   addressFull: point?.address?.full_address ?? null,
+  instruction: typeof point?.instruction === 'string' ? point.instruction : null,
   geoId: point?.address?.geoId ?? point?.address?.geo_id ?? null,
   position: point?.position ?? null,
-  maxWeightGross: null
+  available_for_c2c_dropoff:
+    typeof point?.available_for_c2c_dropoff === 'boolean' ? point.available_for_c2c_dropoff : null,
+  maxWeightGross: null,
+  distanceMeters: null as number | null
 });
 
 const dropoffStationSaveSchema = z.object({
@@ -681,27 +761,22 @@ sellerRoutes.post('/ndd/dropoff-stations/search', async (req: AuthRequest, res, 
   try {
     const { query, geoId: providedGeoId, limit } = dropoffStationsSearchBodySchema.parse(req.body ?? {});
 
-    const geoId = providedGeoId ?? (await yandexNddClient.detectGeoIdByQuery(query));
-
-    if (!geoId) {
-      return res.status(502).json({
-        error: {
-          code: 'GEOCODE_FAILED',
-          message: 'Не удалось определить geoId через NDD location/detect.'
-        }
-      });
-    }
+    const geoId = providedGeoId ?? 213;
 
     const pickupPointResp = await yandexNddClient.pickupPointsList({
       geo_id: geoId,
       type: 'pickup_point',
-      available_for_c2c_dropoff: true
+      available_for_c2c_dropoff: true,
+      is_not_branded_partner_station: true,
+      limit: MAX_FETCH_LIMIT
     });
 
     const terminalResp = await yandexNddClient.pickupPointsList({
       geo_id: geoId,
       type: 'terminal',
-      available_for_c2c_dropoff: true
+      available_for_c2c_dropoff: true,
+      is_not_branded_partner_station: true,
+      limit: MAX_FETCH_LIMIT
     });
 
     const pickupPointsRaw =
@@ -713,18 +788,79 @@ sellerRoutes.post('/ndd/dropoff-stations/search', async (req: AuthRequest, res, 
       (terminalResp as any)?.result?.points ??
       [];
 
-    const normalizedPoints = [...(Array.isArray(pickupPointsRaw) ? pickupPointsRaw : []), ...(Array.isArray(terminalPointsRaw) ? terminalPointsRaw : [])]
+    const allPoints = [...(Array.isArray(pickupPointsRaw) ? pickupPointsRaw : []), ...(Array.isArray(terminalPointsRaw) ? terminalPointsRaw : [])];
+
+    if (allPoints.length >= MAX_FETCH_LIMIT) {
+      console.info('[NDD_DROP_OFF_SEARCH] reached fetch cap', { geoId, count: allPoints.length, cap: MAX_FETCH_LIMIT });
+    }
+
+    const normalizedPoints = allPoints
       .map((point: Record<string, any>) => mapSellerDropoffPoint(point))
-      .filter((point: { id: string }) => point.id)
-      .slice(0, limit);
+      .filter((point: { id: string } & { [k: string]: any }) => point.id)
+      .filter((point) => point.available_for_c2c_dropoff !== false);
+
+    const isAddressSearch = queryLooksLikeAddress(query);
+    const geocode = isAddressSearch ? await geocodeAddress(query) : null;
+    let resultPoints = normalizedPoints;
+
+    if (geocode) {
+      resultPoints = normalizedPoints
+        .map((point) => {
+          if (!hasCoordinates(point)) {
+            return { ...point, distanceMeters: null };
+          }
+          return {
+            ...point,
+            distanceMeters: Math.round(
+              haversineDistanceMeters(
+                { latitude: geocode.lat, longitude: geocode.lon },
+                { latitude: point.position.latitude, longitude: point.position.longitude }
+              )
+            )
+          };
+        })
+        .sort((a, b) => {
+          const aDistance = a.distanceMeters;
+          const bDistance = b.distanceMeters;
+          if (aDistance == null && bDistance == null) return 0;
+          if (aDistance == null) return 1;
+          if (bDistance == null) return -1;
+          return aDistance - bDistance;
+        });
+    } else {
+      const ranked = normalizedPoints
+        .map((point) => ({ point, rank: textSearchRank(query, point) }))
+        .filter(({ rank }) => rank >= 0.5)
+        .sort((a, b) => b.rank - a.rank)
+        .map(({ point }) => point);
+      resultPoints = ranked;
+    }
+
+    resultPoints = resultPoints.slice(0, limit);
 
     console.info('[NDD_DROP_OFF_SEARCH]', {
       query,
       geoId,
-      points: normalizedPoints.length
+      points: resultPoints.length,
+      geocoded: Boolean(geocode)
     });
 
-    return res.json({ points: normalizedPoints, debug: { geoId } });
+    return res.json({
+      points: resultPoints,
+      debug: {
+        geoId,
+        ...(geocode
+          ? {
+              geocode: {
+                lat: geocode.lat,
+                lon: geocode.lon,
+                precision: geocode.precision,
+                text: geocode.text
+              }
+            }
+          : {})
+      }
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({

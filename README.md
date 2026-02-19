@@ -82,6 +82,7 @@ npm run dev
 ```
 VITE_USE_MOCK=false
 VITE_API_URL=http://localhost:4000
+VITE_YMAPS_API_KEY=your-yandex-maps-js-api-key
 ```
 
 **backend/.env.example**
@@ -96,6 +97,7 @@ GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\
 FRONTEND_URL=http://localhost:5173
 PORT=4000
 SMS_PROVIDER=console
+YMAPS_GEOCODER_API_KEY=your-yandex-geocoder-api-key
 ```
 
 ## Architecture decisions
