@@ -250,7 +250,7 @@ export const api = {
     material: string;
     category: string;
     technology: string;
-    printTime: string;
+    productionTimeHours?: number;
     color: string;
     description: string;
     weightGrossG?: number;
@@ -274,7 +274,7 @@ export const api = {
       material?: string;
       category?: string;
       technology?: string;
-      printTime?: string;
+      productionTimeHours?: number;
       color?: string;
       description?: string;
       weightGrossG?: number;

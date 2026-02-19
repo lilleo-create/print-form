@@ -11,7 +11,6 @@ export const ProductSpecs = ({ product }: ProductSpecsProps) => {
     const fallback = product.specs ?? [
       { id: 'material', key: 'Материал', value: (product as any).material, sortOrder: 1 },
       { id: 'technology', key: 'Технология', value: (product as any).technology, sortOrder: 3 },
-      { id: 'productionTimeHours', key: 'Изготовление', value: `${(product as any).productionTimeHours ?? 24} часов`, sortOrder: 4 },
       ...(product.dxCm && product.dyCm && product.dzCm ? [{ id: 'dimensions', key: 'Размер', value: `${product.dxCm} × ${product.dyCm} × ${product.dzCm} см`, sortOrder: 5 }] : []),
       { id: 'weight', key: 'Вес', value: (product as any).weightGrossG ? `${(product as any).weightGrossG} г` : '—', sortOrder: 6 },
       { id: 'color', key: 'Цвет', value: (product as any).color, sortOrder: 7 }

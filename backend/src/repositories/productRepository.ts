@@ -14,7 +14,8 @@ export interface ProductInput {
   currency: string;
   material: string;
   technology: string;
-  printTime: string;
+  printTime?: string;
+  productionTimeHours?: number;
   color: string;
   weightGrossG?: number;
   dxCm?: number;
