@@ -5,6 +5,7 @@ import { mapYandexStatusToInternal, shipmentService } from './shipmentService';
 import { YandexNddHttpError, yandexNddClient } from './yandexNdd/YandexNddClient';
 import { looksLikeDigits, looksLikePvzId, NddValidationError } from './yandexNdd/nddIdSemantics';
 import { resolvePlatformStationIdByPickupPointId } from './yandexNdd/resolvePlatformStationIdByPickupPointId';
+import { getYandexNddConfig } from '../config/yandexNdd';
 
 const readyToShipSingleFlight = new Map<string, Promise<any>>();
 
@@ -186,12 +187,32 @@ export const yandexNddShipmentOrchestrator = {
       sellerProfileDropoffPlatformStationId: sellerDeliveryProfile?.dropoffPlatformStationId ?? null
     });
 
-    const sourceStationId = sellerDeliveryProfile?.dropoffPlatformStationId?.trim() || null;
-    const sourceStationFrom: 'profile.dropoffPlatformStationId' | 'none' = sourceStationId
+    const profileStationId = sellerDeliveryProfile?.dropoffPlatformStationId?.trim() || null;
+    const fallbackStationId = getYandexNddConfig().defaultPlatformStationId?.trim() || null;
+    const sourceStationId = profileStationId || (process.env.NODE_ENV === 'production' ? null : fallbackStationId);
+    const sourceStationFrom: 'profile.dropoffPlatformStationId' | 'config.defaultPlatformStationId' | 'none' = profileStationId
       ? 'profile.dropoffPlatformStationId'
-      : 'none';
+      : sourceStationId
+        ? 'config.defaultPlatformStationId'
+        : 'none';
 
-    console.info('[READY_TO_SHIP] station resolved', { sourceStationId, from: sourceStationFrom });
+    console.info('[READY_TO_SHIP] seller station resolved', {
+      sellerId,
+      orderId,
+      sourceStationId,
+      from: sourceStationFrom,
+      profileDropoffPlatformStationId: profileStationId,
+      fallbackDefaultPlatformStationId: fallbackStationId,
+      fallbackUsed: sourceStationFrom === 'config.defaultPlatformStationId'
+    });
+
+    if (sourceStationFrom === 'config.defaultPlatformStationId') {
+      console.warn('[READY_TO_SHIP] using development fallback seller station id', {
+        sellerId,
+        orderId,
+        fallbackDefaultPlatformStationId: fallbackStationId
+      });
+    }
 
     if (!sourceStationId) {
       console.error('[READY_TO_SHIP] SELLER_STATION_ID_REQUIRED', {
@@ -238,26 +259,18 @@ export const yandexNddShipmentOrchestrator = {
       }
     }
 
-    if (!buyerMetaIds.platformStationId) {
-      const error = new Error('BUYER_STATION_ID_REQUIRED');
-      (error as Error & { details?: Record<string, string> }).details = {
-        orderId: order.id,
-        buyerPickupPvzId: buyerPickupPointId,
-        message: 'Не удалось определить station_id платформы для выбранного ПВЗ покупателя.'
-      };
-      throw error;
-    }
-
     if (!looksLikePvzId(buyerPickupPointId)) {
       throw new NddValidationError('VALIDATION_ERROR', 'buyerPickupPvzId должен быть pvzId (не station_id).');
     }
 
     const selfPickupId = buyerPickupPointId;
 
-    console.info('[READY_TO_SHIP] ids', {
+    console.info('[READY_TO_SHIP] buyer self pickup id resolved', {
+      orderId,
       buyerPickupPointId,
       buyerPickupPlatformStationId: buyerMetaIds.platformStationId,
       buyerPickupOperatorStationId: buyerMetaIds.operatorStationId,
+      buyerSelfPickupIdSource: 'order.buyerPickupPvzId',
       sellerDropoffPlatformStationId: sourceStationId
     });
 

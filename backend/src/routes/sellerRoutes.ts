@@ -648,9 +648,30 @@ const geocodeAddress = async (query: string) => {
   return value;
 };
 
+const readPlatformStationId = (point: Record<string, any>): string | null => {
+  const station = point?.station && typeof point.station === 'object' ? point.station : null;
+  const candidates = [
+    point?.station_id,
+    point?.platform_station_id,
+    station?.id,
+    station?.station_id,
+    station?.platform_station_id
+  ];
+
+  for (const candidate of candidates) {
+    const normalized = normalizeDigitsStation(candidate);
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  return null;
+};
+
 const mapSellerDropoffPoint = (point: Record<string, any>) => ({
-  id: String(point?.id ?? ''),
-  operator_station_id: point?.operator_station_id ?? null,
+  id: readPlatformStationId(point),
+  pvzId: typeof point?.id === 'string' ? point.id : null,
+  operator_station_id: normalizeDigitsStation(point?.operator_station_id),
   name: typeof point?.name === 'string' ? point.name : null,
   addressFull: point?.address?.full_address ?? null,
   instruction: typeof point?.instruction === 'string' ? point.instruction : null,
@@ -749,15 +770,16 @@ sellerRoutes.get('/ndd/dropoff-stations', async (req: AuthRequest, res, next) =>
     const points = incomingPoints
       .slice(0, limit)
       .map((point: Record<string, any>) => ({
-        id: String(point?.id ?? ''),
-        operator_station_id: point?.operator_station_id ?? null,
+        id: readPlatformStationId(point),
+        pvzId: typeof point?.id === 'string' ? point.id : null,
+        operator_station_id: normalizeDigitsStation(point?.operator_station_id),
         name: typeof point?.name === 'string' ? point.name : null,
         addressFull: point?.address?.full_address ?? null,
         geoId: point?.address?.geoId ?? point?.address?.geo_id ?? null,
         position: point?.position ?? null,
         maxWeightGross: null
       }))
-      .filter((point: { id: string }) => {
+      .filter((point: { id: string | null }) => {
         if (!point.id) {
           droppedReasons.missingId += 1;
           return false;
@@ -828,7 +850,7 @@ sellerRoutes.post('/ndd/dropoff-stations/search', async (req: AuthRequest, res, 
 
     const normalizedPoints = allPoints
       .map((point: Record<string, any>) => mapSellerDropoffPoint(point))
-      .filter((point: { id: string } & { [k: string]: any }) => point.id)
+      .filter((point) => Boolean(point.id))
       .filter((point) => point.available_for_c2c_dropoff !== false);
 
     const isAddressSearch = queryLooksLikeAddress(query);
