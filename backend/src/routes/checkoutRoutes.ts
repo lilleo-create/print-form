@@ -206,7 +206,6 @@ const getCheckoutData = async (userId: string) => {
       descriptionShort: true,
       sku: true,
       sellerId: true,
-      productionTimeHours: true,
       weightGrossG: true,
       dxCm: true,
       dyCm: true,
@@ -259,7 +258,7 @@ const getCheckoutData = async (userId: string) => {
             })()
           : null;
 
-      const productionDays = Math.ceil(item.productionTimeHours / 24);
+      const productionDays = 1;
       const dropoffLagDays = computeDropoffLagDays(profile?.dropoffSchedule);
       const etaMinDays = deliveryDays === null ? null : productionDays + dropoffLagDays + deliveryDays;
       const etaMaxDays = etaMinDays === null ? null : etaMinDays + 1;
@@ -271,7 +270,7 @@ const getCheckoutData = async (userId: string) => {
         quantity: 1,
         image: item.image,
         shortSpec: item.descriptionShort || item.sku,
-        productionTimeHours: item.productionTimeHours,
+        productionTimeHours: 24,
         deliveryDays,
         etaMinDays,
         etaMaxDays,

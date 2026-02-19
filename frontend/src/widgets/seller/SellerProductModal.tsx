@@ -18,12 +18,10 @@ const productSchema = z.object({
   ),
   material: z.string().min(2, 'Введите материал'),
   category: z.string().min(1, 'Выберите категорию'),
-  size: z.string().min(2, 'Введите размер'),
   technology: z.string().min(2, 'Введите технологию'),
   printTime: z.string().min(2, 'Введите время печати'),
   color: z.string().min(2, 'Введите цвет'),
   description: z.string().min(10, 'Добавьте описание'),
-  productionTimeHours: z.number().int().min(1, 'Минимум 1 час').max(720, 'Максимум 720 часов'),
   weightGrossG: z.number().int().positive('Укажите вес (г)').optional(),
   dxCm: z.number().int().positive('Укажите длину (см)').optional(),
   dyCm: z.number().int().positive('Укажите ширину (см)').optional(),
@@ -38,14 +36,12 @@ export interface SellerProductPayload {
   price: number;
   material: string;
   category: string;
-  size: string;
   technology: string;
   printTime: string;
   color: string;
   description: string;
   imageUrls: string[];
   videoUrls: string[];
-  productionTimeHours: number;
   weightGrossG?: number;
   dxCm?: number;
   dyCm?: number;
@@ -91,12 +87,10 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
         price: product.price,
         material: product.material,
         category: product.category,
-        size: product.size,
         technology: product.technology,
         printTime: product.printTime,
         color: product.color,
         description: product.description,
-        productionTimeHours: product.productionTimeHours ?? 24,
         weightGrossG: product.weightGrossG ?? undefined,
         dxCm: product.dxCm ?? undefined,
         dyCm: product.dyCm ?? undefined,
@@ -108,12 +102,10 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
         price: 0,
         material: '',
         category: '',
-        size: '',
         technology: '',
         printTime: '',
         color: '',
         description: '',
-        productionTimeHours: 24,
         weightGrossG: undefined,
         dxCm: undefined,
         dyCm: undefined,
@@ -228,14 +220,12 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
       price: values.price,
       material: values.material,
       category: values.category,
-      size: values.size,
       technology: values.technology,
       printTime: values.printTime,
       color: values.color,
       description: values.description,
       imageUrls,
       videoUrls,
-      productionTimeHours: values.productionTimeHours,
       weightGrossG: values.weightGrossG,
       dxCm: values.dxCm,
       dyCm: values.dyCm,
@@ -296,11 +286,6 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
             {errors.category && <span className={styles.errorText}>{errors.category.message}</span>}
           </label>
           <label>
-            Размер
-            <input className={errors.size ? styles.inputError : styles.input} placeholder="10 × 15 см" {...register('size')} />
-            {errors.size && <span className={styles.errorText}>{errors.size.message}</span>}
-          </label>
-          <label>
             Технология
             <input className={errors.technology ? styles.inputError : styles.input} placeholder="FDM" {...register('technology')} />
             {errors.technology && <span className={styles.errorText}>{errors.technology.message}</span>}
@@ -326,12 +311,6 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
             {errors.description && <span className={styles.errorText}>{errors.description.message}</span>}
           </label>
 
-          <label>
-            Время изготовления (часы)
-            <input type="number" min={1} max={720} className={errors.productionTimeHours ? styles.inputError : styles.input} {...register('productionTimeHours', { valueAsNumber: true })} />
-            <small className={styles.muted}>24 часа = 1 день</small>
-            {errors.productionTimeHours && <span className={styles.errorText}>{errors.productionTimeHours.message}</span>}
-          </label>
           <div>
             <h4>Характеристики</h4>
           </div>

@@ -7,17 +7,15 @@ interface ShopFiltersProps {
   filters: {
     category: string;
     material: string;
-    size: string;
     price: string;
   };
   options: {
     categories: string[];
     materials: string[];
-    sizes: string[];
   };
   loading: boolean;
   error: string | null;
-  onChange: (key: 'category' | 'material' | 'size' | 'price', value: string) => void;
+  onChange: (key: 'category' | 'material' | 'price', value: string) => void;
   onReset: () => void;
   onRetry: () => void;
 }
@@ -81,17 +79,6 @@ export const ShopFilters = ({
               {options.materials.map((material) => (
                 <option key={material} value={material}>
                   {material}
-                </option>
-              ))}
-            </Select>
-          </label>
-          <label className={styles.field}>
-            Размер
-            <Select value={filters.size} onChange={(event) => onChange('size', event.target.value)}>
-              <option value="">Все</option>
-              {options.sizes.map((size) => (
-                <option key={size} value={size}>
-                  {size}
                 </option>
               ))}
             </Select>

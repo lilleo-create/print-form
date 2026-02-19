@@ -81,7 +81,7 @@ export const ProductDetails = ({ product, ratingCount, reviewsCount }: ProductDe
         <span className={styles.delivery}>Изготовление: {product.productionTimeHours ?? 24} часов</span>
         {product.dxCm && product.dyCm && product.dzCm ? (
           <span className={styles.delivery}>
-            Размер: {product.dxCm}×{product.dyCm}×{product.dzCm} см{product.weightGrossG ? `, вес: ${product.weightGrossG} г` : ''}
+            Размер: {product.dxCm} × {product.dyCm} × {product.dzCm} см{product.weightGrossG ? `, вес: ${product.weightGrossG} г` : ''}
           </span>
         ) : product.weightGrossG ? (
           <span className={styles.delivery}>Вес: {product.weightGrossG} г</span>

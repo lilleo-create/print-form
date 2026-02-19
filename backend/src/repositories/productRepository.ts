@@ -13,11 +13,9 @@ export interface ProductInput {
   sku: string;
   currency: string;
   material: string;
-  size: string;
   technology: string;
   printTime: string;
   color: string;
-  productionTimeHours: number;
   weightGrossG?: number;
   dxCm?: number;
   dyCm?: number;
@@ -31,7 +29,6 @@ export const productRepository = {
     query?: string;
     category?: string;
     material?: string;
-    size?: string;
     minPrice?: number;
     maxPrice?: number;
     sort?: 'createdAt' | 'rating' | 'price';
@@ -55,7 +52,6 @@ export const productRepository = {
           : undefined,
         category: filters.category,
         material: filters.material,
-        size: filters.size,
         moderationStatus: 'APPROVED',
         price: {
           gte: filters.minPrice,

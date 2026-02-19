@@ -9,14 +9,12 @@ interface FilterModalProps {
     category: string;
     material: string;
     price: string;
-    size: string;
   };
   filterOptions: {
     categories: string[];
     materials: string[];
-    sizes: string[];
   };
-  onChange: (key: 'category' | 'material' | 'price' | 'size', value: string) => void;
+  onChange: (key: 'category' | 'material' | 'price', value: string) => void;
   onApply: () => void;
   onClose: () => void;
 }
@@ -81,17 +79,6 @@ export const FilterModal = ({
               <option value="0-2000">до 2 000 ₽</option>
               <option value="2000-5000">2 000 - 5 000 ₽</option>
               <option value="5000-10000">5 000 - 10 000 ₽</option>
-            </select>
-          </label>
-          <label className={styles.field}>
-            Размер
-            <select value={filters.size} onChange={(event) => onChange('size', event.target.value)}>
-              <option value="">Все</option>
-              {filterOptions.sizes.map((size) => (
-                <option key={size} value={size}>
-                  {size}
-                </option>
-              ))}
             </select>
           </label>
         </div>

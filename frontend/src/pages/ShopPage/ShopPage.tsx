@@ -89,8 +89,8 @@ export const ShopPage = () => {
   } = useShopPage(shopId);
 
   const hasFilters = useMemo(
-    () => Boolean(filters.category || filters.material || filters.size || filters.price || searchQuery),
-    [filters.category, filters.material, filters.price, filters.size, searchQuery]
+    () => Boolean(filters.category || filters.material || filters.price || searchQuery),
+    [filters.category, filters.material, filters.price, searchQuery]
   );
 
   return (

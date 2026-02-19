@@ -19,8 +19,7 @@ export const CatalogPage = () => {
   const [filters, setFilters] = useState({
     category: searchParams.get('category') ?? '',
     material: searchParams.get('material') ?? '',
-    price: searchParams.get('price') ?? '',
-    size: searchParams.get('size') ?? ''
+    price: searchParams.get('price') ?? ''
   });
 
   const sort = (searchParams.get('sort') as 'createdAt' | 'rating') ?? 'createdAt';
@@ -39,7 +38,6 @@ export const CatalogPage = () => {
     if (filters.category) params.set('category', filters.category);
     if (filters.material) params.set('material', filters.material);
     if (filters.price) params.set('price', filters.price);
-    if (filters.size) params.set('size', filters.size);
     if (sort) params.set('sort', sort);
     setSearchParams(params);
     setModalOpen(false);

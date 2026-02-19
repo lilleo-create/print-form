@@ -23,7 +23,6 @@ describe('Checkout flow', () => {
             image: 'https://example.com/img.png',
             description: 'desc',
             material: 'PLA',
-            size: '10x10',
             technology: 'FDM',
             printTime: '2 часа',
             color: 'Черный',

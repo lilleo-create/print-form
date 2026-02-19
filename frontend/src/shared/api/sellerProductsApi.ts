@@ -9,7 +9,6 @@ export const sellerProductsApi = {
   create: async (product: Product) => {
     const result = await api.createSellerProduct({
       ...product,
-      productionTimeHours: product.productionTimeHours ?? 24,
       weightGrossG: product.weightGrossG,
       dxCm: product.dxCm,
       dyCm: product.dyCm,
@@ -20,7 +19,7 @@ export const sellerProductsApi = {
     return result.data;
   },
   update: async (product: Product) => {
-    const result = await api.updateSellerProduct(product.id, { ...product, productionTimeHours: product.productionTimeHours ?? 24 });
+    const result = await api.updateSellerProduct(product.id, { ...product });
     return result.data;
   },
   remove: async (id: string) => {

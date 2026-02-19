@@ -14,7 +14,6 @@ vi.mock('../shared/api', () => ({
         image: 'image.jpg',
         description: 'Описание',
         material: 'PLA',
-        size: '100',
         technology: 'FDM',
         printTime: '2 часа',
         color: 'Черный',

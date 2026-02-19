@@ -58,7 +58,7 @@ useEffect(() => {
           <span>{product.category}</span>
           <span>{product.material}</span>
           <span>Изготовление: {product.productionTimeHours ?? 24} ч</span>
-          {product.dxCm && product.dyCm && product.dzCm ? <span>Размер: {product.dxCm}×{product.dyCm}×{product.dzCm} см</span> : null}
+          {product.dxCm && product.dyCm && product.dzCm ? <span>Размер: {product.dxCm} × {product.dyCm} × {product.dzCm} см</span> : null}
         </div>
 
         <h3 className={styles.title} title={product.title}>

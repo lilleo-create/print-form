@@ -25,7 +25,6 @@ const normalizeSort = (value: string | null): SortKey => {
 const parseFilters = (searchParams: URLSearchParams) => ({
   category: searchParams.get('category') ?? '',
   material: searchParams.get('material') ?? '',
-  size: searchParams.get('size') ?? '',
   price: searchParams.get('price') ?? ''
 });
 
@@ -43,7 +42,6 @@ export const useShopPage = (shopId?: string) => {
   const [filterOptions, setFilterOptions] = useState({
     categories: [] as string[],
     materials: [] as string[],
-    sizes: [] as string[]
   });
 
   const [products, setProducts] = useState<Product[]>([]);
@@ -84,7 +82,7 @@ export const useShopPage = (shopId?: string) => {
   }, [toastMessage]);
 
   const updateParams = useCallback(
-    (updates: Partial<Record<'category' | 'material' | 'size' | 'price' | 'sort' | 'q', string>>) => {
+    (updates: Partial<Record<'category' | 'material' | 'price' | 'sort' | 'q', string>>) => {
       const next = new URLSearchParams(searchParams);
       (Object.keys(updates) as Array<keyof typeof updates>).forEach((key) => {
         const value = updates[key];
@@ -114,7 +112,7 @@ export const useShopPage = (shopId?: string) => {
   }, [queryParam, searchValue, searchParams, setSearchParams]);
 
   const handleFilterChange = useCallback(
-    (key: 'category' | 'material' | 'size' | 'price', value: string) => {
+    (key: 'category' | 'material' | 'price', value: string) => {
       updateParams({ [key]: value });
     },
     [updateParams]
@@ -131,7 +129,6 @@ export const useShopPage = (shopId?: string) => {
     updateParams({
       category: '',
       material: '',
-      size: '',
       price: ''
     });
   }, [updateParams]);
@@ -213,7 +210,6 @@ export const useShopPage = (shopId?: string) => {
           shopId,
           category: filters.category || undefined,
           material: filters.material || undefined,
-          size: filters.size || undefined,
           price: filters.price || undefined,
           q: queryParam || undefined,
           sort,
@@ -238,7 +234,6 @@ export const useShopPage = (shopId?: string) => {
     filters.category,
     filters.material,
     filters.price,
-    filters.size,
     page,
     queryParam,
     shopId,
