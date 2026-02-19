@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 
 type SellerDeliveryProfilePayload = {
-  dropoffStationId?: string | null;
+  dropoffStationId?: string;
   dropoffStationMeta?: Record<string, unknown>;
   dropoffSchedule?: 'DAILY' | 'WEEKDAYS';
 };
@@ -51,9 +51,9 @@ export const sellerDeliveryProfileService = {
       where: { sellerId },
       create: {
         sellerId,
-        dropoffStationId: payload.dropoffStationId ?? null,
+        dropoffStationId: payload.dropoffStationId ?? '',
         dropoffStationMeta: toJsonInput(payload.dropoffStationMeta) ?? Prisma.JsonNull,
-        dropoffSchedule: payload.dropoffSchedule ?? 'WEEKDAYS'
+        dropoffSchedule: payload.dropoffSchedule ?? 'DAILY'
       },
       update: {
         ...(payload.dropoffStationId !== undefined ? { dropoffStationId: payload.dropoffStationId } : {}),

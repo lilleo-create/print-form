@@ -89,7 +89,7 @@ const sellerOnboardingSchema = z.object({
 const ensureSellerDeliveryProfile = async (sellerId: string) => {
   await prisma.sellerDeliveryProfile.upsert({
     where: { sellerId },
-    create: { sellerId, dropoffSchedule: DropoffSchedule.WEEKDAYS },
+    create: { sellerId, dropoffSchedule: DropoffSchedule.DAILY, dropoffStationId: "" },
     update: {}
   });
 };
@@ -649,7 +649,7 @@ sellerRoutes.get('/settings', async (req: AuthRequest, res, next) => {
         ...(settings ?? { sellerId: req.user!.userId }),
         dropoffStationId: deliveryProfile?.dropoffStationId ?? null,
         dropoffStationMeta: deliveryProfile?.dropoffStationMeta ?? null,
-        dropoffSchedule: deliveryProfile?.dropoffSchedule ?? 'WEEKDAYS',
+        dropoffSchedule: deliveryProfile?.dropoffSchedule ?? 'DAILY',
         dropoffPvz: settings?.defaultDropoffPvzId
           ? {
               provider: 'YANDEX_NDD',
