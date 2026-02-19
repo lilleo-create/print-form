@@ -2,7 +2,9 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 
 type SellerDeliveryProfilePayload = {
-  dropoffStationId?: string;
+  dropoffPvzId?: string | null;
+  dropoffOperatorStationId?: string | null;
+  dropoffPlatformStationId?: string | null;
   dropoffStationMeta?: Record<string, unknown>;
   dropoffSchedule?: 'DAILY' | 'WEEKDAYS';
 };
@@ -10,7 +12,9 @@ type SellerDeliveryProfilePayload = {
 const toDto = (profile: {
   id: string;
   sellerId: string;
-  dropoffStationId: string | null;
+  dropoffPvzId: string | null;
+  dropoffOperatorStationId: string | null;
+  dropoffPlatformStationId: string | null;
   dropoffStationMeta: unknown;
   dropoffSchedule: 'DAILY' | 'WEEKDAYS';
   createdAt: Date;
@@ -18,7 +22,9 @@ const toDto = (profile: {
 }) => ({
   id: profile.id,
   sellerId: profile.sellerId,
-  dropoffStationId: profile.dropoffStationId,
+  dropoffPvzId: profile.dropoffPvzId,
+  dropoffOperatorStationId: profile.dropoffOperatorStationId,
+  dropoffPlatformStationId: profile.dropoffPlatformStationId,
   dropoffStationMeta:
     profile.dropoffStationMeta && typeof profile.dropoffStationMeta === 'object' && !Array.isArray(profile.dropoffStationMeta)
       ? (profile.dropoffStationMeta as Record<string, unknown>)
@@ -51,12 +57,20 @@ export const sellerDeliveryProfileService = {
       where: { sellerId },
       create: {
         sellerId,
-        dropoffStationId: payload.dropoffStationId ?? '',
+        dropoffPvzId: payload.dropoffPvzId ?? null,
+        dropoffOperatorStationId: payload.dropoffOperatorStationId ?? null,
+        dropoffPlatformStationId: payload.dropoffPlatformStationId ?? null,
         dropoffStationMeta: toJsonInput(payload.dropoffStationMeta) ?? Prisma.JsonNull,
         dropoffSchedule: payload.dropoffSchedule ?? 'DAILY'
       },
       update: {
-        ...(payload.dropoffStationId !== undefined ? { dropoffStationId: payload.dropoffStationId } : {}),
+        ...(payload.dropoffPvzId !== undefined ? { dropoffPvzId: payload.dropoffPvzId } : {}),
+        ...(payload.dropoffOperatorStationId !== undefined
+          ? { dropoffOperatorStationId: payload.dropoffOperatorStationId }
+          : {}),
+        ...(payload.dropoffPlatformStationId !== undefined
+          ? { dropoffPlatformStationId: payload.dropoffPlatformStationId }
+          : {}),
         ...(payload.dropoffStationMeta !== undefined ? { dropoffStationMeta: toJsonInput(payload.dropoffStationMeta) } : {}),
         ...(payload.dropoffSchedule ? { dropoffSchedule: payload.dropoffSchedule } : {})
       }

@@ -16,7 +16,8 @@ type StartPaymentInput = {
   buyerPickupPvz: {
     provider: 'YANDEX_NDD';
     pvzId: string;
-    buyerPickupStationId?: string;
+    buyerPickupPlatformStationId?: string;
+    buyerPickupOperatorStationId?: string;
     addressFull?: string;
     raw?: unknown;
   };
@@ -43,9 +44,13 @@ const normalizeDigits = (value: unknown): string | null => {
 
 const normalizeBuyerPickupPvz = (input: StartPaymentInput['buyerPickupPvz']) => {
   const raw = asRecord(input.raw) ?? {};
-  const buyerPickupStationId =
-    normalizeDigits(input.buyerPickupStationId) ??
-    normalizeDigits(raw.buyerPickupStationId) ??
+  const buyerPickupPlatformStationId =
+    normalizeDigits(input.buyerPickupPlatformStationId) ??
+    normalizeDigits(raw.buyerPickupPlatformStationId) ??
+    null;
+  const buyerPickupOperatorStationId =
+    normalizeDigits(input.buyerPickupOperatorStationId) ??
+    normalizeDigits(raw.buyerPickupOperatorStationId) ??
     normalizeDigits(raw.operator_station_id) ??
     null;
 
@@ -53,14 +58,16 @@ const normalizeBuyerPickupPvz = (input: StartPaymentInput['buyerPickupPvz']) => 
     ...raw,
     id: input.pvzId,
     buyerPickupPointId: input.pvzId,
-    buyerPickupStationId,
+    buyerPickupPlatformStationId,
+    buyerPickupOperatorStationId,
     addressFull: input.addressFull ?? (typeof raw.addressFull === 'string' ? raw.addressFull : undefined),
     fullAddress: input.addressFull ?? (typeof raw.fullAddress === 'string' ? raw.fullAddress : undefined)
   };
 
   return {
     ...input,
-    buyerPickupStationId: buyerPickupStationId ?? undefined,
+    buyerPickupPlatformStationId: buyerPickupPlatformStationId ?? undefined,
+    buyerPickupOperatorStationId: buyerPickupOperatorStationId ?? undefined,
     raw: normalizedRaw
   };
 };
@@ -257,7 +264,8 @@ export const paymentFlowService = {
     console.info('[PAYMENT][buyer_pvz]', {
       buyerId: input.buyerId,
       buyerPickupPvzId: input.buyerPickupPvz.pvzId,
-      buyerPickupStationId: normalizedBuyerPickupPvz.buyerPickupStationId ?? null,
+      buyerPickupPlatformStationId: normalizedBuyerPickupPvz.buyerPickupPlatformStationId ?? null,
+      buyerPickupOperatorStationId: normalizedBuyerPickupPvz.buyerPickupOperatorStationId ?? null,
       addressFull: input.buyerPickupPvz.addressFull ?? null
     });
 

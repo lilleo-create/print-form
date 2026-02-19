@@ -4,7 +4,8 @@ import { requireAuth, type AuthRequest } from '../middleware/authMiddleware';
 import { writeLimiter } from '../middleware/rateLimiters';
 import { prisma } from '../lib/prisma';
 import { yandexDeliveryService } from '../services/yandexDeliveryService';
-import { resolveOperatorStationIdByPickupPointId } from '../services/yandexNdd/resolveOperatorStationIdByPickupPointId';
+import { resolvePlatformStationIdByPickupPointId } from '../services/yandexNdd/resolvePlatformStationIdByPickupPointId';
+import { looksLikeDigits, looksLikePvzId } from '../services/yandexNdd/nddIdSemantics';
 
 export const checkoutRoutes = Router();
 
@@ -27,7 +28,8 @@ const addressSchema = z.object({
 const pickupPointSchema = z.object({
   id: z.string().min(1),
   buyerPickupPointId: z.string().optional(),
-  buyerPickupStationId: z.string().regex(/^\d+$/).nullable().optional(),
+  buyerPickupPlatformStationId: z.string().regex(/^\d+$/).nullable().optional(),
+  buyerPickupOperatorStationId: z.string().regex(/^\d+$/).nullable().optional(),
   operator_station_id: z.string().regex(/^\d+$/).nullable().optional(),
   fullAddress: z.string().min(1),
   country: z.string().optional(),
@@ -224,7 +226,7 @@ const getCheckoutData = async (userId: string) => {
   const deliveryProfiles = sellerIds.length
     ? await prisma.sellerDeliveryProfile.findMany({
         where: { sellerId: { in: sellerIds } },
-        select: { sellerId: true, dropoffStationId: true, dropoffSchedule: true }
+        select: { sellerId: true, dropoffPlatformStationId: true, dropoffSchedule: true }
       })
     : [];
   const profileBySellerId = new Map(deliveryProfiles.map((profile) => [profile.sellerId, profile]));
@@ -233,11 +235,11 @@ const getCheckoutData = async (userId: string) => {
     products.map(async (item) => {
       const profile = item.sellerId ? profileBySellerId.get(item.sellerId) : null;
       const deliveryDays =
-        selectedPickupPointId && profile?.dropoffStationId
+        selectedPickupPointId && profile?.dropoffPlatformStationId
           ? await (async () => {
               try {
                 const offersResponse = await yandexDeliveryService.createOffers({
-                  station_id: profile.dropoffStationId,
+                  station_id: profile.dropoffPlatformStationId,
                   self_pickup_id: selectedPickupPointId,
                   payment_method: 'already_paid',
                   places: [
@@ -390,34 +392,58 @@ checkoutRoutes.put('/address', requireAuth, writeLimiter, async (req: AuthReques
 checkoutRoutes.put('/pickup', requireAuth, writeLimiter, async (req: AuthRequest, res, next) => {
   try {
     const payload = pickupSchema.parse(req.body);
-    let buyerPickupStationId =
-      payload.pickupPoint.buyerPickupStationId ?? payload.pickupPoint.operator_station_id ?? null;
-
-    if (!buyerPickupStationId) {
-      buyerPickupStationId = await resolveOperatorStationIdByPickupPointId(payload.pickupPoint.id);
+    const buyerPickupPvzId = payload.pickupPoint.id.trim();
+    if (!looksLikePvzId(buyerPickupPvzId)) {
+      return res.status(400).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'pickupPoint.id должен быть pvzId, а не station_id/operator_station_id.'
+        }
+      });
     }
+
+    const explicitPlatformStationId = payload.pickupPoint.buyerPickupPlatformStationId ?? null;
+    const explicitOperatorStationId = payload.pickupPoint.buyerPickupOperatorStationId ?? payload.pickupPoint.operator_station_id ?? null;
+
+    if (explicitPlatformStationId && !looksLikeDigits(explicitPlatformStationId)) {
+      return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'buyerPickupPlatformStationId должен быть station_id платформы (digits).' } });
+    }
+
+    if (explicitOperatorStationId && !looksLikeDigits(explicitOperatorStationId)) {
+      return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'buyerPickupOperatorStationId должен быть operator_station_id (digits).' } });
+    }
+
+    const resolved = await resolvePlatformStationIdByPickupPointId(buyerPickupPvzId);
+    const buyerPickupPlatformStationId = explicitPlatformStationId ?? resolved.platformStationId;
+    const buyerPickupOperatorStationId = explicitOperatorStationId ?? resolved.operatorStationId;
 
     const rawPickupPoint = {
       ...payload.pickupPoint,
-      id: payload.pickupPoint.id,
-      buyerPickupPointId: payload.pickupPoint.id,
-      buyerPickupStationId,
+      id: buyerPickupPvzId,
+      buyerPickupPvzId,
+      buyerPickupPlatformStationId,
+      buyerPickupOperatorStationId,
       addressFull: payload.pickupPoint.fullAddress
     };
 
     const pickupPointJson = {
       ...payload.pickupPoint,
-      buyerPickupPointId: payload.pickupPoint.id,
-      buyerPickupStationId,
+      buyerPickupPvzId,
+      buyerPickupPlatformStationId,
+      buyerPickupOperatorStationId,
       addressFull: payload.pickupPoint.fullAddress,
       raw: rawPickupPoint
     };
 
     console.info('[CHECKOUT][buyer_pvz_saved]', {
       buyerId: req.user!.userId,
-      buyerPickupPvzId: payload.pickupPoint.id,
-      buyerPickupStationId,
-      addressFull: payload.pickupPoint.fullAddress
+      buyerPickupPvzId,
+      buyerPickupOperatorStationId,
+      buyerPickupPlatformStationId,
+      source_fields: {
+        platform: explicitPlatformStationId ? 'payload.pickupPoint.buyerPickupPlatformStationId' : 'resolved.pickup-points/list',
+        operator: explicitOperatorStationId ? 'payload.pickupPoint.buyerPickupOperatorStationId|operator_station_id' : 'resolved.pickup-points/list'
+      }
     });
 
     await ensureCheckoutTables();
@@ -435,7 +461,7 @@ checkoutRoutes.put('/pickup', requireAuth, writeLimiter, async (req: AuthRequest
           updated_at = NOW()
       `,
       req.user!.userId,
-      payload.pickupPoint.id,
+      buyerPickupPvzId,
       payload.provider,
       JSON.stringify(pickupPointJson)
     );
