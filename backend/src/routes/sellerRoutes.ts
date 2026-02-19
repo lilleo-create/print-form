@@ -5,7 +5,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { requireAuth, requireSeller, AuthRequest } from '../middleware/authMiddleware';
-import { DropoffSchedule, OrderStatus } from '@prisma/client';
+import { OrderStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { productUseCases } from '../usecases/productUseCases';
 import { orderUseCases } from '../usecases/orderUseCases';
@@ -90,7 +90,7 @@ const sellerOnboardingSchema = z.object({
 const ensureSellerDeliveryProfile = async (sellerId: string) => {
   await prisma.sellerDeliveryProfile.upsert({
     where: { sellerId },
-    create: { sellerId, dropoffSchedule: DropoffSchedule.DAILY },
+    create: { sellerId, dropoffSchedule: 'DAILY' },
     update: {}
   });
 };
@@ -1112,22 +1112,32 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
     await sellerDeliveryProfileService.upsert(req.user!.userId, {
       dropoffPvzId: pvzId,
       dropoffOperatorStationId: operatorStationId,
-      dropoffPlatformStationId: validationResult.validatedPlatformStationId,
+      dropoffPlatformStationId: platformStationId,
       dropoffStationMeta: {
         source: 'pickup-points/list',
         pvz_id: pvzId,
-        source_platform_station: validationResult.validatedPlatformStationId,
+        source_platform_station: platformStationId,
         operator_station_id: operatorStationId,
         raw: point
       }
     });
 
-    if (!validationResult.validatedPlatformStationId) {
+    if (!platformStationId) {
       return res.status(202).json({
         data: settings,
         warning: {
           code: 'SELLER_STATION_ID_REQUIRED',
-          message: 'ПВЗ сохранён, но station_id платформы не определён или не прошёл проверку offers/info. Выберите другой ПВЗ или обратитесь в поддержку.'
+          message: 'ПВЗ сохранён, но station_id платформы не определён. Выберите другой ПВЗ или обратитесь в поддержку.'
+        }
+      });
+    }
+
+    if (validationResult.warningCode === 'SELLER_STATION_ID_REQUIRED') {
+      return res.status(202).json({
+        data: settings,
+        warning: {
+          code: 'SELLER_STATION_ID_REQUIRED',
+          message: 'ПВЗ сохранён, но проверка station_id через offers/info вернула validation_error. Сохранённый station_id будет использован при отгрузке.'
         }
       });
     }

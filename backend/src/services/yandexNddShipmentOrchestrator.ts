@@ -6,6 +6,7 @@ import { YandexNddHttpError, yandexNddClient } from './yandexNdd/YandexNddClient
 import { looksLikeDigits, looksLikePvzId, NddValidationError } from './yandexNdd/nddIdSemantics';
 import { resolvePlatformStationIdByPickupPointId } from './yandexNdd/resolvePlatformStationIdByPickupPointId';
 import { getYandexNddConfig } from '../config/yandexNdd';
+import { normalizeDigitsStation } from './yandexNdd/getOperatorStationId';
 
 const readyToShipSingleFlight = new Map<string, Promise<any>>();
 
@@ -187,8 +188,8 @@ export const yandexNddShipmentOrchestrator = {
       sellerProfileDropoffPlatformStationId: sellerDeliveryProfile?.dropoffPlatformStationId ?? null
     });
 
-    const profileStationId = sellerDeliveryProfile?.dropoffPlatformStationId?.trim() || null;
-    const fallbackStationId = getYandexNddConfig().defaultPlatformStationId?.trim() || null;
+    const profileStationId = normalizeDigitsStation(sellerDeliveryProfile?.dropoffPlatformStationId);
+    const fallbackStationId = normalizeDigitsStation(getYandexNddConfig().defaultPlatformStationId);
     const sourceStationId = profileStationId || (process.env.NODE_ENV === 'production' ? null : fallbackStationId);
     const sourceStationFrom: 'profile.dropoffPlatformStationId' | 'config.defaultPlatformStationId' | 'none' = profileStationId
       ? 'profile.dropoffPlatformStationId'
@@ -219,9 +220,13 @@ export const yandexNddShipmentOrchestrator = {
         sellerId,
         orderId,
         dropoffPvzId: sellerDeliveryProfile?.dropoffPvzId ?? null,
+        rawSellerDropoffPlatformStationId: sellerDeliveryProfile?.dropoffPlatformStationId ?? null,
         nodeEnv: process.env.NODE_ENV
       });
-      throw new Error('SELLER_STATION_ID_REQUIRED');
+      throw new NddValidationError(
+        'SELLER_STATION_ID_REQUIRED',
+        'Продавец не настроил точку сдачи (station_id платформы). Выберите пункт сдачи в настройках.'
+      );
     }
 
     const buyerPickupPointId = String(order.buyerPickupPvzId ?? '').trim();
@@ -265,6 +270,10 @@ export const yandexNddShipmentOrchestrator = {
 
     const selfPickupId = buyerPickupPointId;
 
+    if (selfPickupId === sourceStationId) {
+      throw new NddValidationError('VALIDATION_ERROR', 'self_pickup_id не должен совпадать со station_id.');
+    }
+
     console.info('[READY_TO_SHIP] buyer self pickup id resolved', {
       orderId,
       buyerPickupPointId,
@@ -275,7 +284,7 @@ export const yandexNddShipmentOrchestrator = {
     });
 
     if (!looksLikeDigits(sourceStationId)) {
-      throw new NddValidationError('VALIDATION_ERROR', 'station_id должен быть platform station id (digits).');
+      throw new NddValidationError('SELLER_STATION_ID_REQUIRED', 'Продавец не настроил точку сдачи (station_id платформы). Выберите пункт сдачи в настройках.');
     }
 
     if (!looksLikePvzId(selfPickupId)) {
