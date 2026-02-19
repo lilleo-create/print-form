@@ -8,20 +8,6 @@ import { useModalFocus } from '../../shared/lib/useModalFocus';
 import { api } from '../../shared/api';
 import styles from './SellerProductModal.module.css';
 
-const today = new Date();
-today.setHours(0, 0, 0, 0);
-
-const isDeliveryDateValid = (value?: string) => {
-  if (!value) return true;
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return false;
-  const candidate = new Date(parsed);
-  candidate.setHours(0, 0, 0, 0);
-  if (candidate < today) return false;
-  if (candidate.getFullYear() > today.getFullYear()) return false;
-  return true;
-};
-
 const productSchema = z.object({
   title: z.string().min(2, 'Введите название'),
   price: z.preprocess(
@@ -37,16 +23,11 @@ const productSchema = z.object({
   printTime: z.string().min(2, 'Введите время печати'),
   color: z.string().min(2, 'Введите цвет'),
   description: z.string().min(10, 'Добавьте описание'),
-  deliveryDateEstimated: z
-    .string()
-    .optional()
-    .refine((value) => isDeliveryDateValid(value), {
-      message: 'Дата должна быть не раньше сегодня и не позже конца года'
-    }),
-  weightGrossG: z.number().int().positive('Укажите вес (г)'),
-  dxCm: z.number().int().positive('Укажите длину (см)'),
-  dyCm: z.number().int().positive('Укажите ширину (см)'),
-  dzCm: z.number().int().positive('Укажите высоту (см)'),
+  productionTimeHours: z.number().int().min(1, 'Минимум 1 час').max(720, 'Максимум 720 часов'),
+  weightGrossG: z.number().int().positive('Укажите вес (г)').optional(),
+  dxCm: z.number().int().positive('Укажите длину (см)').optional(),
+  dyCm: z.number().int().positive('Укажите ширину (см)').optional(),
+  dzCm: z.number().int().positive('Укажите высоту (см)').optional(),
 });
 
 type ProductFormValues = z.infer<typeof productSchema>;
@@ -64,11 +45,11 @@ export interface SellerProductPayload {
   description: string;
   imageUrls: string[];
   videoUrls: string[];
-  deliveryDateEstimated?: string;
-  weightGrossG: number;
-  dxCm: number;
-  dyCm: number;
-  dzCm: number;
+  productionTimeHours: number;
+  weightGrossG?: number;
+  dxCm?: number;
+  dyCm?: number;
+  dzCm?: number;
 }
 
 interface SellerProductModalProps {
@@ -91,6 +72,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors }
   } = useForm<ProductFormValues>({ resolver: zodResolver(productSchema) });
 
@@ -114,11 +96,11 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
         printTime: product.printTime,
         color: product.color,
         description: product.description,
-        deliveryDateEstimated: product.deliveryDateEstimated?.slice(0, 10) ?? '',
-        weightGrossG: product.weightGrossG ?? 0,
-        dxCm: product.dxCm ?? 0,
-        dyCm: product.dyCm ?? 0,
-        dzCm: product.dzCm ?? 0,
+        productionTimeHours: product.productionTimeHours ?? 24,
+        weightGrossG: product.weightGrossG ?? undefined,
+        dxCm: product.dxCm ?? undefined,
+        dyCm: product.dyCm ?? undefined,
+        dzCm: product.dzCm ?? undefined,
       });
     } else {
       reset({
@@ -131,11 +113,11 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
         printTime: '',
         color: '',
         description: '',
-        deliveryDateEstimated: '',
-        weightGrossG: 0,
-        dxCm: 0,
-        dyCm: 0,
-        dzCm: 0,
+        productionTimeHours: 24,
+        weightGrossG: undefined,
+        dxCm: undefined,
+        dyCm: undefined,
+        dzCm: undefined,
       });
     }
   }, [product, reset]);
@@ -253,7 +235,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
       description: values.description,
       imageUrls,
       videoUrls,
-      deliveryDateEstimated: values.deliveryDateEstimated ? new Date(values.deliveryDateEstimated).toISOString() : undefined,
+      productionTimeHours: values.productionTimeHours,
       weightGrossG: values.weightGrossG,
       dxCm: values.dxCm,
       dyCm: values.dyCm,
@@ -343,24 +325,34 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
             />
             {errors.description && <span className={styles.errorText}>{errors.description.message}</span>}
           </label>
+
+          <label>
+            Время изготовления (часы)
+            <input type="number" min={1} max={720} className={errors.productionTimeHours ? styles.inputError : styles.input} {...register('productionTimeHours', { valueAsNumber: true })} />
+            <small className={styles.muted}>24 часа = 1 день</small>
+            {errors.productionTimeHours && <span className={styles.errorText}>{errors.productionTimeHours.message}</span>}
+          </label>
+          <div>
+            <h4>Характеристики</h4>
+          </div>
           <label>
             Вес брутто (г)
-            <input type="number" min={1} className={errors.weightGrossG ? styles.inputError : styles.input} {...register('weightGrossG', { valueAsNumber: true })} />
+            <input type="number" min={1} className={errors.weightGrossG ? styles.inputError : styles.input} {...register('weightGrossG', { setValueAs: (value) => (value === '' ? undefined : Number(value)) })} />
             {errors.weightGrossG && <span className={styles.errorText}>{errors.weightGrossG.message}</span>}
           </label>
           <label>
             Длина (см)
-            <input type="number" min={1} className={errors.dxCm ? styles.inputError : styles.input} {...register('dxCm', { valueAsNumber: true })} />
+            <input type="number" min={1} className={errors.dxCm ? styles.inputError : styles.input} {...register('dxCm', { setValueAs: (value) => (value === '' ? undefined : Number(value)) })} />
             {errors.dxCm && <span className={styles.errorText}>{errors.dxCm.message}</span>}
           </label>
           <label>
             Ширина (см)
-            <input type="number" min={1} className={errors.dyCm ? styles.inputError : styles.input} {...register('dyCm', { valueAsNumber: true })} />
+            <input type="number" min={1} className={errors.dyCm ? styles.inputError : styles.input} {...register('dyCm', { setValueAs: (value) => (value === '' ? undefined : Number(value)) })} />
             {errors.dyCm && <span className={styles.errorText}>{errors.dyCm.message}</span>}
           </label>
           <label>
             Высота (см)
-            <input type="number" min={1} className={errors.dzCm ? styles.inputError : styles.input} {...register('dzCm', { valueAsNumber: true })} />
+            <input type="number" min={1} className={errors.dzCm ? styles.inputError : styles.input} {...register('dzCm', { setValueAs: (value) => (value === '' ? undefined : Number(value)) })} />
             {errors.dzCm && <span className={styles.errorText}>{errors.dzCm.message}</span>}
           </label>
           <label>
@@ -439,19 +431,15 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
             )}
             {uploadError && <span className={styles.errorText}>{uploadError}</span>}
           </label>
-          <label>
-            Ближайшая дата доставки
-            <input
-              type="date"
-              className={errors.deliveryDateEstimated ? styles.inputError : styles.input}
-              min={today.toISOString().slice(0, 10)}
-              max={`${today.getFullYear()}-12-31`}
-              {...register('deliveryDateEstimated')}
-            />
-            {errors.deliveryDateEstimated && (
-              <span className={styles.errorText}>{errors.deliveryDateEstimated.message}</span>
-            )}
-          </label>
+
+          {(() => {
+            const dx = watch('dxCm');
+            const dy = watch('dyCm');
+            const dz = watch('dzCm');
+            const weight = watch('weightGrossG');
+            if (!dx || !dy || !dz) return null;
+            return <p className={styles.muted}>Размер: {dx}×{dy}×{dz} см{weight ? `, вес: ${weight} г` : ''}</p>;
+          })()}
           <div className={styles.actions}>
             <Button type="submit" disabled={isUploading}>
               {isUploading ? 'Загрузка…' : 'Сохранить'}

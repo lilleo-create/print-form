@@ -61,8 +61,7 @@ productRoutes.get('/:id', publicReadLimiter, async (req, res, next) => {
     if (!product) {
       return res.status(404).json({ error: { code: 'NOT_FOUND' } });
     }
-    const deliveryDateNearest = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
-    return res.json({ data: { ...product, deliveryDateNearest } });
+    return res.json({ data: product });
   } catch (error) {
     return next(error);
   }
@@ -87,12 +86,12 @@ export const sellerProductSchema = z.object({
   size: z.string().min(2),
   technology: z.string().min(2),
   printTime: z.string().min(2),
+  productionTimeHours: z.number().int().min(1).max(720),
   color: z.string().min(2),
-  deliveryDateEstimated: z.string().datetime().optional(),
-  weightGrossG: z.number().int().positive(),
-  dxCm: z.number().int().positive(),
-  dyCm: z.number().int().positive(),
-  dzCm: z.number().int().positive(),
+  weightGrossG: z.number().int().positive().optional(),
+  dxCm: z.number().int().positive().optional(),
+  dyCm: z.number().int().positive().optional(),
+  dzCm: z.number().int().positive().optional(),
 });
 
 const reviewSchema = z.object({

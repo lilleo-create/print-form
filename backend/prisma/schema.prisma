@@ -7,6 +7,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum DropoffSchedule {
+  DAILY
+  WEEKDAYS
+}
+
 model User {
   id                     String                 @id @default(cuid())
   email                  String                 @unique
@@ -80,6 +85,7 @@ model Product {
   size                  String
   technology            String
   printTime             String
+  productionTimeHours   Int
   color                 String
   deliveryDateEstimated DateTime?
   weightGrossG          Int?
@@ -257,6 +263,7 @@ model SellerDeliveryProfile {
   sellerId           String   @unique
   dropoffStationId   String?
   dropoffStationMeta Json?
+  dropoffSchedule    DropoffSchedule @default(WEEKDAYS)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
   seller             User     @relation(fields: [sellerId], references: [id])

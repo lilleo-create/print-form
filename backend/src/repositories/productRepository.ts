@@ -17,7 +17,7 @@ export interface ProductInput {
   technology: string;
   printTime: string;
   color: string;
-  deliveryDateEstimated?: Date | string | null;
+  productionTimeHours: number;
   weightGrossG?: number;
   dxCm?: number;
   dyCm?: number;

@@ -2,8 +2,9 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 
 type SellerDeliveryProfilePayload = {
-  dropoffStationId: string | null;
+  dropoffStationId?: string | null;
   dropoffStationMeta?: Record<string, unknown>;
+  dropoffSchedule?: 'DAILY' | 'WEEKDAYS';
 };
 
 const toDto = (profile: {
@@ -11,6 +12,7 @@ const toDto = (profile: {
   sellerId: string;
   dropoffStationId: string | null;
   dropoffStationMeta: unknown;
+  dropoffSchedule: 'DAILY' | 'WEEKDAYS';
   createdAt: Date;
   updatedAt: Date;
 }) => ({
@@ -21,11 +23,16 @@ const toDto = (profile: {
     profile.dropoffStationMeta && typeof profile.dropoffStationMeta === 'object' && !Array.isArray(profile.dropoffStationMeta)
       ? (profile.dropoffStationMeta as Record<string, unknown>)
       : null,
+  dropoffSchedule: profile.dropoffSchedule,
   createdAt: profile.createdAt,
   updatedAt: profile.updatedAt
 });
 
-const toJsonInput = (value?: Record<string, unknown>): Prisma.InputJsonValue | typeof Prisma.JsonNull => {
+const toJsonInput = (value?: Record<string, unknown>): Prisma.InputJsonValue | typeof Prisma.JsonNull | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+
   if (!value) {
     return Prisma.JsonNull;
   }
@@ -44,12 +51,14 @@ export const sellerDeliveryProfileService = {
       where: { sellerId },
       create: {
         sellerId,
-        dropoffStationId: payload.dropoffStationId,
-        dropoffStationMeta: toJsonInput(payload.dropoffStationMeta)
+        dropoffStationId: payload.dropoffStationId ?? null,
+        dropoffStationMeta: toJsonInput(payload.dropoffStationMeta) ?? Prisma.JsonNull,
+        dropoffSchedule: payload.dropoffSchedule ?? 'WEEKDAYS'
       },
       update: {
-        dropoffStationId: payload.dropoffStationId,
-        dropoffStationMeta: toJsonInput(payload.dropoffStationMeta)
+        ...(payload.dropoffStationId !== undefined ? { dropoffStationId: payload.dropoffStationId } : {}),
+        ...(payload.dropoffStationMeta !== undefined ? { dropoffStationMeta: toJsonInput(payload.dropoffStationMeta) } : {}),
+        ...(payload.dropoffSchedule ? { dropoffSchedule: payload.dropoffSchedule } : {})
       }
     });
 

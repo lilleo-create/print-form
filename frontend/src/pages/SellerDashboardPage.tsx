@@ -122,6 +122,7 @@ export const SellerDashboardPage = () => {
   const [dropoffStationAddress, setDropoffStationAddress] = useState('');
   const [dropoffPvzAddress, setDropoffPvzAddress] = useState('');
   const [dropoffPvzRaw, setDropoffPvzRaw] = useState<Record<string, unknown> | null>(null);
+  const [dropoffSchedule, setDropoffSchedule] = useState<'DAILY' | 'WEEKDAYS'>('WEEKDAYS');
   const [isDropoffModalOpen, setDropoffModalOpen] = useState(false);
 
   const [deliverySettingsMessage, setDeliverySettingsMessage] = useState<
@@ -233,6 +234,7 @@ export const SellerDashboardPage = () => {
           ''
       );
       setDropoffPvzAddress(dropoffPvz?.addressFull ?? dropoffMeta?.addressFull ?? '');
+      setDropoffSchedule(profileResponse.data?.dropoffSchedule === 'DAILY' ? 'DAILY' : 'WEEKDAYS');
       const persistedRaw =
         dropoffPvz?.raw ??
         (dropoffMeta && typeof dropoffMeta === 'object'
@@ -522,6 +524,20 @@ export const SellerDashboardPage = () => {
     }
   };
 
+
+  const handleSaveDropoffSchedule = async () => {
+    setDeliverySettingsMessage(null);
+    setDeliverySettingsError(null);
+
+    try {
+      await api.updateSellerDeliveryProfile({ dropoffSchedule });
+      setDeliverySettingsMessage('График сдачи сохранён.');
+    } catch (error) {
+      const normalized = normalizeApiError(error);
+      setDeliverySettingsError(normalized.message ?? 'Не удалось сохранить график сдачи.');
+    }
+  };
+
   const handleSaveDeliveryProfile = async () => {
     setDeliverySettingsMessage(null);
     setDeliverySettingsError(null);
@@ -534,7 +550,7 @@ export const SellerDashboardPage = () => {
     }
 
     try {
-      await api.updateSellerDeliveryProfile({
+      await api.updateSellerDropoffPvz({
         dropoffPvz: {
           provider: 'YANDEX_NDD',
           pvzId: stationId,
@@ -567,7 +583,7 @@ export const SellerDashboardPage = () => {
     setDeliverySettingsError(null);
 
     try {
-      await api.updateSellerDeliveryProfile({
+      await api.updateSellerDropoffPvz({
         dropoffPvz: {
           provider: 'YANDEX_NDD',
           pvzId: selection.id,
@@ -1526,6 +1542,26 @@ export const SellerDashboardPage = () => {
                     Редактирование профиля доступно через форму подключения
                     продавца.
                   </p>
+
+
+                  <div className={styles.settingsGrid}>
+                    <label>
+                      <span className={styles.muted}>Сдаю заказы</span>
+                      <select
+                        className={styles.input}
+                        value={dropoffSchedule}
+                        onChange={(event) => setDropoffSchedule(event.target.value as 'DAILY' | 'WEEKDAYS')}
+                      >
+                        <option value="DAILY">Ежедневно</option>
+                        <option value="WEEKDAYS">По будням</option>
+                      </select>
+                    </label>
+                    <div>
+                      <Button type="button" variant="secondary" onClick={() => void handleSaveDropoffSchedule()}>
+                        Сохранить график сдачи
+                      </Button>
+                    </div>
+                  </div>
 
                   <div className={styles.settingsGrid}>
                     <div>

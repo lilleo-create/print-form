@@ -48,13 +48,19 @@ export const ProductModal = () => {
                 <strong>{product.technology}</strong>
               </li>
               <li>
-                <span>Время печати</span>
-                <strong>{product.printTime}</strong>
+                <span>Изготовление</span>
+                <strong>{product.productionTimeHours ?? 24} часов</strong>
               </li>
               <li>
                 <span>Цвет</span>
                 <strong>{product.color}</strong>
               </li>
+              {product.dxCm && product.dyCm && product.dzCm ? (
+                <li>
+                  <span>Габариты</span>
+                  <strong>{product.dxCm}×{product.dyCm}×{product.dzCm} см{product.weightGrossG ? `, ${product.weightGrossG} г` : ''}</strong>
+                </li>
+              ) : null}
             </ul>
             <div className={styles.actions}>
               <label className={styles.quantity}>

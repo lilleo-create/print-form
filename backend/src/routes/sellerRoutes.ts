@@ -5,7 +5,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { requireAuth, requireSeller, AuthRequest } from '../middleware/authMiddleware';
-import { OrderStatus } from '@prisma/client';
+import { DropoffSchedule, OrderStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { productUseCases } from '../usecases/productUseCases';
 import { orderUseCases } from '../usecases/orderUseCases';
@@ -89,7 +89,7 @@ const sellerOnboardingSchema = z.object({
 const ensureSellerDeliveryProfile = async (sellerId: string) => {
   await prisma.sellerDeliveryProfile.upsert({
     where: { sellerId },
-    create: { sellerId },
+    create: { sellerId, dropoffSchedule: DropoffSchedule.WEEKDAYS },
     update: {}
   });
 };
@@ -269,23 +269,6 @@ const ensureReferenceCategory = async (category: string) => {
   return ref.title;
 };
 
-const validateDeliveryDate = (value?: string) => {
-  if (!value) return;
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    throw new Error('DELIVERY_DATE_INVALID');
-  }
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const candidate = new Date(parsed);
-  candidate.setHours(0, 0, 0, 0);
-  if (candidate < today) {
-    throw new Error('DELIVERY_DATE_TOO_EARLY');
-  }
-  if (candidate.getFullYear() > today.getFullYear()) {
-    throw new Error('DELIVERY_DATE_YEAR_INVALID');
-  }
-};
 
 sellerRoutes.get('/kyc/me', async (req: AuthRequest, res, next) => {
   try {
@@ -409,7 +392,6 @@ sellerRoutes.post('/products', writeLimiter, async (req: AuthRequest, res, next)
     }
     const payload = sellerProductSchema.parse(req.body);
     const normalizedCategory = await ensureReferenceCategory(payload.category);
-    validateDeliveryDate(payload.deliveryDateEstimated);
     const skuFallback = payload.sku ?? `SKU-${Date.now()}`;
     if (!payload.imageUrls?.length && !payload.image) {
       return res.status(400).json({ error: { code: 'IMAGE_REQUIRED' } });
@@ -428,15 +410,11 @@ sellerRoutes.post('/products', writeLimiter, async (req: AuthRequest, res, next)
       image: imageUrls[0],
       imageUrls,
       videoUrls,
-      deliveryDateEstimated: payload.deliveryDateEstimated ? new Date(payload.deliveryDateEstimated) : undefined,
     });
     res.status(201).json({ data: product });
   } catch (error) {
     if (error instanceof Error && error.message === 'CATEGORY_INVALID') {
       return res.status(400).json({ error: { code: 'CATEGORY_INVALID', message: 'Категория недоступна.' } });
-    }
-    if (error instanceof Error && error.message.startsWith('DELIVERY_DATE_')) {
-      return res.status(400).json({ error: { code: error.message, message: 'Некорректная дата доставки.' } });
     }
     next(error);
   }
@@ -450,9 +428,6 @@ sellerRoutes.put('/products/:id', writeLimiter, async (req: AuthRequest, res, ne
     }
     const payload = sellerProductSchema.partial().parse(req.body);
     const normalizedCategory = payload.category ? await ensureReferenceCategory(payload.category) : undefined;
-    if (payload.deliveryDateEstimated) {
-      validateDeliveryDate(payload.deliveryDateEstimated);
-    }
     const imageUrls = payload.imageUrls ?? (payload.image ? [payload.image] : undefined);
     const videoUrls = payload.videoUrls;
     const product = await productUseCases.update(req.params.id, {
@@ -466,15 +441,11 @@ sellerRoutes.put('/products/:id', writeLimiter, async (req: AuthRequest, res, ne
       image: imageUrls?.[0] ?? payload.image,
       imageUrls,
       videoUrls,
-      deliveryDateEstimated: payload.deliveryDateEstimated ? new Date(payload.deliveryDateEstimated) : undefined,
     });
     res.json({ data: product });
   } catch (error) {
     if (error instanceof Error && error.message === 'CATEGORY_INVALID') {
       return res.status(400).json({ error: { code: 'CATEGORY_INVALID', message: 'Категория недоступна.' } });
-    }
-    if (error instanceof Error && error.message.startsWith('DELIVERY_DATE_')) {
-      return res.status(400).json({ error: { code: error.message, message: 'Некорректная дата доставки.' } });
     }
     next(error);
   }
@@ -532,6 +503,10 @@ const sellerOrderStatusSchema = z.object({
 
 const sourcePlatformStationSchema = z.object({
   source_platform_station: z.string().min(1).trim()
+});
+
+const sellerSettingsSchema = z.object({
+  dropoffSchedule: z.enum(['DAILY', 'WEEKDAYS'])
 });
 
 const sellerDeliveryProfileSchema = z.object({
@@ -674,6 +649,7 @@ sellerRoutes.get('/settings', async (req: AuthRequest, res, next) => {
         ...(settings ?? { sellerId: req.user!.userId }),
         dropoffStationId: deliveryProfile?.dropoffStationId ?? null,
         dropoffStationMeta: deliveryProfile?.dropoffStationMeta ?? null,
+        dropoffSchedule: deliveryProfile?.dropoffSchedule ?? 'WEEKDAYS',
         dropoffPvz: settings?.defaultDropoffPvzId
           ? {
               provider: 'YANDEX_NDD',
@@ -895,6 +871,19 @@ sellerRoutes.post('/ndd/dropoff-stations/search', async (req: AuthRequest, res, 
     }
 
     return next(error);
+  }
+});
+
+sellerRoutes.put('/settings', writeLimiter, async (req: AuthRequest, res, next) => {
+  try {
+    const payload = sellerSettingsSchema.parse(req.body ?? {});
+    const profile = await sellerDeliveryProfileService.upsert(req.user!.userId, {
+      dropoffSchedule: payload.dropoffSchedule
+    });
+
+    res.json({ data: profile });
+  } catch (error) {
+    next(error);
   }
 });
 

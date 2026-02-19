@@ -192,3 +192,5 @@ textarea.inputError {
   gap: 12px;
   flex-wrap: wrap;
 }
+
+.muted { color: var(--text-secondary); font-size: 12px; }
