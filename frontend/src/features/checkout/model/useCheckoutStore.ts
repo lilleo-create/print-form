@@ -189,11 +189,27 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         return null;
       }
 
+      const selectedPointRaw =
+        data.selectedPickupPoint?.raw && typeof data.selectedPickupPoint.raw === 'object'
+          ? (data.selectedPickupPoint.raw as Record<string, unknown>)
+          : {};
+      const buyerPickupStationId =
+        data.selectedPickupPoint?.buyerPickupStationId ??
+        (typeof selectedPointRaw.buyerPickupStationId === 'string' ? selectedPointRaw.buyerPickupStationId : undefined) ??
+        (typeof selectedPointRaw.operator_station_id === 'string' ? selectedPointRaw.operator_station_id : undefined);
+
       const buyerPickupPvz = {
         provider: 'YANDEX_NDD' as const,
         pvzId,
+        buyerPickupStationId,
         addressFull: data.selectedPickupPoint?.addressFull,
-        raw: data.selectedPickupPoint?.raw
+        raw: {
+          ...selectedPointRaw,
+          id: pvzId,
+          buyerPickupPointId: pvzId,
+          buyerPickupStationId,
+          addressFull: data.selectedPickupPoint?.addressFull
+        }
       };
 
       if (import.meta.env.DEV) {

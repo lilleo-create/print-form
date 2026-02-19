@@ -8,6 +8,7 @@ const isDev = import.meta.env.DEV;
 
 export type YaPvzSelection = {
   pvzId: string;
+  buyerPickupStationId?: string;
   addressFull?: string;
   raw?: unknown;
 };
@@ -322,12 +323,26 @@ export function YaPvzPickerModal({
 
       selectedOnceRef.current = true;
 
+      const point =
+        detail?.point && typeof detail.point === 'object'
+          ? (detail.point as Record<string, unknown>)
+          : detail;
+      const buyerPickupStationId =
+        typeof point?.operator_station_id === 'string'
+          ? point.operator_station_id
+          : typeof detail?.operator_station_id === 'string'
+            ? detail.operator_station_id
+            : undefined;
+
       onSelect({
         pvzId: String(id),
         addressFull:
+          (point?.address as any)?.full_address ??
+          (point?.address as any)?.fullAddress ??
           (detail?.address as any)?.full_address ??
           (detail?.address as any)?.fullAddress,
-        raw: detail
+        raw: point,
+        ...(buyerPickupStationId ? { buyerPickupStationId } : {})
       });
 
       onClose();

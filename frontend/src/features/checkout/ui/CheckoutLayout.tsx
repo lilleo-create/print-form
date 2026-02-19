@@ -175,11 +175,22 @@ export const CheckoutLayout = () => {
             });
           }
 
+          const raw = sel.raw && typeof sel.raw === 'object' ? (sel.raw as Record<string, unknown>) : null;
+          const point = raw?.point && typeof raw.point === 'object' ? (raw.point as Record<string, unknown>) : raw;
+          const buyerPickupStationId =
+            sel.buyerPickupStationId ??
+            (typeof point?.operator_station_id === 'string'
+              ? point.operator_station_id
+              : typeof raw?.operator_station_id === 'string'
+                ? raw.operator_station_id
+                : undefined);
+
           void setPickupPoint({
             provider: 'YANDEX_NDD',
             pvzId: sel.pvzId,
+            buyerPickupStationId,
             addressFull: sel.addressFull ?? '',
-            raw: sel.raw
+            raw: point ?? raw ?? sel.raw
           });
           setPvzOpen(false);
         }}

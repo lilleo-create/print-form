@@ -1,8 +1,10 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { orderDeliveryService } from './orderDeliveryService';
 import { mapYandexStatusToInternal, shipmentService } from './shipmentService';
 import { YandexNddHttpError, yandexNddClient } from './yandexNdd/YandexNddClient';
 import { getOperatorStationId, normalizeDigitsStation } from './yandexNdd/getOperatorStationId';
+import { resolveOperatorStationIdByPickupPointId } from './yandexNdd/resolveOperatorStationIdByPickupPointId';
 
 const readyToShipSingleFlight = new Map<string, Promise<any>>();
 
@@ -36,8 +38,6 @@ const extractBuyerPickupStationIdRaw = (meta: unknown): string | null => {
   const direct = asRecord(meta);
   const raw = asRecord(direct?.raw);
   return (
-    getTrimmedString(direct?.buyerPickupStationId) ??
-    getTrimmedString(direct?.operator_station_id) ??
     getTrimmedString(raw?.buyerPickupStationId) ??
     getTrimmedString(raw?.operator_station_id) ??
     null
@@ -217,9 +217,46 @@ export const yandexNddShipmentOrchestrator = {
     }
 
     const buyerPickupPointId = String(order.buyerPickupPvzId ?? '').trim();
-    const buyerPickupStationIdRaw = extractBuyerPickupStationIdRaw(order.buyerPickupPvzMeta);
+    let buyerPickupMeta = asRecord(order.buyerPickupPvzMeta) ?? {};
+    let buyerPickupStationIdRaw = extractBuyerPickupStationIdRaw(buyerPickupMeta);
+
+    if (!buyerPickupStationIdRaw && ['PAID', 'READY_TO_SHIP'].includes(order.status)) {
+      const backfilledStationId = await resolveOperatorStationIdByPickupPointId(buyerPickupPointId);
+      if (backfilledStationId) {
+        const rawMeta = asRecord(buyerPickupMeta.raw) ?? {};
+        const nextRawMeta = {
+          ...rawMeta,
+          id: buyerPickupPointId,
+          buyerPickupPointId,
+          buyerPickupStationId: backfilledStationId
+        };
+        buyerPickupMeta = {
+          ...buyerPickupMeta,
+          buyerPickupStationId: backfilledStationId,
+          raw: nextRawMeta
+        };
+        await prisma.order.update({
+          where: { id: order.id },
+          data: {
+            buyerPickupPvzMeta: buyerPickupMeta as Prisma.InputJsonValue
+          }
+        });
+        buyerPickupStationIdRaw = backfilledStationId;
+        console.info('[READY_TO_SHIP] BUYER_STATION_ID_BACKFILLED', {
+          orderId: order.id,
+          buyerPickupPvzId: buyerPickupPointId,
+          buyerPickupStationId: backfilledStationId
+        });
+      }
+    }
+
     if (!buyerPickupStationIdRaw) {
-      throw new Error('BUYER_STATION_ID_REQUIRED');
+      const error = new Error('BUYER_STATION_ID_REQUIRED');
+      (error as Error & { details?: Record<string, string> }).details = {
+        orderId: order.id,
+        buyerPickupPvzId: buyerPickupPointId
+      };
+      throw error;
     }
     const selfPickupId = buyerPickupStationIdRaw;
 
@@ -250,7 +287,14 @@ export const yandexNddShipmentOrchestrator = {
       });
     }
 
-    console.info('[NDD] using ids', { station_id: sourceStationId, self_pickup_id: selfPickupId });
+    console.info('[NDD] using ids', {
+      station_id: sourceStationId,
+      self_pickup_id: selfPickupId,
+      source_fields: {
+        seller: sourceStationFrom,
+        buyer: 'buyerPickupPvzMeta.raw.buyerPickupStationId'
+      }
+    });
 
     let offersInfo: Record<string, unknown>;
     try {
