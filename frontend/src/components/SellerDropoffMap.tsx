@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import type { SellerDropoffStation } from '../shared/api/api';
 import { getYmaps, type YmapsReactUi } from '../shared/lib/ymaps3';
 
 type Props = {
   points: SellerDropoffStation[];
   selectedId: string | null;
+  preferredCenter?: [number, number] | null;
   onSelect: (id: string) => void;
 };
 
@@ -15,7 +16,31 @@ function toCoord(point: SellerDropoffStation) {
   return [lon, lat] as [number, number];
 }
 
-export function SellerDropoffMap({ points, selectedId, onSelect }: Props) {
+const averageCenter = (coords: [number, number][]): [number, number] | null => {
+  if (!coords.length) return null;
+  const [lonSum, latSum] = coords.reduce<[number, number]>((acc, item) => [acc[0] + item[0], acc[1] + item[1]], [0, 0]);
+  return [lonSum / coords.length, latSum / coords.length];
+};
+
+class MapErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return <div>Ошибка карты. Список пунктов продолжает работать.</div>;
+    }
+    return this.props.children;
+  }
+}
+
+function SellerDropoffMapInner({ points, selectedId, onSelect, preferredCenter }: Props) {
   const [ui, setUi] = useState<YmapsReactUi | null>(null);
   const [errorText, setErrorText] = useState<string | null>(null);
 
@@ -31,7 +56,7 @@ export function SellerDropoffMap({ points, selectedId, onSelect }: Props) {
         if (!alive) return;
         const msg = String((e as { message?: string })?.message || e);
         if (msg.includes('YMAPS_KEY_MISSING')) {
-          setErrorText('Нет VITE_YMAPS_API_KEY. Добавь его в .env фронта и перезапусти Vite.');
+          setErrorText('Нет VITE_YMAPS_API_KEY. Добавьте его в frontend .env и перезапустите Vite.');
           return;
         }
         setErrorText(`Карта не загрузилась: ${msg}`);
@@ -50,8 +75,8 @@ export function SellerDropoffMap({ points, selectedId, onSelect }: Props) {
   const center = useMemo(() => {
     const selected = points.find((point) => point.id === selectedId);
     const selectedCoord = selected ? toCoord(selected) : null;
-    return selectedCoord ?? coords[0] ?? [37.6173, 55.7558];
-  }, [points, selectedId, coords]);
+    return selectedCoord ?? preferredCenter ?? averageCenter(coords) ?? [37.6173, 55.7558];
+  }, [points, selectedId, coords, preferredCenter]);
 
   if (errorText) return <div>{errorText}</div>;
   if (!ui) return <div>Загрузка карты…</div>;
@@ -66,7 +91,7 @@ export function SellerDropoffMap({ points, selectedId, onSelect }: Props) {
 
   return (
     <YMap
-      location={reactify.useDefault({ center, zoom: 11 }, [center[0], center[1]])}
+      location={reactify.useDefault({ center, zoom: preferredCenter ? 12 : 11 }, [center[0], center[1], preferredCenter ? 12 : 11])}
       style={{ width: '100%', height: '100%' }}
       mode="vector"
     >
@@ -98,5 +123,13 @@ export function SellerDropoffMap({ points, selectedId, onSelect }: Props) {
         );
       })}
     </YMap>
+  );
+}
+
+export function SellerDropoffMap(props: Props) {
+  return (
+    <MapErrorBoundary>
+      <SellerDropoffMapInner {...props} />
+    </MapErrorBoundary>
   );
 }

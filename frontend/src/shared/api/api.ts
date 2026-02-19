@@ -29,6 +29,7 @@ export type SellerDropoffStation = {
   geoId?: number | null;
   position: { latitude?: number; longitude?: number } | null;
   maxWeightGross?: number | null;
+  distanceMeters?: number | null;
 };
 
 export interface ApiError {
@@ -70,7 +71,8 @@ const normalizeSellerDropoffStation = (point: Record<string, unknown>): SellerDr
               : undefined
         }
       : null,
-  maxWeightGross: typeof point.maxWeightGross === 'number' ? point.maxWeightGross : null
+  maxWeightGross: typeof point.maxWeightGross === 'number' ? point.maxWeightGross : null,
+  distanceMeters: typeof point.distanceMeters === 'number' ? point.distanceMeters : null
 });
 
 const normalizeUploadUrl = (u: string) => {
@@ -372,7 +374,7 @@ export const api = {
   },
 
   async searchSellerDropoffStations(query: string, geoId?: number, limit = 50, signal?: AbortSignal) {
-    const response = await apiClient.request<{ points: Record<string, unknown>[]; debug?: { geoId?: number } }>(
+    const response = await apiClient.request<{ points: Record<string, unknown>[]; debug?: { geoId?: number; geocode?: { lat: number; lon: number; precision?: string | null; text?: string | null } } }>(
       '/seller/ndd/dropoff-stations/search',
       {
         method: 'POST',

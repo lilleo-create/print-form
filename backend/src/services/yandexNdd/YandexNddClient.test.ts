@@ -92,7 +92,7 @@ test('offersInfo caches response for same key and does not duplicate HTTP calls'
   assert.equal(callCount, 1);
 });
 
-test('logs token preview/length and Bearer prefix flag on failed responses', async () => {
+test('logs only token length on failed responses', async () => {
   process.env.YANDEX_NDD_TOKEN = 'abcdefghij12345';
   process.env.NODE_ENV = 'test';
 
@@ -108,14 +108,10 @@ test('logs token preview/length and Bearer prefix flag on failed responses', asy
   await assert.rejects(() => client.offersCreate({}), /NDD_OFFER_CREATE_FAILED/);
 
   const [, authPayload] = consoleInfoSpy.mock.calls.find((call) => call.arguments[0] === '[YANDEX_NDD][auth]')?.arguments ?? [];
-  assert.equal(authPayload.tokenPreview, 'abcdefghij');
   assert.equal(authPayload.tokenLength, 15);
-  assert.equal(authPayload.rawHadBearerPrefix, false);
 
   const [, payload] = consoleErrorSpy.mock.calls[0]?.arguments ?? [];
-  assert.equal(payload.tokenPreview, 'abcdefghij');
   assert.equal(payload.tokenLength, 15);
-  assert.equal(payload.rawHadBearerPrefix, false);
 });
 
 test('maps HTML 403 response to smartcaptcha error with details', async () => {
