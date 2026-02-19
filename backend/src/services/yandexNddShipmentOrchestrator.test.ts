@@ -11,7 +11,7 @@ test.beforeEach(() => {
   delete process.env.YANDEX_NDD_DEFAULT_PLATFORM_STATION_ID;
   delete process.env.YANDEX_NDD_PLATFORM_STATION_ID;
   (prisma.sellerDeliveryProfile.findUnique as any) = async () => ({
-    dropoffStationId: 'ac17e5dd-1111-4111-8111-111111111111',
+    dropoffStationId: '10029618814',
     dropoffStationMeta: null
   });
 });
@@ -21,7 +21,7 @@ const mockPaidOrder = (id: string) => ({
   status: 'PAID',
   paidAt: new Date(),
   sellerDropoffPvzId: 'dropoff-1',
-  sellerDropoffPvzMeta: { raw: { id: 'dropoff-1', operator_station_id: 'ac17e5dd-1111-4111-8111-111111111111' } },
+  sellerDropoffPvzMeta: { raw: { id: 'dropoff-1', operator_station_id: '10029618814' } },
   buyerPickupPvzId: 'pickup-1',
   buyerPickupPvzMeta: null,
   recipientName: 'Иван Иванов',
@@ -97,7 +97,7 @@ test('ready-to-ship calls offers/info -> offers/create -> offers/confirm in orde
 });
 
 test('ready-to-ship sends station_id/self_pickup_id and interval_utc from offers/info', async () => {
-  process.env.YANDEX_NDD_OPERATOR_STATION_ID = 'ac17e5dd-1111-4111-8111-111111111111';
+  process.env.YANDEX_NDD_OPERATOR_STATION_ID = '10029618814';
 
   (prisma.order.findFirst as any) = async () => mockPaidOrder('order-7');
   const deliveryServiceModule = await import('./orderDeliveryService');
@@ -122,7 +122,7 @@ test('ready-to-ship sends station_id/self_pickup_id and interval_utc from offers
 
   await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-7');
 
-  assert.equal(offersPayload?.station_id, 'ac17e5dd-1111-4111-8111-111111111111');
+  assert.equal(offersPayload?.station_id, '10029618814');
   assert.equal(offersPayload?.self_pickup_id, 'pickup-1');
   assert.deepEqual(offersPayload?.interval_utc, interval);
   assert.equal(offersPayload?.last_mile_policy, 'time_interval');
@@ -131,7 +131,7 @@ test('ready-to-ship sends station_id/self_pickup_id and interval_utc from offers
 
 
 
-test('ready-to-ship uses seller delivery profile station and ignores operator station in meta raw', async () => {
+test('ready-to-ship uses meta.operator_station_id when profile station id is not numeric', async () => {
   (prisma.order.findFirst as any) = async () => ({
     ...mockPaidOrder('order-from-profile-meta-raw'),
     sellerDropoffPvzMeta: { raw: { id: 'dropoff-1' } }
@@ -160,7 +160,7 @@ test('ready-to-ship uses seller delivery profile station and ignores operator st
   (yandexNddClient.offersConfirm as any) = async () => ({ request_id: 'request-1', status: 'CREATED' });
 
   await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-from-profile-meta-raw');
-  assert.equal(stationId, 'ac17e5dd-0001-4111-8111-111111111111');
+  assert.equal(stationId, '999000');
 });
 
 test('ready-to-ship uses seller delivery profile station when order meta has no station id', async () => {
@@ -170,7 +170,7 @@ test('ready-to-ship uses seller delivery profile station when order meta has no 
     sellerDropoffPvzMeta: { raw: { id: 'dropoff-1' } }
   });
   (prisma.sellerDeliveryProfile.findUnique as any) = async () => ({
-    dropoffStationId: 'ac17e5dd-0111-4111-8111-111111111111',
+    dropoffStationId: '10029618814',
     dropoffStationMeta: { addressFull: 'Москва' }
   });
 
@@ -193,7 +193,7 @@ test('ready-to-ship uses seller delivery profile station when order meta has no 
   (yandexNddClient.offersConfirm as any) = async () => ({ request_id: 'request-1', status: 'CREATED' });
 
   await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-from-profile');
-  assert.equal(stationId, 'ac17e5dd-0111-4111-8111-111111111111');
+  assert.equal(stationId, '10029618814');
 });
 
 test('ready-to-ship trims seller profile dropoffStationId before station normalization', async () => {
@@ -203,7 +203,7 @@ test('ready-to-ship trims seller profile dropoffStationId before station normali
     sellerDropoffPvzMeta: { raw: { id: 'dropoff-1' } }
   });
   (prisma.sellerDeliveryProfile.findUnique as any) = async () => ({
-    dropoffStationId: '   ac17e5dd-0333-4111-8111-111111111111   ',
+    dropoffStationId: '   10029618814   ',
     dropoffStationMeta: { addressFull: 'Москва' }
   });
 
@@ -226,7 +226,7 @@ test('ready-to-ship trims seller profile dropoffStationId before station normali
   (yandexNddClient.offersConfirm as any) = async () => ({ request_id: 'request-1', status: 'CREATED' });
 
   await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-from-profile-trimmed');
-  assert.equal(stationId, 'ac17e5dd-0333-4111-8111-111111111111');
+  assert.equal(stationId, '10029618814');
 });
 
 test('ready-to-ship ignores blank env override and uses profile station', async () => {
@@ -236,7 +236,7 @@ test('ready-to-ship ignores blank env override and uses profile station', async 
     sellerDropoffPvzMeta: { raw: { id: 'dropoff-1' } }
   });
   (prisma.sellerDeliveryProfile.findUnique as any) = async () => ({
-    dropoffStationId: 'ac17e5dd-0222-4111-8111-111111111111',
+    dropoffStationId: '10035218565',
     dropoffStationMeta: { addressFull: 'Москва' }
   });
 
@@ -259,7 +259,7 @@ test('ready-to-ship ignores blank env override and uses profile station', async 
   (yandexNddClient.offersConfirm as any) = async () => ({ request_id: 'request-1', status: 'CREATED' });
 
   await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-blank-env');
-  assert.equal(stationId, 'ac17e5dd-0222-4111-8111-111111111111');
+  assert.equal(stationId, '10035218565');
 });
 
 test('ready-to-ship fails with SELLER_STATION_ID_REQUIRED when station id is missing', async () => {
@@ -275,7 +275,7 @@ test('ready-to-ship fails with SELLER_STATION_ID_REQUIRED when station id is mis
 });
 
 
-test('ready-to-ship fails with SELLER_STATION_ID_INVALID_FORMAT when station id is numeric', async () => {
+test('ready-to-ship accepts numeric station id from seller profile', async () => {
   (prisma.order.findFirst as any) = async () => ({
     ...mockPaidOrder('order-numeric-station'),
     sellerDropoffPvzMeta: { raw: { id: 'dropoff-1' } }
@@ -285,20 +285,36 @@ test('ready-to-ship fails with SELLER_STATION_ID_INVALID_FORMAT when station id 
     dropoffStationMeta: null
   });
 
-  await assert.rejects(
-    () => yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-numeric-station'),
-    /SELLER_STATION_ID_INVALID_FORMAT/
-  );
+  const deliveryServiceModule = await import('./orderDeliveryService');
+  (deliveryServiceModule.orderDeliveryService.getByOrderIds as any) = async () =>
+    new Map([['order-numeric-station', { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: 'pickup-1' } }]]);
+
+  const shipmentModule = await import('./shipmentService');
+  (shipmentModule.shipmentService.getByOrderId as any) = async () => null;
+  (shipmentModule.shipmentService.upsertForOrder as any) = async (payload: Record<string, unknown>) => ({ id: 'shipment-1', ...payload });
+  (shipmentModule.shipmentService.pushHistory as any) = async () => undefined;
+  (prisma.order.update as any) = async () => ({ id: 'order-numeric-station' });
+
+  let stationId: string | null = null;
+  (yandexNddClient.offersInfo as any) = async (src: string) => {
+    stationId = src;
+    return { intervals_utc: [{ from: 1, to: 2 }] };
+  };
+  (yandexNddClient.offersCreate as any) = async () => ({ offer_id: 'offer-1' });
+  (yandexNddClient.offersConfirm as any) = async () => ({ request_id: 'request-1', status: 'CREATED' });
+
+  await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-numeric-station');
+  assert.equal(stationId, '10029618814');
 });
 
-test('ready-to-ship accepts UUID station id from seller profile', async () => {
+test('ready-to-ship falls back to meta.operator_station_id when profile id is uuid', async () => {
   (prisma.order.findFirst as any) = async () => ({
     ...mockPaidOrder('order-profile-station-uuid'),
     sellerDropoffPvzMeta: { raw: { id: 'dropoff-1' } }
   });
   (prisma.sellerDeliveryProfile.findUnique as any) = async () => ({
     dropoffStationId: 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924',
-    dropoffStationMeta: { addressFull: 'Москва' }
+    dropoffStationMeta: { operator_station_id: '10034601583', addressFull: 'Москва' }
   });
 
   const deliveryServiceModule = await import('./orderDeliveryService');
@@ -320,15 +336,14 @@ test('ready-to-ship accepts UUID station id from seller profile', async () => {
   (yandexNddClient.offersConfirm as any) = async () => ({ request_id: 'request-1', status: 'CREATED' });
 
   await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-profile-station-uuid');
-  assert.equal(stationId, 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924');
+  assert.equal(stationId, '10034601583');
 });
 
 
 
-test('ready-to-ship fails with ID_TYPE_MISMATCH when seller station and buyer pickup ids are equal UUIDs', async () => {
+test('ready-to-ship fails with SELLER_STATION_ID_REQUIRED when profile station is uuid without operator_station_id', async () => {
   (prisma.order.findFirst as any) = async () => ({
-    ...mockPaidOrder('order-same-source-and-pickup'),
-    buyerPickupPvzId: 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924'
+    ...mockPaidOrder('order-same-source-and-pickup')
   });
   (prisma.sellerDeliveryProfile.findUnique as any) = async () => ({
     dropoffStationId: 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924',
@@ -337,7 +352,7 @@ test('ready-to-ship fails with ID_TYPE_MISMATCH when seller station and buyer pi
 
   await assert.rejects(
     () => yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-same-source-and-pickup'),
-    /ID_TYPE_MISMATCH/
+    /SELLER_STATION_ID_REQUIRED/
   );
 });
 

@@ -2,7 +2,7 @@ import { prisma } from '../lib/prisma';
 import { orderDeliveryService } from './orderDeliveryService';
 import { mapYandexStatusToInternal, shipmentService } from './shipmentService';
 import { YandexNddHttpError, yandexNddClient } from './yandexNdd/YandexNddClient';
-import { getOperatorStationId, normalizeStationId } from './yandexNdd/getOperatorStationId';
+import { getOperatorStationId, normalizeDigitsStation } from './yandexNdd/getOperatorStationId';
 
 const readyToShipSingleFlight = new Map<string, Promise<any>>();
 
@@ -69,8 +69,6 @@ const extractIntervalUtc = (
   return null;
 };
 
-
-const isNumericId = (value: string) => /^\d+$/.test(value);
 
 const isUuidLike = (value: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
@@ -172,15 +170,19 @@ export const yandexNddShipmentOrchestrator = {
     });
 
     const profileDropoffRaw = sellerDeliveryProfile?.dropoffStationId?.trim() || null;
-    const fromProfileMetaRaw = getOperatorStationId(sellerDeliveryProfile?.dropoffStationMeta && typeof sellerDeliveryProfile.dropoffStationMeta === 'object'
-      ? (sellerDeliveryProfile.dropoffStationMeta as Record<string, unknown>).raw
-      : null);
-    const fromProfileId = normalizeStationId(profileDropoffRaw, { allowUuid: true });
+    const profileMeta =
+      sellerDeliveryProfile?.dropoffStationMeta && typeof sellerDeliveryProfile.dropoffStationMeta === 'object'
+        ? (sellerDeliveryProfile.dropoffStationMeta as Record<string, unknown>)
+        : null;
+    const fromProfileId = normalizeDigitsStation(profileDropoffRaw);
+    const fromProfileMetaRaw = getOperatorStationId(profileMeta);
 
-    const sourceStationId = fromProfileId;
-    const sourceStationFrom: 'profile.dropoffStationId' | 'none' = fromProfileId
+    const sourceStationId = fromProfileId ?? fromProfileMetaRaw;
+    const sourceStationFrom: 'profile.dropoffStationId' | 'profile.meta.operator_station_id' | 'none' = fromProfileId
       ? 'profile.dropoffStationId'
-      : 'none';
+      : fromProfileMetaRaw
+        ? 'profile.meta.operator_station_id'
+        : 'none';
 
     console.info('[READY_TO_SHIP] station resolved', { sourceStationId, from: sourceStationFrom });
 
@@ -194,10 +196,6 @@ export const yandexNddShipmentOrchestrator = {
         nodeEnv: process.env.NODE_ENV
       });
       throw new Error('SELLER_STATION_ID_REQUIRED');
-    }
-
-    if (isNumericId(sourceStationId)) {
-      throw new Error('SELLER_STATION_ID_INVALID_FORMAT: сохранён operator_station_id вместо platform GUID');
     }
 
     const selfPickupId = String(order.buyerPickupPvzId ?? '').trim();
