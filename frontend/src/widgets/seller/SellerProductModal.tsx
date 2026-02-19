@@ -19,7 +19,7 @@ const productSchema = z.object({
   material: z.string().min(2, 'Введите материал'),
   category: z.string().min(1, 'Выберите категорию'),
   technology: z.string().min(2, 'Введите технологию'),
-  printTime: z.string().min(2, 'Введите время печати'),
+  productionTimeHours: z.number().int().min(1, 'Минимум 1 час').max(720, 'Максимум 720 часов'),
   color: z.string().min(2, 'Введите цвет'),
   description: z.string().min(10, 'Добавьте описание'),
   weightGrossG: z.number().int().positive('Укажите вес (г)').optional(),
@@ -37,7 +37,7 @@ export interface SellerProductPayload {
   material: string;
   category: string;
   technology: string;
-  printTime: string;
+  productionTimeHours: number;
   color: string;
   description: string;
   imageUrls: string[];
@@ -88,7 +88,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
         material: product.material,
         category: product.category,
         technology: product.technology,
-        printTime: product.printTime,
+        productionTimeHours: product.productionTimeHours ?? 24,
         color: product.color,
         description: product.description,
         weightGrossG: product.weightGrossG ?? undefined,
@@ -103,7 +103,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
         material: '',
         category: '',
         technology: '',
-        printTime: '',
+        productionTimeHours: 24,
         color: '',
         description: '',
         weightGrossG: undefined,
@@ -221,7 +221,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
       material: values.material,
       category: values.category,
       technology: values.technology,
-      printTime: values.printTime,
+      productionTimeHours: values.productionTimeHours,
       color: values.color,
       description: values.description,
       imageUrls,
@@ -291,9 +291,9 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
             {errors.technology && <span className={styles.errorText}>{errors.technology.message}</span>}
           </label>
           <label>
-            Время печати
-            <input className={errors.printTime ? styles.inputError : styles.input} placeholder="2 часа" {...register('printTime')} />
-            {errors.printTime && <span className={styles.errorText}>{errors.printTime.message}</span>}
+            Время изготовления (часы)
+            <input type="number" min={1} max={720} className={errors.productionTimeHours ? styles.inputError : styles.input} placeholder="24" {...register('productionTimeHours', { valueAsNumber: true })} />
+            {errors.productionTimeHours && <span className={styles.errorText}>{errors.productionTimeHours.message}</span>}
           </label>
           <label>
             Цвет
