@@ -20,6 +20,7 @@ import { sellerOrderDocumentsService } from '../services/sellerOrderDocumentsSer
 import { getYandexNddConfig } from '../config/yandexNdd';
 import { YandexNddHttpError, yandexNddClient } from '../services/yandexNdd/YandexNddClient';
 import { normalizeDigitsStation } from '../services/yandexNdd/getOperatorStationId';
+import { isDigitsStationId, isUuid } from '../services/yandexNdd/nddIdSemantics';
 import { haversineDistanceMeters } from '../utils/geo';
 import { TtlCache } from '../utils/cache';
 
@@ -93,19 +94,19 @@ const resolveValidationSelfPickupId = () => {
   return value || null;
 };
 
-const validateResolvedPlatformStationId = async (platformStationId: string | null, fallbackSelfPickupId: string) => {
-  if (!platformStationId) {
+const validateStationIdDigits = async (stationIdDigits: string | null, fallbackSelfPickupId: string) => {
+  if (!stationIdDigits) {
     return { validatedPlatformStationId: null, warningCode: 'SELLER_STATION_ID_REQUIRED' as const };
   }
 
   const validationSelfPickupId = resolveValidationSelfPickupId() ?? fallbackSelfPickupId;
-  if (!validationSelfPickupId) {
-    return { validatedPlatformStationId: platformStationId, warningCode: null };
+  if (!validationSelfPickupId || !isUuid(validationSelfPickupId)) {
+    return { validatedPlatformStationId: stationIdDigits, warningCode: null };
   }
 
   try {
-    await yandexNddClient.offersInfo(platformStationId, validationSelfPickupId, true);
-    return { validatedPlatformStationId: platformStationId, warningCode: null };
+    await yandexNddClient.offersInfo(stationIdDigits, validationSelfPickupId, true);
+    return { validatedPlatformStationId: stationIdDigits, warningCode: null };
   } catch (error) {
     if (error instanceof YandexNddHttpError) {
       const details =
@@ -115,21 +116,21 @@ const validateResolvedPlatformStationId = async (platformStationId: string | nul
       const detailsCode = String(details?.code ?? '');
       if (detailsCode === 'validation_error') {
         console.warn('[DROP_OFF_PVZ_VALIDATE_STATION] validation_error', {
-          platformStationId,
+          stationIdDigits,
           validationSelfPickupId,
           details: error.details
         });
-        return { validatedPlatformStationId: null, warningCode: 'SELLER_STATION_ID_REQUIRED' as const };
+        return { validatedPlatformStationId: stationIdDigits, warningCode: 'SELLER_STATION_ID_REQUIRED' as const };
       }
     }
 
     console.warn('[DROP_OFF_PVZ_VALIDATE_STATION] skipped', {
-      platformStationId,
+      stationIdDigits,
       validationSelfPickupId,
       reason: error instanceof Error ? error.message : String(error)
     });
 
-    return { validatedPlatformStationId: platformStationId, warningCode: 'SELLER_STATION_VALIDATION_SKIPPED' as const };
+    return { validatedPlatformStationId: stationIdDigits, warningCode: 'SELLER_STATION_VALIDATION_SKIPPED' as const };
   }
 };
 
@@ -721,8 +722,14 @@ sellerRoutes.put('/settings/source-platform-station', writeLimiter, async (req: 
     const validatedStationId = await validateSourcePlatformStationId(payload.source_platform_station);
 
     const profile = await sellerDeliveryProfileService.upsert(req.user!.userId, {
+      dropoffOperatorStationId: validatedStationId,
       dropoffPlatformStationId: validatedStationId,
       dropoffStationMeta: { source: 'manual_input', sourcePlatformStation: validatedStationId }
+    });
+
+    await prisma.sellerDeliveryProfile.update({
+      where: { sellerId: req.user!.userId },
+      data: { dropoffStationId: validatedStationId }
     });
 
     return res.json({ data: profile });
@@ -743,6 +750,7 @@ sellerRoutes.put('/settings/dropoff-station', writeLimiter, async (req: AuthRequ
     const validatedStationId = await validateSourcePlatformStationId(stationId);
 
     const profile = await sellerDeliveryProfileService.upsert(req.user!.userId, {
+      dropoffOperatorStationId: validatedStationId,
       dropoffPlatformStationId: validatedStationId,
       dropoffStationMeta: {
         source: 'ndd/location_detect+pickup_points_list',
@@ -753,6 +761,11 @@ sellerRoutes.put('/settings/dropoff-station', writeLimiter, async (req: AuthRequ
         position: payload.position,
         raw: payload.raw ?? null
       }
+    });
+
+    await prisma.sellerDeliveryProfile.update({
+      where: { sellerId: req.user!.userId },
+      data: { dropoffStationId: validatedStationId }
     });
 
     return res.json({ data: profile });
@@ -975,9 +988,19 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
       return res.status(400).json({ error: { code: 'DROP_OFF_TYPE_INVALID', message: 'Точка не поддерживает сдачу. Выберите пункт приёма.' } });
     }
 
-    const operatorStationId = normalizeOperatorStationDigits((point as any).operator_station_id);
+    const stationIdDigits = normalizeOperatorStationDigits((point as any).operator_station_id);
     const platformStationId = readPlatformStationDigitsId(point as Record<string, any>);
-    const validationResult = await validateResolvedPlatformStationId(platformStationId, pvzId);
+    const validationResult = await validateStationIdDigits(stationIdDigits, pvzId);
+
+    console.info('[DROP_OFF_PVZ_RESOLVE]', {
+      sellerId: req.user!.userId,
+      pvzId,
+      station_id: stationIdDigits,
+      station_id_type: stationIdDigits ? (isDigitsStationId(stationIdDigits) ? 'digits' : typeof stationIdDigits) : null,
+      self_pickup_id: pvzId,
+      self_pickup_id_type: isUuid(pvzId) ? 'uuid' : typeof pvzId,
+      platform_station_id: platformStationId
+    });
 
     const dropoffPvzMeta = {
       provider: 'YANDEX_NDD' as const,
@@ -994,27 +1017,34 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
 
     await sellerDeliveryProfileService.upsert(req.user!.userId, {
       dropoffPvzId: pvzId,
-      dropoffOperatorStationId: operatorStationId,
+      dropoffOperatorStationId: stationIdDigits,
       dropoffPlatformStationId: platformStationId,
       dropoffStationMeta: {
         source: 'pickup-points/list',
         pvz_id: pvzId,
         platform_station_id: platformStationId,
-        operator_station_id: operatorStationId,
+        operator_station_id: stationIdDigits,
         raw: point
       }
     });
 
-    // legacy/compat field: keep storing platform station id (digits) here too, if your orchestrator still reads it
     await prisma.sellerDeliveryProfile.update({
       where: { sellerId: req.user!.userId },
-      data: { dropoffStationId: platformStationId ?? undefined }
+      data: { dropoffStationId: stationIdDigits ?? undefined }
     });
 
-    if (!platformStationId) {
+    console.info('[DROP_OFF_SAVE]', {
+      sellerId: req.user!.userId,
+      pvzId,
+      station_id: stationIdDigits,
+      station_id_type: stationIdDigits ? (isDigitsStationId(stationIdDigits) ? 'digits' : typeof stationIdDigits) : null,
+      platform_station_id: platformStationId
+    });
+
+    if (!stationIdDigits) {
       return res.status(202).json({
         data: settings,
-        warning: { code: 'SELLER_STATION_ID_REQUIRED', message: 'ПВЗ сохранён, но station_id (digits) не определён. Выберите другой ПВЗ.' }
+        warning: { code: 'SELLER_STATION_ID_REQUIRED', message: 'ПВЗ сохранён, но station_id (digits) не найден. Выберите другой ПВЗ.' }
       });
     }
 

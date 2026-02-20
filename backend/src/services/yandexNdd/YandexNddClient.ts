@@ -95,6 +95,15 @@ export class YandexNddClient {
   private readonly config = getYandexNddConfig();
   private readonly offersInfoCache = new Map<string, CacheEntry>();
 
+  constructor() {
+    const token = (this.config.token ?? '').trim().replace(/^Bearer\s+/i, '');
+    console.info('[YANDEX_NDD][startup]', {
+      baseUrl: this.config.baseUrl,
+      tokenPresent: Boolean(token),
+      tokenPrefix: token ? `${token.slice(0, 6)}...` : null
+    });
+  }
+
   private getAuthTokenMeta() {
     const tokenFromConfig = (this.config.token ?? '').trim();
     const tokenWithoutPrefix = tokenFromConfig.replace(/^Bearer\s+/i, '').trim();
@@ -147,7 +156,9 @@ export class YandexNddClient {
     init?: RequestInit & { requestId?: string }
   ): Promise<T> {
     const headers = new Headers(init?.headers ?? {});
-    headers.set('Authorization', tokenMeta.authHeader);
+    if (tokenMeta.authHeader) {
+      headers.set('Authorization', tokenMeta.authHeader);
+    }
     headers.set('Accept', 'application/json');
     headers.set('Accept-Language', this.config.lang);
     headers.set('User-Agent', 'print-form-backend/1.0');
@@ -178,7 +189,12 @@ export class YandexNddClient {
     })();
 
     if (!response.ok) {
-      const code = path === '/api/b2b/platform/offers/create' ? 'NDD_OFFER_CREATE_FAILED' : 'NDD_REQUEST_FAILED';
+      const isUnauthorized = response.status === 401 || response.status === 403;
+      const code = isUnauthorized
+        ? 'NDD_UNAUTHORIZED'
+        : path === '/api/b2b/platform/offers/create'
+        ? 'NDD_OFFER_CREATE_FAILED'
+        : 'NDD_REQUEST_FAILED';
       throw new YandexNddHttpError(code, path, response.status, bodyText, errorDetails);
     }
 

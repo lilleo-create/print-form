@@ -3,7 +3,7 @@ import { prisma } from '../lib/prisma';
 import { orderDeliveryService } from './orderDeliveryService';
 import { mapYandexStatusToInternal, shipmentService } from './shipmentService';
 import { YandexNddHttpError, yandexNddClient } from './yandexNdd/YandexNddClient';
-import { assertStationAndPvzPair, looksLikePvzId, NddValidationError } from './yandexNdd/nddIdSemantics';
+import { assertStationAndPvzPair, isDigitsStationId, isUuid, NddValidationError } from './yandexNdd/nddIdSemantics';
 import { getYandexNddConfig } from '../config/yandexNdd';
 import { yandexDeliveryService } from './yandexDeliveryService';
 
@@ -96,7 +96,7 @@ export const yandexNddShipmentOrchestrator = {
 
       const buyerPickupPointId = String(order.buyerPickupPvzId ?? '').trim();
       if (!buyerPickupPointId) throw new NddValidationError('BUYER_SELF_PICKUP_ID_REQUIRED', 'buyerPickupPvzId is required.', 409);
-      if (!looksLikePvzId(buyerPickupPointId)) {
+      if (!isUuid(buyerPickupPointId)) {
         throw new NddValidationError('NDD_VALIDATION_ERROR', 'buyerPickupPvzId must be uuid self_pickup_id.', 400, { field: 'buyerPickupPvzId' });
       }
 
@@ -118,12 +118,13 @@ export const yandexNddShipmentOrchestrator = {
       });
 
       const config = getYandexNddConfig();
-      const sourceStationIdRaw = getTrimmedString(sellerDeliveryProfile?.dropoffPlatformStationId);
+      const sourceStationIdRaw = getTrimmedString(sellerDeliveryProfile?.dropoffOperatorStationId);
 
       console.info('[READY_TO_SHIP][ctx]', {
         sellerId,
         orderId,
-        buyerPickupPvzId: buyerPickupPointId,
+        self_pickup_id: buyerPickupPointId,
+        self_pickup_id_type: isUuid(buyerPickupPointId) ? 'uuid' : typeof buyerPickupPointId,
         hasSellerProfile: Boolean(sellerDeliveryProfile),
         dropoffOperatorStationId: sellerDeliveryProfile?.dropoffOperatorStationId ?? null,
         dropoffPlatformStationId: sellerDeliveryProfile?.dropoffPlatformStationId ?? null,
@@ -135,8 +136,12 @@ export const yandexNddShipmentOrchestrator = {
         throw new NddValidationError('NDD_REQUEST_FAILED', 'NDD is disabled: missing token.', 502);
       }
 
-      if (!sourceStationIdRaw) {
-        throw new NddValidationError('SELLER_PLATFORM_STATION_ID_REQUIRED', 'Seller dropoffPlatformStationId is required.', 409);
+      if (!sourceStationIdRaw || !isDigitsStationId(sourceStationIdRaw)) {
+        throw new NddValidationError(
+          'SELLER_STATION_ID_REQUIRED',
+          'Seller dropoff station_id (digits) is required. Select a dropoff PVZ that provides operator_station_id.',
+          409
+        );
       }
 
       const validatedPair = assertStationAndPvzPair(sourceStationIdRaw, buyerPickupPointId);
@@ -188,7 +193,9 @@ export const yandexNddShipmentOrchestrator = {
       console.info('[READY_TO_SHIP] offers/create payload', {
         orderId,
         station_id: sourceStationId,
+        station_id_type: isDigitsStationId(sourceStationId) ? 'digits' : typeof sourceStationId,
         self_pickup_id: selfPickupId,
+        self_pickup_id_type: isUuid(selfPickupId) ? 'uuid' : typeof selfPickupId,
         itemsCount: items.length
       });
 
@@ -196,6 +203,13 @@ export const yandexNddShipmentOrchestrator = {
       try {
         offersResponse = await yandexNddClient.offersCreate(offersBody);
       } catch (error) {
+        if (error instanceof YandexNddHttpError && (error.status === 401 || error.status === 403)) {
+          throw new NddValidationError('NDD_UNAUTHORIZED', 'Unauthorized request to Yandex NDD.', error.status, {
+            status: error.status,
+            path: error.path
+          });
+        }
+
         // если у тебя прокси/тест окружение и Яндекс кинул HTML SmartCaptcha, вылетит как AxiosError
         const msg = error instanceof Error ? error.message : String(error);
         console.error('[READY_TO_SHIP] offers/create failed', { orderId, msg });
