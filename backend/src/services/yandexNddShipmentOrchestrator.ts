@@ -2,31 +2,16 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { orderDeliveryService } from './orderDeliveryService';
 import { mapYandexStatusToInternal, shipmentService } from './shipmentService';
-import { YandexNddHttpError, yandexNddClient } from './yandexNdd/YandexNddClient';
-import { looksLikePvzId, NddValidationError } from './yandexNdd/nddIdSemantics';
+import { YandexNddHttpError } from './yandexNdd/YandexNddClient';
+import { looksLikeDigits, looksLikePvzId, NddValidationError } from './yandexNdd/nddIdSemantics';
 import { resolvePlatformStationIdByPickupPointId } from './yandexNdd/resolvePlatformStationIdByPickupPointId';
+import { getYandexNddConfig } from '../config/yandexNdd';
+import { yandexDeliveryService } from './yandexDeliveryService';
 
 const readyToShipSingleFlight = new Map<string, Promise<any>>();
 
-const pickBestOffer = (response: Record<string, unknown>) => {
-  const offers = (response.offers as Record<string, unknown>[] | undefined) ?? [];
-  if (!offers.length) return null;
-  const sorted = [...offers].sort((a, b) => {
-    const priceA = Number(
-      (a.price as Record<string, unknown> | undefined)?.amount ?? Number.MAX_SAFE_INTEGER
-    );
-    const priceB = Number(
-      (b.price as Record<string, unknown> | undefined)?.amount ?? Number.MAX_SAFE_INTEGER
-    );
-    return priceA - priceB;
-  });
-  return sorted[0];
-};
-
 const asRecord = (value: unknown): Record<string, unknown> | undefined =>
-  value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
+  value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
 
 const getTrimmedString = (value: unknown): string | null => {
   if (typeof value !== 'string') return null;
@@ -34,15 +19,14 @@ const getTrimmedString = (value: unknown): string | null => {
   return normalized.length ? normalized : null;
 };
 
-const extractBuyerPickupMetaIds = (meta: unknown): { platformStationId: string | null; operatorStationId: string | null } => {
-  const direct = asRecord(meta);
-  const raw = asRecord(direct?.raw);
-  const platformCandidate = getTrimmedString(raw?.buyerPickupPlatformStationId) ?? getTrimmedString(direct?.buyerPickupPlatformStationId);
-  const operatorCandidate = getTrimmedString(raw?.buyerPickupOperatorStationId) ?? getTrimmedString(direct?.buyerPickupOperatorStationId) ?? getTrimmedString(raw?.operator_station_id);
-  return {
-    platformStationId: platformCandidate,
-    operatorStationId: operatorCandidate
-  };
+const pickBestOffer = (offers: Record<string, unknown>[]) => {
+  if (!offers.length) return null;
+  const sorted = [...offers].sort((a, b) => {
+    const priceA = Number((a.price as any)?.amount ?? Number.MAX_SAFE_INTEGER);
+    const priceB = Number((b.price as any)?.amount ?? Number.MAX_SAFE_INTEGER);
+    return priceA - priceB;
+  });
+  return sorted[0] ?? null;
 };
 
 const extractYandexStatus = (payload: Record<string, unknown>) => {
@@ -56,46 +40,8 @@ const extractYandexStatus = (payload: Record<string, unknown>) => {
   return status ?? null;
 };
 
-const extractIntervalUtc = (
-  offersInfo: Record<string, unknown>
-): { from: number | string; to: number | string } | null => {
-  const candidates: unknown[] = [
-    (offersInfo as any).interval_utc,
-    (offersInfo as any).intervals_utc,
-    (offersInfo as any).intervals,
-    (offersInfo.result as Record<string, unknown> | undefined)?.interval_utc,
-    (offersInfo.result as Record<string, unknown> | undefined)?.intervals_utc,
-    (offersInfo.result as Record<string, unknown> | undefined)?.intervals,
-    (offersInfo.payload as Record<string, unknown> | undefined)?.interval_utc,
-    (offersInfo.payload as Record<string, unknown> | undefined)?.intervals_utc,
-    (offersInfo.payload as Record<string, unknown> | undefined)?.intervals
-  ];
-
-  for (const candidate of candidates) {
-    if (!candidate) continue;
-
-    if (Array.isArray(candidate) && candidate.length > 0 && typeof candidate[0] === 'object') {
-      const first = candidate[0] as Record<string, unknown>;
-      if (first.from && first.to) return { from: first.from as string | number, to: first.to as string | number };
-    }
-
-    if (typeof candidate === 'object' && !Array.isArray(candidate)) {
-      const interval = candidate as Record<string, unknown>;
-      if (interval.from && interval.to) return { from: interval.from as string | number, to: interval.to as string | number };
-    }
-  }
-
-  return null;
-};
-
-
-
 const parseRecipientName = (order: any) => {
-  const rawName =
-    order.recipientName ??
-    order.contact?.name ??
-    order.buyer?.name ??
-    'Покупатель';
+  const rawName = order.recipientName ?? order.contact?.name ?? order.buyer?.name ?? 'Покупатель';
   const normalized = String(rawName).trim();
   const [firstName = 'Покупатель', ...rest] = normalized.split(/\s+/);
   const lastName = rest.join(' ') || '-';
@@ -114,380 +60,295 @@ const buildPhysicalDims = (item: any) => {
   return { predefined_volume: 1 };
 };
 
-const findOfferId = (
-  offersResponse: Record<string, unknown>,
-  selectedOffer: Record<string, unknown> | null
-) => {
-  return (
-    (offersResponse.offer_id as string | undefined) ??
-    ((offersResponse.offer as Record<string, unknown> | undefined)?.offer_id as string | undefined) ??
-    (selectedOffer?.offer_id as string | undefined) ??
-    null
-  );
-};
-
 export const yandexNddShipmentOrchestrator = {
   readyToShip: async (sellerId: string, orderId: string) => {
     const inFlight = readyToShipSingleFlight.get(orderId);
-    if (inFlight) {
-      return inFlight;
-    }
+    if (inFlight) return inFlight;
 
     const runPromise = (async () => {
-    const order = await prisma.order.findFirst({
-      where: {
-        id: orderId,
-        items: { some: { product: { sellerId } } }
-      },
-      select: {
-        id: true,
-        status: true,
-        paidAt: true,
-        sellerDropoffPvzId: true,
-        sellerDropoffPvzMeta: true,
-        buyerPickupPvzId: true,
-        buyerPickupPvzMeta: true,
-        recipientName: true,
-        recipientPhone: true,
-        contact: true,
-        buyer: true,
-        items: {
-          include: {
-            product: true,
-            variant: true
+      const order = await prisma.order.findFirst({
+        where: {
+          id: orderId,
+          items: { some: { product: { sellerId } } }
+        },
+        select: {
+          id: true,
+          status: true,
+          paidAt: true,
+          sellerDropoffPvzId: true,
+          sellerDropoffPvzMeta: true,
+          buyerPickupPvzId: true,
+          buyerPickupPvzMeta: true,
+          recipientName: true,
+          recipientPhone: true,
+          contact: true,
+          buyer: true,
+          items: {
+            include: {
+              product: true,
+              variant: true
+            }
           }
         }
+      });
+
+      if (!order) throw new Error('ORDER_NOT_FOUND');
+      if (order.status !== 'PAID' || !order.paidAt) throw new Error('ORDER_NOT_PAID');
+
+      const buyerPickupPointId = String(order.buyerPickupPvzId ?? '').trim();
+      if (!buyerPickupPointId) throw new Error('BUYER_PVZ_REQUIRED');
+      if (!looksLikePvzId(buyerPickupPointId)) {
+        throw new NddValidationError('VALIDATION_ERROR', 'buyerPickupPvzId должен быть pvzId (uuid), не station_id.');
       }
-    });
 
-    if (!order) throw new Error('ORDER_NOT_FOUND');
-    if (order.status !== 'PAID' || !order.paidAt) throw new Error('ORDER_NOT_PAID');
-    if (!order.buyerPickupPvzId) throw new Error('BUYER_PVZ_REQUIRED');
+      const deliveryMap = await orderDeliveryService.getByOrderIds([orderId]);
+      const delivery = deliveryMap.get(orderId);
+      const deliveryMethod = 'PICKUP_POINT';
 
-    const deliveryMap = await orderDeliveryService.getByOrderIds([orderId]);
-    const delivery = deliveryMap.get(orderId);
-    const deliveryMethod = 'PICKUP_POINT';
+      const existing = await shipmentService.getByOrderId(orderId);
+      if (existing?.requestId) return existing;
 
-    const existing = await shipmentService.getByOrderId(orderId);
-    if (existing?.requestId) {
-      return existing;
-    }
+      const sellerDeliveryProfile = await prisma.sellerDeliveryProfile.findUnique({
+        where: { sellerId },
+        select: {
+          dropoffPvzId: true,
+          dropoffOperatorStationId: true, // ✅ digits
+          dropoffPlatformStationId: true, // может быть uuid/что угодно, но нам НЕ нужно
+          dropoffStationMeta: true
+        }
+      });
 
-    const sellerDeliveryProfile = await prisma.sellerDeliveryProfile.findUnique({
-      where: { sellerId },
-      select: { dropoffPvzId: true, dropoffOperatorStationId: true, dropoffPlatformStationId: true, dropoffStationMeta: true }
-    });
+      const config = getYandexNddConfig();
 
-    console.info('[READY_TO_SHIP][ctx]', {
-      sellerId,
-      orderId,
-      orderSellerDropoffPvzId: (order as any).sellerDropoffPvzId,
-      hasSellerProfile: Boolean(sellerDeliveryProfile),
-      sellerProfileDropoffPlatformStationId: sellerDeliveryProfile?.dropoffPlatformStationId ?? null
-    });
+      // ✅ Источник строго digits (operator station)
+      const profileStationDigits = getTrimmedString(sellerDeliveryProfile?.dropoffOperatorStationId);
+      const envStationDigits =
+        getTrimmedString(process.env.YANDEX_NDD_MERCHANT_STATION_ID) ??
+        getTrimmedString(process.env.YANDEX_NDD_DEFAULT_STATION_ID) ??
+        null;
 
-    const sourceStationId =
-      getTrimmedString(sellerDeliveryProfile?.dropoffPlatformStationId) ??
-      getTrimmedString(sellerDeliveryProfile?.dropoffPvzId) ??
-      getTrimmedString(order.sellerDropoffPvzId) ??
-      null;
+      const sourceStationId =
+        (profileStationDigits && looksLikeDigits(profileStationDigits) ? profileStationDigits : null) ??
+        (envStationDigits && looksLikeDigits(envStationDigits) ? envStationDigits : null) ??
+        null;
 
-    console.info('[NDD_SOURCE_STATION]', {
-      sourceStationId,
-      fromProfile: sellerDeliveryProfile?.dropoffPvzId ?? null,
-      dropoffPlatformStationId: sellerDeliveryProfile?.dropoffPlatformStationId ?? null
-    });
+      const sourceStationSource =
+        profileStationDigits && looksLikeDigits(profileStationDigits)
+          ? 'sellerProfile.dropoffOperatorStationId'
+          : envStationDigits && looksLikeDigits(envStationDigits)
+            ? 'env.YANDEX_NDD_*_STATION_ID'
+            : 'missing';
 
-    if (!sourceStationId) {
-      console.error('[READY_TO_SHIP] SELLER_STATION_ID_REQUIRED', {
+      console.info('[READY_TO_SHIP][ctx]', {
         sellerId,
         orderId,
-        dropoffPvzId: sellerDeliveryProfile?.dropoffPvzId ?? null,
-        rawSellerDropoffPlatformStationId: sellerDeliveryProfile?.dropoffPlatformStationId ?? null,
-        defaultDropoffPvzId: sellerDeliveryProfile?.dropoffPvzId ?? null
-      });
-      throw new NddValidationError(
-        'SELLER_STATION_ID_REQUIRED',
-        'Продавец не настроил точку сдачи (station_id платформы). Выберите пункт сдачи в настройках.'
-      );
-    }
-
-    const buyerPickupPointId = String(order.buyerPickupPvzId ?? '').trim();
-    if (!buyerPickupPointId) {
-      throw new Error('BUYER_PVZ_REQUIRED');
-    }
-    let buyerPickupMeta = asRecord(order.buyerPickupPvzMeta) ?? {};
-    let buyerMetaIds = extractBuyerPickupMetaIds(buyerPickupMeta);
-
-    if (!buyerMetaIds.platformStationId && ['PAID', 'READY_TO_SHIP'].includes(order.status)) {
-      const resolved = await resolvePlatformStationIdByPickupPointId(buyerPickupPointId);
-      if (resolved.platformStationId || resolved.operatorStationId) {
-        const rawMeta = asRecord(buyerPickupMeta.raw) ?? {};
-        const nextRawMeta = {
-          ...rawMeta,
-          id: buyerPickupPointId,
-          buyerPickupPvzId: buyerPickupPointId,
-          buyerPickupPlatformStationId: resolved.platformStationId,
-          buyerPickupOperatorStationId: resolved.operatorStationId
-        };
-        buyerPickupMeta = {
-          ...buyerPickupMeta,
-          buyerPickupPvzId: buyerPickupPointId,
-          buyerPickupPlatformStationId: resolved.platformStationId,
-          buyerPickupOperatorStationId: resolved.operatorStationId,
-          raw: nextRawMeta
-        };
-        await prisma.order.update({
-          where: { id: order.id },
-          data: {
-            buyerPickupPvzMeta: buyerPickupMeta as Prisma.InputJsonValue
-          }
-        });
-        buyerMetaIds = extractBuyerPickupMetaIds(buyerPickupMeta);
-      }
-    }
-
-    if (!looksLikePvzId(buyerPickupPointId)) {
-      throw new NddValidationError('VALIDATION_ERROR', 'buyerPickupPvzId должен быть pvzId (не station_id).');
-    }
-
-    const selfPickupId = buyerPickupPointId;
-
-    if (selfPickupId === sourceStationId) {
-      throw new NddValidationError('VALIDATION_ERROR', 'self_pickup_id не должен совпадать со station_id.');
-    }
-
-    console.info('[READY_TO_SHIP] buyer self pickup id resolved', {
-      orderId,
-      buyerPickupPointId,
-      buyerPickupPlatformStationId: buyerMetaIds.platformStationId,
-      buyerPickupOperatorStationId: buyerMetaIds.operatorStationId,
-      buyerSelfPickupIdSource: 'order.buyerPickupPvzId',
-      sellerDropoffPlatformStationId: sourceStationId
-    });
-
-    if (!looksLikePvzId(selfPickupId)) {
-      throw new NddValidationError('VALIDATION_ERROR', 'self_pickup_id должен быть pickup point id (pvzId).');
-    }
-
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('[NDD readyToShip stations]', {
-        orderId,
+        buyerPickupPvzId: buyerPickupPointId,
+        hasSellerProfile: Boolean(sellerDeliveryProfile),
+        dropoffOperatorStationId: sellerDeliveryProfile?.dropoffOperatorStationId ?? null,
+        dropoffPlatformStationId: sellerDeliveryProfile?.dropoffPlatformStationId ?? null,
         sourceStationId,
-        self_pickup_id: selfPickupId,
-        source: 'sellerProfile.dropoffPlatformStationId|sellerProfile.dropoffPvzId|order.sellerDropoffPvzId'
+        sourceStationSource,
+        nddEnabled: config.enabled,
+        nddBaseUrl: config.baseUrl
       });
-    }
 
-    console.info('[NDD] using ids', {
-      sourceStationId,
-      self_pickup_id: selfPickupId,
-      source_fields: {
-        seller: 'sellerProfile.dropoffPlatformStationId|sellerProfile.dropoffPvzId|order.sellerDropoffPvzId',
-        buyer: 'order.buyerPickupPvzId'
-      },
-      shapes: {
-        sourceStationId: 'string',
-        self_pickup_id: looksLikePvzId(selfPickupId) ? 'pvz' : 'invalid'
-      }
-    });
-
-    let offersInfo: Record<string, unknown>;
-    const last_mile_policy = 'self_pickup';
-    console.info('[NDD_POLICY_FIXED]', {
-      orderId,
-      last_mile_policy,
-      sourceStationId,
-      self_pickup_id: selfPickupId
-    });
-    console.info('[READY_TO_SHIP] offers/info params', {
-      orderId,
-      station_id: sourceStationId,
-      self_pickup_id: selfPickupId,
-      last_mile_policy,
-      send_unix: true
-    });
-    try {
-      offersInfo = await yandexNddClient.offersInfo(sourceStationId, selfPickupId, true);
-    } catch (error) {
-      if (error instanceof YandexNddHttpError && error.code === 'YANDEX_SMARTCAPTCHA_BLOCK') {
-        const details =
-          error.details && typeof error.details === 'object'
-            ? (error.details as Record<string, unknown>)
-            : {};
-        console.warn('[NDD] blocked by SmartCaptcha', {
-          uniqueKey: typeof details.uniqueKey === 'string' ? details.uniqueKey : undefined
-        });
-        throw new YandexNddHttpError('YANDEX_IP_BLOCKED', error.path, error.status, error.raw, error.details);
+      if (!config.enabled) {
+        throw new NddValidationError('NDD_DISABLED', 'NDD выключен: нет токена или конфиг не активен.');
       }
 
-      if (error instanceof YandexNddHttpError) {
-        const details =
-          error.details && typeof error.details === 'object'
-            ? (error.details as Record<string, unknown>)
-            : null;
-        const detailsCode = String(details?.code ?? '');
-        if (detailsCode === 'validation_error') {
-          console.error('[READY_TO_SHIP] offers/info validation_error', {
+      if (!sourceStationId) {
+        throw new NddValidationError(
+          'SELLER_STATION_ID_REQUIRED',
+          'Не найден station_id продавца (digits). Нужно сохранить dropoffOperatorStationId из pickup-points/list.'
+        );
+      }
+
+      // ✅ Для buyer PVZ meta: полезно сохранить digits station id, но НЕ обязательно
+      // Мы пробуем подтащить operatorStationId и сохранить в meta, чтобы потом не дергать API
+      let buyerPickupMeta = asRecord(order.buyerPickupPvzMeta) ?? {};
+      const direct = asRecord(buyerPickupMeta);
+      const raw = asRecord(direct?.raw);
+      const existingBuyerOperatorStationId =
+        getTrimmedString(raw?.buyerPickupOperatorStationId) ??
+        getTrimmedString(direct?.buyerPickupOperatorStationId) ??
+        getTrimmedString(raw?.operator_station_id);
+
+      if (!existingBuyerOperatorStationId) {
+        try {
+          const resolved = await resolvePlatformStationIdByPickupPointId(buyerPickupPointId);
+          if (resolved.operatorStationId) {
+            const nextRaw = { ...(raw ?? {}), buyerPickupOperatorStationId: resolved.operatorStationId };
+            const nextMeta = { ...(direct ?? {}), buyerPickupOperatorStationId: resolved.operatorStationId, raw: nextRaw };
+            await prisma.order.update({
+              where: { id: order.id },
+              data: { buyerPickupPvzMeta: nextMeta as Prisma.InputJsonValue }
+            });
+            buyerPickupMeta = nextMeta;
+          }
+        } catch (e) {
+          console.warn('[READY_TO_SHIP] failed to enrich buyerPickupPvzMeta', {
             orderId,
-            sourceStationId,
-            self_pickup_id: selfPickupId,
-            body: error.details
+            reason: e instanceof Error ? e.message : String(e)
           });
-          throw new Error('ORDER_DELIVERY_OFFER_FAILED');
         }
       }
-      throw error;
-    }
-    const intervalUtc = extractIntervalUtc(offersInfo);
-    if (!intervalUtc) {
-      throw new Error('NDD_INTERVAL_REQUIRED');
-    }
 
-    const barcode = `PF-${order.id}`;
-    const recipient = parseRecipientName(order);
-    const recipientPhone = order.recipientPhone ?? order.contact?.phone ?? order.buyer?.phone;
-    if (!recipientPhone) {
-      throw new Error('RECIPIENT_PHONE_REQUIRED');
-    }
+      const selfPickupId = buyerPickupPointId;
 
-    const items = order.items.map((item: any) => ({
-      count: item.quantity,
-      name: item.product.title,
-      article: item.variant?.sku ?? item.product.sku,
-      billing_details: {
-        unit_price: item.priceAtPurchase,
-        assessed_unit_price: item.priceAtPurchase
-      },
-      physical_dims: buildPhysicalDims(item),
-      place_barcode: barcode
-    }));
+      // ✅ Собираем тело строго под /offers/create (старый NDD platform API)
+      const barcode = `PF-${order.id}`;
+      const recipient = parseRecipientName(order);
+      const recipientPhone = order.recipientPhone ?? order.contact?.phone ?? order.buyer?.phone;
+      if (!recipientPhone) throw new Error('RECIPIENT_PHONE_REQUIRED');
 
-    const totalWeight = order.items.reduce(
-      (sum: number, item: any) => sum + ((item.product?.weightGrossG ?? 0) * item.quantity),
-      0
-    );
+      const items = order.items.map((item: any) => ({
+        count: item.quantity,
+        name: item.product.title,
+        article: item.variant?.sku ?? item.product.sku,
+        billing_details: {
+          unit_price: item.priceAtPurchase,
+          assessed_unit_price: item.priceAtPurchase
+        },
+        physical_dims: buildPhysicalDims(item),
+        place_barcode: barcode
+      }));
 
-    const offersBody: Record<string, unknown> = {
-      source: {
-        platform_station: {
-          platform_id: sourceStationId
+      const totalWeight = order.items.reduce(
+        (sum: number, item: any) => sum + ((item.product?.weightGrossG ?? 0) * item.quantity),
+        0
+      );
+
+      const offersBody: Record<string, unknown> = {
+        station_id: sourceStationId, // ✅ digits
+        self_pickup_id: selfPickupId, // ✅ uuid
+        payment_method: 'already_paid',
+        places: [
+          {
+            barcode,
+            description: `Order ${order.id}`,
+            physical_dims: totalWeight > 0 ? { weight_gross: totalWeight } : { predefined_volume: 1 }
+          }
+        ],
+        items,
+        recipient_info: {
+          first_name: recipient.firstName,
+          last_name: recipient.lastName,
+          phone: recipientPhone
         }
-      },
-      destination: {
-        type: 'platform_station',
-        platform_station: {
-          platform_id: selfPickupId
+      };
+
+      console.info('[READY_TO_SHIP] offers/create payload', {
+        orderId,
+        station_id: sourceStationId,
+        self_pickup_id: selfPickupId,
+        itemsCount: items.length
+      });
+
+      let offersResponse: Record<string, unknown>;
+      try {
+        offersResponse = await yandexDeliveryService.createOffers(offersBody);
+      } catch (error) {
+        // если у тебя прокси/тест окружение и Яндекс кинул HTML SmartCaptcha, вылетит как AxiosError
+        const msg = error instanceof Error ? error.message : String(error);
+        console.error('[READY_TO_SHIP] offers/create failed', { orderId, msg });
+
+        // На твоей стороне уже есть YandexNddHttpError для SmartCaptcha, но тут сервис другой.
+        // Поэтому просто нормализуем до понятного кода.
+        if (msg.includes('403') || msg.toLowerCase().includes('captcha')) {
+          throw new YandexNddHttpError('YANDEX_IP_BLOCKED', '/api/b2b/platform/offers/create', 403, msg, null);
         }
-      },
-      interval_utc: intervalUtc,
-      last_mile_policy,
-      info: {
-        operator_request_id: order.id
-      },
-      items,
-      places: [
-        {
-          barcode,
-          description: `Order ${order.id}`,
-          physical_dims: totalWeight > 0 ? { weight_gross: totalWeight } : { predefined_volume: 1 }
-        }
-      ],
-      recipient_info: {
-        first_name: recipient.firstName,
-        last_name: recipient.lastName,
-        phone: recipientPhone
-      },
-      billing_info: {
-        payment_method: 'already_paid'
+
+        if (msg === 'NO_DELIVERY_OPTIONS') throw new Error('NO_DELIVERY_OPTIONS');
+        throw new Error('ORDER_DELIVERY_OFFER_FAILED');
       }
-    };
 
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('[NDD readyToShip offers/create body]', JSON.stringify(offersBody));
-    }
+      const offersRaw = Array.isArray((offersResponse as any)?.offers) ? ((offersResponse as any).offers as Record<string, unknown>[]) : [];
+      const bestOffer = pickBestOffer(offersRaw);
+      const offerId =
+        ((offersResponse as any)?.offer_id as string | undefined) ??
+        ((bestOffer as any)?.offer_id as string | undefined) ??
+        null;
 
-    const offersResponse = await yandexNddClient.offersCreate(offersBody);
-    const selectedOffer = pickBestOffer(offersResponse);
-    const selectedOfferId = findOfferId(offersResponse, selectedOffer);
+      console.info('[READY_TO_SHIP] offers/create result', {
+        orderId,
+        offersCount: offersRaw.length,
+        offerId
+      });
 
-    if (!selectedOfferId) {
-      await shipmentService.upsertForOrder({
+      if (!offerId) {
+        await shipmentService.upsertForOrder({
+          orderId,
+          deliveryMethod,
+          sourceStationId,
+          sourceStationSnapshot: asRecord(order.sellerDropoffPvzMeta),
+          destinationStationId: deliveryMethod === 'PICKUP_POINT'
+            ? order.buyerPickupPvzId
+            : destinationStationId,
+          destinationStationSnapshot: delivery?.pickupPoint ?? asRecord(order.buyerPickupPvzMeta),
+          status: 'CREATED',
+          statusRaw: { offersCreate: offersResponse }
+        });
+        throw new Error('ORDER_DELIVERY_OFFER_FAILED');
+      }
+
+      const confirm = await yandexDeliveryService.confirmOffer(offerId);
+      let requestId =
+        (confirm as any)?.request_id ??
+        (confirm as any)?.request?.request_id ??
+        null;
+
+      let requestCreate: Record<string, unknown> | null = null;
+      if (!requestId) {
+        requestCreate = await yandexDeliveryService.createRequest({ offer_id: offerId });
+        requestId =
+          (requestCreate as any)?.request_id ??
+          (requestCreate as any)?.request?.request_id ??
+          null;
+      }
+
+      if (!requestId) throw new Error('NDD_REQUEST_ID_MISSING');
+
+      const yandexStatus = extractYandexStatus(confirm as any) ?? 'CREATED';
+      const internalStatus = mapYandexStatusToInternal(yandexStatus);
+
+      const statusRaw = {
+        offersCreate: offersResponse,
+        offersConfirm: confirm,
+        requestCreate,
+        lastStatus: yandexStatus,
+        offerId
+      };
+
+      const updated = await shipmentService.upsertForOrder({
         orderId,
         deliveryMethod,
         sourceStationId,
         sourceStationSnapshot: asRecord(order.sellerDropoffPvzMeta),
         destinationStationId: order.buyerPickupPvzId,
         destinationStationSnapshot: delivery?.pickupPoint ?? asRecord(order.buyerPickupPvzMeta),
-        status: 'CREATED',
-        statusRaw: {
-          offersInfo,
-          offersCreate: offersResponse
+        requestId,
+        offerPayload: JSON.stringify(bestOffer ?? { offer_id: offerId }),
+        status: internalStatus,
+        statusRaw
+      });
+
+      await prisma.order.update({
+        where: { id: order.id },
+        data: {
+          status: 'READY_FOR_SHIPMENT',
+          statusUpdatedAt: new Date(),
+          readyForShipmentAt: new Date(),
+          dropoffDeadlineAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+          yandexOfferId: offerId,
+          yandexRequestId: requestId ?? undefined
         }
       });
-      throw new Error('NDD_OFFERS_EMPTY');
-    }
 
-    const offersConfirmResponse = await yandexNddClient.offersConfirm({ offer_id: selectedOfferId });
-    let requestId =
-      (offersConfirmResponse.request_id as string | undefined) ??
-      ((offersConfirmResponse.request as Record<string, unknown> | undefined)?.request_id as string | undefined) ??
-      null;
-
-    let requestCreateResponse: Record<string, unknown> | null = null;
-    if (!requestId) {
-      requestCreateResponse = await yandexNddClient.requestCreate({ offer_id: selectedOfferId });
-      requestId =
-        (requestCreateResponse.request_id as string | undefined) ??
-        ((requestCreateResponse.request as Record<string, unknown> | undefined)?.request_id as string | undefined) ??
-        null;
-    }
-
-    if (!requestId) {
-      throw new Error('NDD_REQUEST_ID_MISSING');
-    }
-
-    const yandexStatus = extractYandexStatus(offersConfirmResponse) ?? 'CREATED';
-    const internalStatus = mapYandexStatusToInternal(yandexStatus);
-    const statusRaw = {
-      yandex: offersConfirmResponse,
-      offersInfo,
-      offersCreate: offersResponse,
-      offersConfirm: offersConfirmResponse,
-      requestCreate: requestCreateResponse,
-      lastStatus: yandexStatus,
-      offerId: selectedOfferId
-    };
-
-    const updated = await shipmentService.upsertForOrder({
-      orderId,
-      deliveryMethod,
-      sourceStationId,
-      sourceStationSnapshot: asRecord(order.sellerDropoffPvzMeta),
-      destinationStationId: order.buyerPickupPvzId,
-      destinationStationSnapshot: delivery?.pickupPoint ?? asRecord(order.buyerPickupPvzMeta),
-      requestId,
-      offerPayload: JSON.stringify(selectedOffer ?? { offer_id: selectedOfferId }),
-      status: internalStatus,
-      statusRaw
-    });
-
-    await prisma.order.update({
-      where: { id: order.id },
-      data: {
-        status: 'READY_FOR_SHIPMENT',
-        statusUpdatedAt: new Date(),
-        readyForShipmentAt: new Date(),
-        dropoffDeadlineAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
-      }
-    });
-
-    await shipmentService.pushHistory(updated.id, internalStatus, statusRaw);
-    return updated;
+      await shipmentService.pushHistory(updated.id, internalStatus, statusRaw);
+      return updated;
     })();
 
     readyToShipSingleFlight.set(orderId, runPromise);
-
     try {
       return await runPromise;
     } finally {
@@ -502,10 +363,13 @@ export const yandexNddShipmentOrchestrator = {
     for (const shipment of shipments) {
       if (!shipment.requestId) continue;
 
-      const history = await yandexNddClient.requestHistory(shipment.requestId);
+      const history = await yandexDeliveryService.getRequestHistory(shipment.requestId);
+      const info = await yandexDeliveryService.getRequestInfo(shipment.requestId);
+
       const yandexStatus =
-        extractYandexStatus(history) ??
-        extractYandexStatus(await yandexNddClient.requestInfo(shipment.requestId));
+        (history && extractYandexStatus(history as any)) ??
+        (info && extractYandexStatus(info as any)) ??
+        null;
 
       const internalStatus = mapYandexStatusToInternal(yandexStatus);
       const previousStatus = shipment.status;
@@ -513,6 +377,7 @@ export const yandexNddShipmentOrchestrator = {
       const statusRaw = {
         ...(shipment.statusRaw ?? {}),
         history,
+        info,
         lastStatus: yandexStatus,
         syncedAt: new Date().toISOString()
       };
@@ -542,19 +407,14 @@ export const yandexNddShipmentOrchestrator = {
 
   generateLabel: async (orderId: string) => {
     const shipment = await shipmentService.getByOrderId(orderId);
-    if (!shipment?.requestId) {
-      throw new Error('SHIPMENT_REQUEST_NOT_FOUND');
-    }
+    if (!shipment?.requestId) throw new Error('SHIPMENT_REQUEST_NOT_FOUND');
 
-    const response = await yandexNddClient.generateLabels([shipment.requestId]);
-    const base64Pdf = (response.pdf as string | undefined) ?? (response.content as string | undefined) ?? null;
-    const url = (response.url as string | undefined) ?? null;
-
+    const response = await yandexDeliveryService.generateLabels([shipment.requestId], 'one', 'ru');
     return {
       shipment,
-      url,
-      pdfBuffer: base64Pdf ? Buffer.from(base64Pdf, 'base64') : null,
-      raw: response
+      url: null,
+      pdfBuffer: response?.buffer ?? null,
+      raw: { contentType: response?.contentType ?? 'application/pdf' }
     };
   }
 };

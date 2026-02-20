@@ -25,74 +25,68 @@ import { TtlCache } from '../utils/cache';
 
 export const sellerRoutes = Router();
 
+// ---------------------------------------------------------
+// Uploads
+// ---------------------------------------------------------
 const uploadDir = path.join(process.cwd(), 'uploads');
 const kycUploadDir = path.join(uploadDir, 'kyc');
 if (!fs.existsSync(kycUploadDir)) {
   fs.mkdirSync(kycUploadDir, { recursive: true });
 }
+
 const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    cb(null, uploadDir);
-  },
+  destination: (_req, _file, cb) => cb(null, uploadDir),
   filename: (_req, file, cb) => {
     const unique = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
     cb(null, `${unique}-${file.originalname}`);
   }
 });
+
 const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp'];
 const allowedVideoTypes = ['video/mp4', 'video/webm'];
 const maxImageSize = 10 * 1024 * 1024;
 const maxVideoSize = 100 * 1024 * 1024;
+
 const upload = multer({
   storage,
-  limits: {
-    fileSize: maxVideoSize
-  },
+  limits: { fileSize: maxVideoSize },
   fileFilter: (_req, file, cb) => {
-    if ([...allowedImageTypes, ...allowedVideoTypes].includes(file.mimetype)) {
-      return cb(null, true);
-    }
+    if ([...allowedImageTypes, ...allowedVideoTypes].includes(file.mimetype)) return cb(null, true);
     return cb(new Error('UPLOAD_FILE_TYPE_INVALID'));
   }
 });
+
 const kycStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    cb(null, kycUploadDir);
-  },
+  destination: (_req, _file, cb) => cb(null, kycUploadDir),
   filename: (_req, file, cb) => {
     const unique = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
     cb(null, `${unique}-${file.originalname}`);
   }
 });
+
 const kycUpload = multer({
   storage: kycStorage,
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     const allowed = ['application/pdf', 'image/jpeg', 'image/png'];
-    if (!allowed.includes(file.mimetype)) {
-      return cb(new Error('KYC_FILE_TYPE_INVALID'));
-    }
+    if (!allowed.includes(file.mimetype)) return cb(new Error('KYC_FILE_TYPE_INVALID'));
     return cb(null, true);
   }
 });
 
-const sellerOnboardingSchema = z.object({
-  name: z.string().min(2),
-  phone: z.string().min(5),
-  status: z.enum(['ИП', 'ООО', 'Самозанятый']),
-  storeName: z.string().min(2),
-  city: z.string().min(2),
-  referenceCategory: z.string().min(2),
-  catalogPosition: z.string().min(2)
-});
-
+// ---------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------
 const ensureSellerDeliveryProfile = async (sellerId: string) => {
   await prisma.sellerDeliveryProfile.upsert({
     where: { sellerId },
-    create: { sellerId, dropoffSchedule: 'DAILY' },
+    create: { sellerId },
     update: {}
   });
 };
+
+const normalizePlatformStationDigits = (value: unknown): string | null => normalizeDigitsStation(value);
+const normalizeOperatorStationDigits = (value: unknown): string | null => normalizeDigitsStation(value);
 
 const resolveValidationSelfPickupId = () => {
   const value = process.env.YANDEX_NDD_VALIDATION_SELF_PICKUP_ID?.trim();
@@ -106,12 +100,12 @@ const validateResolvedPlatformStationId = async (platformStationId: string | nul
 
   const validationSelfPickupId = resolveValidationSelfPickupId() ?? fallbackSelfPickupId;
   if (!validationSelfPickupId) {
-    return { validatedPlatformStationId: platformStationId, warningCode: null };
+    return { validatedPlatformStationId: platformStationId, warningCode: null as const };
   }
 
   try {
     await yandexNddClient.offersInfo(platformStationId, validationSelfPickupId, true);
-    return { validatedPlatformStationId: platformStationId, warningCode: null };
+    return { validatedPlatformStationId: platformStationId, warningCode: null as const };
   } catch (error) {
     if (error instanceof YandexNddHttpError) {
       const details =
@@ -134,413 +128,141 @@ const validateResolvedPlatformStationId = async (platformStationId: string | nul
       validationSelfPickupId,
       reason: error instanceof Error ? error.message : String(error)
     });
+
     return { validatedPlatformStationId: platformStationId, warningCode: 'SELLER_STATION_VALIDATION_SKIPPED' as const };
   }
 };
 
 const validateSourcePlatformStationId = async (dropoffStationId: string) => {
   const { defaultPlatformStationId } = getYandexNddConfig();
-  const normalized = normalizeUuid(dropoffStationId);
-  if (!normalized) {
-    throw new Error('SELLER_STATION_ID_INVALID');
-  }
+  const normalized = normalizePlatformStationDigits(dropoffStationId);
+  if (!normalized) throw new Error('SELLER_STATION_ID_INVALID');
 
   const selfPickupId = resolveValidationSelfPickupId();
-  if (!selfPickupId) {
-    return normalized;
-  }
+  if (!selfPickupId) return normalized;
 
   try {
     await yandexNddClient.offersInfo(normalized, selfPickupId, true);
+    return normalized;
   } catch (_error) {
-    if (defaultPlatformStationId && normalized === defaultPlatformStationId) {
-      return normalized;
-    }
+    if (defaultPlatformStationId && normalized === defaultPlatformStationId) return normalized;
     throw new Error('SELLER_STATION_ID_INVALID');
   }
-
-  return normalized;
 };
 
-const normalizeUuid = (value: unknown): string | null => {
-  if (typeof value !== 'string') {
-    return null;
-  }
-  const trimmed = value.trim().toLowerCase();
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(trimmed)
-    ? trimmed
-    : null;
+const normalizeText = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/ё/g, 'е')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const tokenize = (value: string) => normalizeText(value).split(' ').filter(Boolean);
+
+const queryLooksLikeAddress = (query: string) => /\d/.test(query) && query.trim().length > 6;
+
+const textSearchRank = (query: string, point: ReturnType<typeof mapSellerDropoffPoint>) => {
+  const haystack = normalizeText(`${point.name ?? ''} ${point.addressFull ?? ''} ${(point as any).instruction ?? ''}`);
+  const tokens = tokenize(query);
+  if (!tokens.length) return 0;
+  const matches = tokens.filter((token) => haystack.includes(token)).length;
+  return matches / tokens.length;
 };
 
-const normalizeOperatorStationDigits = (value: unknown): string | null => normalizeDigitsStation(value);
+const hasCoordinates = (
+  point: ReturnType<typeof mapSellerDropoffPoint>
+): point is ReturnType<typeof mapSellerDropoffPoint> & { position: { latitude: number; longitude: number } } =>
+  typeof (point as any).position?.latitude === 'number' && typeof (point as any).position?.longitude === 'number';
 
-sellerRoutes.post('/onboarding', requireAuth, writeLimiter, async (req: AuthRequest, res, next) => {
-  try {
-    const payload = sellerOnboardingSchema.parse(req.body);
-    const user = await prisma.user.findUnique({
-      where: { id: req.user!.userId },
-      select: { phoneVerifiedAt: true, phone: true }
-    });
-    if (!user?.phoneVerifiedAt) {
-      return res.status(403).json({ error: { code: 'PHONE_NOT_VERIFIED' } });
-    }
-    const phone = user.phone ?? payload.phone;
-    const updated = await prisma.user.update({
-      where: { id: req.user!.userId },
-      data: {
-        name: payload.name,
-        phone,
-        role: 'SELLER',
-        sellerProfile: {
-          upsert: {
-            create: {
-              status: payload.status,
-              storeName: payload.storeName,
-              phone,
-              city: payload.city,
-              referenceCategory: payload.referenceCategory,
-              catalogPosition: payload.catalogPosition
-            },
-            update: {
-              status: payload.status,
-              storeName: payload.storeName,
-              phone,
-              city: payload.city,
-              referenceCategory: payload.referenceCategory,
-              catalogPosition: payload.catalogPosition
-            }
-          }
-        }
-      }
-    });
+const GEOCODER_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const geocoderCache = new TtlCache<string, { lat: number; lon: number; precision?: string | null; text?: string | null }>(500);
 
-    await ensureSellerDeliveryProfile(req.user!.userId);
+const geocodeAddress = async (query: string) => {
+  const apiKey = process.env.YMAPS_GEOCODER_API_KEY?.trim();
+  if (!apiKey) return null;
 
-    res.json({
-      data: {
-        id: updated.id,
-        name: updated.name,
-        email: updated.email,
-        phone: updated.phone,
-        role: updated.role
-      }
-    });
-  } catch (error) {
-    next(error);
-  }
-});
+  const cacheKey = normalizeText(query);
+  const cached = geocoderCache.get(cacheKey);
+  if (cached) return cached;
 
+  const geocode = `${query}, Москва`;
+  const url = new URL('https://geocode-maps.yandex.ru/1.x/');
+  url.searchParams.set('apikey', apiKey);
+  url.searchParams.set('format', 'json');
+  url.searchParams.set('lang', 'ru_RU');
+  url.searchParams.set('geocode', geocode);
 
-const loadSellerContext = async (userId: string) => {
-  const profile = await prisma.sellerProfile.findUnique({
-    where: { userId }
-  });
-  if (!profile) {
-    return null;
-  }
-  const latestSubmission = await prisma.sellerKycSubmission.findFirst({
-    where: { userId },
-    orderBy: { createdAt: 'desc' },
-    include: { documents: true }
-  });
-  const approvedSubmission = await prisma.sellerKycSubmission.findFirst({
-    where: { userId, status: 'APPROVED' },
-    orderBy: { reviewedAt: 'desc' }
-  });
-  return {
-    isSeller: true,
-    profile,
-    kyc: latestSubmission ?? null,
-    canSell: Boolean(approvedSubmission)
+  const response = await fetch(url.toString());
+  if (!response.ok) return null;
+
+  const payload = (await response.json()) as any;
+  const first = payload?.response?.GeoObjectCollection?.featureMember?.[0]?.GeoObject;
+  const pos = String(first?.Point?.pos ?? '').trim();
+  const [lonRaw, latRaw] = pos.split(' ');
+  const lat = Number(latRaw);
+  const lon = Number(lonRaw);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+
+  const value = {
+    lat,
+    lon,
+    precision: first?.metaDataProperty?.GeocoderMetaData?.precision ?? null,
+    text: first?.metaDataProperty?.GeocoderMetaData?.text ?? null
   };
+  geocoderCache.set(cacheKey, value, GEOCODER_TTL_MS);
+  return value;
 };
 
-const respondSellerContext = async (req: AuthRequest, res: Response) => {
-  if (req.user?.role !== 'SELLER') {
-    return res.status(403).json({ code: 'FORBIDDEN', message: 'Seller only' });
-  }
+const readPlatformStationId = (point: Record<string, any>): string | null => {
+  const station = point?.station && typeof point.station === 'object' ? point.station : null;
+  const platformStation = point?.platform_station && typeof point.platform_station === 'object' ? point.platform_station : null;
 
-  await ensureSellerDeliveryProfile(req.user.userId);
+  const candidates = [
+    point?.platform_station_id,
+    platformStation?.platform_id,
+    point?.station_id,
+    station?.id,
+    station?.platform_id,
+    station?.platform_station_id
+  ];
 
-  const context = await loadSellerContext(req.user.userId);
-  if (!context) {
-    console.warn('Seller profile missing for user', { userId: req.user.userId });
-    return res.status(409).json({
-      code: 'SELLER_PROFILE_MISSING',
-      message: 'Seller onboarding required'
-    });
+  for (const candidate of candidates) {
+    const normalized = normalizePlatformStationDigits(candidate);
+    if (normalized) return normalized;
   }
-  return res.json({ data: context });
+  return null;
 };
 
-sellerRoutes.get('/context', requireAuth, async (req: AuthRequest, res, next) => {
-  try {
-    await respondSellerContext(req, res);
-  } catch (error) {
-    next(error);
-  }
+const mapSellerDropoffPoint = (point: Record<string, any>) => ({
+  pvzId: typeof point?.id === 'string' ? point.id : null,
+  platformStationId: readPlatformStationId(point),
+  operatorStationId: normalizeOperatorStationDigits(point?.operator_station_id),
+  name: typeof point?.name === 'string' ? point.name : null,
+  addressFull: point?.address?.full_address ?? null,
+  instruction: typeof point?.instruction === 'string' ? point.instruction : null,
+  geoId: point?.address?.geoId ?? point?.address?.geo_id ?? null,
+  position: point?.position ?? null,
+  available_for_c2c_dropoff: typeof point?.available_for_c2c_dropoff === 'boolean' ? point.available_for_c2c_dropoff : null,
+  available_for_dropoff: typeof point?.available_for_dropoff === 'boolean' ? point.available_for_dropoff : null,
+  maxWeightGross: null,
+  distanceMeters: null as number | null
 });
 
-sellerRoutes.get('/me', requireAuth, async (req: AuthRequest, res, next) => {
-  try {
-    await respondSellerContext(req, res);
-  } catch (error) {
-    next(error);
-  }
-});
-
-sellerRoutes.use(requireAuth, requireSeller);
-
-const orderStatusFlow: OrderStatus[] = [
-  'CREATED',
-  'PRINTING',
-  'HANDED_TO_DELIVERY',
-  'IN_TRANSIT',
-  'DELIVERED'
-];
-
-const ensureKycApproved = async (userId: string) => {
-  const approved = await prisma.sellerKycSubmission.findFirst({
-    where: { userId, status: 'APPROVED' },
-    orderBy: { reviewedAt: 'desc' }
-  });
-  return Boolean(approved);
-};
-
-const ensureReferenceCategory = async (category: string) => {
-  const ref = await prisma.referenceCategory.findFirst({
-    where: {
-      isActive: true,
-      OR: [{ title: category }, { slug: category }]
-    }
-  });
-  if (!ref) {
-    throw new Error('CATEGORY_INVALID');
-  }
-  return ref.title;
-};
-
-
-sellerRoutes.get('/kyc/me', async (req: AuthRequest, res, next) => {
-  try {
-    const submission = await prisma.sellerKycSubmission.findFirst({
-      where: { userId: req.user!.userId },
-      orderBy: { createdAt: 'desc' },
-      include: { documents: true }
-    });
-    res.json({ data: submission ?? null });
-  } catch (error) {
-    next(error);
-  }
-});
-
-sellerRoutes.post('/kyc/submit', writeLimiter, async (req: AuthRequest, res, next) => {
-  try {
-    const payload = z
-      .object({
-        dropoffPlatformStationId: z.string().optional(),
-        dropoffStationMeta: z.record(z.string(), z.unknown()).optional()
-      })
-      .parse(req.body ?? {});
-
-    const dropoffPlatformStationId = payload.dropoffPlatformStationId?.trim();
-    if (!dropoffPlatformStationId) {
-      return res.status(400).json({
-        error: {
-          code: 'SELLER_STATION_ID_REQUIRED',
-          message: 'Точка отгрузки обязательна. В будущем можно изменить в настройках.'
-        }
-      });
-    }
-
-    await sellerDeliveryProfileService.upsert(req.user!.userId, {
-      dropoffPlatformStationId,
-      dropoffStationMeta: payload.dropoffStationMeta
-    });
-
-    const latest = await prisma.sellerKycSubmission.findFirst({
-      where: { userId: req.user!.userId },
-      orderBy: { createdAt: 'desc' }
-    });
-    if (latest && latest.status === 'PENDING') {
-      return res.json({ data: latest });
-    }
-    const created = await prisma.sellerKycSubmission.create({
-      data: {
-        userId: req.user!.userId,
-        status: 'PENDING',
-        submittedAt: new Date()
-      },
-      include: { documents: true }
-    });
-    res.status(201).json({ data: created });
-  } catch (error) {
-    next(error);
-  }
-});
-
-sellerRoutes.post('/kyc/documents', writeLimiter, kycUpload.array('files', 5), async (req: AuthRequest, res, next) => {
-  try {
-    const files = (req.files as Express.Multer.File[]) ?? [];
-    if (!files.length) {
-      return res.status(400).json({ error: { code: 'KYC_FILES_REQUIRED' } });
-    }
-    let submission = await prisma.sellerKycSubmission.findFirst({
-      where: { userId: req.user!.userId },
-      orderBy: { createdAt: 'desc' }
-    });
-    if (!submission || submission.status === 'REJECTED') {
-      submission = await prisma.sellerKycSubmission.create({
-        data: {
-          userId: req.user!.userId,
-          status: 'PENDING',
-          submittedAt: new Date()
-        }
-      });
-    }
-    const createdDocs = await prisma.$transaction(
-      files.map((file) =>
-        prisma.sellerDocument.create({
-          data: {
-            submissionId: submission!.id,
-            type: 'document',
-            url: `/uploads/kyc/${file.filename}`,
-            fileName: file.filename,
-            originalName: file.originalname,
-            mime: file.mimetype,
-            size: file.size
-          }
-        })
-      )
-    );
-    res.status(201).json({ data: { submissionId: submission.id, documents: createdDocs } });
-  } catch (error) {
-    next(error);
-  }
-});
-
-sellerRoutes.get('/products', async (req: AuthRequest, res, next) => {
-  try {
-    const approved = await ensureKycApproved(req.user!.userId);
-    if (!approved && req.user!.role !== 'ADMIN') {
-      return res.status(403).json({ error: { code: 'KYC_NOT_APPROVED', message: 'KYC not approved' } });
-    }
-    const sellerProducts = await prisma.product.findMany({
-      where: { sellerId: req.user!.userId },
-      include: { images: { orderBy: { sortOrder: 'asc' } } }
-    });
-    res.json({ data: sellerProducts });
-  } catch (error) {
-    next(error);
-  }
-});
-
-sellerRoutes.post('/products', writeLimiter, async (req: AuthRequest, res, next) => {
-  try {
-    const approved = await ensureKycApproved(req.user!.userId);
-    if (!approved && req.user!.role !== 'ADMIN') {
-      return res.status(403).json({ error: { code: 'KYC_NOT_APPROVED', message: 'KYC not approved' } });
-    }
-    const payload = sellerProductSchema.parse(req.body);
-    const normalizedCategory = await ensureReferenceCategory(payload.category);
-    const skuFallback = payload.sku ?? `SKU-${Date.now()}`;
-    if (!payload.imageUrls?.length && !payload.image) {
-      return res.status(400).json({ error: { code: 'IMAGE_REQUIRED' } });
-    }
-    const providedImageUrls = payload.imageUrls ?? [];
-    const imageUrls = providedImageUrls.length ? providedImageUrls : payload.image ? [payload.image] : [];
-    const videoUrls = payload.videoUrls ?? [];
-    const product = await productUseCases.create({
-      ...payload,
-      category: normalizedCategory,
-      descriptionShort: payload.descriptionShort ?? payload.description,
-      descriptionFull: payload.descriptionFull ?? payload.description,
-      sku: skuFallback,
-      currency: payload.currency ?? 'RUB',
-      sellerId: req.user!.userId,
-      image: imageUrls[0],
-      imageUrls,
-      videoUrls,
-    });
-    res.status(201).json({ data: product });
-  } catch (error) {
-    if (error instanceof Error && error.message === 'CATEGORY_INVALID') {
-      return res.status(400).json({ error: { code: 'CATEGORY_INVALID', message: 'Категория недоступна.' } });
-    }
-    next(error);
-  }
-});
-
-sellerRoutes.put('/products/:id', writeLimiter, async (req: AuthRequest, res, next) => {
-  try {
-    const approved = await ensureKycApproved(req.user!.userId);
-    if (!approved && req.user!.role !== 'ADMIN') {
-      return res.status(403).json({ error: { code: 'KYC_NOT_APPROVED', message: 'KYC not approved' } });
-    }
-    const payload = sellerProductSchema.partial().parse(req.body);
-    const normalizedCategory = payload.category ? await ensureReferenceCategory(payload.category) : undefined;
-    const imageUrls = payload.imageUrls ?? (payload.image ? [payload.image] : undefined);
-    const videoUrls = payload.videoUrls;
-    const product = await productUseCases.update(req.params.id, {
-      ...payload,
-      category: normalizedCategory ?? payload.category,
-      descriptionShort: payload.descriptionShort ?? payload.description,
-      descriptionFull: payload.descriptionFull ?? payload.description,
-      sku: payload.sku,
-      currency: payload.currency,
-      sellerId: req.user!.userId,
-      image: imageUrls?.[0] ?? payload.image,
-      imageUrls,
-      videoUrls,
-    });
-    res.json({ data: product });
-  } catch (error) {
-    if (error instanceof Error && error.message === 'CATEGORY_INVALID') {
-      return res.status(400).json({ error: { code: 'CATEGORY_INVALID', message: 'Категория недоступна.' } });
-    }
-    next(error);
-  }
-});
-
-sellerRoutes.post('/uploads', writeLimiter, upload.array('files', 10), async (req, res) => {
-  const files = (req.files as Express.Multer.File[]) ?? [];
-  if (!files.length) {
-    return res.status(400).json({ error: { code: 'FILES_REQUIRED' } });
-  }
-  const oversizedFiles = files.filter((file) => {
-    if (allowedImageTypes.includes(file.mimetype)) {
-      return file.size > maxImageSize;
-    }
-    if (allowedVideoTypes.includes(file.mimetype)) {
-      return file.size > maxVideoSize;
-    }
-    return true;
-  });
-  if (oversizedFiles.length) {
-    await Promise.all(files.map((file) => fs.promises.unlink(file.path).catch(() => undefined)));
-    return res.status(400).json({ error: { code: 'FILE_TOO_LARGE' } });
-  }
-  const urls = files.map((file) => `/uploads/${file.filename}`);
-  res.json({ data: { urls } });
-});
-
-sellerRoutes.delete('/products/:id', writeLimiter, async (req: AuthRequest, res, next) => {
-  try {
-    const approved = await ensureKycApproved(req.user!.userId);
-    if (!approved && req.user!.role !== 'ADMIN') {
-      return res.status(403).json({ error: { code: 'KYC_NOT_APPROVED', message: 'KYC not approved' } });
-    }
-    await productUseCases.remove(req.params.id);
-    res.json({ success: true });
-  } catch (error) {
-    next(error);
-  }
+// ---------------------------------------------------------
+// Schemas
+// ---------------------------------------------------------
+const sellerOnboardingSchema = z.object({
+  name: z.string().min(2),
+  phone: z.string().min(5),
+  status: z.enum(['ИП', 'ООО', 'Самозанятый']),
+  storeName: z.string().min(2),
+  city: z.string().min(2),
+  referenceCategory: z.string().min(2),
+  catalogPosition: z.string().min(2)
 });
 
 const sellerOrdersQuerySchema = z.object({
-  status: z
-    .enum(['CREATED', 'PRINTING', 'HANDED_TO_DELIVERY', 'IN_TRANSIT', 'DELIVERED'])
-    .optional(),
+  status: z.enum(['CREATED', 'PRINTING', 'HANDED_TO_DELIVERY', 'IN_TRANSIT', 'DELIVERED']).optional(),
   offset: z.coerce.number().int().min(0).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional()
 });
@@ -550,7 +272,6 @@ const sellerOrderStatusSchema = z.object({
   trackingNumber: z.string().min(2).optional(),
   carrier: z.string().min(2).optional()
 });
-
 
 const sourcePlatformStationSchema = z.object({
   source_platform_station: z.string().min(1).trim()
@@ -585,118 +306,6 @@ const dropoffStationsSearchBodySchema = z.object({
   limit: z.coerce.number().int().min(1).max(500).default(50)
 });
 
-const MAX_FETCH_LIMIT = 5000;
-const GEOCODER_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-const geocoderCache = new TtlCache<string, { lat: number; lon: number; precision?: string | null; text?: string | null }>(500);
-
-const normalizeText = (value: string) =>
-  value
-    .toLowerCase()
-    .replace(/ё/g, 'е')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-const queryLooksLikeAddress = (query: string) => /\d/.test(query) && query.trim().length > 6;
-
-const hasCoordinates = (
-  point: ReturnType<typeof mapSellerDropoffPoint>
-): point is ReturnType<typeof mapSellerDropoffPoint> & { position: { latitude: number; longitude: number } } =>
-  typeof point.position?.latitude === 'number' && typeof point.position?.longitude === 'number';
-
-const tokenize = (value: string) => normalizeText(value).split(' ').filter(Boolean);
-
-const textSearchRank = (query: string, point: ReturnType<typeof mapSellerDropoffPoint>) => {
-  const haystack = normalizeText(`${point.name ?? ''} ${point.addressFull ?? ''} ${(point as any).instruction ?? ''}`);
-  const tokens = tokenize(query);
-  if (!tokens.length) {
-    return 0;
-  }
-  const matches = tokens.filter((token) => haystack.includes(token)).length;
-  return matches / tokens.length;
-};
-
-const geocodeAddress = async (query: string) => {
-  const apiKey = process.env.YMAPS_GEOCODER_API_KEY?.trim();
-  if (!apiKey) {
-    return null;
-  }
-
-  const cacheKey = normalizeText(query);
-  const cached = geocoderCache.get(cacheKey);
-  if (cached) {
-    return cached;
-  }
-
-  const geocode = `${query}, Москва`;
-  const url = new URL('https://geocode-maps.yandex.ru/1.x/');
-  url.searchParams.set('apikey', apiKey);
-  url.searchParams.set('format', 'json');
-  url.searchParams.set('lang', 'ru_RU');
-  url.searchParams.set('geocode', geocode);
-
-  const response = await fetch(url.toString());
-  if (!response.ok) {
-    return null;
-  }
-
-  const payload = (await response.json()) as any;
-  const first = payload?.response?.GeoObjectCollection?.featureMember?.[0]?.GeoObject;
-  const pos = String(first?.Point?.pos ?? '').trim();
-  const [lonRaw, latRaw] = pos.split(' ');
-  const lat = Number(latRaw);
-  const lon = Number(lonRaw);
-  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-    return null;
-  }
-
-  const value = {
-    lat,
-    lon,
-    precision: first?.metaDataProperty?.GeocoderMetaData?.precision ?? null,
-    text: first?.metaDataProperty?.GeocoderMetaData?.text ?? null
-  };
-  geocoderCache.set(cacheKey, value, GEOCODER_TTL_MS);
-  return value;
-};
-
-const readPlatformStationId = (point: Record<string, any>): string | null => {
-  const station = point?.station && typeof point.station === 'object' ? point.station : null;
-  const platformStation = point?.platform_station && typeof point.platform_station === 'object' ? point.platform_station : null;
-  const candidates = [
-    point?.platform_station_id,
-    platformStation?.platform_id,
-    point?.station_id,
-    station?.id,
-    station?.platform_id,
-    station?.platform_station_id
-  ];
-
-  for (const candidate of candidates) {
-    const normalized = normalizeUuid(candidate);
-    if (normalized) {
-      return normalized;
-    }
-  }
-
-  return null;
-};
-
-const mapSellerDropoffPoint = (point: Record<string, any>) => ({
-  pvzId: typeof point?.id === 'string' ? point.id : null,
-  platformStationId: readPlatformStationId(point),
-  operatorStationId: normalizeOperatorStationDigits(point?.operator_station_id),
-  name: typeof point?.name === 'string' ? point.name : null,
-  addressFull: point?.address?.full_address ?? null,
-  instruction: typeof point?.instruction === 'string' ? point.instruction : null,
-  geoId: point?.address?.geoId ?? point?.address?.geo_id ?? null,
-  position: point?.position ?? null,
-  available_for_c2c_dropoff:
-    typeof point?.available_for_c2c_dropoff === 'boolean' ? point.available_for_c2c_dropoff : null,
-  available_for_dropoff: typeof point?.available_for_dropoff === 'boolean' ? point.available_for_dropoff : null,
-  maxWeightGross: null,
-  distanceMeters: null as number | null
-});
-
 const dropoffStationSaveSchema = z.object({
   stationId: z.string().trim().min(1),
   addressFull: z.string().optional(),
@@ -711,9 +320,353 @@ const dropoffStationSaveSchema = z.object({
     .optional()
 });
 
+const orderStatusFlow: OrderStatus[] = ['CREATED', 'PRINTING', 'HANDED_TO_DELIVERY', 'IN_TRANSIT', 'DELIVERED'];
+
+const MAX_FETCH_LIMIT = 5000;
+
+// ---------------------------------------------------------
+// Routes
+// ---------------------------------------------------------
+sellerRoutes.post('/onboarding', requireAuth, writeLimiter, async (req: AuthRequest, res, next) => {
+  try {
+    const payload = sellerOnboardingSchema.parse(req.body);
+
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.userId },
+      select: { phoneVerifiedAt: true, phone: true }
+    });
+    if (!user?.phoneVerifiedAt) return res.status(403).json({ error: { code: 'PHONE_NOT_VERIFIED' } });
+
+    const phone = user.phone ?? payload.phone;
+
+    const updated = await prisma.user.update({
+      where: { id: req.user!.userId },
+      data: {
+        name: payload.name,
+        phone,
+        role: 'SELLER',
+        sellerProfile: {
+          upsert: {
+            create: {
+              status: payload.status,
+              storeName: payload.storeName,
+              phone,
+              city: payload.city,
+              referenceCategory: payload.referenceCategory,
+              catalogPosition: payload.catalogPosition
+            },
+            update: {
+              status: payload.status,
+              storeName: payload.storeName,
+              phone,
+              city: payload.city,
+              referenceCategory: payload.referenceCategory,
+              catalogPosition: payload.catalogPosition
+            }
+          }
+        }
+      }
+    });
+
+    await ensureSellerDeliveryProfile(req.user!.userId);
+
+    return res.json({
+      data: {
+        id: updated.id,
+        name: updated.name,
+        email: updated.email,
+        phone: updated.phone,
+        role: updated.role
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+const loadSellerContext = async (userId: string) => {
+  const profile = await prisma.sellerProfile.findUnique({ where: { userId } });
+  if (!profile) return null;
+
+  const latestSubmission = await prisma.sellerKycSubmission.findFirst({
+    where: { userId },
+    orderBy: { createdAt: 'desc' },
+    include: { documents: true }
+  });
+
+  const approvedSubmission = await prisma.sellerKycSubmission.findFirst({
+    where: { userId, status: 'APPROVED' },
+    orderBy: { reviewedAt: 'desc' }
+  });
+
+  return {
+    isSeller: true,
+    profile,
+    kyc: latestSubmission ?? null,
+    canSell: Boolean(approvedSubmission)
+  };
+};
+
+const respondSellerContext = async (req: AuthRequest, res: Response) => {
+  if (req.user?.role !== 'SELLER') return res.status(403).json({ code: 'FORBIDDEN', message: 'Seller only' });
+
+  await ensureSellerDeliveryProfile(req.user.userId);
+
+  const context = await loadSellerContext(req.user.userId);
+  if (!context) {
+    console.warn('Seller profile missing for user', { userId: req.user.userId });
+    return res.status(409).json({ code: 'SELLER_PROFILE_MISSING', message: 'Seller onboarding required' });
+  }
+
+  return res.json({ data: context });
+};
+
+sellerRoutes.get('/context', requireAuth, async (req: AuthRequest, res, next) => {
+  try { await respondSellerContext(req, res); } catch (e) { next(e); }
+});
+sellerRoutes.get('/me', requireAuth, async (req: AuthRequest, res, next) => {
+  try { await respondSellerContext(req, res); } catch (e) { next(e); }
+});
+
+sellerRoutes.use(requireAuth, requireSeller);
+
+// ------------------- KYC -------------------
+const ensureKycApproved = async (userId: string) => {
+  const approved = await prisma.sellerKycSubmission.findFirst({
+    where: { userId, status: 'APPROVED' },
+    orderBy: { reviewedAt: 'desc' }
+  });
+  return Boolean(approved);
+};
+
+const ensureReferenceCategory = async (category: string) => {
+  const ref = await prisma.referenceCategory.findFirst({
+    where: { isActive: true, OR: [{ title: category }, { slug: category }] }
+  });
+  if (!ref) throw new Error('CATEGORY_INVALID');
+  return ref.title;
+};
+
+sellerRoutes.get('/kyc/me', async (req: AuthRequest, res, next) => {
+  try {
+    const submission = await prisma.sellerKycSubmission.findFirst({
+      where: { userId: req.user!.userId },
+      orderBy: { createdAt: 'desc' },
+      include: { documents: true }
+    });
+    res.json({ data: submission ?? null });
+  } catch (error) {
+    next(error);
+  }
+});
+
+sellerRoutes.post('/kyc/submit', writeLimiter, async (req: AuthRequest, res, next) => {
+  try {
+    const payload = z.object({
+      dropoffPlatformStationId: z.string().optional(),
+      dropoffStationMeta: z.record(z.string(), z.unknown()).optional()
+    }).parse(req.body ?? {});
+
+    const dropoffPlatformStationId = payload.dropoffPlatformStationId?.trim();
+    if (!dropoffPlatformStationId) {
+      return res.status(400).json({
+        error: { code: 'SELLER_STATION_ID_REQUIRED', message: 'Точка отгрузки обязательна. В будущем можно изменить в настройках.' }
+      });
+    }
+
+    await sellerDeliveryProfileService.upsert(req.user!.userId, {
+      dropoffPlatformStationId,
+      dropoffStationMeta: payload.dropoffStationMeta
+    });
+
+    const latest = await prisma.sellerKycSubmission.findFirst({
+      where: { userId: req.user!.userId },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    if (latest && latest.status === 'PENDING') return res.json({ data: latest });
+
+    const created = await prisma.sellerKycSubmission.create({
+      data: { userId: req.user!.userId, status: 'PENDING', submittedAt: new Date() },
+      include: { documents: true }
+    });
+
+    res.status(201).json({ data: created });
+  } catch (error) {
+    next(error);
+  }
+});
+
+sellerRoutes.post('/kyc/documents', writeLimiter, kycUpload.array('files', 5), async (req: AuthRequest, res, next) => {
+  try {
+    const files = (req.files as Express.Multer.File[]) ?? [];
+    if (!files.length) return res.status(400).json({ error: { code: 'KYC_FILES_REQUIRED' } });
+
+    let submission = await prisma.sellerKycSubmission.findFirst({
+      where: { userId: req.user!.userId },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    if (!submission || submission.status === 'REJECTED') {
+      submission = await prisma.sellerKycSubmission.create({
+        data: { userId: req.user!.userId, status: 'PENDING', submittedAt: new Date() }
+      });
+    }
+
+    const createdDocs = await prisma.$transaction(
+      files.map((file) =>
+        prisma.sellerDocument.create({
+          data: {
+            submissionId: submission!.id,
+            type: 'document',
+            url: `/uploads/kyc/${file.filename}`,
+            fileName: file.filename,
+            originalName: file.originalname,
+            mime: file.mimetype,
+            size: file.size
+          }
+        })
+      )
+    );
+
+    res.status(201).json({ data: { submissionId: submission.id, documents: createdDocs } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ------------------- Products -------------------
+sellerRoutes.get('/products', async (req: AuthRequest, res, next) => {
+  try {
+    const approved = await ensureKycApproved(req.user!.userId);
+    if (!approved && req.user!.role !== 'ADMIN') {
+      return res.status(403).json({ error: { code: 'KYC_NOT_APPROVED', message: 'KYC not approved' } });
+    }
+
+    const sellerProducts = await prisma.product.findMany({
+      where: { sellerId: req.user!.userId },
+      include: { images: { orderBy: { sortOrder: 'asc' } } }
+    });
+
+    res.json({ data: sellerProducts });
+  } catch (error) {
+    next(error);
+  }
+});
+
+sellerRoutes.post('/products', writeLimiter, async (req: AuthRequest, res, next) => {
+  try {
+    const approved = await ensureKycApproved(req.user!.userId);
+    if (!approved && req.user!.role !== 'ADMIN') {
+      return res.status(403).json({ error: { code: 'KYC_NOT_APPROVED', message: 'KYC not approved' } });
+    }
+
+    const payload = sellerProductSchema.parse(req.body);
+    const normalizedCategory = await ensureReferenceCategory(payload.category);
+    const skuFallback = payload.sku ?? `SKU-${Date.now()}`;
+
+    if (!payload.imageUrls?.length && !payload.image) {
+      return res.status(400).json({ error: { code: 'IMAGE_REQUIRED' } });
+    }
+
+    const providedImageUrls = payload.imageUrls ?? [];
+    const imageUrls = providedImageUrls.length ? providedImageUrls : payload.image ? [payload.image] : [];
+    const videoUrls = payload.videoUrls ?? [];
+
+    const product = await productUseCases.create({
+      ...payload,
+      category: normalizedCategory,
+      descriptionShort: payload.descriptionShort ?? payload.description,
+      descriptionFull: payload.descriptionFull ?? payload.description,
+      sku: skuFallback,
+      currency: payload.currency ?? 'RUB',
+      sellerId: req.user!.userId,
+      image: imageUrls[0],
+      imageUrls,
+      videoUrls,
+    });
+
+    res.status(201).json({ data: product });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'CATEGORY_INVALID') {
+      return res.status(400).json({ error: { code: 'CATEGORY_INVALID', message: 'Категория недоступна.' } });
+    }
+    next(error);
+  }
+});
+
+sellerRoutes.put('/products/:id', writeLimiter, async (req: AuthRequest, res, next) => {
+  try {
+    const approved = await ensureKycApproved(req.user!.userId);
+    if (!approved && req.user!.role !== 'ADMIN') {
+      return res.status(403).json({ error: { code: 'KYC_NOT_APPROVED', message: 'KYC not approved' } });
+    }
+
+    const payload = sellerProductSchema.partial().parse(req.body);
+    const normalizedCategory = payload.category ? await ensureReferenceCategory(payload.category) : undefined;
+    const imageUrls = payload.imageUrls ?? (payload.image ? [payload.image] : undefined);
+    const videoUrls = payload.videoUrls;
+
+    const product = await productUseCases.update(req.params.id, {
+      ...payload,
+      category: normalizedCategory ?? payload.category,
+      descriptionShort: payload.descriptionShort ?? payload.description,
+      descriptionFull: payload.descriptionFull ?? payload.description,
+      sku: payload.sku,
+      currency: payload.currency,
+      sellerId: req.user!.userId,
+      image: imageUrls?.[0] ?? payload.image,
+      imageUrls,
+      videoUrls,
+    });
+
+    res.json({ data: product });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'CATEGORY_INVALID') {
+      return res.status(400).json({ error: { code: 'CATEGORY_INVALID', message: 'Категория недоступна.' } });
+    }
+    next(error);
+  }
+});
+
+sellerRoutes.delete('/products/:id', writeLimiter, async (req: AuthRequest, res, next) => {
+  try {
+    const approved = await ensureKycApproved(req.user!.userId);
+    if (!approved && req.user!.role !== 'ADMIN') {
+      return res.status(403).json({ error: { code: 'KYC_NOT_APPROVED', message: 'KYC not approved' } });
+    }
+    await productUseCases.remove(req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ------------------- Uploads -------------------
+sellerRoutes.post('/uploads', writeLimiter, upload.array('files', 10), async (req, res) => {
+  const files = (req.files as Express.Multer.File[]) ?? [];
+  if (!files.length) return res.status(400).json({ error: { code: 'FILES_REQUIRED' } });
+
+  const oversizedFiles = files.filter((file) => {
+    if (allowedImageTypes.includes(file.mimetype)) return file.size > maxImageSize;
+    if (allowedVideoTypes.includes(file.mimetype)) return file.size > maxVideoSize;
+    return true;
+  });
+
+  if (oversizedFiles.length) {
+    await Promise.all(files.map((file) => fs.promises.unlink(file.path).catch(() => undefined)));
+    return res.status(400).json({ error: { code: 'FILE_TOO_LARGE' } });
+  }
+
+  const urls = files.map((file) => `/uploads/${file.filename}`);
+  res.json({ data: { urls } });
+});
+
+// ------------------- Settings + NDD -------------------
 sellerRoutes.get('/settings', async (req: AuthRequest, res, next) => {
   try {
     await ensureSellerDeliveryProfile(req.user!.userId);
+
     const [settings, deliveryProfile] = await Promise.all([
       prisma.sellerSettings.findUnique({ where: { sellerId: req.user!.userId } }),
       prisma.sellerDeliveryProfile.findUnique({ where: { sellerId: req.user!.userId } })
@@ -725,7 +678,7 @@ sellerRoutes.get('/settings', async (req: AuthRequest, res, next) => {
         dropoffPlatformStationId: deliveryProfile?.dropoffPlatformStationId ?? null,
         dropoffOperatorStationId: deliveryProfile?.dropoffOperatorStationId ?? null,
         dropoffStationMeta: deliveryProfile?.dropoffStationMeta ?? null,
-        dropoffSchedule: deliveryProfile?.dropoffSchedule ?? 'DAILY',
+        dropoffSchedule: (deliveryProfile as any)?.dropoffSchedule ?? 'DAILY',
         dropoffPvz: settings?.defaultDropoffPvzId
           ? {
               provider: 'YANDEX_NDD',
@@ -744,23 +697,81 @@ sellerRoutes.get('/settings', async (req: AuthRequest, res, next) => {
   }
 });
 
+sellerRoutes.put('/settings', writeLimiter, async (req: AuthRequest, res, next) => {
+  try {
+    const payload = sellerSettingsSchema.parse(req.body ?? {});
+    const profile = await sellerDeliveryProfileService.upsert(req.user!.userId, {
+      dropoffSchedule: payload.dropoffSchedule
+    });
+    res.json({ data: profile });
+  } catch (error) {
+    next(error);
+  }
+});
+
+sellerRoutes.put('/settings/source-platform-station', writeLimiter, async (req: AuthRequest, res, next) => {
+  try {
+    const payload = sourcePlatformStationSchema.parse(req.body ?? {});
+    const validatedStationId = await validateSourcePlatformStationId(payload.source_platform_station);
+
+    const profile = await sellerDeliveryProfileService.upsert(req.user!.userId, {
+      dropoffPlatformStationId: validatedStationId,
+      dropoffStationMeta: { source: 'manual_input', sourcePlatformStation: validatedStationId }
+    });
+
+    return res.json({ data: profile });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'SELLER_STATION_ID_INVALID') {
+      return res.status(400).json({
+        error: { code: 'SELLER_STATION_ID_INVALID', message: 'Укажите корректный source_platform_station (digits).' }
+      });
+    }
+    return next(error);
+  }
+});
+
+sellerRoutes.put('/settings/dropoff-station', writeLimiter, async (req: AuthRequest, res, next) => {
+  try {
+    const payload = dropoffStationSaveSchema.parse(req.body ?? {});
+    const stationId = payload.stationId.trim();
+    const validatedStationId = await validateSourcePlatformStationId(stationId);
+
+    const profile = await sellerDeliveryProfileService.upsert(req.user!.userId, {
+      dropoffPlatformStationId: validatedStationId,
+      dropoffStationMeta: {
+        source: 'ndd/location_detect+pickup_points_list',
+        source_platform_station: validatedStationId,
+        addressFull: payload.addressFull,
+        geoId: payload.geoId,
+        query: payload.query,
+        position: payload.position,
+        raw: payload.raw ?? null
+      }
+    });
+
+    return res.json({ data: profile });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: { code: 'DROP_OFF_STATION_ID_REQUIRED', message: 'Не выбран stationId.' } });
+    }
+    if (error instanceof Error && error.message === 'SELLER_STATION_ID_INVALID') {
+      return res.status(400).json({ error: { code: 'SELLER_STATION_ID_INVALID', message: 'Укажите корректный stationId (digits).' } });
+    }
+    return next(error);
+  }
+});
+
+const MAX_OUTPUT_LIMIT = 500;
+
 sellerRoutes.get('/ndd/dropoff-stations', async (req: AuthRequest, res, next) => {
   try {
     const geoIdRaw = typeof req.query?.geoId === 'string' ? req.query.geoId : String(req.query?.geoId ?? '');
     const geoId = Number(geoIdRaw);
     if (!geoIdRaw.trim() || Number.isNaN(geoId) || !Number.isFinite(geoId) || geoId <= 0) {
-      return res.status(400).json({
-        error: {
-          code: 'GEO_ID_REQUIRED',
-          message: 'geoId обязателен'
-        }
-      });
+      return res.status(400).json({ error: { code: 'GEO_ID_REQUIRED', message: 'geoId обязателен' } });
     }
 
-    const { limit = 100 } = dropoffStationsQuerySchema.parse({
-      geoId,
-      limit: req.query?.limit
-    });
+    const { limit = 100 } = dropoffStationsQuerySchema.parse({ geoId, limit: req.query?.limit });
 
     const pickupPointResp = await yandexNddClient.pickupPointsList({
       geo_id: geoId,
@@ -789,57 +800,25 @@ sellerRoutes.get('/ndd/dropoff-stations', async (req: AuthRequest, res, next) =>
       is_not_branded_partner_station: true
     });
 
-    const pickupPointsRaw =
-      (pickupPointResp as any)?.points ??
-      (pickupPointResp as any)?.result?.points ??
-      [];
-    const terminalPointsRaw =
-      (terminalResp as any)?.points ??
-      (terminalResp as any)?.result?.points ??
-      [];
-    const warehousePointsRaw =
-      (warehouseResp as any)?.points ??
-      (warehouseResp as any)?.result?.points ??
-      [];
+    const pickupPointsRaw = (pickupPointResp as any)?.points ?? (pickupPointResp as any)?.result?.points ?? [];
+    const terminalPointsRaw = (terminalResp as any)?.points ?? (terminalResp as any)?.result?.points ?? [];
+    const warehousePointsRaw = (warehouseResp as any)?.points ?? (warehouseResp as any)?.result?.points ?? [];
 
     const incomingPoints = [
       ...(Array.isArray(pickupPointsRaw) ? pickupPointsRaw : []),
       ...(Array.isArray(terminalPointsRaw) ? terminalPointsRaw : []),
       ...(Array.isArray(warehousePointsRaw) ? warehousePointsRaw : [])
     ];
-    const droppedReasons = {
-      missingId: 0,
-      outOfLimit: Math.max(incomingPoints.length - limit, 0)
-    };
 
     const points = incomingPoints
-      .slice(0, limit)
-      .map((point: Record<string, any>) => mapSellerDropoffPoint(point));
-
-    for (const point of points) {
-      if (!point.pvzId) {
-        droppedReasons.missingId += 1;
-      }
-    }
-
-    console.info('[DROP_OFF_STATIONS]', {
-      geoId,
-      incomingStationsCount: incomingPoints.length,
-      afterFiltersCount: points.length,
-      pointsCount: points.length,
-      filterReasons: droppedReasons,
-      sample: points[0]?.platformStationId
-    });
+      .slice(0, Math.min(limit, MAX_OUTPUT_LIMIT))
+      .map((p: Record<string, any>) => mapSellerDropoffPoint(p));
 
     return res.json({ points });
   } catch (error) {
     if (error instanceof YandexNddHttpError && error.code === 'NDD_REQUEST_FAILED') {
       return res.status(502).json({
-        error: {
-          code: 'NDD_REQUEST_FAILED',
-          message: 'Не удалось получить станции сдачи из NDD.',
-          details: (error as any).details ?? null
-        }
+        error: { code: 'NDD_REQUEST_FAILED', message: 'Не удалось получить станции сдачи из NDD.', details: (error as any).details ?? null }
       });
     }
     return next(error);
@@ -849,7 +828,6 @@ sellerRoutes.get('/ndd/dropoff-stations', async (req: AuthRequest, res, next) =>
 sellerRoutes.post('/ndd/dropoff-stations/search', async (req: AuthRequest, res, next) => {
   try {
     const { query, geoId: providedGeoId, limit } = dropoffStationsSearchBodySchema.parse(req.body ?? {});
-
     const geoId = providedGeoId ?? 213;
 
     const pickupPointResp = await yandexNddClient.pickupPointsList({
@@ -882,108 +860,69 @@ sellerRoutes.post('/ndd/dropoff-stations/search', async (req: AuthRequest, res, 
       limit: MAX_FETCH_LIMIT
     });
 
-    const pickupPointsRaw =
-      (pickupPointResp as any)?.points ??
-      (pickupPointResp as any)?.result?.points ??
-      [];
-    const terminalPointsRaw =
-      (terminalResp as any)?.points ??
-      (terminalResp as any)?.result?.points ??
-      [];
-    const warehousePointsRaw =
-      (warehouseResp as any)?.points ??
-      (warehouseResp as any)?.result?.points ??
-      [];
+    const pickupPointsRaw = (pickupPointResp as any)?.points ?? (pickupPointResp as any)?.result?.points ?? [];
+    const terminalPointsRaw = (terminalResp as any)?.points ?? (terminalResp as any)?.result?.points ?? [];
+    const warehousePointsRaw = (warehouseResp as any)?.points ?? (warehouseResp as any)?.result?.points ?? [];
 
     const allPoints = [
       ...(Array.isArray(pickupPointsRaw) ? pickupPointsRaw : []),
       ...(Array.isArray(terminalPointsRaw) ? terminalPointsRaw : []),
       ...(Array.isArray(warehousePointsRaw) ? warehousePointsRaw : [])
     ];
-    const rawPointsCount = allPoints.length;
-
-    if (allPoints.length >= MAX_FETCH_LIMIT) {
-      console.info('[NDD_DROP_OFF_SEARCH] reached fetch cap', { geoId, count: allPoints.length, cap: MAX_FETCH_LIMIT });
-    }
 
     const normalizedPoints = allPoints
-      .map((point: Record<string, any>) => mapSellerDropoffPoint(point))
-      .filter((point) => Boolean(point.pvzId))
-      .filter((point) => point.available_for_c2c_dropoff !== false);
+      .map((p: Record<string, any>) => mapSellerDropoffPoint(p))
+      .filter((p) => Boolean(p.pvzId))
+      .filter((p) => p.available_for_c2c_dropoff !== false);
 
     const isAddressSearch = queryLooksLikeAddress(query);
     const geocode = isAddressSearch ? await geocodeAddress(query) : null;
+
     let resultPoints = normalizedPoints;
 
     if (geocode) {
       resultPoints = normalizedPoints
-        .map((point) => {
-          if (!hasCoordinates(point)) {
-            return { ...point, distanceMeters: null };
-          }
+        .map((p) => {
+          if (!hasCoordinates(p)) return { ...p, distanceMeters: null };
           return {
-            ...point,
+            ...p,
             distanceMeters: Math.round(
               haversineDistanceMeters(
                 { latitude: geocode.lat, longitude: geocode.lon },
-                { latitude: point.position.latitude, longitude: point.position.longitude }
+                { latitude: (p as any).position.latitude, longitude: (p as any).position.longitude }
               )
             )
           };
         })
         .sort((a, b) => {
-          const aDistance = a.distanceMeters;
-          const bDistance = b.distanceMeters;
-          if (aDistance == null && bDistance == null) return 0;
-          if (aDistance == null) return 1;
-          if (bDistance == null) return -1;
-          return aDistance - bDistance;
+          const ad = a.distanceMeters;
+          const bd = b.distanceMeters;
+          if (ad == null && bd == null) return 0;
+          if (ad == null) return 1;
+          if (bd == null) return -1;
+          return ad - bd;
         });
     } else {
       const ranked = normalizedPoints
-        .map((point) => ({ point, rank: textSearchRank(query, point) }))
+        .map((p) => ({ point: p, rank: textSearchRank(query, p) }))
         .filter(({ rank }) => rank >= 0.5)
         .sort((a, b) => b.rank - a.rank)
         .map(({ point }) => point);
       resultPoints = ranked;
     }
 
-    resultPoints = resultPoints.slice(0, limit);
-
-    console.info('[NDD_DROP_OFF_SEARCH]', {
-      query,
-      geoId,
-      rawPointsCount,
-      normalizedPointsCount: normalizedPoints.length,
-      outputPointsCount: resultPoints.length,
-      points: resultPoints.length,
-      geocoded: Boolean(geocode)
-    });
+    resultPoints = resultPoints.slice(0, Math.min(limit, MAX_OUTPUT_LIMIT));
 
     return res.json({
       points: resultPoints,
       debug: {
         geoId,
-        ...(geocode
-          ? {
-              geocode: {
-                lat: geocode.lat,
-                lon: geocode.lon,
-                precision: geocode.precision,
-                text: geocode.text
-              }
-            }
-          : {})
+        ...(geocode ? { geocode: { lat: geocode.lat, lon: geocode.lon, precision: geocode.precision, text: geocode.text } } : {})
       }
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({
-        error: {
-          code: 'GEO_QUERY_REQUIRED',
-          message: 'Параметр query обязателен и должен быть не короче 2 символов.'
-        }
-      });
+      return res.status(400).json({ error: { code: 'GEO_QUERY_REQUIRED', message: 'query обязателен (мин 2 символа).' } });
     }
 
     if (error instanceof YandexNddHttpError && error.code === 'NDD_REQUEST_FAILED') {
@@ -992,99 +931,15 @@ sellerRoutes.post('/ndd/dropoff-stations/search', async (req: AuthRequest, res, 
         error: {
           code: 'NDD_REQUEST_FAILED',
           message: unauthorized ? 'Нет доступа к NDD (проверь токен/BASE_URL).' : 'Не удалось получить станции сдачи из NDD.',
-          details: unauthorized
-            ? { code: 'unauthorized', message: 'Not authorized request' }
-            : (error as any).details ?? null
+          details: unauthorized ? { code: 'unauthorized', message: 'Not authorized request' } : (error as any).details ?? null
         }
       });
     }
 
     if (error instanceof TypeError) {
-      return res.status(502).json({
-        error: {
-          code: 'NDD_REQUEST_FAILED',
-          message: 'Ошибка сети при запросе станций сдачи.',
-          details: error.message
-        }
-      });
+      return res.status(502).json({ error: { code: 'NDD_REQUEST_FAILED', message: 'Ошибка сети при запросе станций сдачи.', details: error.message } });
     }
 
-    return next(error);
-  }
-});
-
-sellerRoutes.put('/settings', writeLimiter, async (req: AuthRequest, res, next) => {
-  try {
-    const payload = sellerSettingsSchema.parse(req.body ?? {});
-    const profile = await sellerDeliveryProfileService.upsert(req.user!.userId, {
-      dropoffSchedule: payload.dropoffSchedule
-    });
-
-    res.json({ data: profile });
-  } catch (error) {
-    next(error);
-  }
-});
-
-sellerRoutes.put('/settings/dropoff-station', writeLimiter, async (req: AuthRequest, res, next) => {
-  try {
-    const payload = dropoffStationSaveSchema.parse(req.body ?? {});
-    const stationId = payload.stationId.trim();
-    const validatedStationId = await validateSourcePlatformStationId(stationId);
-
-    const profile = await sellerDeliveryProfileService.upsert(req.user!.userId, {
-      dropoffPlatformStationId: validatedStationId,
-      dropoffStationMeta: {
-        source: 'ndd/location_detect+pickup_points_list',
-        source_platform_station: validatedStationId,
-        addressFull: payload.addressFull,
-        geoId: payload.geoId,
-        query: payload.query,
-        position: payload.position,
-        raw: payload.raw ?? null
-      }
-    });
-
-    return res.json({ data: profile });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({
-        error: {
-          code: 'DROP_OFF_STATION_ID_REQUIRED',
-          message: 'Не выбран id станции сдачи (stationId).'
-        }
-      });
-    }
-    if (error instanceof Error && error.message === 'SELLER_STATION_ID_INVALID') {
-      return res.status(400).json({
-        error: {
-          code: 'SELLER_STATION_ID_INVALID',
-          message: 'Укажите корректный stationId.'
-        }
-      });
-    }
-    return next(error);
-  }
-});
-
-sellerRoutes.put('/settings/source-platform-station', writeLimiter, async (req: AuthRequest, res, next) => {
-  try {
-    const payload = sourcePlatformStationSchema.parse(req.body ?? {});
-    const validatedStationId = await validateSourcePlatformStationId(payload.source_platform_station);
-
-    const profile = await sellerDeliveryProfileService.upsert(req.user!.userId, {
-      dropoffPlatformStationId: validatedStationId,
-      dropoffStationMeta: {
-        source: 'manual_input',
-        sourcePlatformStation: validatedStationId
-      }
-    });
-
-    return res.json({ data: profile });
-  } catch (error) {
-    if (error instanceof Error && error.message === 'SELLER_STATION_ID_INVALID') {
-      return res.status(400).json({ error: { code: 'SELLER_STATION_ID_INVALID', message: 'Укажите корректный source_platform_station' } });
-    }
     return next(error);
   }
 });
@@ -1093,78 +948,42 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
   try {
     const payload = sellerDeliveryProfileSchema.parse(req.body);
     const pvzId = String(payload.dropoffPvz.pvzId ?? '').trim();
-    console.info('[DROP_OFF_SAVE]', { pvzId });
+
     if (!pvzId) {
-      return res.status(400).json({ error: { code: 'DROP_OFF_PVZ_ID_REQUIRED', message: 'Не выбран id точки (pvzId).' } });
+      return res.status(400).json({ error: { code: 'DROP_OFF_PVZ_ID_REQUIRED', message: 'Не выбран pvzId.' } });
     }
 
     const listResp = await yandexNddClient.pickupPointsList({ pickup_point_ids: [pvzId] });
-    const points =
-      (listResp as any)?.points ??
-      (listResp as any)?.result?.points ??
-      [];
+    const points = (listResp as any)?.points ?? (listResp as any)?.result?.points ?? [];
     const point = Array.isArray(points) ? points[0] : null;
 
     if (!point) {
-      return res.status(400).json({
-        error: {
-          code: 'DROP_OFF_PVZ_NOT_FOUND',
-          message: 'Точка не найдена в NDD.'
-        }
-      });
+      return res.status(400).json({ error: { code: 'DROP_OFF_PVZ_NOT_FOUND', message: 'Точка не найдена в NDD.' } });
     }
 
     if ((point as any).available_for_c2c_dropoff === false || (point as any).available_for_dropoff === false) {
-      return res.status(400).json({
-        error: {
-          code: 'DROP_OFF_NOT_AVAILABLE',
-          message: 'Эта точка недоступна для отгрузки. Выберите другую.'
-        }
-      });
+      return res.status(400).json({ error: { code: 'DROP_OFF_NOT_AVAILABLE', message: 'Точка недоступна для отгрузки. Выберите другую.' } });
     }
 
     if ((point as any).type && !['pickup_point', 'terminal', 'warehouse'].includes((point as any).type)) {
-      return res.status(400).json({
-        error: {
-          code: 'DROP_OFF_TYPE_INVALID',
-          message: 'Эта точка не поддерживает сдачу отправлений. Выберите пункт приёма.'
-        }
-      });
+      return res.status(400).json({ error: { code: 'DROP_OFF_TYPE_INVALID', message: 'Точка не поддерживает сдачу. Выберите пункт приёма.' } });
     }
 
     const operatorStationId = normalizeOperatorStationDigits((point as any).operator_station_id);
-    const platformStationId = readPlatformStationId(point as Record<string, any>);
+    const platformStationId = readPlatformStationId(point as Record<string, any>); // digits
     const validationResult = await validateResolvedPlatformStationId(platformStationId, pvzId);
 
     const dropoffPvzMeta = {
       provider: 'YANDEX_NDD' as const,
       pvzId,
-      addressFull:
-        payload.dropoffPvz.addressFull ??
-        ((point as any)?.address?.full_address ?? undefined),
+      addressFull: payload.dropoffPvz.addressFull ?? ((point as any)?.address?.full_address ?? undefined),
       raw: point
     };
 
-    console.info('[DROP_OFF_PVZ_RESOLVE]', {
-      pvzId,
-      type: (point as any).type,
-      available_for_dropoff: (point as any).available_for_dropoff,
-      available_for_c2c_dropoff: (point as any).available_for_c2c_dropoff,
-      operatorStationId,
-      platformStationId
-    });
-
     const settings = await prisma.sellerSettings.upsert({
       where: { sellerId: req.user!.userId },
-      create: {
-        sellerId: req.user!.userId,
-        defaultDropoffPvzId: pvzId,
-        defaultDropoffPvzMeta: dropoffPvzMeta as unknown as object
-      },
-      update: {
-        defaultDropoffPvzId: pvzId,
-        defaultDropoffPvzMeta: dropoffPvzMeta as unknown as object
-      }
+      create: { sellerId: req.user!.userId, defaultDropoffPvzId: pvzId, defaultDropoffPvzMeta: dropoffPvzMeta as unknown as object },
+      update: { defaultDropoffPvzId: pvzId, defaultDropoffPvzMeta: dropoffPvzMeta as unknown as object }
     });
 
     await sellerDeliveryProfileService.upsert(req.user!.userId, {
@@ -1180,132 +999,40 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
       }
     });
 
+    // legacy/compat field: keep storing platform station id (digits) here too, if your orchestrator still reads it
     await prisma.sellerDeliveryProfile.update({
       where: { sellerId: req.user!.userId },
-      data: { dropoffStationId: platformStationId }
+      data: { dropoffStationId: platformStationId ?? undefined }
     });
 
     if (!platformStationId) {
       return res.status(202).json({
         data: settings,
-        warning: {
-          code: 'SELLER_STATION_ID_REQUIRED',
-          message: 'ПВЗ сохранён, но station_id платформы не определён. Выберите другой ПВЗ или обратитесь в поддержку.'
-        }
+        warning: { code: 'SELLER_STATION_ID_REQUIRED', message: 'ПВЗ сохранён, но station_id (digits) не определён. Выберите другой ПВЗ.' }
       });
     }
 
     if (validationResult.warningCode === 'SELLER_STATION_ID_REQUIRED') {
       return res.status(202).json({
         data: settings,
-        warning: {
-          code: 'SELLER_STATION_ID_REQUIRED',
-          message: 'ПВЗ сохранён, но проверка station_id через offers/info вернула validation_error. Сохранённый station_id будет использован при отгрузке.'
-        }
+        warning: { code: 'SELLER_STATION_ID_REQUIRED', message: 'ПВЗ сохранён, но offers/info вернул validation_error. station_id всё равно сохранён и будет использован.' }
       });
     }
 
     if (validationResult.warningCode === 'SELLER_STATION_VALIDATION_SKIPPED') {
       return res.status(202).json({
         data: settings,
-        warning: {
-          code: 'SELLER_STATION_VALIDATION_SKIPPED',
-          message: 'ПВЗ сохранён, но проверка station_id через offers/info недоступна. Проверьте отправку тестового заказа.'
-        }
+        warning: { code: 'SELLER_STATION_VALIDATION_SKIPPED', message: 'ПВЗ сохранён, но проверка offers/info недоступна. Проверь тестовый заказ.' }
       });
     }
 
-    res.json({ data: settings });
+    return res.json({ data: settings });
   } catch (error) {
     next(error);
   }
 });
 
-
-sellerRoutes.post('/settings/dropoff-pvz/test-station', writeLimiter, async (req: AuthRequest, res, next) => {
-  try {
-    if (process.env.NODE_ENV === 'production') {
-      return res.status(403).json({ error: { code: 'FORBIDDEN' } });
-    }
-
-    const devStationId = process.env.YANDEX_NDD_DEV_OPERATOR_STATION_ID?.trim();
-    if (!devStationId || !/^\d+$/.test(devStationId)) {
-      return res.status(400).json({ error: { code: 'OPERATOR_STATION_ID_MISSING' } });
-    }
-
-    await sellerDeliveryProfileService.upsert(req.user!.userId, {
-      dropoffPlatformStationId: devStationId,
-      dropoffStationMeta: {
-        source: 'dev-endpoint',
-        sourcePlatformStation: devStationId
-      }
-    });
-
-    return res.json({ data: { source_platform_station: devStationId } });
-  } catch (error) {
-    return next(error);
-  }
-});
-
-sellerRoutes.post('/orders/:id/yandex/labels', writeLimiter, async (req: AuthRequest, res, next) => {
-  try {
-    const order = await prisma.order.findFirst({
-      where: { id: req.params.id, items: { some: { product: { sellerId: req.user!.userId } } } },
-      select: { id: true, yandexRequestId: true }
-    });
-    if (!order?.yandexRequestId) {
-      return res.status(400).json({ error: { code: 'YANDEX_REQUEST_ID_REQUIRED' } });
-    }
-    const file = await yandexDeliveryService.generateLabels([order.yandexRequestId], 'one', 'ru');
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="label_${order.id}.pdf"`);
-    res.send(file.buffer);
-  } catch (error) {
-    next(error);
-  }
-});
-
-const handoverSchema = z.object({
-  mode: z.enum(['new_requests', 'by_request_ids', 'by_date_range']).default('new_requests'),
-  request_ids: z.array(z.string()).optional(),
-  created_since: z.number().optional(),
-  created_until: z.number().optional(),
-  created_since_utc: z.string().optional(),
-  created_until_utc: z.string().optional(),
-  editable_format: z.boolean().optional()
-});
-
-sellerRoutes.post('/yandex/handover-act', writeLimiter, async (req: AuthRequest, res, next) => {
-  try {
-    const payload = handoverSchema.parse(req.body);
-    const params: Record<string, unknown> = { editable_format: payload.editable_format ?? false };
-    let body: Record<string, unknown> = {};
-
-    if (payload.mode === 'new_requests') {
-      params.new_requests = true;
-    } else if (payload.mode === 'by_request_ids') {
-      body = { request_ids: payload.request_ids ?? [] };
-    } else {
-      if (payload.created_since !== undefined) params.created_since = payload.created_since;
-      if (payload.created_until !== undefined) params.created_until = payload.created_until;
-      if (payload.created_since_utc) params.created_since_utc = payload.created_since_utc;
-      if (payload.created_until_utc) params.created_until_utc = payload.created_until_utc;
-    }
-
-    const file = await yandexDeliveryService.getHandoverAct(params, body);
-    const ext = payload.editable_format ? 'docx' : 'pdf';
-    const contentType = payload.editable_format
-      ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-      : 'application/pdf';
-
-    res.setHeader('Content-Type', contentType);
-    res.setHeader('Content-Disposition', `attachment; filename="handover_act_${Date.now()}.${ext}"`);
-    res.send(file.buffer);
-  } catch (error) {
-    next(error);
-  }
-});
-
+// ------------------- Orders -------------------
 sellerRoutes.get('/orders', async (req: AuthRequest, res, next) => {
   try {
     const query = sellerOrdersQuerySchema.parse(req.query);
@@ -1314,8 +1041,8 @@ sellerRoutes.get('/orders', async (req: AuthRequest, res, next) => {
       offset: query.offset,
       limit: query.limit
     });
-    const shipments = await shipmentService.getByOrderIds(orders.map((order) => order.id));
-    res.json({ data: orders.map((order) => ({ ...order, shipment: shipments.get(order.id) ?? null })) });
+    const shipments = await shipmentService.getByOrderIds(orders.map((o) => o.id));
+    res.json({ data: orders.map((o) => ({ ...o, shipment: shipments.get(o.id) ?? null })) });
   } catch (error) {
     next(error);
   }
@@ -1333,15 +1060,10 @@ sellerRoutes.post('/orders/:orderId/ready-to-ship', writeLimiter, async (req: Au
 sellerRoutes.get('/orders/:orderId/shipping-label', async (req: AuthRequest, res, next) => {
   try {
     const order = await prisma.order.findFirst({
-      where: {
-        id: req.params.orderId,
-        items: { some: { product: { sellerId: req.user!.userId } } }
-      },
+      where: { id: req.params.orderId, items: { some: { product: { sellerId: req.user!.userId } } } },
       select: { id: true }
     });
-    if (!order) {
-      return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND' } });
-    }
+    if (!order) return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND' } });
 
     const result = await yandexNddShipmentOrchestrator.generateLabel(order.id);
     if (result.pdfBuffer) {
@@ -1404,22 +1126,12 @@ sellerRoutes.get('/orders/:orderId/documents/handover-act.pdf', async (req: Auth
   }
 });
 
+// ------------------- Payments -------------------
 sellerRoutes.get('/payments', async (req: AuthRequest, res, next) => {
   try {
     const payments = await prisma.payment.findMany({
-      where: {
-        order: {
-          items: { some: { product: { sellerId: req.user!.userId } } }
-        }
-      },
-      select: {
-        id: true,
-        orderId: true,
-        amount: true,
-        status: true,
-        currency: true,
-        createdAt: true
-      },
+      where: { order: { items: { some: { product: { sellerId: req.user!.userId } } } } },
+      select: { id: true, orderId: true, amount: true, status: true, currency: true, createdAt: true },
       orderBy: { createdAt: 'desc' }
     });
     res.json({ data: payments });
@@ -1428,67 +1140,43 @@ sellerRoutes.get('/payments', async (req: AuthRequest, res, next) => {
   }
 });
 
+// ------------------- Status updates -------------------
 sellerRoutes.patch('/orders/:id/status', writeLimiter, async (req: AuthRequest, res, next) => {
   try {
     const payload = sellerOrderStatusSchema.parse(req.body);
+
     const order = await prisma.order.findFirst({
-      where: {
-        id: req.params.id,
-        items: { some: { product: { sellerId: req.user!.userId } } }
-      },
+      where: { id: req.params.id, items: { some: { product: { sellerId: req.user!.userId } } } },
       include: {
-        items: {
-          where: { product: { sellerId: req.user!.userId } },
-          include: { product: true, variant: true }
-        },
+        items: { where: { product: { sellerId: req.user!.userId } }, include: { product: true, variant: true } },
         contact: true,
         shippingAddress: true,
         buyer: true
       }
     });
 
-    if (!order) {
-      return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND' } });
-    }
+    if (!order) return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND' } });
 
     const currentIndex = orderStatusFlow.indexOf(order.status);
     const nextIndex = orderStatusFlow.indexOf(payload.status);
-    if (currentIndex === -1 || nextIndex === -1) {
-      return res.status(400).json({ error: { code: 'STATUS_INVALID' } });
-    }
-    if (order.status === 'DELIVERED') {
-      return res.status(400).json({ error: { code: 'STATUS_FINAL' } });
-    }
-    if (nextIndex <= currentIndex) {
-      return res.status(400).json({ error: { code: 'STATUS_BACKWARD' } });
-    }
-    if (nextIndex !== currentIndex + 1) {
-      return res.status(400).json({ error: { code: 'STATUS_SKIP_NOT_ALLOWED' } });
-    }
+    if (currentIndex === -1 || nextIndex === -1) return res.status(400).json({ error: { code: 'STATUS_INVALID' } });
+    if (order.status === 'DELIVERED') return res.status(400).json({ error: { code: 'STATUS_FINAL' } });
+    if (nextIndex <= currentIndex) return res.status(400).json({ error: { code: 'STATUS_BACKWARD' } });
+    if (nextIndex !== currentIndex + 1) return res.status(400).json({ error: { code: 'STATUS_SKIP_NOT_ALLOWED' } });
 
-    const trackingNumber = payload.trackingNumber ?? order.trackingNumber ?? undefined;
-    const carrier = payload.carrier ?? order.carrier ?? undefined;
-    if (
-      ['HANDED_TO_DELIVERY', 'IN_TRANSIT', 'DELIVERED'].includes(payload.status) &&
-      (!trackingNumber || !carrier)
-    ) {
+    const trackingNumber = payload.trackingNumber ?? (order as any).trackingNumber ?? undefined;
+    const carrier = payload.carrier ?? (order as any).carrier ?? undefined;
+
+    if (['HANDED_TO_DELIVERY', 'IN_TRANSIT', 'DELIVERED'].includes(payload.status) && (!trackingNumber || !carrier)) {
       return res.status(400).json({ error: { code: 'TRACKING_REQUIRED' } });
     }
 
     const updated = await prisma.$transaction(async (tx) => {
       const nextOrder = await tx.order.update({
         where: { id: order.id },
-        data: {
-          status: payload.status,
-          statusUpdatedAt: new Date(),
-          trackingNumber,
-          carrier
-        },
+        data: { status: payload.status, statusUpdatedAt: new Date(), trackingNumber, carrier },
         include: {
-          items: {
-            where: { product: { sellerId: req.user!.userId } },
-            include: { product: true, variant: true }
-          },
+          items: { where: { product: { sellerId: req.user!.userId } }, include: { product: true, variant: true } },
           contact: true,
           shippingAddress: true,
           buyer: true
@@ -1498,7 +1186,6 @@ sellerRoutes.patch('/orders/:id/status', writeLimiter, async (req: AuthRequest, 
       if (payload.status === 'DELIVERED') {
         await payoutService.releaseForDeliveredOrder(order.id, tx as any);
       }
-
       return nextOrder;
     });
 
@@ -1508,32 +1195,21 @@ sellerRoutes.patch('/orders/:id/status', writeLimiter, async (req: AuthRequest, 
   }
 });
 
-
 sellerRoutes.get('/stats', async (req: AuthRequest, res, next) => {
   try {
     const orders = await orderUseCases.listBySeller(req.user!.userId);
     const revenue = orders.reduce(
-      (sum, order) =>
-        sum +
-        order.items.reduce((itemSum, item) => itemSum + item.priceAtPurchase * item.quantity, 0),
+      (sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + item.priceAtPurchase * item.quantity, 0),
       0
     );
     const products = await prisma.product.findMany({ where: { sellerId: req.user!.userId } });
-    const statusCounts = orderStatusFlow.reduce(
-      (acc, status) => {
-        acc[status] = orders.filter((order) => order.status === status).length;
-        return acc;
-      },
-      {} as Record<OrderStatus, number>
-    );
-    res.json({
-      data: {
-        totalOrders: orders.length,
-        totalRevenue: revenue,
-        totalProducts: products.length,
-        statusCounts
-      }
-    });
+
+    const statusCounts = orderStatusFlow.reduce((acc, status) => {
+      acc[status] = orders.filter((o) => o.status === status).length;
+      return acc;
+    }, {} as Record<OrderStatus, number>);
+
+    res.json({ data: { totalOrders: orders.length, totalRevenue: revenue, totalProducts: products.length, statusCounts } });
   } catch (error) {
     next(error);
   }

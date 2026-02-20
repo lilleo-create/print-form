@@ -22,7 +22,7 @@ const setupBaseMocks = async (orderId: string) => {
   (prisma.sellerDeliveryProfile.findUnique as any) = async () => ({
     dropoffPvzId: 'pvz-dropoff',
     dropoffOperatorStationId: '100000001',
-    dropoffPlatformStationId: '200000001',
+    dropoffPlatformStationId: 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924',
     dropoffStationMeta: null
   });
   const deliveryServiceModule = await import('./orderDeliveryService');
@@ -34,26 +34,28 @@ const setupBaseMocks = async (orderId: string) => {
   (prisma.order.update as any) = async () => ({ id: orderId });
 };
 
-test('uses platform station for station_id and pvzId for self_pickup_id', async () => {
+test('uses platform station for source and pvzId for destination in offers/create', async () => {
   await setupBaseMocks('order-ids-ok');
 
   (yandexNddClient.pickupPointsList as any) = async () => ({
     points: [{ id: '0193d98fb6fe76ce9ac1bbf9ea33d2f7', station_id: '300000001', operator_station_id: '100000002' }]
   });
 
-  let infoArgs: string[] = [];
-  (yandexNddClient.offersInfo as any) = async (stationId: string, selfPickupId: string) => {
-    infoArgs = [stationId, selfPickupId];
-    return { intervals_utc: [{ from: 1, to: 2 }] };
+  let createArgs: string[] = [];
+  (yandexNddClient.offersCreate as any) = async (body: Record<string, any>) => {
+    createArgs = [
+      body?.source?.platform_station?.platform_id ?? '',
+      body?.destination?.platform_station?.platform_id ?? ''
+    ];
+    return { offers: [{ offer_id: 'offer-1' }] };
   };
-  (yandexNddClient.offersCreate as any) = async () => ({ offer_id: 'offer-1' });
   (yandexNddClient.offersConfirm as any) = async () => ({ request_id: 'request-1', status: 'CREATED' });
 
   await yandexNddShipmentOrchestrator.readyToShip('seller-1', 'order-ids-ok');
-  assert.deepEqual(infoArgs, ['200000001', '0193d98fb6fe76ce9ac1bbf9ea33d2f7']);
+  assert.deepEqual(createArgs, ['fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924', '0193d98fb6fe76ce9ac1bbf9ea33d2f7']);
 });
 
-test('uses seller default dropoff pvz when platform station is missing', async () => {
+test('throws SELLER_STATION_ID_REQUIRED when platform station is missing', async () => {
   await setupBaseMocks('order-no-seller-station');
   (prisma.sellerDeliveryProfile.findUnique as any) = async () => ({
     dropoffPvzId: 'pvz-dropoff',
@@ -62,8 +64,10 @@ test('uses seller default dropoff pvz when platform station is missing', async (
     dropoffStationMeta: null
   });
 
-  const shipment = await yandexNddShipmentOrchestrator.readyToShip('seller-1', 'order-no-seller-station');
-  assert.equal(shipment.requestId, 'request-1');
+  await assert.rejects(
+    () => yandexNddShipmentOrchestrator.readyToShip('seller-1', 'order-no-seller-station'),
+    (err: any) => err?.code === 'SELLER_STATION_ID_REQUIRED'
+  );
 });
 
 test('throws VALIDATION_ERROR when buyer pvz id is digits (operator id passed as pvz)', async () => {

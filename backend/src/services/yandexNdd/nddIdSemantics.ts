@@ -7,11 +7,19 @@ export class NddValidationError extends Error {
   }
 }
 
-export const looksLikeDigits = (value: unknown): value is string =>
+export const isDigits = (value: unknown): value is string =>
   typeof value === 'string' && /^\d+$/.test(value.trim());
 
+export const isUuid = (value: unknown): value is string =>
+  typeof value === 'string' &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value.trim()
+  );
+
+export const looksLikeDigits = isDigits;
+
 export const looksLikePvzId = (value: unknown): value is string =>
-  typeof value === 'string' && /^[a-z0-9-]{16,64}$/i.test(value.trim()) && !looksLikeDigits(value);
+  isUuid(value);
 
 export const asTrimmedString = (value: unknown): string | null => {
   if (typeof value !== 'string') {
@@ -24,10 +32,10 @@ export const asTrimmedString = (value: unknown): string | null => {
 
 export const assertPlatformStationId = (value: unknown, field: string): string => {
   const normalized = asTrimmedString(value);
-  if (!normalized || !looksLikeDigits(normalized)) {
+  if (!normalized || !isUuid(normalized)) {
     throw new NddValidationError(
       'VALIDATION_ERROR',
-      `${field} must be a platform station_id (digits). Received: ${String(value ?? 'null')}`
+      `${field} must be a platform station_id (uuid). Received: ${String(value ?? 'null')}`
     );
   }
   return normalized;

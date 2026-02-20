@@ -7,14 +7,18 @@ import { YandexNddHttpError, yandexNddClient } from './yandexNdd/YandexNddClient
 const sellerId = 'seller-1';
 
 test.beforeEach(() => {
-  delete process.env.YANDEX_NDD_OPERATOR_STATION_ID;
+  delete process.env.YANDEX_NDD_MERCHANT_PLATFORM_STATION_ID;
+  delete process.env.YANDEX_NDD_MERCHANT_ID;
   delete process.env.YANDEX_NDD_DEFAULT_PLATFORM_STATION_ID;
   delete process.env.YANDEX_NDD_PLATFORM_STATION_ID;
   (prisma.sellerDeliveryProfile.findUnique as any) = async () => ({
-    dropoffPlatformStationId: '10029618814',
+    dropoffPlatformStationId: 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924',
     dropoffStationMeta: null
   });
   (yandexNddClient.pickupPointsList as any) = async () => ({ points: [] });
+  (yandexNddClient.offersCreate as any) = async () => ({ offers: [{ offer_id: 'offer-1' }] });
+  (yandexNddClient.offersConfirm as any) = async () => ({ request_id: 'request-1', status: 'CREATED' });
+  (yandexNddClient.requestCreate as any) = async () => ({ request_id: 'request-1' });
 });
 
 const mockPaidOrder = (id: string) => ({
@@ -66,7 +70,7 @@ test('ready-to-ship fails with PICKUP_POINT_REQUIRED', async () => {
   await assert.rejects(() => yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-2'), /BUYER_PVZ_REQUIRED/);
 });
 
-test('ready-to-ship calls offers/info -> offers/create -> offers/confirm in order', async () => {
+test('ready-to-ship calls offers/create -> offers/confirm in order', async () => {
   (prisma.order.findFirst as any) = async () => mockPaidOrder('order-seq');
   const deliveryServiceModule = await import('./orderDeliveryService');
   (deliveryServiceModule.orderDeliveryService.getByOrderIds as any) = async () =>
@@ -79,13 +83,9 @@ test('ready-to-ship calls offers/info -> offers/create -> offers/confirm in orde
   (prisma.order.update as any) = async () => ({ id: 'order-seq' });
 
   const callOrder: string[] = [];
-  (yandexNddClient.offersInfo as any) = async () => {
-    callOrder.push('offersInfo');
-    return { intervals: [{ from: 1700000000, to: 1700003600 }] };
-  };
   (yandexNddClient.offersCreate as any) = async () => {
     callOrder.push('offersCreate');
-    return { offer_id: 'offer-1' };
+    return { offers: [{ offer_id: 'offer-1' }] };
   };
   (yandexNddClient.offersConfirm as any) = async (body: Record<string, unknown>) => {
     callOrder.push('offersConfirm');
@@ -94,11 +94,11 @@ test('ready-to-ship calls offers/info -> offers/create -> offers/confirm in orde
   };
 
   await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-seq');
-  assert.deepEqual(callOrder, ['offersInfo', 'offersCreate', 'offersConfirm']);
+  assert.deepEqual(callOrder, ['offersCreate', 'offersConfirm']);
 });
 
-test('ready-to-ship sends source.platform_station.platform_id and destination platform_id from offers/info', async () => {
-  process.env.YANDEX_NDD_OPERATOR_STATION_ID = '10029618814';
+test('ready-to-ship sends source.platform_station.platform_id and destination platform_id in offers/create', async () => {
+  process.env.YANDEX_NDD_MERCHANT_ID = 'merchant-1';
 
   (prisma.order.findFirst as any) = async () => mockPaidOrder('order-7');
   const deliveryServiceModule = await import('./orderDeliveryService');
@@ -111,22 +111,20 @@ test('ready-to-ship sends source.platform_station.platform_id and destination pl
   (shipmentModule.shipmentService.pushHistory as any) = async () => undefined;
   (prisma.order.update as any) = async () => ({ id: 'order-7' });
 
-  const interval = { from: 1700001000, to: 1700004600 };
   let offersPayload: any = null;
 
-  (yandexNddClient.offersInfo as any) = async () => ({ intervals_utc: [interval] });
   (yandexNddClient.offersCreate as any) = async (body: Record<string, any>) => {
     offersPayload = body;
-    return { offer: { offer_id: 'offer-1' } };
+    return { offers: [{ offer_id: 'offer-1' }] };
   };
   (yandexNddClient.offersConfirm as any) = async () => ({ request_id: 'request-1', status: 'CREATED' });
 
   await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-7');
 
-  assert.equal(offersPayload?.source?.platform_station?.platform_id, '10029618814');
+  assert.equal(offersPayload?.source?.platform_station?.platform_id, 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924');
   assert.equal(offersPayload?.destination?.platform_station?.platform_id, '0193d98fb6fe76ce9ac1bbf9ea33d2f7');
-  assert.deepEqual(offersPayload?.interval_utc, interval);
   assert.equal(offersPayload?.last_mile_policy, 'self_pickup');
+  assert.equal(offersPayload?.info?.merchant_id, 'merchant-1');
 });
 
 
@@ -150,8 +148,7 @@ test('ready-to-ship does not fail when buyer platform station id is missing', as
   (prisma.order.update as any) = async () => ({ id: 'order-no-buyer-station' });
 
   (yandexNddClient.pickupPointsList as any) = async () => ({ points: [{ id: '0193d98fb6fe76ce9ac1bbf9ea33d2f7' }] });
-  (yandexNddClient.offersInfo as any) = async () => ({ intervals_utc: [{ from: 1, to: 2 }] });
-  (yandexNddClient.offersCreate as any) = async () => ({ offer_id: 'offer-1' });
+  (yandexNddClient.offersCreate as any) = async () => ({ offers: [{ offer_id: 'offer-1' }] });
   (yandexNddClient.offersConfirm as any) = async () => ({ request_id: 'request-1', status: 'CREATED' });
 
   const shipment = await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-no-buyer-station');
@@ -184,17 +181,16 @@ test('ready-to-ship backfills buyer station id from pickup-points/list', async (
     points: [{ id: '0193d98fb6fe76ce9ac1bbf9ea33d2f7', operator_station_id: '10027909485' }]
   });
 
-  let offersInfoSelfPickupId = '';
-  (yandexNddClient.offersInfo as any) = async (_stationId: string, selfPickupId: string) => {
-    offersInfoSelfPickupId = selfPickupId;
-    return { intervals_utc: [{ from: 1700001000, to: 1700004600 }] };
+  let offersCreateSelfPickupId = '';
+  (yandexNddClient.offersCreate as any) = async (body: Record<string, any>) => {
+    offersCreateSelfPickupId = body?.destination?.platform_station?.platform_id ?? '';
+    return { offers: [{ offer_id: 'offer-backfill' }] };
   };
-  (yandexNddClient.offersCreate as any) = async () => ({ offer_id: 'offer-backfill' });
   (yandexNddClient.offersConfirm as any) = async () => ({ request_id: 'request-backfill', status: 'CREATED' });
 
   await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-backfill');
 
-  assert.equal(offersInfoSelfPickupId, '0193d98fb6fe76ce9ac1bbf9ea33d2f7');
+  assert.equal(offersCreateSelfPickupId, '0193d98fb6fe76ce9ac1bbf9ea33d2f7');
   assert.ok(
     updates.some(
       (entry) =>
@@ -237,13 +233,13 @@ test('ready-to-ship accepts seller profile station id as UUID', async () => {
 });
 
 test('ready-to-ship uses seller delivery profile station when order meta has no station id', async () => {
-  delete process.env.YANDEX_NDD_OPERATOR_STATION_ID;
+  delete process.env.YANDEX_NDD_MERCHANT_PLATFORM_STATION_ID;
   (prisma.order.findFirst as any) = async () => ({
     ...mockPaidOrder('order-from-profile'),
     sellerDropoffPvzMeta: { raw: { id: 'dropoff-1' } }
   });
   (prisma.sellerDeliveryProfile.findUnique as any) = async () => ({
-    dropoffPlatformStationId: '10029618814',
+    dropoffPlatformStationId: 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924',
     dropoffStationMeta: { addressFull: 'Москва' }
   });
 
@@ -258,25 +254,24 @@ test('ready-to-ship uses seller delivery profile station when order meta has no 
   (prisma.order.update as any) = async () => ({ id: 'order-from-profile' });
 
   let stationId: string | null = null;
-  (yandexNddClient.offersInfo as any) = async (src: string) => {
-    stationId = src;
-    return { intervals_utc: [{ from: 1, to: 2 }] };
+  (yandexNddClient.offersCreate as any) = async (body: Record<string, any>) => {
+    stationId = body?.source?.platform_station?.platform_id ?? null;
+    return { offers: [{ offer_id: 'offer-1' }] };
   };
-  (yandexNddClient.offersCreate as any) = async () => ({ offer_id: 'offer-1' });
   (yandexNddClient.offersConfirm as any) = async () => ({ request_id: 'request-1', status: 'CREATED' });
 
   await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-from-profile');
-  assert.equal(stationId, '10029618814');
+  assert.equal(stationId, 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924');
 });
 
 test('ready-to-ship trims seller profile dropoffPlatformStationId before station normalization', async () => {
-  delete process.env.YANDEX_NDD_OPERATOR_STATION_ID;
+  delete process.env.YANDEX_NDD_MERCHANT_PLATFORM_STATION_ID;
   (prisma.order.findFirst as any) = async () => ({
     ...mockPaidOrder('order-from-profile-trimmed'),
     sellerDropoffPvzMeta: { raw: { id: 'dropoff-1' } }
   });
   (prisma.sellerDeliveryProfile.findUnique as any) = async () => ({
-    dropoffPlatformStationId: '   10029618814   ',
+    dropoffPlatformStationId: '   fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924   ',
     dropoffStationMeta: { addressFull: 'Москва' }
   });
 
@@ -291,25 +286,24 @@ test('ready-to-ship trims seller profile dropoffPlatformStationId before station
   (prisma.order.update as any) = async () => ({ id: 'order-from-profile-trimmed' });
 
   let stationId: string | null = null;
-  (yandexNddClient.offersInfo as any) = async (src: string) => {
-    stationId = src;
-    return { intervals_utc: [{ from: 1, to: 2 }] };
+  (yandexNddClient.offersCreate as any) = async (body: Record<string, any>) => {
+    stationId = body?.source?.platform_station?.platform_id ?? null;
+    return { offers: [{ offer_id: 'offer-1' }] };
   };
-  (yandexNddClient.offersCreate as any) = async () => ({ offer_id: 'offer-1' });
   (yandexNddClient.offersConfirm as any) = async () => ({ request_id: 'request-1', status: 'CREATED' });
 
   await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-from-profile-trimmed');
-  assert.equal(stationId, '10029618814');
+  assert.equal(stationId, 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924');
 });
 
 test('ready-to-ship ignores blank env override and uses profile station', async () => {
-  process.env.YANDEX_NDD_OPERATOR_STATION_ID = '   ';
+  process.env.YANDEX_NDD_MERCHANT_PLATFORM_STATION_ID = '   ';
   (prisma.order.findFirst as any) = async () => ({
     ...mockPaidOrder('order-blank-env'),
     sellerDropoffPvzMeta: { raw: { id: 'dropoff-1' } }
   });
   (prisma.sellerDeliveryProfile.findUnique as any) = async () => ({
-    dropoffPlatformStationId: '10035218565',
+    dropoffPlatformStationId: 'ac17e5dd-0001-4111-8111-111111111111',
     dropoffStationMeta: { addressFull: 'Москва' }
   });
 
@@ -324,20 +318,19 @@ test('ready-to-ship ignores blank env override and uses profile station', async 
   (prisma.order.update as any) = async () => ({ id: 'order-blank-env' });
 
   let stationId: string | null = null;
-  (yandexNddClient.offersInfo as any) = async (src: string) => {
-    stationId = src;
-    return { intervals_utc: [{ from: 1, to: 2 }] };
+  (yandexNddClient.offersCreate as any) = async (body: Record<string, any>) => {
+    stationId = body?.source?.platform_station?.platform_id ?? null;
+    return { offers: [{ offer_id: 'offer-1' }] };
   };
-  (yandexNddClient.offersCreate as any) = async () => ({ offer_id: 'offer-1' });
   (yandexNddClient.offersConfirm as any) = async () => ({ request_id: 'request-1', status: 'CREATED' });
 
   await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-blank-env');
-  assert.equal(stationId, '10035218565');
+  assert.equal(stationId, 'ac17e5dd-0001-4111-8111-111111111111');
 });
 
 test('ready-to-ship fails with SELLER_STATION_ID_REQUIRED when station id is missing', async () => {
   process.env.NODE_ENV = 'production';
-  delete process.env.YANDEX_NDD_OPERATOR_STATION_ID;
+  delete process.env.YANDEX_NDD_MERCHANT_PLATFORM_STATION_ID;
   (prisma.sellerDeliveryProfile.findUnique as any) = async () => null;
   (prisma.order.findFirst as any) = async () => ({
     ...mockPaidOrder('order-no-station'),
@@ -352,7 +345,8 @@ test('ready-to-ship fails with SELLER_STATION_ID_REQUIRED when station id is mis
 });
 
 
-test('ready-to-ship accepts numeric station id from seller profile', async () => {
+test('ready-to-ship uses env merchant station when profile station id is invalid', async () => {
+  process.env.YANDEX_NDD_MERCHANT_PLATFORM_STATION_ID = 'ac17e5dd-0001-4111-8111-111111111111';
   (prisma.order.findFirst as any) = async () => ({
     ...mockPaidOrder('order-numeric-station'),
     sellerDropoffPvzMeta: { raw: { id: 'dropoff-1' } }
@@ -373,15 +367,14 @@ test('ready-to-ship accepts numeric station id from seller profile', async () =>
   (prisma.order.update as any) = async () => ({ id: 'order-numeric-station' });
 
   let stationId: string | null = null;
-  (yandexNddClient.offersInfo as any) = async (src: string) => {
-    stationId = src;
-    return { intervals_utc: [{ from: 1, to: 2 }] };
+  (yandexNddClient.offersCreate as any) = async (body: Record<string, any>) => {
+    stationId = body?.source?.platform_station?.platform_id ?? null;
+    return { offers: [{ offer_id: 'offer-1' }] };
   };
-  (yandexNddClient.offersCreate as any) = async () => ({ offer_id: 'offer-1' });
   (yandexNddClient.offersConfirm as any) = async () => ({ request_id: 'request-1', status: 'CREATED' });
 
   await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-numeric-station');
-  assert.equal(stationId, '10029618814');
+  assert.equal(stationId, 'ac17e5dd-0001-4111-8111-111111111111');
 });
 
 test('ready-to-ship accepts profile station uuid without operator_station_id', async () => {
@@ -410,7 +403,6 @@ test('ready-to-ship when NDD returns 400 variant maps NDD_OFFER_CREATE_FAILED', 
   const shipmentModule = await import('./shipmentService');
   (shipmentModule.shipmentService.getByOrderId as any) = async () => null;
 
-  (yandexNddClient.offersInfo as any) = async () => ({ intervals: [{ from: 1, to: 2 }] });
   (yandexNddClient.offersCreate as any) = async () => {
     throw new YandexNddHttpError('NDD_OFFER_CREATE_FAILED', '/api/b2b/platform/offers/create', 400, '{"message":"Value of source variant"}', {
       message: "Value of 'source' cannot be parsed as a variant"
@@ -440,8 +432,7 @@ test('ready-to-ship falls back to request/create when offers/confirm has no requ
   (shipmentModule.shipmentService.pushHistory as any) = async () => undefined;
   (prisma.order.update as any) = async () => ({ id: 'order-request-create' });
 
-  (yandexNddClient.offersInfo as any) = async () => ({ intervals_utc: [{ from: 1, to: 2 }] });
-  (yandexNddClient.offersCreate as any) = async () => ({ offer_id: 'offer-1' });
+  (yandexNddClient.offersCreate as any) = async () => ({ offers: [{ offer_id: 'offer-1' }] });
   (yandexNddClient.offersConfirm as any) = async () => ({ status: 'CREATED' });
   (yandexNddClient.requestCreate as any) = async (body: Record<string, unknown>) => {
     assert.equal(body.offer_id, 'offer-1');
@@ -464,15 +455,15 @@ test('ready-to-ship is idempotent and returns existing shipment', async () => {
   const shipmentModule = await import('./shipmentService');
   (shipmentModule.shipmentService.getByOrderId as any) = async () => ({ id: 'ship-existing', requestId: 'req-existing' });
 
-  let offersInfoCalled = 0;
-  (yandexNddClient.offersInfo as any) = async () => {
-    offersInfoCalled += 1;
-    return { intervals: [] };
+  let offersCreateCalled = 0;
+  (yandexNddClient.offersCreate as any) = async () => {
+    offersCreateCalled += 1;
+    return { offers: [{ offer_id: 'offer-1' }] };
   };
 
   const result = await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-1');
   assert.equal(result.id, 'ship-existing');
-  assert.equal(offersInfoCalled, 0);
+  assert.equal(offersCreateCalled, 0);
 });
 
 test('ready-to-ship uses single-flight for concurrent calls by orderId', async () => {
@@ -488,13 +479,12 @@ test('ready-to-ship uses single-flight for concurrent calls by orderId', async (
   (shipmentModule.shipmentService.pushHistory as any) = async () => undefined;
   (prisma.order.update as any) = async () => ({ id: 'order-single-flight' });
 
-  let offersInfoCalled = 0;
-  (yandexNddClient.offersInfo as any) = async () => {
-    offersInfoCalled += 1;
+  let offersCreateCalled = 0;
+  (yandexNddClient.offersCreate as any) = async () => {
+    offersCreateCalled += 1;
     await new Promise((resolve) => setTimeout(resolve, 20));
-    return { intervals_utc: [{ from: 1, to: 2 }] };
+    return { offers: [{ offer_id: 'offer-1' }] };
   };
-  (yandexNddClient.offersCreate as any) = async () => ({ offer_id: 'offer-1' });
   (yandexNddClient.offersConfirm as any) = async () => ({ request_id: 'request-1', status: 'CREATED' });
 
   const [first, second] = await Promise.all([
@@ -502,7 +492,7 @@ test('ready-to-ship uses single-flight for concurrent calls by orderId', async (
     yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-single-flight')
   ]);
 
-  assert.equal(offersInfoCalled, 1);
+  assert.equal(offersCreateCalled, 1);
   assert.equal(first.requestId, 'request-1');
   assert.equal(second.requestId, 'request-1');
 });
@@ -517,8 +507,8 @@ test('ready-to-ship remaps smartcaptcha block to YANDEX_IP_BLOCKED', async () =>
   const shipmentModule = await import('./shipmentService');
   (shipmentModule.shipmentService.getByOrderId as any) = async () => null;
 
-  (yandexNddClient.offersInfo as any) = async () => {
-    throw new YandexNddHttpError('YANDEX_SMARTCAPTCHA_BLOCK', '/api/b2b/platform/offers/info', 403, '<html/>', {
+  (yandexNddClient.offersCreate as any) = async () => {
+    throw new YandexNddHttpError('YANDEX_SMARTCAPTCHA_BLOCK', '/api/b2b/platform/offers/create', 403, '<html/>', {
       uniqueKey: 'abc123'
     });
   };

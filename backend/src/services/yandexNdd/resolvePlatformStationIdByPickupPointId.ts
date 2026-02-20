@@ -1,61 +1,37 @@
 import { yandexNddClient } from './YandexNddClient';
-import { asTrimmedString, looksLikeDigits } from './nddIdSemantics';
+import { asTrimmedString, isDigits } from './nddIdSemantics';
 
 const asRecord = (value: unknown): Record<string, unknown> | null =>
   value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 
-const readPlatformStationId = (point: Record<string, unknown> | null): string | null => {
-  if (!point) {
-    return null;
-  }
-
-  const station = asRecord(point.station);
-  const candidates: unknown[] = [
-    point.station_id,
-    point.platform_station_id,
-    station?.id,
-    station?.station_id,
-    station?.platform_station_id
-  ];
-
-  for (const candidate of candidates) {
-    const normalized = asTrimmedString(candidate);
-    if (normalized && looksLikeDigits(normalized)) {
-      return normalized;
-    }
-  }
-
-  return null;
-};
-
 const readOperatorStationId = (point: Record<string, unknown> | null): string | null => {
-  const normalized = asTrimmedString(point?.operator_station_id);
-  return normalized && looksLikeDigits(normalized) ? normalized : null;
+  const normalized = asTrimmedString((point as any)?.operator_station_id);
+  return normalized && isDigits(normalized) ? normalized : null;
 };
 
 export const resolvePlatformStationIdByPickupPointId = async (pickupPointId: string) => {
   const response = await yandexNddClient.pickupPointsList({ pickup_point_ids: [pickupPointId] });
-  const points = Array.isArray(response?.points) ? response.points : [];
+
+  const points = Array.isArray((response as any)?.points)
+    ? ((response as any).points as any[])
+    : Array.isArray((response as any)?.result?.points)
+      ? ((response as any).result.points as any[])
+      : [];
+
   const point =
-    points.find((item) => item && typeof item === 'object' && (item as { id?: unknown }).id === pickupPointId) ?? null;
+    points.find((item) => item && typeof item === 'object' && String((item as any).id ?? '') === pickupPointId) ?? null;
 
   const pointRecord = asRecord(point);
-  const platformStationId = readPlatformStationId(pointRecord);
   const operatorStationId = readOperatorStationId(pointRecord);
 
-  console.info('[NDD][resolvePlatformStationId]', {
+  console.info('[NDD][resolveOperatorStationId]', {
     pickupPointId,
-    platformStationId,
     operatorStationId,
-    source_fields: ['point.station_id', 'point.platform_station_id', 'point.station.id', 'point.station.station_id'],
-    shapes: {
-      platformStationId: platformStationId ? 'digits' : 'missing',
-      operatorStationId: operatorStationId ? 'digits' : 'missing'
-    }
+    shapes: { operatorStationId: operatorStationId ? 'digits' : 'missing' }
   });
 
   return {
-    platformStationId,
+    platformStationId: null, // намеренно: не используем UUID "platform station" в старом offers/create
     operatorStationId,
     point: pointRecord
   };
