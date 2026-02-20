@@ -44,11 +44,11 @@ export const errorHandler = (
 
 
   if (error instanceof NddValidationError) {
-    const status = error.code === 'SELLER_STATION_ID_REQUIRED' ? 409 : 400;
-    return res.status(status).json({
+    return res.status(error.status).json({
       error: {
         code: error.code,
-        message: error.message
+        message: error.message,
+        ...(error.details ? { details: error.details } : {})
       }
     });
   }
@@ -64,7 +64,13 @@ export const errorHandler = (
     }
 
     if (error.status === 401) {
-      return res.status(401).json({ error: { code: 'NDD_UNAUTHORIZED', details: error.details } });
+      return res.status(401).json({
+        error: {
+          code: 'NDD_UNAUTHORIZED',
+          message: 'NDD request was rejected with Unauthorized.',
+          details: error.details
+        }
+      });
     }
 
     const detailsCode =
@@ -78,8 +84,8 @@ export const errorHandler = (
 
     return res.status(502).json({
       error: {
-        code: error.code,
-        status: error.status,
+        code: error.code === 'NDD_REQUEST_FAILED' || error.code === 'NDD_OFFER_CREATE_FAILED' ? 'NDD_REQUEST_FAILED' : error.code,
+        message: `NDD request failed with status ${error.status}.`,
         details: error.details
       }
     });

@@ -1,17 +1,25 @@
 export class NddValidationError extends Error {
   code: string;
-  constructor(code: string, message: string) {
+  status: number;
+  details?: Record<string, unknown>;
+
+  constructor(code: string, message: string, status = 400, details?: Record<string, unknown>) {
     super(message);
     this.name = 'NddValidationError';
     this.code = code;
+    this.status = status;
+    this.details = details;
   }
 }
 
 export const looksLikeDigits = (value: unknown): value is string =>
   typeof value === 'string' && /^\d+$/.test(value.trim());
 
-export const looksLikePvzId = (value: unknown): value is string =>
-  typeof value === 'string' && /^[a-z0-9-]{16,64}$/i.test(value.trim()) && !looksLikeDigits(value);
+export const looksLikeUuid = (value: unknown): value is string =>
+  typeof value === 'string' &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.trim());
+
+export const looksLikePvzId = looksLikeUuid;
 
 export const asTrimmedString = (value: unknown): string | null => {
   if (typeof value !== 'string') {
@@ -26,7 +34,7 @@ export const assertPlatformStationId = (value: unknown, field: string): string =
   const normalized = asTrimmedString(value);
   if (!normalized || !looksLikeDigits(normalized)) {
     throw new NddValidationError(
-      'VALIDATION_ERROR',
+      'NDD_VALIDATION_ERROR',
       `${field} must be a platform station_id (digits). Received: ${String(value ?? 'null')}`
     );
   }
@@ -36,7 +44,7 @@ export const assertPlatformStationId = (value: unknown, field: string): string =
 export const assertPvzId = (value: unknown, field: string): string => {
   const normalized = asTrimmedString(value);
   if (!normalized || !looksLikePvzId(normalized)) {
-    throw new NddValidationError('VALIDATION_ERROR', `${field} must be a pickup point id (pvzId).`);
+    throw new NddValidationError('NDD_VALIDATION_ERROR', `${field} must be a pickup point id UUID (self_pickup_id).`);
   }
   return normalized;
 };

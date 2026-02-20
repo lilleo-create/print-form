@@ -6,6 +6,12 @@ const originalFetch = globalThis.fetch;
 const originalToken = process.env.YANDEX_NDD_TOKEN;
 const originalNodeEnv = process.env.NODE_ENV;
 
+
+const validOfferCreateBody = {
+  source: { platform_station: { platform_id: '10029618814' } },
+  destination: { platform_station: { platform_id: '11111111-2222-4333-8444-555555555555' } }
+};
+
 test.afterEach(() => {
   globalThis.fetch = originalFetch;
   if (originalToken === undefined) {
@@ -30,7 +36,7 @@ test('sets strict Authorization header as Bearer <token> when env token is store
   }) as typeof fetch;
 
   const client = new YandexNddClient();
-  await client.offersCreate({});
+  await client.offersCreate(validOfferCreateBody);
 
   assert.ok(capturedHeaders);
   assert.equal(capturedHeaders?.get('Authorization'), 'Bearer abcdefghijklmnop');
@@ -50,7 +56,7 @@ test('normalizes token when env value already contains Bearer prefix', async () 
   }) as typeof fetch;
 
   const client = new YandexNddClient();
-  await client.offersCreate({});
+  await client.offersCreate(validOfferCreateBody);
 
   assert.ok(capturedHeaders);
   assert.equal(capturedHeaders?.get('Authorization'), 'Bearer prefixed-token');
@@ -66,11 +72,11 @@ test('offersInfo sends expected query params', async () => {
   }) as typeof fetch;
 
   const client = new YandexNddClient();
-  await client.offersInfo('station-1', 'pvz-1');
+  await client.offersInfo('10029618814', '11111111-2222-4333-8444-555555555555');
 
   assert.match(url, /offers\/info\?/);
-  assert.match(url, /station_id=station-1/);
-  assert.match(url, /self_pickup_id=pvz-1/);
+  assert.match(url, /station_id=10029618814/);
+  assert.match(url, /self_pickup_id=11111111-2222-4333-8444-555555555555/);
   assert.match(url, /last_mile_policy=self_pickup/);
   assert.match(url, /send_unix=true/);
 });
@@ -85,8 +91,8 @@ test('offersInfo caches response for same key and does not duplicate HTTP calls'
   }) as typeof fetch;
 
   const client = new YandexNddClient();
-  const first = await client.offersInfo('station-1', 'pvz-1');
-  const second = await client.offersInfo('station-1', 'pvz-1');
+  const first = await client.offersInfo('10029618814', '11111111-2222-4333-8444-555555555555');
+  const second = await client.offersInfo('10029618814', '11111111-2222-4333-8444-555555555555');
 
   assert.deepEqual(first, second);
   assert.equal(callCount, 1);
@@ -105,13 +111,14 @@ test('logs only token length on failed responses', async () => {
 
   const client = new YandexNddClient();
 
-  await assert.rejects(() => client.offersCreate({}), /NDD_OFFER_CREATE_FAILED/);
+  await assert.rejects(() => client.offersCreate(validOfferCreateBody), /NDD_OFFER_CREATE_FAILED/);
 
-  const [, authPayload] = consoleInfoSpy.mock.calls.find((call) => call.arguments[0] === '[YANDEX_NDD][auth]')?.arguments ?? [];
-  assert.equal(authPayload.tokenLength, 15);
+  const [, requestPayload] = consoleInfoSpy.mock.calls.find((call) => call.arguments[0] === '[YANDEX_NDD][request]')?.arguments ?? [];
+  assert.equal(requestPayload.hasAuthorization, true);
+  assert.match(String(requestPayload.tokenPreview), /^abcdefghij/);
 
   const [, payload] = consoleErrorSpy.mock.calls[0]?.arguments ?? [];
-  assert.equal(payload.tokenLength, 15);
+  assert.equal(payload.httpStatus, 401);
 });
 
 test('maps HTML 403 response to smartcaptcha error with details', async () => {
@@ -126,7 +133,7 @@ test('maps HTML 403 response to smartcaptcha error with details', async () => {
   const client = new YandexNddClient();
 
   await assert.rejects(
-    () => client.offersInfo('station-1', 'pvz-1'),
+    () => client.offersInfo('10029618814', '11111111-2222-4333-8444-555555555555'),
     (error: any) =>
       error.code === 'YANDEX_SMARTCAPTCHA_BLOCK' &&
       error.status === 403 &&
@@ -148,7 +155,7 @@ test('retries 5xx responses and succeeds', async () => {
   }) as typeof fetch;
 
   const client = new YandexNddClient();
-  const response = await client.offersCreate({});
+  const response = await client.offersCreate(validOfferCreateBody);
   assert.equal(callCount, 3);
   assert.equal(response.ok, true);
 });
@@ -166,6 +173,6 @@ test('does not retry 403 smartcaptcha responses', async () => {
   }) as typeof fetch;
 
   const client = new YandexNddClient();
-  await assert.rejects(() => client.offersCreate({}), /YANDEX_SMARTCAPTCHA_BLOCK/);
+  await assert.rejects(() => client.offersCreate(validOfferCreateBody), /YANDEX_SMARTCAPTCHA_BLOCK/);
   assert.equal(callCount, 1);
 });

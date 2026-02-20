@@ -3,7 +3,12 @@ import { prisma } from '../lib/prisma';
 import { orderDeliveryService } from './orderDeliveryService';
 import { mapYandexStatusToInternal, shipmentService } from './shipmentService';
 import { YandexNddHttpError, yandexNddClient } from './yandexNdd/YandexNddClient';
-import { looksLikePvzId, NddValidationError } from './yandexNdd/nddIdSemantics';
+import {
+  assertPlatformStationId,
+  assertPvzId,
+  looksLikeDigits,
+  NddValidationError
+} from './yandexNdd/nddIdSemantics';
 import { resolvePlatformStationIdByPickupPointId } from './yandexNdd/resolvePlatformStationIdByPickupPointId';
 
 const readyToShipSingleFlight = new Map<string, Promise<any>>();
@@ -162,7 +167,6 @@ export const yandexNddShipmentOrchestrator = {
 
     if (!order) throw new Error('ORDER_NOT_FOUND');
     if (order.status !== 'PAID' || !order.paidAt) throw new Error('ORDER_NOT_PAID');
-    if (!order.buyerPickupPvzId) throw new Error('BUYER_PVZ_REQUIRED');
 
     const deliveryMap = await orderDeliveryService.getByOrderIds([orderId]);
     const delivery = deliveryMap.get(orderId);
@@ -186,36 +190,21 @@ export const yandexNddShipmentOrchestrator = {
       sellerProfileDropoffPlatformStationId: sellerDeliveryProfile?.dropoffPlatformStationId ?? null
     });
 
-    const sourceStationId =
-      getTrimmedString(sellerDeliveryProfile?.dropoffPlatformStationId) ??
-      getTrimmedString(sellerDeliveryProfile?.dropoffPvzId) ??
-      getTrimmedString(order.sellerDropoffPvzId) ??
-      null;
-
-    console.info('[NDD_SOURCE_STATION]', {
-      sourceStationId,
-      fromProfile: sellerDeliveryProfile?.dropoffPvzId ?? null,
-      dropoffPlatformStationId: sellerDeliveryProfile?.dropoffPlatformStationId ?? null
-    });
-
-    if (!sourceStationId) {
-      console.error('[READY_TO_SHIP] SELLER_STATION_ID_REQUIRED', {
-        sellerId,
-        orderId,
-        dropoffPvzId: sellerDeliveryProfile?.dropoffPvzId ?? null,
-        rawSellerDropoffPlatformStationId: sellerDeliveryProfile?.dropoffPlatformStationId ?? null,
-        defaultDropoffPvzId: sellerDeliveryProfile?.dropoffPvzId ?? null
-      });
+    const sourceStationIdRaw = getTrimmedString(sellerDeliveryProfile?.dropoffPlatformStationId);
+    if (!sourceStationIdRaw) {
       throw new NddValidationError(
-        'SELLER_STATION_ID_REQUIRED',
-        'Продавец не настроил точку сдачи (station_id платформы). Выберите пункт сдачи в настройках.'
+        'SELLER_PLATFORM_STATION_ID_REQUIRED',
+        'SellerDeliveryProfile.dropoffPlatformStationId is required.',
+        409
       );
     }
+    const sourceStationId = assertPlatformStationId(sourceStationIdRaw, 'station_id');
 
-    const buyerPickupPointId = String(order.buyerPickupPvzId ?? '').trim();
-    if (!buyerPickupPointId) {
-      throw new Error('BUYER_PVZ_REQUIRED');
+    const buyerPickupPointIdRaw = String(order.buyerPickupPvzId ?? '').trim();
+    if (!buyerPickupPointIdRaw) {
+      throw new NddValidationError('BUYER_SELF_PICKUP_ID_REQUIRED', 'order.buyerPickupPvzId is required.', 409);
     }
+    const buyerPickupPointId = assertPvzId(buyerPickupPointIdRaw, 'self_pickup_id');
     let buyerPickupMeta = asRecord(order.buyerPickupPvzMeta) ?? {};
     let buyerMetaIds = extractBuyerPickupMetaIds(buyerPickupMeta);
 
@@ -247,14 +236,10 @@ export const yandexNddShipmentOrchestrator = {
       }
     }
 
-    if (!looksLikePvzId(buyerPickupPointId)) {
-      throw new NddValidationError('VALIDATION_ERROR', 'buyerPickupPvzId должен быть pvzId (не station_id).');
-    }
-
     const selfPickupId = buyerPickupPointId;
 
     if (selfPickupId === sourceStationId) {
-      throw new NddValidationError('VALIDATION_ERROR', 'self_pickup_id не должен совпадать со station_id.');
+      throw new NddValidationError('NDD_VALIDATION_ERROR', 'self_pickup_id must not equal station_id.');
     }
 
     console.info('[READY_TO_SHIP] buyer self pickup id resolved', {
@@ -265,11 +250,6 @@ export const yandexNddShipmentOrchestrator = {
       buyerSelfPickupIdSource: 'order.buyerPickupPvzId',
       sellerDropoffPlatformStationId: sourceStationId
     });
-
-    if (!looksLikePvzId(selfPickupId)) {
-      throw new NddValidationError('VALIDATION_ERROR', 'self_pickup_id должен быть pickup point id (pvzId).');
-    }
-
     if (process.env.NODE_ENV !== 'production') {
       console.log('[NDD readyToShip stations]', {
         orderId,
@@ -288,9 +268,13 @@ export const yandexNddShipmentOrchestrator = {
       },
       shapes: {
         sourceStationId: 'string',
-        self_pickup_id: looksLikePvzId(selfPickupId) ? 'pvz' : 'invalid'
+        self_pickup_id: 'uuid'
       }
     });
+
+    if (!looksLikeDigits(sourceStationId)) {
+      throw new NddValidationError('NDD_VALIDATION_ERROR', 'station_id must contain digits only.');
+    }
 
     let offersInfo: Record<string, unknown>;
     const last_mile_policy = 'self_pickup';
@@ -417,7 +401,7 @@ export const yandexNddShipmentOrchestrator = {
         deliveryMethod,
         sourceStationId,
         sourceStationSnapshot: asRecord(order.sellerDropoffPvzMeta),
-        destinationStationId: order.buyerPickupPvzId,
+        destinationStationId: selfPickupId,
         destinationStationSnapshot: delivery?.pickupPoint ?? asRecord(order.buyerPickupPvzMeta),
         status: 'CREATED',
         statusRaw: {
@@ -464,7 +448,7 @@ export const yandexNddShipmentOrchestrator = {
       deliveryMethod,
       sourceStationId,
       sourceStationSnapshot: asRecord(order.sellerDropoffPvzMeta),
-      destinationStationId: order.buyerPickupPvzId,
+      destinationStationId: selfPickupId,
       destinationStationSnapshot: delivery?.pickupPoint ?? asRecord(order.buyerPickupPvzMeta),
       requestId,
       offerPayload: JSON.stringify(selectedOffer ?? { offer_id: selectedOfferId }),

@@ -32,7 +32,13 @@ test('YandexNddHttpError 401 maps to NDD_UNAUTHORIZED', () => {
   const error = new YandexNddHttpError('NDD_REQUEST_FAILED', '/api/b2b/platform/request/create', 401, '{}', { message: 'Unauthorized' });
   errorHandler(error, {} as any, ctx.res, (() => {}) as any);
   assert.equal(ctx.get().statusCode, 401);
-  assert.deepEqual(ctx.get().payload, { error: { code: 'NDD_UNAUTHORIZED', details: { message: 'Unauthorized' } } });
+  assert.deepEqual(ctx.get().payload, {
+    error: {
+      code: 'NDD_UNAUTHORIZED',
+      message: 'NDD request was rejected with Unauthorized.',
+      details: { message: 'Unauthorized' }
+    }
+  });
 });
 
 test('YandexNddHttpError 403 no_permissions maps to NDD_NO_PERMISSIONS', () => {

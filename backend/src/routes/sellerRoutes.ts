@@ -140,7 +140,7 @@ const validateResolvedPlatformStationId = async (platformStationId: string | nul
 
 const validateSourcePlatformStationId = async (dropoffStationId: string) => {
   const { defaultPlatformStationId } = getYandexNddConfig();
-  const normalized = normalizeUuid(dropoffStationId);
+  const normalized = normalizeDigitsStation(dropoffStationId);
   if (!normalized) {
     throw new Error('SELLER_STATION_ID_INVALID');
   }
@@ -162,17 +162,29 @@ const validateSourcePlatformStationId = async (dropoffStationId: string) => {
   return normalized;
 };
 
-const normalizeUuid = (value: unknown): string | null => {
-  if (typeof value !== 'string') {
-    return null;
-  }
-  const trimmed = value.trim().toLowerCase();
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(trimmed)
-    ? trimmed
-    : null;
-};
-
 const normalizeOperatorStationDigits = (value: unknown): string | null => normalizeDigitsStation(value);
+
+const readPlatformStationDigitsId = (point: Record<string, any>): string | null => {
+  const station = point?.station && typeof point.station === 'object' ? point.station : null;
+  const platformStation = point?.platform_station && typeof point.platform_station === 'object' ? point.platform_station : null;
+  const candidates = [
+    point?.platform_station_id,
+    platformStation?.platform_id,
+    point?.station_id,
+    station?.id,
+    station?.platform_id,
+    station?.platform_station_id
+  ];
+
+  for (const candidate of candidates) {
+    const normalized = normalizeDigitsStation(candidate);
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  return null;
+};
 
 sellerRoutes.post('/onboarding', requireAuth, writeLimiter, async (req: AuthRequest, res, next) => {
   try {
@@ -659,31 +671,9 @@ const geocodeAddress = async (query: string) => {
   return value;
 };
 
-const readPlatformStationId = (point: Record<string, any>): string | null => {
-  const station = point?.station && typeof point.station === 'object' ? point.station : null;
-  const platformStation = point?.platform_station && typeof point.platform_station === 'object' ? point.platform_station : null;
-  const candidates = [
-    point?.platform_station_id,
-    platformStation?.platform_id,
-    point?.station_id,
-    station?.id,
-    station?.platform_id,
-    station?.platform_station_id
-  ];
-
-  for (const candidate of candidates) {
-    const normalized = normalizeUuid(candidate);
-    if (normalized) {
-      return normalized;
-    }
-  }
-
-  return null;
-};
-
 const mapSellerDropoffPoint = (point: Record<string, any>) => ({
   pvzId: typeof point?.id === 'string' ? point.id : null,
-  platformStationId: readPlatformStationId(point),
+  platformStationIdDigits: readPlatformStationDigitsId(point),
   operatorStationId: normalizeOperatorStationDigits(point?.operator_station_id),
   name: typeof point?.name === 'string' ? point.name : null,
   addressFull: point?.address?.full_address ?? null,
@@ -828,7 +818,7 @@ sellerRoutes.get('/ndd/dropoff-stations', async (req: AuthRequest, res, next) =>
       afterFiltersCount: points.length,
       pointsCount: points.length,
       filterReasons: droppedReasons,
-      sample: points[0]?.platformStationId
+      sample: points[0]?.platformStationIdDigits
     });
 
     return res.json({ points });
@@ -1133,7 +1123,7 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
     }
 
     const operatorStationId = normalizeOperatorStationDigits((point as any).operator_station_id);
-    const platformStationId = readPlatformStationId(point as Record<string, any>);
+    const platformStationId = readPlatformStationDigitsId(point as Record<string, any>);
     const validationResult = await validateResolvedPlatformStationId(platformStationId, pvzId);
 
     const dropoffPvzMeta = {
