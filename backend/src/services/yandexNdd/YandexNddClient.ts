@@ -1,4 +1,5 @@
 import { getYandexNddConfig } from '../../config/yandexNdd';
+import { assertPlatformStationId, assertPvzId, NddValidationError } from './nddIdSemantics';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -94,14 +95,31 @@ export class YandexNddClient {
   private readonly config = getYandexNddConfig();
   private readonly offersInfoCache = new Map<string, CacheEntry>();
 
+  private logRequestDebug(input: {
+    path: string;
+    method: string;
+    tokenMeta: ReturnType<YandexNddClient['getAuthTokenMeta']>;
+    status?: number;
+  }) {
+    const tokenPreview = input.tokenMeta.tokenPreview;
+    console.info('[YANDEX_NDD][request]', {
+      url: this.buildUrl(input.path),
+      method: input.method,
+      status: input.status ?? null,
+      hasAuthorization: input.tokenMeta.tokenLength > 0,
+      tokenPreview
+    });
+  }
+
   private getAuthTokenMeta() {
-    const rawToken = (process.env.YANDEX_NDD_TOKEN ?? this.config.token ?? '').trim();
+    const rawToken = (this.config.token ?? '').trim();
     const tokenWithoutPrefix = rawToken.replace(/^Bearer\s+/i, '').trim();
     const authHeader = `Bearer ${tokenWithoutPrefix}`;
 
     return {
       authHeader,
-      tokenLength: tokenWithoutPrefix.length
+      tokenLength: tokenWithoutPrefix.length,
+      tokenPreview: tokenWithoutPrefix ? `${tokenWithoutPrefix.slice(0, 10)}...` : null
     };
   }
 
@@ -128,7 +146,10 @@ export class YandexNddClient {
       headers.set('Content-Type', 'application/json');
     }
 
-    const response = await fetch(this.buildUrl(path), {
+    const method = (init?.method ?? 'GET').toUpperCase();
+    const url = this.buildUrl(path);
+
+    const response = await fetch(url, {
       ...init,
       headers
     });
@@ -152,8 +173,11 @@ export class YandexNddClient {
 
     if (!response.ok) {
       const code = path === '/api/b2b/platform/offers/create' ? 'NDD_OFFER_CREATE_FAILED' : 'NDD_REQUEST_FAILED';
+      this.logRequestDebug({ path, method, tokenMeta, status: response.status });
       throw new YandexNddHttpError(code, path, response.status, bodyText, errorDetails);
     }
+
+    this.logRequestDebug({ path, method, tokenMeta, status: response.status });
 
     if (!bodyText) {
       return {} as T;
@@ -165,34 +189,15 @@ export class YandexNddClient {
   private async request<T>(path: string, init?: RequestInit & { requestId?: string }): Promise<T> {
     const tokenMeta = this.getAuthTokenMeta();
 
-    console.info('[YANDEX_NDD][auth]', { tokenLength: tokenMeta.tokenLength });
-
     const maxAttempts = 3;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       try {
         const response = await this.performRequest<T>(path, tokenMeta, init);
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('[YANDEX_NDD]', {
-            requestId: init?.requestId ?? 'n/a',
-            path,
-            httpStatus: 200,
-            attempt
-          });
-        }
         return response;
       } catch (error) {
         if (!(error instanceof YandexNddHttpError)) {
           throw error;
-        }
-
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('[YANDEX_NDD]', {
-            requestId: init?.requestId ?? 'n/a',
-            path,
-            httpStatus: error.status,
-            attempt
-          });
         }
 
         const retryable =
@@ -205,9 +210,9 @@ export class YandexNddClient {
           console.error('[YANDEX_NDD] non-2xx response', {
             requestId: init?.requestId ?? 'n/a',
             path,
+            method: (init?.method ?? 'GET').toUpperCase(),
             httpStatus: error.status,
-            tokenLength: tokenMeta.tokenLength,
-            body: error.details
+            responseData: error.details
           });
           throw error;
         }
@@ -221,7 +226,28 @@ export class YandexNddClient {
     throw new Error('NDD_REQUEST_RETRY_EXHAUSTED');
   }
 
+
+  private validateOffersCreateBody(body: JsonRecord) {
+    const sourcePlatformId =
+      (body.source as Record<string, unknown> | undefined)?.platform_station &&
+      typeof (body.source as Record<string, unknown>).platform_station === 'object'
+        ? ((body.source as Record<string, unknown>).platform_station as Record<string, unknown>).platform_id
+        : undefined;
+    const destinationPlatformId =
+      (body.destination as Record<string, unknown> | undefined)?.platform_station &&
+      typeof (body.destination as Record<string, unknown>).platform_station === 'object'
+        ? ((body.destination as Record<string, unknown>).platform_station as Record<string, unknown>).platform_id
+        : undefined;
+
+    const stationId = assertPlatformStationId(sourcePlatformId, 'station_id');
+    const selfPickupId = assertPvzId(destinationPlatformId, 'self_pickup_id');
+    if (stationId === selfPickupId) {
+      throw new NddValidationError('NDD_VALIDATION_ERROR', 'self_pickup_id must not equal station_id.');
+    }
+  }
+
   async offersCreate(body: JsonRecord) {
+    this.validateOffersCreateBody(body);
     if (process.env.NODE_ENV !== 'production') {
       console.log('[NDD offers/create body]', JSON.stringify(body));
     }
@@ -239,14 +265,20 @@ export class YandexNddClient {
   }
 
   async offersInfo(stationId: string, selfPickupId: string, sendUnix = true) {
+    const validatedStationId = assertPlatformStationId(stationId, 'station_id');
+    const validatedSelfPickupId = assertPvzId(selfPickupId, 'self_pickup_id');
+    if (validatedStationId === validatedSelfPickupId) {
+      throw new NddValidationError('NDD_VALIDATION_ERROR', 'self_pickup_id must not equal station_id.');
+    }
+
     const lastMilePolicy = 'self_pickup';
     const query = new URLSearchParams({
-      station_id: stationId,
-      self_pickup_id: selfPickupId,
+      station_id: validatedStationId,
+      self_pickup_id: validatedSelfPickupId,
       last_mile_policy: lastMilePolicy,
       send_unix: String(sendUnix)
     });
-    const cacheKey = `offersInfo:${stationId}:${selfPickupId}:${lastMilePolicy}`;
+    const cacheKey = `offersInfo:${validatedStationId}:${validatedSelfPickupId}:${lastMilePolicy}`;
     const cached = this.offersInfoCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
       return cached.value;
