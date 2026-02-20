@@ -1,9 +1,14 @@
 export class NddValidationError extends Error {
   code: string;
-  constructor(code: string, message: string) {
+  status: number;
+  details?: Record<string, unknown>;
+
+  constructor(code: string, message: string, status = 400, details?: Record<string, unknown>) {
     super(message);
     this.name = 'NddValidationError';
     this.code = code;
+    this.status = status;
+    this.details = details;
   }
 }
 
@@ -32,10 +37,12 @@ export const asTrimmedString = (value: unknown): string | null => {
 
 export const assertPlatformStationId = (value: unknown, field: string): string => {
   const normalized = asTrimmedString(value);
-  if (!normalized || !isUuid(normalized)) {
+  if (!normalized || !isDigits(normalized)) {
     throw new NddValidationError(
-      'VALIDATION_ERROR',
-      `${field} must be a platform station_id (uuid). Received: ${String(value ?? 'null')}`
+      'NDD_VALIDATION_ERROR',
+      `${field} must be a platform station_id (digits).`,
+      400,
+      { field, expected: 'digits', received: value ?? null }
     );
   }
   return normalized;
@@ -44,7 +51,33 @@ export const assertPlatformStationId = (value: unknown, field: string): string =
 export const assertPvzId = (value: unknown, field: string): string => {
   const normalized = asTrimmedString(value);
   if (!normalized || !looksLikePvzId(normalized)) {
-    throw new NddValidationError('VALIDATION_ERROR', `${field} must be a pickup point id (pvzId).`);
+    throw new NddValidationError('NDD_VALIDATION_ERROR', `${field} must be a pickup point id (uuid).`, 400, {
+      field,
+      expected: 'uuid',
+      received: value ?? null
+    });
   }
   return normalized;
+};
+
+export const assertStationAndPvzPair = (stationId: unknown, selfPickupId: unknown) => {
+  const normalizedStationId = assertPlatformStationId(stationId, 'station_id');
+  const normalizedSelfPickupId = assertPvzId(selfPickupId, 'self_pickup_id');
+
+  if (normalizedStationId === normalizedSelfPickupId) {
+    throw new NddValidationError(
+      'NDD_VALIDATION_ERROR',
+      'station_id and self_pickup_id must refer to different identifiers.',
+      400,
+      {
+        station_id: normalizedStationId,
+        self_pickup_id: normalizedSelfPickupId
+      }
+    );
+  }
+
+  return {
+    stationId: normalizedStationId,
+    selfPickupId: normalizedSelfPickupId
+  };
 };

@@ -100,12 +100,12 @@ const validateResolvedPlatformStationId = async (platformStationId: string | nul
 
   const validationSelfPickupId = resolveValidationSelfPickupId() ?? fallbackSelfPickupId;
   if (!validationSelfPickupId) {
-    return { validatedPlatformStationId: platformStationId, warningCode: null as const };
+    return { validatedPlatformStationId: platformStationId, warningCode: null };
   }
 
   try {
     await yandexNddClient.offersInfo(platformStationId, validationSelfPickupId, true);
-    return { validatedPlatformStationId: platformStationId, warningCode: null as const };
+    return { validatedPlatformStationId: platformStationId, warningCode: null };
   } catch (error) {
     if (error instanceof YandexNddHttpError) {
       const details =
@@ -213,7 +213,7 @@ const geocodeAddress = async (query: string) => {
   return value;
 };
 
-const readPlatformStationId = (point: Record<string, any>): string | null => {
+const readPlatformStationDigitsId = (point: Record<string, any>): string | null => {
   const station = point?.station && typeof point.station === 'object' ? point.station : null;
   const platformStation = point?.platform_station && typeof point.platform_station === 'object' ? point.platform_station : null;
 
@@ -221,9 +221,11 @@ const readPlatformStationId = (point: Record<string, any>): string | null => {
     point?.platform_station_id,
     platformStation?.platform_id,
     point?.station_id,
-    station?.id,
+    point?.platform_station_digits_id,
+    station?.station_id,
     station?.platform_id,
-    station?.platform_station_id
+    station?.platform_station_id,
+    station?.id
   ];
 
   for (const candidate of candidates) {
@@ -233,9 +235,12 @@ const readPlatformStationId = (point: Record<string, any>): string | null => {
   return null;
 };
 
-const mapSellerDropoffPoint = (point: Record<string, any>) => ({
+const mapSellerDropoffPoint = (point: Record<string, any>) => {
+  const platformStationIdDigits = readPlatformStationDigitsId(point);
+  return ({
   pvzId: typeof point?.id === 'string' ? point.id : null,
-  platformStationId: readPlatformStationId(point),
+  platformStationIdDigits,
+  platformStationId: platformStationIdDigits,
   operatorStationId: normalizeOperatorStationDigits(point?.operator_station_id),
   name: typeof point?.name === 'string' ? point.name : null,
   addressFull: point?.address?.full_address ?? null,
@@ -247,6 +252,7 @@ const mapSellerDropoffPoint = (point: Record<string, any>) => ({
   maxWeightGross: null,
   distanceMeters: null as number | null
 });
+};
 
 // ---------------------------------------------------------
 // Schemas
@@ -970,7 +976,7 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
     }
 
     const operatorStationId = normalizeOperatorStationDigits((point as any).operator_station_id);
-    const platformStationId = readPlatformStationId(point as Record<string, any>); // digits
+    const platformStationId = readPlatformStationDigitsId(point as Record<string, any>);
     const validationResult = await validateResolvedPlatformStationId(platformStationId, pvzId);
 
     const dropoffPvzMeta = {

@@ -1,4 +1,5 @@
 import { getYandexNddConfig } from '../../config/yandexNdd';
+import { assertStationAndPvzPair } from './nddIdSemantics';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -95,14 +96,40 @@ export class YandexNddClient {
   private readonly offersInfoCache = new Map<string, CacheEntry>();
 
   private getAuthTokenMeta() {
-    const rawToken = (process.env.YANDEX_NDD_TOKEN ?? this.config.token ?? '').trim();
-    const tokenWithoutPrefix = rawToken.replace(/^Bearer\s+/i, '').trim();
-    const authHeader = `Bearer ${tokenWithoutPrefix}`;
+    const tokenFromConfig = (this.config.token ?? '').trim();
+    const tokenWithoutPrefix = tokenFromConfig.replace(/^Bearer\s+/i, '').trim();
+    const authHeader = tokenWithoutPrefix ? `Bearer ${tokenWithoutPrefix}` : '';
 
     return {
       authHeader,
-      tokenLength: tokenWithoutPrefix.length
+      tokenLength: tokenWithoutPrefix.length,
+      tokenPrefix: tokenWithoutPrefix.slice(0, 10)
     };
+  }
+
+  private logRequestDebug(input: {
+    method: string;
+    url: string;
+    status?: number;
+    authHeader?: string;
+    tokenPrefix?: string;
+    requestId?: string;
+  }) {
+    const hasAuthorization = Boolean(input.authHeader);
+    const tokenPreview = hasAuthorization && input.tokenPrefix ? `${input.tokenPrefix}...` : null;
+    const payload: Record<string, unknown> = {
+      requestId: input.requestId ?? 'n/a',
+      method: input.method,
+      url: input.url,
+      hasAuthorization,
+      authorizationTokenPrefix: tokenPreview
+    };
+
+    if (typeof input.status === 'number') {
+      payload.status = input.status;
+    }
+
+    console.info('[YANDEX_NDD][request]', payload);
   }
 
   private buildUrl(path: string): string {
@@ -165,13 +192,18 @@ export class YandexNddClient {
   private async request<T>(path: string, init?: RequestInit & { requestId?: string }): Promise<T> {
     const tokenMeta = this.getAuthTokenMeta();
 
-    console.info('[YANDEX_NDD][auth]', { tokenLength: tokenMeta.tokenLength });
-
     const maxAttempts = 3;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       try {
         const response = await this.performRequest<T>(path, tokenMeta, init);
+        this.logRequestDebug({
+          method: init?.method ?? 'GET',
+          url: this.buildUrl(path),
+          authHeader: tokenMeta.authHeader,
+          tokenPrefix: tokenMeta.tokenPrefix,
+          requestId: init?.requestId
+        });
         if (process.env.NODE_ENV !== 'production') {
           console.log('[YANDEX_NDD]', {
             requestId: init?.requestId ?? 'n/a',
@@ -202,11 +234,18 @@ export class YandexNddClient {
           attempt < maxAttempts;
 
         if (!retryable) {
+          this.logRequestDebug({
+            method: init?.method ?? 'GET',
+            url: this.buildUrl(path),
+            status: error.status,
+            authHeader: tokenMeta.authHeader,
+            tokenPrefix: tokenMeta.tokenPrefix,
+            requestId: init?.requestId
+          });
           console.error('[YANDEX_NDD] non-2xx response', {
             requestId: init?.requestId ?? 'n/a',
             path,
             httpStatus: error.status,
-            tokenLength: tokenMeta.tokenLength,
             body: error.details
           });
           throw error;
@@ -222,13 +261,20 @@ export class YandexNddClient {
   }
 
   async offersCreate(body: JsonRecord) {
+    const validated = assertStationAndPvzPair(body.station_id, body.self_pickup_id);
+    const payload = {
+      ...body,
+      station_id: validated.stationId,
+      self_pickup_id: validated.selfPickupId
+    };
+
     if (process.env.NODE_ENV !== 'production') {
-      console.log('[NDD offers/create body]', JSON.stringify(body));
+      console.log('[NDD offers/create body]', JSON.stringify(payload));
     }
 
     const response = await this.request<JsonRecord>('/api/b2b/platform/offers/create', {
       method: 'POST',
-      body: JSON.stringify(body)
+      body: JSON.stringify(payload)
     });
 
     if (process.env.NODE_ENV !== 'production') {
@@ -239,14 +285,15 @@ export class YandexNddClient {
   }
 
   async offersInfo(stationId: string, selfPickupId: string, sendUnix = true) {
+    const validated = assertStationAndPvzPair(stationId, selfPickupId);
     const lastMilePolicy = 'self_pickup';
     const query = new URLSearchParams({
-      station_id: stationId,
-      self_pickup_id: selfPickupId,
+      station_id: validated.stationId,
+      self_pickup_id: validated.selfPickupId,
       last_mile_policy: lastMilePolicy,
       send_unix: String(sendUnix)
     });
-    const cacheKey = `offersInfo:${stationId}:${selfPickupId}:${lastMilePolicy}`;
+    const cacheKey = `offersInfo:${validated.stationId}:${validated.selfPickupId}:${lastMilePolicy}`;
     const cached = this.offersInfoCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
       return cached.value;

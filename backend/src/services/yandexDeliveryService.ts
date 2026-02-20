@@ -2,36 +2,50 @@ import axios, { AxiosError, type AxiosInstance } from "axios";
 import { getOperatorStationId, normalizeStationId } from "./yandexNdd/getOperatorStationId";
 import { getYandexNddConfig, isYandexNddTestEnvironment } from "../config/yandexNdd";
 
-const TEST_HOST = "https://b2b.taxi.tst.yandex.net";
-const PROD_HOST = "https://b2b-authproxy.taxi.yandex.net";
-
 class YandexDeliveryService {
   private readonly client: AxiosInstance;
 
   constructor() {
-    const token =
-      process.env.YANDEX_DELIVERY_TOKEN ||
-      process.env.YD_TOKEN ||
-      process.env.YANDEX_NDD_TOKEN; // если вдруг раньше так называли
+    const config = getYandexNddConfig();
+    const tokenRaw = (config.token ?? '').trim().replace(/^Bearer\s+/i, '');
 
-    if (!token) {
+    if (!tokenRaw) {
       throw new Error("YD_TOKEN_MISSING");
     }
 
-    const envRaw =
-      process.env.YANDEX_DELIVERY_ENV || process.env.YD_ENV || "test";
-    const env = envRaw === "prod" ? "prod" : "test";
-
-    const baseURL = env === "prod" ? PROD_HOST : TEST_HOST;
-
     this.client = axios.create({
-      baseURL,
+      baseURL: config.baseUrl,
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${tokenRaw}`,
         "Content-Type": "application/json",
       },
       timeout: 15000,
     });
+
+    this.client.interceptors.request.use((request) => {
+      const auth = String(request.headers?.Authorization ?? request.headers?.authorization ?? '');
+      const tokenPrefix = auth.replace(/^Bearer\s+/i, '').slice(0, 10);
+      console.info('[YANDEX_NDD][request]', {
+        method: String(request.method ?? 'get').toUpperCase(),
+        url: `${request.baseURL ?? ''}${request.url ?? ''}`,
+        hasAuthorization: Boolean(auth),
+        authorizationTokenPrefix: tokenPrefix ? `${tokenPrefix}...` : null
+      });
+      return request;
+    });
+
+    this.client.interceptors.response.use(
+      (response) => response,
+      (error: AxiosError) => {
+        console.error('[YANDEX_NDD] axios error', {
+          method: String(error.config?.method ?? 'get').toUpperCase(),
+          url: `${error.config?.baseURL ?? ''}${error.config?.url ?? ''}`,
+          status: error.response?.status ?? null,
+          data: error.response?.data ?? null
+        });
+        return Promise.reject(error);
+      }
+    );
   }
 
   private async withRetry<T>(fn: () => Promise<T>, retries = 2): Promise<T> {
