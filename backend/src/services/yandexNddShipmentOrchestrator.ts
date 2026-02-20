@@ -2,9 +2,8 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { orderDeliveryService } from './orderDeliveryService';
 import { mapYandexStatusToInternal, shipmentService } from './shipmentService';
-import { YandexNddHttpError } from './yandexNdd/YandexNddClient';
-import { looksLikeDigits, looksLikePvzId, NddValidationError } from './yandexNdd/nddIdSemantics';
-import { resolvePlatformStationIdByPickupPointId } from './yandexNdd/resolvePlatformStationIdByPickupPointId';
+import { YandexNddHttpError, yandexNddClient } from './yandexNdd/YandexNddClient';
+import { assertStationAndPvzPair, looksLikePvzId, NddValidationError } from './yandexNdd/nddIdSemantics';
 import { getYandexNddConfig } from '../config/yandexNdd';
 import { yandexDeliveryService } from './yandexDeliveryService';
 
@@ -96,9 +95,9 @@ export const yandexNddShipmentOrchestrator = {
       if (order.status !== 'PAID' || !order.paidAt) throw new Error('ORDER_NOT_PAID');
 
       const buyerPickupPointId = String(order.buyerPickupPvzId ?? '').trim();
-      if (!buyerPickupPointId) throw new Error('BUYER_PVZ_REQUIRED');
+      if (!buyerPickupPointId) throw new NddValidationError('BUYER_SELF_PICKUP_ID_REQUIRED', 'buyerPickupPvzId is required.', 409);
       if (!looksLikePvzId(buyerPickupPointId)) {
-        throw new NddValidationError('VALIDATION_ERROR', 'buyerPickupPvzId должен быть pvzId (uuid), не station_id.');
+        throw new NddValidationError('NDD_VALIDATION_ERROR', 'buyerPickupPvzId must be uuid self_pickup_id.', 400, { field: 'buyerPickupPvzId' });
       }
 
       const deliveryMap = await orderDeliveryService.getByOrderIds([orderId]);
@@ -119,25 +118,7 @@ export const yandexNddShipmentOrchestrator = {
       });
 
       const config = getYandexNddConfig();
-
-      // ✅ Источник строго digits (operator station)
-      const profileStationDigits = getTrimmedString(sellerDeliveryProfile?.dropoffOperatorStationId);
-      const envStationDigits =
-        getTrimmedString(process.env.YANDEX_NDD_MERCHANT_STATION_ID) ??
-        getTrimmedString(process.env.YANDEX_NDD_DEFAULT_STATION_ID) ??
-        null;
-
-      const sourceStationId =
-        (profileStationDigits && looksLikeDigits(profileStationDigits) ? profileStationDigits : null) ??
-        (envStationDigits && looksLikeDigits(envStationDigits) ? envStationDigits : null) ??
-        null;
-
-      const sourceStationSource =
-        profileStationDigits && looksLikeDigits(profileStationDigits)
-          ? 'sellerProfile.dropoffOperatorStationId'
-          : envStationDigits && looksLikeDigits(envStationDigits)
-            ? 'env.YANDEX_NDD_*_STATION_ID'
-            : 'missing';
+      const sourceStationIdRaw = getTrimmedString(sellerDeliveryProfile?.dropoffPlatformStationId);
 
       console.info('[READY_TO_SHIP][ctx]', {
         sellerId,
@@ -146,54 +127,21 @@ export const yandexNddShipmentOrchestrator = {
         hasSellerProfile: Boolean(sellerDeliveryProfile),
         dropoffOperatorStationId: sellerDeliveryProfile?.dropoffOperatorStationId ?? null,
         dropoffPlatformStationId: sellerDeliveryProfile?.dropoffPlatformStationId ?? null,
-        sourceStationId,
-        sourceStationSource,
         nddEnabled: config.enabled,
         nddBaseUrl: config.baseUrl
       });
 
       if (!config.enabled) {
-        throw new NddValidationError('NDD_DISABLED', 'NDD выключен: нет токена или конфиг не активен.');
+        throw new NddValidationError('NDD_REQUEST_FAILED', 'NDD is disabled: missing token.', 502);
       }
 
-      if (!sourceStationId) {
-        throw new NddValidationError(
-          'SELLER_STATION_ID_REQUIRED',
-          'Не найден station_id продавца (digits). Нужно сохранить dropoffOperatorStationId из pickup-points/list.'
-        );
+      if (!sourceStationIdRaw) {
+        throw new NddValidationError('SELLER_PLATFORM_STATION_ID_REQUIRED', 'Seller dropoffPlatformStationId is required.', 409);
       }
 
-      // ✅ Для buyer PVZ meta: полезно сохранить digits station id, но НЕ обязательно
-      // Мы пробуем подтащить operatorStationId и сохранить в meta, чтобы потом не дергать API
-      let buyerPickupMeta = asRecord(order.buyerPickupPvzMeta) ?? {};
-      const direct = asRecord(buyerPickupMeta);
-      const raw = asRecord(direct?.raw);
-      const existingBuyerOperatorStationId =
-        getTrimmedString(raw?.buyerPickupOperatorStationId) ??
-        getTrimmedString(direct?.buyerPickupOperatorStationId) ??
-        getTrimmedString(raw?.operator_station_id);
-
-      if (!existingBuyerOperatorStationId) {
-        try {
-          const resolved = await resolvePlatformStationIdByPickupPointId(buyerPickupPointId);
-          if (resolved.operatorStationId) {
-            const nextRaw = { ...(raw ?? {}), buyerPickupOperatorStationId: resolved.operatorStationId };
-            const nextMeta = { ...(direct ?? {}), buyerPickupOperatorStationId: resolved.operatorStationId, raw: nextRaw };
-            await prisma.order.update({
-              where: { id: order.id },
-              data: { buyerPickupPvzMeta: nextMeta as Prisma.InputJsonValue }
-            });
-            buyerPickupMeta = nextMeta;
-          }
-        } catch (e) {
-          console.warn('[READY_TO_SHIP] failed to enrich buyerPickupPvzMeta', {
-            orderId,
-            reason: e instanceof Error ? e.message : String(e)
-          });
-        }
-      }
-
-      const selfPickupId = buyerPickupPointId;
+      const validatedPair = assertStationAndPvzPair(sourceStationIdRaw, buyerPickupPointId);
+      const sourceStationId = validatedPair.stationId;
+      const selfPickupId = validatedPair.selfPickupId;
 
       // ✅ Собираем тело строго под /offers/create (старый NDD platform API)
       const barcode = `PF-${order.id}`;
@@ -246,7 +194,7 @@ export const yandexNddShipmentOrchestrator = {
 
       let offersResponse: Record<string, unknown>;
       try {
-        offersResponse = await yandexDeliveryService.createOffers(offersBody);
+        offersResponse = await yandexNddClient.offersCreate(offersBody);
       } catch (error) {
         // если у тебя прокси/тест окружение и Яндекс кинул HTML SmartCaptcha, вылетит как AxiosError
         const msg = error instanceof Error ? error.message : String(error);
@@ -281,9 +229,7 @@ export const yandexNddShipmentOrchestrator = {
           deliveryMethod,
           sourceStationId,
           sourceStationSnapshot: asRecord(order.sellerDropoffPvzMeta),
-          destinationStationId: deliveryMethod === 'PICKUP_POINT'
-            ? order.buyerPickupPvzId
-            : destinationStationId,
+          destinationStationId: buyerPickupPointId,
           destinationStationSnapshot: delivery?.pickupPoint ?? asRecord(order.buyerPickupPvzMeta),
           status: 'CREATED',
           statusRaw: { offersCreate: offersResponse }
@@ -291,7 +237,7 @@ export const yandexNddShipmentOrchestrator = {
         throw new Error('ORDER_DELIVERY_OFFER_FAILED');
       }
 
-      const confirm = await yandexDeliveryService.confirmOffer(offerId);
+      const confirm = await yandexNddClient.offersConfirm({ offer_id: offerId });
       let requestId =
         (confirm as any)?.request_id ??
         (confirm as any)?.request?.request_id ??
@@ -299,7 +245,7 @@ export const yandexNddShipmentOrchestrator = {
 
       let requestCreate: Record<string, unknown> | null = null;
       if (!requestId) {
-        requestCreate = await yandexDeliveryService.createRequest({ offer_id: offerId });
+        requestCreate = await yandexNddClient.requestCreate({ offer_id: offerId });
         requestId =
           (requestCreate as any)?.request_id ??
           (requestCreate as any)?.request?.request_id ??
@@ -324,7 +270,7 @@ export const yandexNddShipmentOrchestrator = {
         deliveryMethod,
         sourceStationId,
         sourceStationSnapshot: asRecord(order.sellerDropoffPvzMeta),
-        destinationStationId: order.buyerPickupPvzId,
+        destinationStationId: buyerPickupPointId,
         destinationStationSnapshot: delivery?.pickupPoint ?? asRecord(order.buyerPickupPvzMeta),
         requestId,
         offerPayload: JSON.stringify(bestOffer ?? { offer_id: offerId }),
@@ -363,8 +309,8 @@ export const yandexNddShipmentOrchestrator = {
     for (const shipment of shipments) {
       if (!shipment.requestId) continue;
 
-      const history = await yandexDeliveryService.getRequestHistory(shipment.requestId);
-      const info = await yandexDeliveryService.getRequestInfo(shipment.requestId);
+      const history = await yandexNddClient.requestHistory(shipment.requestId);
+      const info = await yandexNddClient.requestInfo(shipment.requestId);
 
       const yandexStatus =
         (history && extractYandexStatus(history as any)) ??
