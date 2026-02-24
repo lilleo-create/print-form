@@ -12,6 +12,7 @@ const BUYER_PVZ_UUID = '0193d98f-b6fe-76ce-9ac1-bbf9ea33d2f7';
 test.beforeEach(() => {
   delete process.env.YANDEX_NDD_DEFAULT_PLATFORM_STATION_ID;
   delete process.env.YANDEX_NDD_PLATFORM_STATION_ID;
+  process.env.YANDEX_NDD_MERCHANT_ID = 'merchant-test';
   (prisma.sellerDeliveryProfile.findUnique as any) = async () => ({
     dropoffPlatformStationId: SELLER_PVZ_UUID,
     dropoffStationMeta: null
@@ -25,8 +26,7 @@ test.beforeEach(() => {
       }))
     };
   };
-  (yandexNddClient.offersCreate as any) = async () => ({ offers: [{ offer_id: 'offer-1' }] });
-  (yandexNddClient.offersConfirm as any) = async () => ({ request_id: 'request-1', status: 'CREATED' });
+  (yandexNddClient.requestCreate as any) = async () => ({ request_id: 'request-1', status: 'CREATED' });
 });
 
 const mockPaidOrder = (id: string) => ({
@@ -59,14 +59,14 @@ test('ready-to-ship when status CREATED returns ORDER_NOT_PAID and does not call
     paidAt: null
   });
 
-  let offersCalled = 0;
-  (yandexNddClient.offersCreate as any) = async () => {
-    offersCalled += 1;
-    return { offers: [] };
+  let requestCreateCalled = 0;
+  (yandexNddClient.requestCreate as any) = async () => {
+    requestCreateCalled += 1;
+    return { request_id: '', status: 'CREATED' };
   };
 
   await assert.rejects(() => yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-4'), /ORDER_NOT_PAID/);
-  assert.equal(offersCalled, 0);
+  assert.equal(requestCreateCalled, 0);
 });
 
 test('ready-to-ship fails when buyer PVZ id is missing', async () => {
@@ -81,7 +81,7 @@ test('ready-to-ship fails when buyer PVZ id is missing', async () => {
   );
 });
 
-test('ready-to-ship calls offers/create -> offers/confirm in order', async () => {
+test('ready-to-ship calls request/create -> request/create in order', async () => {
   (prisma.order.findFirst as any) = async () => mockPaidOrder('order-seq');
   const deliveryServiceModule = await import('./orderDeliveryService');
   (deliveryServiceModule.orderDeliveryService.getByOrderIds as any) = async () =>
@@ -94,21 +94,16 @@ test('ready-to-ship calls offers/create -> offers/confirm in order', async () =>
   (prisma.order.update as any) = async () => ({ id: 'order-seq' });
 
   const callOrder: string[] = [];
-  (yandexNddClient.offersCreate as any) = async () => {
-    callOrder.push('offersCreate');
-    return { offers: [{ offer_id: 'offer-1' }] };
-  };
-  (yandexNddClient.offersConfirm as any) = async (body: Record<string, unknown>) => {
-    callOrder.push('offersConfirm');
-    assert.equal(body.offer_id, 'offer-1');
+  (yandexNddClient.requestCreate as any) = async () => {
+    callOrder.push('requestCreate');
     return { request_id: 'request-1', status: 'CREATED' };
   };
 
   await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-seq');
-  assert.deepEqual(callOrder, ['offersCreate', 'offersConfirm']);
+  assert.deepEqual(callOrder, ['requestCreate']);
 });
 
-test('ready-to-ship sends source.platform_station.platform_id and destination platform_id in offers/create (no merchant_id)', async () => {
+test('ready-to-ship sends source.platform_station.platform_id and destination platform_id in request/create (no merchant_id)', async () => {
   (prisma.order.findFirst as any) = async () => mockPaidOrder('order-7');
   const deliveryServiceModule = await import('./orderDeliveryService');
   (deliveryServiceModule.orderDeliveryService.getByOrderIds as any) = async () =>
@@ -120,20 +115,18 @@ test('ready-to-ship sends source.platform_station.platform_id and destination pl
   (shipmentModule.shipmentService.pushHistory as any) = async () => undefined;
   (prisma.order.update as any) = async () => ({ id: 'order-7' });
 
-  let offersPayload: any = null;
+  let requestPayload: any = null;
 
-  (yandexNddClient.offersCreate as any) = async (body: Record<string, any>) => {
-    offersPayload = body;
-    return { offers: [{ offer_id: 'offer-1' }] };
+  (yandexNddClient.requestCreate as any) = async (body: Record<string, any>) => {
+    requestPayload = body;
+    return { request_id: 'request-1', status: 'CREATED' };
   };
-  (yandexNddClient.offersConfirm as any) = async () => ({ request_id: 'request-1', status: 'CREATED' });
 
   await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-7');
 
-  assert.equal(offersPayload?.source?.platform_station?.platform_id, SELLER_PVZ_UUID);
-  assert.equal(offersPayload?.destination?.platform_station?.platform_id, BUYER_PVZ_UUID);
-  assert.equal(offersPayload?.last_mile_policy, 'self_pickup');
-  assert.equal(offersPayload?.info?.merchant_id, undefined);
+  assert.equal(requestPayload?.source?.platform_station?.platform_id, SELLER_PVZ_UUID);
+  assert.equal(requestPayload?.destination?.platform_station?.platform_id, BUYER_PVZ_UUID);
+  assert.equal(requestPayload?.last_mile_policy, 'self_pickup');
 });
 
 
@@ -156,14 +149,13 @@ test('ready-to-ship does not fail when buyer platform station id is missing in m
   (shipmentModule.shipmentService.pushHistory as any) = async () => undefined;
   (prisma.order.update as any) = async () => ({ id: 'order-no-buyer-station' });
 
-  (yandexNddClient.offersCreate as any) = async () => ({ offers: [{ offer_id: 'offer-1' }] });
-  (yandexNddClient.offersConfirm as any) = async () => ({ request_id: 'request-1', status: 'CREATED' });
+  (yandexNddClient.requestCreate as any) = async () => ({ request_id: 'request-1', status: 'CREATED' });
 
   const shipment = await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-no-buyer-station');
   assert.equal(shipment.requestId, 'request-1');
 });
 
-test('ready-to-ship uses resolved buyer platform_id in offers/create', async () => {
+test('ready-to-ship uses resolved buyer platform_id in request/create', async () => {
   (prisma.order.findFirst as any) = async () => ({
     ...mockPaidOrder('order-backfill'),
     buyerPickupPvzId: BUYER_PVZ_UUID,
@@ -181,16 +173,15 @@ test('ready-to-ship uses resolved buyer platform_id in offers/create', async () 
 
   (prisma.order.update as any) = async (payload: any) => ({ id: payload.where.id });
 
-  let offersCreateDestPlatformId = '';
-  (yandexNddClient.offersCreate as any) = async (body: Record<string, any>) => {
-    offersCreateDestPlatformId = body?.destination?.platform_station?.platform_id ?? '';
-    return { offers: [{ offer_id: 'offer-backfill' }] };
+  let requestCreateDestPlatformId = '';
+  (yandexNddClient.requestCreate as any) = async (body: Record<string, any>) => {
+    requestCreateDestPlatformId = body?.destination?.platform_station?.platform_id ?? '';
+    return { request_id: 'request-backfill', status: 'CREATED' };
   };
-  (yandexNddClient.offersConfirm as any) = async () => ({ request_id: 'request-backfill', status: 'CREATED' });
 
   await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-backfill');
 
-  assert.equal(offersCreateDestPlatformId, BUYER_PVZ_UUID);
+  assert.equal(requestCreateDestPlatformId, BUYER_PVZ_UUID);
 });
 
 test('ready-to-ship does not fail when buyer meta has non-digits operator_station_id', async () => {
@@ -238,11 +229,10 @@ test('ready-to-ship uses resolved seller PVZ as source platform_id', async () =>
   (prisma.order.update as any) = async () => ({ id: 'order-from-profile' });
 
   let sourcePlatformId: string | null = null;
-  (yandexNddClient.offersCreate as any) = async (body: Record<string, any>) => {
+  (yandexNddClient.requestCreate as any) = async (body: Record<string, any>) => {
     sourcePlatformId = body?.source?.platform_station?.platform_id ?? null;
-    return { offers: [{ offer_id: 'offer-1' }] };
+    return { request_id: 'request-1', status: 'CREATED' };
   };
-  (yandexNddClient.offersConfirm as any) = async () => ({ request_id: 'request-1', status: 'CREATED' });
 
   await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-from-profile');
   assert.equal(sourcePlatformId, SELLER_PVZ_UUID);
@@ -265,11 +255,10 @@ test('ready-to-ship uses trimmed seller PVZ id from resolvePvzIds', async () => 
   (prisma.order.update as any) = async () => ({ id: 'order-from-profile-trimmed' });
 
   let sourcePlatformId: string | null = null;
-  (yandexNddClient.offersCreate as any) = async (body: Record<string, any>) => {
+  (yandexNddClient.requestCreate as any) = async (body: Record<string, any>) => {
     sourcePlatformId = body?.source?.platform_station?.platform_id ?? null;
-    return { offers: [{ offer_id: 'offer-1' }] };
+    return { request_id: 'request-1', status: 'CREATED' };
   };
-  (yandexNddClient.offersConfirm as any) = async () => ({ request_id: 'request-1', status: 'CREATED' });
 
   await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-from-profile-trimmed');
   assert.equal(sourcePlatformId, SELLER_PVZ_UUID);
@@ -292,11 +281,10 @@ test('ready-to-ship uses order seller and buyer PVZ ids', async () => {
   (prisma.order.update as any) = async () => ({ id: 'order-blank-env' });
 
   let sourcePlatformId: string | null = null;
-  (yandexNddClient.offersCreate as any) = async (body: Record<string, any>) => {
+  (yandexNddClient.requestCreate as any) = async (body: Record<string, any>) => {
     sourcePlatformId = body?.source?.platform_station?.platform_id ?? null;
-    return { offers: [{ offer_id: 'offer-1' }] };
+    return { request_id: 'request-1', status: 'CREATED' };
   };
-  (yandexNddClient.offersConfirm as any) = async () => ({ request_id: 'request-1', status: 'CREATED' });
 
   await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-blank-env');
   assert.equal(sourcePlatformId, SELLER_PVZ_UUID);
@@ -334,11 +322,10 @@ test('ready-to-ship uses resolved UUID from pickup-points/list for source', asyn
   (prisma.order.update as any) = async () => ({ id: 'order-numeric-station' });
 
   let sourcePlatformId: string | null = null;
-  (yandexNddClient.offersCreate as any) = async (body: Record<string, any>) => {
+  (yandexNddClient.requestCreate as any) = async (body: Record<string, any>) => {
     sourcePlatformId = body?.source?.platform_station?.platform_id ?? null;
-    return { offers: [{ offer_id: 'offer-1' }] };
+    return { request_id: 'request-1', status: 'CREATED' };
   };
-  (yandexNddClient.offersConfirm as any) = async () => ({ request_id: 'request-1', status: 'CREATED' });
 
   await yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-numeric-station');
   assert.equal(sourcePlatformId, SELLER_PVZ_UUID);
@@ -355,7 +342,7 @@ test('ready-to-ship accepts seller and buyer PVZ UUIDs', async () => {
   assert.equal(shipment.requestId, 'request-1');
 });
 
-test('ready-to-ship when NDD returns 400 variant maps NDD_OFFER_CREATE_FAILED', async () => {
+test('ready-to-ship when NDD returns 400 variant maps NDD_REQUEST_FAILED', async () => {
   (prisma.order.findFirst as any) = async () => mockPaidOrder('order-6');
   const deliveryServiceModule = await import('./orderDeliveryService');
   (deliveryServiceModule.orderDeliveryService.getByOrderIds as any) = async () =>
@@ -364,20 +351,20 @@ test('ready-to-ship when NDD returns 400 variant maps NDD_OFFER_CREATE_FAILED', 
   const shipmentModule = await import('./shipmentService');
   (shipmentModule.shipmentService.getByOrderId as any) = async () => null;
 
-  (yandexNddClient.offersCreate as any) = async () => {
-    throw new YandexNddHttpError('NDD_OFFER_CREATE_FAILED', '/api/b2b/platform/offers/create', 400, '{"message":"Value of source variant"}', {
+  (yandexNddClient.requestCreate as any) = async () => {
+    throw new YandexNddHttpError('NDD_REQUEST_FAILED', '/api/b2b/platform/request/create', 400, '{"message":"Value of source variant"}', {
       message: "Value of 'source' cannot be parsed as a variant"
     });
   };
 
   await assert.rejects(
     () => yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-6'),
-    (err: any) => err instanceof YandexNddHttpError && err.code === 'NDD_OFFER_CREATE_FAILED' && String((err as any).details?.message).includes('variant')
+    (err: any) => err instanceof YandexNddHttpError && err.code === 'NDD_REQUEST_FAILED' && String((err as any).details?.message).includes('variant')
   );
 });
 
 
-test('ready-to-ship throws when offers/confirm has no request_id', async () => {
+test('ready-to-ship throws when request/create has no request_id', async () => {
   (prisma.order.findFirst as any) = async () => mockPaidOrder('order-request-create');
   const deliveryServiceModule = await import('./orderDeliveryService');
   (deliveryServiceModule.orderDeliveryService.getByOrderIds as any) = async () =>
@@ -389,12 +376,11 @@ test('ready-to-ship throws when offers/confirm has no request_id', async () => {
   (shipmentModule.shipmentService.pushHistory as any) = async () => undefined;
   (prisma.order.update as any) = async () => ({ id: 'order-request-create' });
 
-  (yandexNddClient.offersCreate as any) = async () => ({ offers: [{ offer_id: 'offer-1' }] });
-  (yandexNddClient.offersConfirm as any) = async () => ({ status: 'CREATED' });
+  (yandexNddClient.requestCreate as any) = async () => ({ request_id: 'request-1', status: 'CREATED' });
 
   await assert.rejects(
     () => yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-request-create'),
-    (err: any) => err?.code === 'NDD_CONFIRM_NO_REQUEST_ID' || /request_id|REQUEST_ID/.test(String(err?.message ?? ''))
+    (err: any) => err?.code === 'NDD_REQUEST_CREATE_NO_REQUEST_ID' || /request_id|REQUEST_ID/.test(String(err?.message ?? ''))
   );
 });
 
@@ -423,20 +409,19 @@ test('ready-to-ship uses single-flight for concurrent calls by orderId', async (
   (shipmentModule.shipmentService.pushHistory as any) = async () => undefined;
   (prisma.order.update as any) = async () => ({ id: 'order-single-flight' });
 
-  let offersCreateCalled = 0;
-  (yandexNddClient.offersCreate as any) = async () => {
-    offersCreateCalled += 1;
+  let requestCreateCalled = 0;
+  (yandexNddClient.requestCreate as any) = async () => {
+    requestCreateCalled += 1;
     await new Promise((resolve) => setTimeout(resolve, 20));
-    return { offers: [{ offer_id: 'offer-1' }] };
+    return { request_id: 'request-1', status: 'CREATED' };
   };
-  (yandexNddClient.offersConfirm as any) = async () => ({ request_id: 'request-1', status: 'CREATED' });
 
   const [first, second] = await Promise.all([
     yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-single-flight'),
     yandexNddShipmentOrchestrator.readyToShip(sellerId, 'order-single-flight')
   ]);
 
-  assert.equal(offersCreateCalled, 1);
+  assert.equal(requestCreateCalled, 1);
   assert.equal(first.requestId, 'request-1');
   assert.equal(second.requestId, 'request-1');
 });
@@ -451,8 +436,8 @@ test('ready-to-ship remaps smartcaptcha block to YANDEX_IP_BLOCKED', async () =>
   const shipmentModule = await import('./shipmentService');
   (shipmentModule.shipmentService.getByOrderId as any) = async () => null;
 
-  (yandexNddClient.offersCreate as any) = async () => {
-    throw new YandexNddHttpError('YANDEX_SMARTCAPTCHA_BLOCK', '/api/b2b/platform/offers/create', 403, '<html/>', {
+  (yandexNddClient.requestCreate as any) = async () => {
+    throw new YandexNddHttpError('YANDEX_SMARTCAPTCHA_BLOCK', '/api/b2b/platform/request/create', 403, '<html/>', {
       uniqueKey: 'abc123'
     });
   };

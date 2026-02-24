@@ -1,17 +1,16 @@
 // src/services/yandexNddShipmentOrchestrator.ts
-// NDD flow without merchant API: resolve PVZ -> offers/create -> offers/confirm -> request/info.
+// NDD flow: resolve PVZ -> request/create -> request/info.
 
 import { prisma } from '../lib/prisma';
 import { yandexDeliveryService } from './yandexDeliveryService';
 import { yandexNddClient } from './yandexNdd/YandexNddClient';
 import { looksLikePvzId, NddValidationError } from './yandexNdd/nddIdSemantics';
 import { resolvePvzIds } from './yandexNdd/resolvePvzIds';
-import { buildOffersCreatePayload } from './yandexNdd/nddOffersPayload';
-import type { OffersCreateResponse, OffersConfirmResponse, RequestInfoResponse } from './yandexNdd/nddTypes';
+import { buildRequestCreatePayload } from './yandexNdd/nddOffersPayload';
+import type { RequestInfoResponse } from './yandexNdd/nddTypes';
 
 type CreateNddShipmentResult = {
   requestId: string;
-  offerId?: string | null;
   raw?: unknown;
 };
 
@@ -30,7 +29,7 @@ const requirePvzId = (value: unknown, field: string): string => {
 };
 
 export const yandexNddShipmentOrchestrator = {
-  /** Create NDD shipment: resolve PVZ -> offers/create -> offers/confirm -> request/info. No merchant_id. */
+  /** Create NDD shipment: resolve PVZ -> request/create -> request/info. */
   async createForPaidOrder(orderId: string): Promise<CreateNddShipmentResult> {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
@@ -67,41 +66,60 @@ export const yandexNddShipmentOrchestrator = {
       }
     });
 
-    const payload = buildOffersCreatePayload({
+    const merchantId = String(process.env.YANDEX_NDD_MERCHANT_ID ?? process.env.YANDEX_MERCHANT_ID ?? '').trim();
+    if (!merchantId) {
+      const err: any = new Error('NDD_MERCHANT_ID_REQUIRED');
+      err.code = 'NDD_MERCHANT_ID_REQUIRED';
+      err.message = 'Не задан merchant_id для request/create.';
+      throw err;
+    }
+
+    const payload = buildRequestCreatePayload({
       order: order as any,
       sellerPvz,
-      buyerPvz
+      buyerPvz,
+      merchantId
     });
 
-    const offersResponse = await yandexNddClient.offersCreate(payload as Record<string, unknown>, {
-      requestId: order.id,
-      orderId: order.id
-    }) as OffersCreateResponse;
+    console.info('[NDD][request/create]', {
+      orderId: order.id,
+      sourcePlatformId: sellerPvz.platformId,
+      destPlatformId: buyerPvz.platformId
+    });
 
-    const offers = Array.isArray(offersResponse?.offers) ? offersResponse.offers : [];
-    const firstOffer = offers[0];
-    if (!firstOffer?.offer_id) {
-      const err: any = new Error('NDD_NO_OFFERS');
-      err.code = 'NDD_NO_OFFERS';
-      err.message = 'Нет доступных вариантов доставки (no_delivery_options).';
-      err.details = offersResponse;
+    let createResponse: any;
+    try {
+      createResponse = await yandexNddClient.requestCreate(payload as Record<string, unknown>, {
+        requestId: order.id,
+        orderId: order.id
+      });
+    } catch (err: any) {
+      const status = Number(err?.status ?? 0);
+      const details = err?.details ?? null;
+      if (status === 400 && (details?.code === 'no_delivery_options' || /no_delivery_options/i.test(JSON.stringify(details)))) {
+        err.code = 'NDD_NO_DELIVERY_OPTIONS';
+      }
+      if (status === 403 && !err?.code) err.code = 'NDD_NO_PERMISSIONS';
+      if (status >= 500 && !err?.code) err.code = 'NDD_REQUEST_FAILED';
       throw err;
     }
 
-    const confirmResponse = await yandexNddClient.offersConfirm({
-      offer_id: firstOffer.offer_id
-    }) as OffersConfirmResponse;
+    console.info('[NDD][request/create][response]', {
+      orderId: order.id,
+      requestId: (createResponse as any)?.request_id ?? (createResponse as any)?.request?.request_id ?? null,
+      status: (createResponse as any)?.status ?? (createResponse as any)?.request?.status ?? null
+    });
 
     let requestId =
-      String(confirmResponse?.request_id ?? (confirmResponse as any)?.request?.request_id ?? '').trim();
+      String(createResponse?.request_id ?? (createResponse as any)?.request?.request_id ?? '').trim();
     if (!requestId) {
-      const err: any = new Error('NDD_CONFIRM_NO_REQUEST_ID');
-      err.code = 'NDD_CONFIRM_NO_REQUEST_ID';
-      err.details = confirmResponse;
+      const err: any = new Error('NDD_REQUEST_CREATE_NO_REQUEST_ID');
+      err.code = 'NDD_REQUEST_CREATE_NO_REQUEST_ID';
+      err.details = createResponse;
       throw err;
     }
 
-    let status = String(confirmResponse?.status ?? (confirmResponse as any)?.request?.status ?? 'CREATED').trim();
+    let status = String(createResponse?.status ?? (createResponse as any)?.request?.status ?? 'CREATED').trim();
     try {
       const info = await yandexNddClient.requestInfo(requestId) as RequestInfoResponse;
       status = String(info?.status ?? info?.request?.status ?? status).trim();
@@ -117,7 +135,7 @@ export const yandexNddShipmentOrchestrator = {
       }
     });
 
-    return { requestId, offerId: firstOffer.offer_id, raw: confirmResponse };
+    return { requestId, raw: createResponse };
   },
 
   async readyToShip(sellerId: string, orderId: string) {

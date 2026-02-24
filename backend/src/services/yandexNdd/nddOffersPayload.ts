@@ -1,11 +1,11 @@
 /**
- * Builds payload for POST /api/b2b/platform/offers/create (method 3.01).
- * No merchant_id; source/destination use platform_station.platform_id (UUID dashed).
+ * Builds payload for POST /api/b2b/platform/request/create?send_unix=true.
  */
 
 import type { ResolvedPvzIds } from './nddTypes';
 
-export type BuildOffersCreatePayloadInput = {
+export type BuildRequestCreatePayloadInput = {
+  merchantId: string;
   order: {
     id: string;
     recipientName?: string | null;
@@ -32,12 +32,12 @@ export type BuildOffersCreatePayloadInput = {
 };
 
 /**
- * Builds offers/create payload. Assumes resolvePvzIds already normalized platformId to dashed UUID.
+ * Builds request/create payload. Assumes resolvePvzIds already normalized platformId to dashed UUID.
  */
-export function buildOffersCreatePayload(
-  input: BuildOffersCreatePayloadInput
+export function buildRequestCreatePayload(
+  input: BuildRequestCreatePayloadInput
 ): Record<string, unknown> {
-  const { order, sellerPvz, buyerPvz } = input;
+  const { order, sellerPvz, buyerPvz, merchantId } = input;
 
   const sourcePlatformId = sellerPvz.platformId;
   const destPlatformId = buyerPvz.platformId;
@@ -58,10 +58,7 @@ export function buildOffersCreatePayload(
         nds: -1
       },
       physical_dims: {
-        dx: it.product?.dxCm ?? 10,
-        dy: it.product?.dyCm ?? 10,
-        dz: it.product?.dzCm ?? 10,
-        weight_gross: it.product?.weightGrossG ?? 100
+        predefined_volume: 1000
       }
     };
   });
@@ -92,7 +89,10 @@ export function buildOffersCreatePayload(
 
   return {
     billing_info: { payment_method: 'already_paid' },
-    info: { operator_request_id: String(order.id) },
+    info: {
+      operator_request_id: String(order.id),
+      merchant_id: merchantId
+    },
 
     items,
     places,
@@ -116,3 +116,10 @@ export function buildOffersCreatePayload(
     }
   };
 }
+
+// Backward-compatible wrapper for legacy imports.
+export const buildOffersCreatePayload = (input: Omit<BuildRequestCreatePayloadInput, 'merchantId'>) =>
+  buildRequestCreatePayload({
+    ...input,
+    merchantId: String(process.env.YANDEX_NDD_MERCHANT_ID ?? process.env.YANDEX_MERCHANT_ID ?? '').trim()
+  });
