@@ -423,7 +423,7 @@ export const api = {
     };
   }) {
     return apiClient.request<SellerDeliveryProfile>(
-      '/seller/settings/dropoff-pvz',
+      '/api/seller/settings/dropoff-pvz',
       { method: 'PUT', body: payload }
     );
   },

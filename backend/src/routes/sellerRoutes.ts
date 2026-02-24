@@ -401,18 +401,22 @@ const sellerSettingsSchema = z.object({
   dropoffSchedule: z.enum(['DAILY', 'WEEKDAYS'])
 });
 
-const sellerDeliveryProfileSchema = z.object({
-  dropoffPvz: z.object({
-    pvzId: z.string().trim().min(1),
-    provider: z.enum(['YANDEX_NDD', 'CDEK']).optional(),
-    raw: z.unknown().optional(),
-    addressFull: z.string().optional(),
-    country: z.string().optional(),
-    locality: z.string().optional(),
-    street: z.string().optional(),
-    house: z.string().optional(),
-    comment: z.string().optional()
-  })
+const sellerDropoffPvzSchema = z.object({
+  provider: z.literal('CDEK'),
+  pvzId: z.string().trim().min(1),
+  addressFull: z.string().optional(),
+  raw: z.object({
+    city_code: z.number().int().positive(),
+    city: z.string().optional(),
+    address_full: z.string().optional(),
+    latitude: z.number().optional(),
+    longitude: z.number().optional(),
+    work_time: z.string().optional()
+  }).catchall(z.unknown())
+});
+
+const sellerDropoffPvzSaveSchema = z.object({
+  dropoffPvz: sellerDropoffPvzSchema
 });
 
 const dropoffStationsQuerySchema = z.object({
@@ -1211,146 +1215,41 @@ sellerRoutes.post('/ndd/dropoff-stations/search', async (req: AuthRequest, res, 
 
 sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest, res, next) => {
   try {
-    const payload = sellerDeliveryProfileSchema.parse(req.body);
-    const pvzId = String(payload.dropoffPvz.pvzId ?? '').trim();
-    const provider = payload.dropoffPvz.provider ?? 'YANDEX_NDD';
-
-    if (!pvzId) {
-      return res.status(400).json({ error: { code: 'DROP_OFF_PVZ_ID_REQUIRED', message: 'Не выбран pvzId.' } });
-    }
-
-    if (provider === 'CDEK') {
-      const incomingRaw = payload.dropoffPvz.raw && typeof payload.dropoffPvz.raw === 'object'
-        ? payload.dropoffPvz.raw as Record<string, unknown>
-        : {};
-      const cityCode = Number(incomingRaw.city_code ?? 0);
-      if (!Number.isFinite(cityCode) || cityCode <= 0) {
-        return res.status(400).json({ error: { code: 'CITY_CODE_MISSING', message: 'CDEK dropoff raw.city_code is required', details: null } });
-      }
-
-      const cdekMeta = {
-        provider: 'CDEK' as const,
-        pvzId,
-        addressFull: payload.dropoffPvz.addressFull ?? String(incomingRaw.address_full ?? ''),
-        raw: {
-          city_code: cityCode,
-          city: String(incomingRaw.city ?? ''),
-          address_full: String(incomingRaw.address_full ?? payload.dropoffPvz.addressFull ?? ''),
-          latitude: Number(incomingRaw.latitude ?? 0),
-          longitude: Number(incomingRaw.longitude ?? 0),
-          work_time: typeof incomingRaw.work_time === 'string' ? incomingRaw.work_time : undefined
-        }
-      };
-
-      const settings = await prisma.sellerSettings.upsert({
-        where: { sellerId: req.user!.userId },
-        create: {
-          sellerId: req.user!.userId,
-          defaultDropoffProvider: 'CDEK',
-          defaultDropoffPvzId: pvzId,
-          defaultDropoffPvzMeta: cdekMeta as unknown as object
-        },
-        update: {
-          defaultDropoffProvider: 'CDEK',
-          defaultDropoffPvzId: pvzId,
-          defaultDropoffPvzMeta: cdekMeta as unknown as object
-        }
-      });
-      return res.json({ data: settings });
-    }
-
-    const listResp = await yandexNddClient.pickupPointsList({ pickup_point_ids: [pvzId] });
-    const points = (listResp as any)?.points ?? (listResp as any)?.result?.points ?? [];
-    const point = Array.isArray(points) ? points[0] : null;
-
-    if (!point) {
-      return res.status(400).json({ error: { code: 'DROP_OFF_PVZ_NOT_FOUND', message: 'Точка не найдена в NDD.' } });
-    }
-
-    if ((point as any).available_for_c2c_dropoff === false || (point as any).available_for_dropoff === false) {
-      return res.status(400).json({ error: { code: 'DROP_OFF_NOT_AVAILABLE', message: 'Точка недоступна для отгрузки. Выберите другую.' } });
-    }
-
-    if ((point as any).type && !['pickup_point', 'terminal', 'warehouse'].includes((point as any).type)) {
-      return res.status(400).json({ error: { code: 'DROP_OFF_TYPE_INVALID', message: 'Точка не поддерживает сдачу. Выберите пункт приёма.' } });
-    }
-
-    const stationIdDigits = normalizeOperatorStationDigits((point as any).operator_station_id);
-    const platformStationId = readPlatformStationDigitsId(point as Record<string, any>);
-    const validationResult = await validateStationIdDigits(stationIdDigits, pvzId);
-
-    console.info('[DROP_OFF_PVZ_RESOLVE]', {
-      sellerId: req.user!.userId,
-      pvzId,
-      station_id: stationIdDigits,
-      station_id_type: stationIdDigits ? (isDigitsStationId(stationIdDigits) ? 'digits' : typeof stationIdDigits) : null,
-      self_pickup_id: pvzId,
-      self_pickup_id_type: isUuid(pvzId) ? 'uuid' : typeof pvzId,
-      platform_station_id: platformStationId
-    });
-
+    const payload = sellerDropoffPvzSaveSchema.parse(req.body ?? {});
+    const addressFull = payload.dropoffPvz.addressFull ?? payload.dropoffPvz.raw.address_full ?? '';
     const dropoffPvzMeta = {
-      provider: 'YANDEX_NDD' as const,
-      pvzId,
-      addressFull: payload.dropoffPvz.addressFull ?? ((point as any)?.address?.full_address ?? undefined),
-      raw: point
+      provider: 'CDEK' as const,
+      pvzId: payload.dropoffPvz.pvzId,
+      addressFull,
+      raw: payload.dropoffPvz.raw
     };
 
     const settings = await prisma.sellerSettings.upsert({
       where: { sellerId: req.user!.userId },
-      create: { sellerId: req.user!.userId, defaultDropoffProvider: 'YANDEX_NDD', defaultDropoffPvzId: pvzId, defaultDropoffPvzMeta: dropoffPvzMeta as unknown as object },
-      update: { defaultDropoffProvider: 'YANDEX_NDD', defaultDropoffPvzId: pvzId, defaultDropoffPvzMeta: dropoffPvzMeta as unknown as object }
-    });
-
-    await sellerDeliveryProfileService.upsert(req.user!.userId, {
-      dropoffPvzId: pvzId,
-      dropoffOperatorStationId: stationIdDigits,
-      dropoffPlatformStationId: platformStationId,
-      dropoffStationMeta: {
-        source: 'pickup-points/list',
-        pvz_id: pvzId,
-        platform_station_id: platformStationId,
-        operator_station_id: stationIdDigits,
-        raw: point
+      create: {
+        sellerId: req.user!.userId,
+        defaultDropoffProvider: 'CDEK',
+        defaultDropoffPvzId: payload.dropoffPvz.pvzId,
+        defaultDropoffPvzMeta: dropoffPvzMeta as unknown as object
+      },
+      update: {
+        defaultDropoffProvider: 'CDEK',
+        defaultDropoffPvzId: payload.dropoffPvz.pvzId,
+        defaultDropoffPvzMeta: dropoffPvzMeta as unknown as object
       }
     });
 
-    await prisma.sellerDeliveryProfile.update({
-      where: { sellerId: req.user!.userId },
-      data: { dropoffStationId: stationIdDigits ?? undefined }
-    });
-
-    console.info('[DROP_OFF_SAVE]', {
-      sellerId: req.user!.userId,
-      pvzId,
-      station_id: stationIdDigits,
-      station_id_type: stationIdDigits ? (isDigitsStationId(stationIdDigits) ? 'digits' : typeof stationIdDigits) : null,
-      platform_station_id: platformStationId
-    });
-
-    if (!stationIdDigits) {
-      return res.status(202).json({
-        data: settings,
-        warning: { code: 'SELLER_STATION_ID_REQUIRED', message: 'ПВЗ сохранён, но station_id (digits) не найден. Выберите другой ПВЗ.' }
-      });
-    }
-
-    if (validationResult.warningCode === 'SELLER_STATION_ID_REQUIRED') {
-      return res.status(202).json({
-        data: settings,
-        warning: { code: 'SELLER_STATION_ID_REQUIRED', message: 'ПВЗ сохранён, но offers/info вернул validation_error. station_id всё равно сохранён и будет использован.' }
-      });
-    }
-
-    if (validationResult.warningCode === 'SELLER_STATION_VALIDATION_SKIPPED') {
-      return res.status(202).json({
-        data: settings,
-        warning: { code: 'SELLER_STATION_VALIDATION_SKIPPED', message: 'ПВЗ сохранён, но проверка offers/info недоступна. Проверь тестовый заказ.' }
-      });
-    }
-
     return res.json({ data: settings });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Некорректный payload для CDEK ПВЗ.',
+          details: error.issues
+        }
+      });
+    }
     next(error);
   }
 });

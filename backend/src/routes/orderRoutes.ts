@@ -93,6 +93,14 @@ orderRoutes.post('/', authenticate, writeLimiter, async (req: AuthRequest, res, 
       }
     }
 
+    const sellerDropoffMeta = sellerSettings?.defaultDropoffPvzMeta as Record<string, unknown> | null;
+    const sellerDropoffRaw = sellerDropoffMeta && typeof sellerDropoffMeta === 'object'
+      ? (sellerDropoffMeta.raw ?? {})
+      : {};
+    const sellerDropoffAddress = sellerDropoffMeta && typeof sellerDropoffMeta === 'object'
+      ? String(sellerDropoffMeta.addressFull ?? '')
+      : undefined;
+
     const order = await orderUseCases.create({
       buyerId: req.user!.userId,
       contactId: payload.contactId,
@@ -124,10 +132,8 @@ orderRoutes.post('/', authenticate, writeLimiter, async (req: AuthRequest, res, 
         ? {
             provider: sellerSettings.defaultDropoffProvider === 'CDEK' ? 'CDEK' : 'YANDEX_NDD',
             pvzId: sellerSettings.defaultDropoffPvzId,
-            raw: sellerSettings.defaultDropoffPvzMeta ?? {},
-            addressFull: typeof sellerSettings.defaultDropoffPvzMeta === 'object' && sellerSettings.defaultDropoffPvzMeta
-              ? String((sellerSettings.defaultDropoffPvzMeta as Record<string, unknown>).addressFull ?? '')
-              : undefined
+            raw: sellerDropoffRaw,
+            addressFull: sellerDropoffAddress
           }
         : undefined
     });
