@@ -116,10 +116,16 @@ export const ordersApi = {
     shippingAddressId: string;
     items: OrderItem[];
     total: number;
+    deliveryMethod?: 'courier' | 'cdek_pvz';
+    cdekPvzCode?: string;
+    cdekPvzAddress?: string;
   }) => {
     const result = await api.createOrder({
       contactId: payload.contactId,
       shippingAddressId: payload.shippingAddressId,
+      deliveryMethod: payload.deliveryMethod,
+      cdekPvzCode: payload.cdekPvzCode,
+      cdekPvzAddress: payload.cdekPvzAddress,
       items: payload.items.map((item) => ({
         productId: item.productId,
         quantity: item.qty

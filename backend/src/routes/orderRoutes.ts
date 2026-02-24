@@ -20,7 +20,12 @@ const yaPvzSelectionSchema = z.object({
 });
 
 const createOrderSchema = z.object({
-  buyerPickupPvz: yaPvzSelectionSchema,
+  buyerPickupPvz: yaPvzSelectionSchema.optional(),
+  cdekPvzCode: z.string().min(1).optional(),
+  cdekPvzAddress: z.string().optional(),
+  deliveryMethod: z.enum(['courier', 'cdek_pvz']).optional(),
+  contactId: z.string().optional(),
+  shippingAddressId: z.string().optional(),
   items: z
     .array(
       z.object({
@@ -35,6 +40,11 @@ const createOrderSchema = z.object({
 orderRoutes.post('/', authenticate, writeLimiter, async (req: AuthRequest, res, next) => {
   try {
     const payload = createOrderSchema.parse(req.body);
+    const { cdekPvzCode, cdekPvzAddress, deliveryMethod } = req.body as {
+      cdekPvzCode?: string;
+      cdekPvzAddress?: string;
+      deliveryMethod?: 'courier' | 'cdek_pvz';
+    };
 
     const product = await prisma.product.findFirst({
       where: { id: payload.items[0]?.productId },
@@ -49,11 +59,24 @@ orderRoutes.post('/', authenticate, writeLimiter, async (req: AuthRequest, res, 
 
     const order = await orderUseCases.create({
       buyerId: req.user!.userId,
+      contactId: payload.contactId,
+      shippingAddressId: payload.shippingAddressId,
       items: payload.items,
-      buyerPickupPvz: {
-        ...payload.buyerPickupPvz,
-        raw: payload.buyerPickupPvz.raw ?? {}
-      },
+      buyerPickupPvz: cdekPvzCode
+        ? {
+            provider: 'CDEK',
+            pvzId: cdekPvzCode,
+            raw: {},
+            addressFull: cdekPvzAddress ?? ''
+          }
+        : payload.buyerPickupPvz
+          ? {
+              ...payload.buyerPickupPvz,
+              raw: payload.buyerPickupPvz.raw ?? {}
+            }
+          : deliveryMethod === 'courier'
+            ? undefined
+            : undefined,
       sellerDropoffPvz: sellerSettings?.defaultDropoffPvzId
         ? {
             provider: 'YANDEX_NDD',

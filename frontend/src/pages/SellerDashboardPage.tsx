@@ -17,7 +17,7 @@ import { SellerActions } from '../components/seller/SellerActions';
 import { SellerErrorState } from '../components/seller/SellerErrorState';
 import { SellerHeader } from '../components/seller/SellerHeader';
 import { SellerStatsCard } from '../components/seller/SellerStatsCard';
-import { SellerDropoffStationPicker } from '../components/seller/SellerDropoffStationPicker';
+import { CdekPvzPickerModal } from '../components/checkout/CdekPvzPickerModal';
 import {
   SellerProductModal,
   SellerProductPayload
@@ -1843,11 +1843,16 @@ export const SellerDashboardPage = () => {
                 </div>
               )}
 
-              <SellerDropoffStationPicker
+              <CdekPvzPickerModal
                 isOpen={isDropoffModalOpen}
                 onClose={() => setDropoffModalOpen(false)}
-                onSelect={handleDropoffSelect}
-                geoId={213}
+                onSelect={(selection) => {
+                  void handleDropoffSelect({
+                    pvzId: selection.pvzCode,
+                    id: selection.pvzCode,
+                    addressFull: selection.addressFull
+                  });
+                }}
               />
 
               {isModalOpen && (

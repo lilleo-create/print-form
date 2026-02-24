@@ -18,7 +18,12 @@ import { ShippingAddressCard } from './ShippingAddressCard';
 import { OrderSummary } from './OrderSummary';
 import { CheckoutHeader } from './CheckoutHeader';
 import { CheckoutAddressModalGate } from './CheckoutAddressModalGate';
+import {
+  CdekPvzPickerModal,
+  type CdekPvzSelection
+} from './CdekPvzPickerModal';
 import type { ContactFormValues } from './types';
+import { Button } from '../../shared/ui/Button';
 import {
   isRuPhone,
   toE164Ru,
@@ -55,6 +60,9 @@ export const CheckoutPageLayout = () => {
 
   const navigate = useNavigate();
   const [isEditingContact, setIsEditingContact] = useState(false);
+  const [deliveryMethod, setDeliveryMethod] = useState<'courier' | 'cdek_pvz'>('cdek_pvz');
+  const [cdekPvz, setCdekPvz] = useState<CdekPvzSelection | null>(null);
+  const [isCdekModalOpen, setIsCdekModalOpen] = useState(false);
 
   const {
     contacts,
@@ -165,7 +173,11 @@ export const CheckoutPageLayout = () => {
 
   const onSubmit = async () => {
     if (!user || items.length === 0) return;
-    if (!selectedAddressId) return;
+    if (deliveryMethod === 'courier' && !selectedAddressId) return;
+    if (deliveryMethod === 'cdek_pvz' && !cdekPvz) {
+      alert('Выберите пункт выдачи СДЭК');
+      return;
+    }
 
     // 1) Если НЕ редактируем — проверим схему без триггера
     if (!isEditingContact) {
@@ -212,9 +224,12 @@ export const CheckoutPageLayout = () => {
     const order = await createOrder({
       user,
       contactId: contact.id,
-      shippingAddressId: selectedAddressId,
+      shippingAddressId: selectedAddressId ?? 'cdek_pvz',
       items: orderItems,
-      total
+      total,
+      deliveryMethod,
+      cdekPvzCode: cdekPvz?.pvzCode,
+      cdekPvzAddress: cdekPvz?.addressFull
     });
 
     let createdPaymentIntent: PaymentIntent | null = null;
@@ -268,12 +283,58 @@ export const CheckoutPageLayout = () => {
 
               <ContactForm form={contactForm} disabled={!isEditingContact} />
             </div>
+
+            <div className={styles.form}>
+              <h3>Способ доставки</h3>
+              <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    name="deliveryMethod"
+                    value="cdek_pvz"
+                    checked={deliveryMethod === 'cdek_pvz'}
+                    onChange={() => setDeliveryMethod('cdek_pvz')}
+                  />
+                  Пункт выдачи СДЭК
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    name="deliveryMethod"
+                    value="courier"
+                    checked={deliveryMethod === 'courier'}
+                    onChange={() => setDeliveryMethod('courier')}
+                  />
+                  Курьер (адрес)
+                </label>
+              </div>
+
+              {deliveryMethod === 'cdek_pvz' && (
+                <div>
+                  {cdekPvz ? (
+                    <div style={{ marginBottom: '0.75rem' }}>
+                      <p style={{ margin: 0, fontWeight: 500 }}>📍 {cdekPvz.addressFull}</p>
+                      {cdekPvz.cityName && (
+                        <p style={{ margin: 0, fontSize: '0.875rem', color: '#666' }}>{cdekPvz.cityName}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <p style={{ color: '#999', marginBottom: '0.75rem' }}>Пункт выдачи не выбран</p>
+                  )}
+                  <Button type="button" variant="secondary" onClick={() => setIsCdekModalOpen(true)}>
+                    {cdekPvz ? 'Изменить пункт выдачи' : 'Выбрать пункт выдачи'}
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
           <div>
-            <ShippingAddressCard
-              selectedAddressText={selectedAddressText}
-              onOpenModal={openModal}
-            />
+            {deliveryMethod === 'courier' && (
+              <ShippingAddressCard
+                selectedAddressText={selectedAddressText}
+                onOpenModal={openModal}
+              />
+            )}
             <OrderSummary
               items={items}
               total={total}
@@ -310,6 +371,14 @@ export const CheckoutPageLayout = () => {
           }}
         />
       )}
+      <CdekPvzPickerModal
+        isOpen={isCdekModalOpen}
+        onClose={() => setIsCdekModalOpen(false)}
+        onSelect={(selection) => {
+          setCdekPvz(selection);
+          setIsCdekModalOpen(false);
+        }}
+      />
     </section>
   );
 };

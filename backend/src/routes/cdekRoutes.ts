@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { getCdekConfig } from '../config/cdek';
 import { cdekService } from '../services/cdekService';
 
 export const cdekRoutes = Router();
@@ -49,5 +50,30 @@ cdekRoutes.post('/calculate', async (req, res) => {
         details: error?.response?.data ?? null
       }
     });
+  }
+});
+
+cdekRoutes.all('/service', async (req, res, next) => {
+  try {
+    const config = getCdekConfig();
+    const token = await cdekService.getToken();
+
+    const cdekPath = String(req.query.path ?? req.body?.path ?? '');
+    const method = req.method === 'GET' ? 'GET' : 'POST';
+    const cdekUrl = `${config.baseUrl}/v2/${cdekPath}`;
+
+    const response = await fetch(cdekUrl, {
+      method,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: method === 'POST' && req.body ? JSON.stringify(req.body) : undefined
+    });
+
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (error) {
+    next(error);
   }
 });

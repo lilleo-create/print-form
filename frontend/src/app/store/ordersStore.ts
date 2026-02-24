@@ -12,6 +12,9 @@ interface OrdersState {
     shippingAddressId: string;
     items: OrderItem[];
     total: number;
+    deliveryMethod?: 'courier' | 'cdek_pvz';
+    cdekPvzCode?: string;
+    cdekPvzAddress?: string;
   }) => Promise<Order>;
 }
 
@@ -25,14 +28,26 @@ export const useOrdersStore = create<OrdersState>((set) => ({
     const data = await ordersApi.listBySeller(sellerId);
     set({ orders: data });
   },
-  async createOrder({ user, contactId, shippingAddressId, items, total }) {
+  async createOrder({
+    user,
+    contactId,
+    shippingAddressId,
+    items,
+    total,
+    deliveryMethod,
+    cdekPvzCode,
+    cdekPvzAddress
+  }) {
     const order = await ordersApi.create({
       buyerId: user.id,
       buyerEmail: user.email,
       contactId,
       shippingAddressId,
       items,
-      total
+      total,
+      deliveryMethod,
+      cdekPvzCode,
+      cdekPvzAddress
     });
     set((state) => ({ orders: [order, ...state.orders] }));
     return order;
