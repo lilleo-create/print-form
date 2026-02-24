@@ -80,26 +80,32 @@ app.use("/uploads", express.static(uploadsDir));
 
 app.get("/health", (_req, res) => res.json({ status: "ok", build: "server-2026-02-04-1" }));
 
-app.use("/auth", authRoutes);
-app.use("/products", productRoutes);
-app.use("/shops", shopRoutes);
-app.use("/orders", orderRoutes);
-app.use("/custom-requests", customRequestRoutes);
-app.use("/seller", sellerRoutes);
-app.use("/filters", filterRoutes);
-app.use("/me", meRoutes);
-app.use("/returns", returnRoutes);
-app.use("/chats", chatRoutes);
-app.use("/admin", adminRoutes);
-app.use("/admin/chats", adminChatRoutes);
-app.use("/payments", paymentRoutes);
-app.use("/favorites", favoritesRoutes);
-app.use("/checkout", checkoutRoutes);
-app.use('/internal', internalRoutes);
-app.use("/api/ndd", nddRoutes);
-app.use('/api/cdek', cdekRoutes);
-app.use("/delivery", deliveryYandexRoutes);
-app.use("/debug", debugRoutes);
+const mountRoutes = (prefix = '') => {
+  app.use(`${prefix}/auth`, authRoutes);
+  app.use(`${prefix}/products`, productRoutes);
+  app.use(`${prefix}/shops`, shopRoutes);
+  app.use(`${prefix}/orders`, orderRoutes);
+  app.use(`${prefix}/custom-requests`, customRequestRoutes);
+  app.use(`${prefix}/seller`, sellerRoutes);
+  app.use(`${prefix}/filters`, filterRoutes);
+  app.use(`${prefix}/me`, meRoutes);
+  app.use(`${prefix}/returns`, returnRoutes);
+  app.use(`${prefix}/chats`, chatRoutes);
+  app.use(`${prefix}/admin`, adminRoutes);
+  app.use(`${prefix}/admin/chats`, adminChatRoutes);
+  app.use(`${prefix}/payments`, paymentRoutes);
+  app.use(`${prefix}/favorites`, favoritesRoutes);
+  app.use(`${prefix}/checkout`, checkoutRoutes);
+  app.use(`${prefix}/internal`, internalRoutes);
+  app.use(`${prefix}/ndd`, nddRoutes);
+  app.use(`${prefix}/cdek`, cdekRoutes);
+  app.use(`${prefix}/delivery`, deliveryYandexRoutes);
+  app.use(`${prefix}/debug`, debugRoutes);
+};
+
+mountRoutes('/api');
+// Legacy non-prefixed routes kept for backward compatibility.
+mountRoutes();
 app.use(errorHandler);
 
 app.listen(env.port, () => {
