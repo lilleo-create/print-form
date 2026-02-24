@@ -1,85 +1,101 @@
-export class NddValidationError extends Error {
-  code: string;
-  status: number;
-  details?: Record<string, unknown>;
+/**
+ * NDD ID semantics:
+ * - platform_id / pickup_point_id: UUID (dashed 36) or sometimes 32-hex (needs normalization)
+ * - operator_station_id / station_id: digits
+ */
 
-  constructor(code: string, message: string, status = 400, details?: Record<string, unknown>) {
+export const UUID_DASHED_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export const UUID_HEX32_RE = /^[0-9a-f]{32}$/i;
+
+export function normalizeUuid(input: unknown): string | null {
+  const s = String(input ?? '').trim();
+  if (!s) return null;
+
+  if (UUID_DASHED_RE.test(s)) return s.toLowerCase();
+
+  if (UUID_HEX32_RE.test(s)) {
+    return (
+      s.slice(0, 8) +
+      '-' +
+      s.slice(8, 12) +
+      '-' +
+      s.slice(12, 16) +
+      '-' +
+      s.slice(16, 20) +
+      '-' +
+      s.slice(20)
+    ).toLowerCase();
+  }
+
+  return null;
+}
+
+export function isUuid(input: unknown): boolean {
+  return normalizeUuid(input) != null;
+}
+
+export function looksLikeDigits(input: unknown): boolean {
+  return /^[0-9]+$/.test(String(input ?? '').trim());
+}
+
+export function normalizeDigitsStation(input: unknown): string | null {
+  const s = String(input ?? '').trim();
+  if (!s) return null;
+  return looksLikeDigits(s) ? s : null;
+}
+
+export function isDigitsStationId(input: unknown): boolean {
+  return looksLikeDigits(input);
+}
+
+export function looksLikePvzId(input: unknown): boolean {
+  const s = String(input ?? '').trim();
+  if (!s) return false;
+  return UUID_DASHED_RE.test(s) || UUID_HEX32_RE.test(s);
+}
+
+export class NddValidationError extends Error {
+  public issues: Array<{ field: string; message: string; value?: unknown }>;
+
+  constructor(
+    message: string,
+    issues: Array<{ field: string; message: string; value?: unknown }> = []
+  ) {
     super(message);
     this.name = 'NddValidationError';
-    this.code = code;
-    this.status = status;
-    this.details = details;
+    this.issues = issues;
   }
 }
 
-export const isDigits = (value: unknown): value is string =>
-  typeof value === 'string' && /^\d+$/.test(value.trim());
-
-export const isDigitsStationId = isDigits;
-
-export const isUuid = (value: unknown): value is string =>
-  typeof value === 'string' &&
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-    value.trim()
-  );
-
-export const looksLikeDigits = isDigits;
-
-export const looksLikePvzId = (value: unknown): value is string =>
-  isUuid(value);
-
-export const asTrimmedString = (value: unknown): string | null => {
-  if (typeof value !== 'string') {
-    return null;
-  }
-
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-};
-
-export const assertPlatformStationId = (value: unknown, field: string): string => {
-  const normalized = asTrimmedString(value);
-  if (!normalized || !isDigits(normalized)) {
-    throw new NddValidationError(
-      'NDD_VALIDATION_ERROR',
-      `${field} must be a platform station_id (digits).`,
-      400,
-      { field, expected: 'digits', received: value ?? null }
-    );
+export function assertPlatformIdUuid(value: unknown, field: string): string {
+  const normalized = normalizeUuid(value);
+  if (!normalized) {
+    throw new NddValidationError(`${field} must be UUID (platform_id / pickup_point_id).`, [
+      { field, message: 'invalid uuid', value }
+    ]);
   }
   return normalized;
-};
+}
 
-export const assertPvzId = (value: unknown, field: string): string => {
-  const normalized = asTrimmedString(value);
-  if (!normalized || !looksLikePvzId(normalized)) {
-    throw new NddValidationError('NDD_VALIDATION_ERROR', `${field} must be a pickup point id (uuid).`, 400, {
-      field,
-      expected: 'uuid',
-      received: value ?? null
-    });
+export function assertOperatorStationIdDigits(value: unknown, field: string): string {
+  const normalized = normalizeDigitsStation(value);
+  if (!normalized) {
+    throw new NddValidationError(`${field} must be digits (operator_station_id / station_id).`, [
+      { field, message: 'expected digits', value }
+    ]);
   }
   return normalized;
-};
+}
+export function assertStationAndPvzPair(stationIdDigits: unknown, selfPickupId: unknown) {
+  const station = typeof stationIdDigits === "string" ? stationIdDigits.trim() : String(stationIdDigits ?? "").trim();
+  const pvz = typeof selfPickupId === "string" ? selfPickupId.trim() : String(selfPickupId ?? "").trim();
 
-export const assertStationAndPvzPair = (stationId: unknown, selfPickupId: unknown) => {
-  const normalizedStationId = assertPlatformStationId(stationId, 'station_id');
-  const normalizedSelfPickupId = assertPvzId(selfPickupId, 'self_pickup_id');
-
-  if (normalizedStationId === normalizedSelfPickupId) {
-    throw new NddValidationError(
-      'NDD_VALIDATION_ERROR',
-      'station_id and self_pickup_id must refer to different identifiers.',
-      400,
-      {
-        station_id: normalizedStationId,
-        self_pickup_id: normalizedSelfPickupId
-      }
-    );
+  if (!station || !isDigitsStationId(station)) {
+    throw new Error(`Invalid station_id (digits): ${station}`);
   }
-
-  return {
-    stationId: normalizedStationId,
-    selfPickupId: normalizedSelfPickupId
-  };
-};
+  if (!pvz || !isUuid(pvz)) {
+    throw new Error(`Invalid self_pickup_id (uuid): ${pvz}`);
+  }
+}

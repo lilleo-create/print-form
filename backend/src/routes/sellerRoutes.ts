@@ -1,36 +1,43 @@
 import "dotenv/config";
-import { Response, Router } from 'express';
-import { z } from 'zod';
-import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
-import { requireAuth, requireSeller, AuthRequest } from '../middleware/authMiddleware';
-import { OrderStatus } from '@prisma/client';
-import { prisma } from '../lib/prisma';
-import { productUseCases } from '../usecases/productUseCases';
-import { orderUseCases } from '../usecases/orderUseCases';
-import { sellerProductSchema } from './productRoutes';
-import { writeLimiter } from '../middleware/rateLimiters';
-import { sellerDeliveryProfileService } from '../services/sellerDeliveryProfileService';
-import { yandexNddShipmentOrchestrator } from '../services/yandexNddShipmentOrchestrator';
-import { payoutService } from '../services/payoutService';
-import { shipmentService } from '../services/shipmentService';
-import { yandexDeliveryService } from '../services/yandexDeliveryService';
-import { sellerOrderDocumentsService } from '../services/sellerOrderDocumentsService';
-import { getYandexNddConfig } from '../config/yandexNdd';
-import { YandexNddHttpError, yandexNddClient } from '../services/yandexNdd/YandexNddClient';
-import { normalizeDigitsStation } from '../services/yandexNdd/getOperatorStationId';
-import { isDigitsStationId, isUuid } from '../services/yandexNdd/nddIdSemantics';
-import { haversineDistanceMeters } from '../utils/geo';
-import { TtlCache } from '../utils/cache';
+import { Response, Router } from "express";
+import { z } from "zod";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+import { requireAuth, requireSeller, AuthRequest } from "../middleware/authMiddleware";
+import { OrderStatus } from "@prisma/client";
+import { prisma } from "../lib/prisma";
+import { productUseCases } from "../usecases/productUseCases";
+import { orderUseCases } from "../usecases/orderUseCases";
+import { sellerProductSchema } from "./productRoutes";
+import { writeLimiter } from "../middleware/rateLimiters";
+import { sellerDeliveryProfileService } from "../services/sellerDeliveryProfileService";
+import { yandexMerchantService } from "../services/yandexMerchantService";
+import { yandexNddShipmentOrchestrator } from "../services/yandexNddShipmentOrchestrator";
+import { payoutService } from "../services/payoutService";
+import { shipmentService } from "../services/shipmentService";
+import { yandexDeliveryService } from "../services/yandexDeliveryService";
+import { sellerOrderDocumentsService } from "../services/sellerOrderDocumentsService";
+import { getYandexNddConfig } from "../config/yandexNdd";
+import { YandexNddHttpError, yandexNddClient } from "../services/yandexNdd/YandexNddClient";
+import { haversineDistanceMeters } from "../utils/geo";
+import { TtlCache } from "../utils/cache";
+
+// ✅ ВАЖНО: ОДИН импорт семантики id, без дублей
+import {
+  isDigitsStationId,
+  isUuid,
+  normalizeUuid,
+  normalizeDigitsStation
+} from "../services/yandexNdd/nddIdSemantics";
 
 export const sellerRoutes = Router();
 
 // ---------------------------------------------------------
 // Uploads
 // ---------------------------------------------------------
-const uploadDir = path.join(process.cwd(), 'uploads');
-const kycUploadDir = path.join(uploadDir, 'kyc');
+const uploadDir = path.join(process.cwd(), "uploads");
+const kycUploadDir = path.join(uploadDir, "kyc");
 if (!fs.existsSync(kycUploadDir)) {
   fs.mkdirSync(kycUploadDir, { recursive: true });
 }
@@ -43,8 +50,8 @@ const storage = multer.diskStorage({
   }
 });
 
-const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp'];
-const allowedVideoTypes = ['video/mp4', 'video/webm'];
+const allowedImageTypes = ["image/jpeg", "image/png", "image/webp"];
+const allowedVideoTypes = ["video/mp4", "video/webm"];
 const maxImageSize = 10 * 1024 * 1024;
 const maxVideoSize = 100 * 1024 * 1024;
 
@@ -53,7 +60,7 @@ const upload = multer({
   limits: { fileSize: maxVideoSize },
   fileFilter: (_req, file, cb) => {
     if ([...allowedImageTypes, ...allowedVideoTypes].includes(file.mimetype)) return cb(null, true);
-    return cb(new Error('UPLOAD_FILE_TYPE_INVALID'));
+    return cb(new Error("UPLOAD_FILE_TYPE_INVALID"));
   }
 });
 
@@ -69,8 +76,8 @@ const kycUpload = multer({
   storage: kycStorage,
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    const allowed = ['application/pdf', 'image/jpeg', 'image/png'];
-    if (!allowed.includes(file.mimetype)) return cb(new Error('KYC_FILE_TYPE_INVALID'));
+    const allowed = ["application/pdf", "image/jpeg", "image/png"];
+    if (!allowed.includes(file.mimetype)) return cb(new Error("KYC_FILE_TYPE_INVALID"));
     return cb(null, true);
   }
 });
@@ -86,84 +93,101 @@ const ensureSellerDeliveryProfile = async (sellerId: string) => {
   });
 };
 
-const normalizePlatformStationDigits = (value: unknown): string | null => normalizeDigitsStation(value);
+// digits (operator_station_id / station_id)
 const normalizeOperatorStationDigits = (value: unknown): string | null => normalizeDigitsStation(value);
 
+// uuid (pickup_point_id / platform_station_id)
+const normalizePlatformStationUuid = (value: unknown): string | null => normalizeUuid(value);
+
+// --- Validation self_pickup_id for offers/info ---
 const resolveValidationSelfPickupId = () => {
   const value = process.env.YANDEX_NDD_VALIDATION_SELF_PICKUP_ID?.trim();
   return value || null;
 };
 
+/**
+ * Проверка: station_id (digits) + self_pickup_id (uuid) через offers/info.
+ * Если offers/info недоступен/ругается — не валим весь flow, а возвращаем warning.
+ */
 const validateStationIdDigits = async (stationIdDigits: string | null, fallbackSelfPickupId: string) => {
   if (!stationIdDigits) {
-    return { validatedPlatformStationId: null, warningCode: 'SELLER_STATION_ID_REQUIRED' as const };
+    return { validatedStationIdDigits: null, warningCode: "SELLER_STATION_ID_REQUIRED" as const };
   }
 
   const validationSelfPickupId = resolveValidationSelfPickupId() ?? fallbackSelfPickupId;
+
+  // если self_pickup_id не uuid — проверку пропускаем
   if (!validationSelfPickupId || !isUuid(validationSelfPickupId)) {
-    return { validatedPlatformStationId: stationIdDigits, warningCode: null };
+    return { validatedStationIdDigits: stationIdDigits, warningCode: null };
   }
 
   try {
+    // third param "send_unix" = true (как у тебя)
     await yandexNddClient.offersInfo(stationIdDigits, validationSelfPickupId, true);
-    return { validatedPlatformStationId: stationIdDigits, warningCode: null };
+    return { validatedStationIdDigits: stationIdDigits, warningCode: null };
   } catch (error) {
     if (error instanceof YandexNddHttpError) {
       const details =
-        error.details && typeof error.details === 'object'
-          ? (error.details as Record<string, unknown>)
-          : null;
-      const detailsCode = String(details?.code ?? '');
-      if (detailsCode === 'validation_error') {
-        console.warn('[DROP_OFF_PVZ_VALIDATE_STATION] validation_error', {
+        error.details && typeof error.details === "object" ? (error.details as Record<string, unknown>) : null;
+      const detailsCode = String(details?.code ?? "");
+      if (detailsCode === "validation_error") {
+        console.warn("[DROP_OFF_PVZ_VALIDATE_STATION] validation_error", {
           stationIdDigits,
           validationSelfPickupId,
           details: error.details
         });
-        return { validatedPlatformStationId: stationIdDigits, warningCode: 'SELLER_STATION_ID_REQUIRED' as const };
+        return { validatedStationIdDigits: stationIdDigits, warningCode: "SELLER_STATION_ID_REQUIRED" as const };
       }
     }
 
-    console.warn('[DROP_OFF_PVZ_VALIDATE_STATION] skipped', {
+    console.warn("[DROP_OFF_PVZ_VALIDATE_STATION] skipped", {
       stationIdDigits,
       validationSelfPickupId,
       reason: error instanceof Error ? error.message : String(error)
     });
 
-    return { validatedPlatformStationId: stationIdDigits, warningCode: 'SELLER_STATION_VALIDATION_SKIPPED' as const };
+    return { validatedStationIdDigits: stationIdDigits, warningCode: "SELLER_STATION_VALIDATION_SKIPPED" as const };
   }
 };
 
-const validateSourcePlatformStationId = async (dropoffStationId: string) => {
+/**
+ * ВАЖНО:
+ * source_platform_station в доках часто “digits”.
+ * Но platform_station_id / pickup_point_id — это uuid.
+ * Этот валидатор оставляем ТОЛЬКО для ручного ввода digits (если ты так используешь).
+ */
+const validateSourcePlatformStationId = async (dropoffStationIdDigits: string) => {
   const { defaultPlatformStationId } = getYandexNddConfig();
-  const normalized = normalizePlatformStationDigits(dropoffStationId);
-  if (!normalized) throw new Error('SELLER_STATION_ID_INVALID');
+  const normalizedDigits = normalizeDigitsStation(dropoffStationIdDigits);
+  if (!normalizedDigits) throw new Error("SELLER_STATION_ID_INVALID");
 
   const selfPickupId = resolveValidationSelfPickupId();
-  if (!selfPickupId) return normalized;
+  if (!selfPickupId) return normalizedDigits;
 
   try {
-    await yandexNddClient.offersInfo(normalized, selfPickupId, true);
-    return normalized;
+    await yandexNddClient.offersInfo(normalizedDigits, selfPickupId, true);
+    return normalizedDigits;
   } catch (_error) {
-    if (defaultPlatformStationId && normalized === defaultPlatformStationId) return normalized;
-    throw new Error('SELLER_STATION_ID_INVALID');
+    if (defaultPlatformStationId && normalizedDigits === defaultPlatformStationId) return normalizedDigits;
+    throw new Error("SELLER_STATION_ID_INVALID");
   }
 };
 
 const normalizeText = (value: string) =>
   value
     .toLowerCase()
-    .replace(/ё/g, 'е')
-    .replace(/\s+/g, ' ')
+    .replace(/ё/g, "е")
+    .replace(/\s+/g, " ")
     .trim();
 
-const tokenize = (value: string) => normalizeText(value).split(' ').filter(Boolean);
+const tokenize = (value: string) => normalizeText(value).split(" ").filter(Boolean);
 
 const queryLooksLikeAddress = (query: string) => /\d/.test(query) && query.trim().length > 6;
 
-const textSearchRank = (query: string, point: ReturnType<typeof mapSellerDropoffPoint>) => {
-  const haystack = normalizeText(`${point.name ?? ''} ${point.addressFull ?? ''} ${(point as any).instruction ?? ''}`);
+type DropoffPointDTO = ReturnType<typeof mapSellerDropoffPoint>;
+
+const textSearchRank = (query: string, point: DropoffPointDTO) => {
+  const haystack = normalizeText(`${point.name ?? ""} ${point.addressFull ?? ""} ${point.instruction ?? ""}`);
   const tokens = tokenize(query);
   if (!tokens.length) return 0;
   const matches = tokens.filter((token) => haystack.includes(token)).length;
@@ -171,12 +195,15 @@ const textSearchRank = (query: string, point: ReturnType<typeof mapSellerDropoff
 };
 
 const hasCoordinates = (
-  point: ReturnType<typeof mapSellerDropoffPoint>
-): point is ReturnType<typeof mapSellerDropoffPoint> & { position: { latitude: number; longitude: number } } =>
-  typeof (point as any).position?.latitude === 'number' && typeof (point as any).position?.longitude === 'number';
+  point: DropoffPointDTO
+): point is DropoffPointDTO & { position: { latitude: number; longitude: number } } =>
+  typeof (point as any).position?.latitude === "number" && typeof (point as any).position?.longitude === "number";
 
 const GEOCODER_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-const geocoderCache = new TtlCache<string, { lat: number; lon: number; precision?: string | null; text?: string | null }>(500);
+const geocoderCache = new TtlCache<
+  string,
+  { lat: number; lon: number; precision?: string | null; text?: string | null }
+>(500);
 
 const geocodeAddress = async (query: string) => {
   const apiKey = process.env.YMAPS_GEOCODER_API_KEY?.trim();
@@ -187,19 +214,19 @@ const geocodeAddress = async (query: string) => {
   if (cached) return cached;
 
   const geocode = `${query}, Москва`;
-  const url = new URL('https://geocode-maps.yandex.ru/1.x/');
-  url.searchParams.set('apikey', apiKey);
-  url.searchParams.set('format', 'json');
-  url.searchParams.set('lang', 'ru_RU');
-  url.searchParams.set('geocode', geocode);
+  const url = new URL("https://geocode-maps.yandex.ru/1.x/");
+  url.searchParams.set("apikey", apiKey);
+  url.searchParams.set("format", "json");
+  url.searchParams.set("lang", "ru_RU");
+  url.searchParams.set("geocode", geocode);
 
   const response = await fetch(url.toString());
   if (!response.ok) return null;
 
   const payload = (await response.json()) as any;
   const first = payload?.response?.GeoObjectCollection?.featureMember?.[0]?.GeoObject;
-  const pos = String(first?.Point?.pos ?? '').trim();
-  const [lonRaw, latRaw] = pos.split(' ');
+  const pos = String(first?.Point?.pos ?? "").trim();
+  const [lonRaw, latRaw] = pos.split(" ");
   const lat = Number(latRaw);
   const lon = Number(lonRaw);
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
@@ -214,59 +241,145 @@ const geocodeAddress = async (query: string) => {
   return value;
 };
 
-const readPlatformStationDigitsId = (point: Record<string, any>): string | null => {
-  const station = point?.station && typeof point.station === 'object' ? point.station : null;
-  const platformStation = point?.platform_station && typeof point.platform_station === 'object' ? point.platform_station : null;
+/**
+ * ✅ ЧИТАЕМ UUID для self_pickup_id/platform_station_id:
+ * В NDD pickup-points/list “точка” обычно имеет id = uuid.
+ * Иногда прилетает platform_station_id / platform_station.platform_id.
+ */
+const readPlatformStationId = (point: Record<string, any>): string | null => {
+  const platformStation = point?.platform_station && typeof point.platform_station === "object" ? point.platform_station : null;
 
   const candidates = [
     point?.platform_station_id,
     platformStation?.platform_id,
-    point?.station_id,
-    point?.platform_station_digits_id,
-    station?.station_id,
-    station?.platform_id,
-    station?.platform_station_id,
-    station?.id
+    point?.id // fallback: pickup_point_id
   ];
 
-  for (const candidate of candidates) {
-    const normalized = normalizePlatformStationDigits(candidate);
-    if (normalized) return normalized;
+  for (const c of candidates) {
+    const u = normalizePlatformStationUuid(c);
+    if (u) return u;
   }
   return null;
 };
 
-const mapSellerDropoffPoint = (point: Record<string, any>) => {
-  const platformStationIdDigits = readPlatformStationDigitsId(point);
-  return ({
-  pvzId: typeof point?.id === 'string' ? point.id : null,
-  platformStationIdDigits,
-  platformStationId: platformStationIdDigits,
-  operatorStationId: normalizeOperatorStationDigits(point?.operator_station_id),
-  name: typeof point?.name === 'string' ? point.name : null,
-  addressFull: point?.address?.full_address ?? null,
-  instruction: typeof point?.instruction === 'string' ? point.instruction : null,
-  geoId: point?.address?.geoId ?? point?.address?.geo_id ?? null,
-  position: point?.position ?? null,
-  available_for_c2c_dropoff: typeof point?.available_for_c2c_dropoff === 'boolean' ? point.available_for_c2c_dropoff : null,
-  available_for_dropoff: typeof point?.available_for_dropoff === 'boolean' ? point.available_for_dropoff : null,
-  maxWeightGross: null,
-  distanceMeters: null as number | null
-});
-};
+/**
+ * ✅ alias чтобы не падали старые вызовы (у тебя в коде осталось имя readPlatformStationDigitsId)
+ * На самом деле возвращает UUID.
+ */
+const readPlatformStationDigitsId = readPlatformStationId;
 
+/**
+ * Маппер для ответа фронту:
+ * - pvzId: uuid точки (self_pickup_id)
+ * - platformStationId: uuid (для self_pickup_id / platform_station_id)
+ * - operatorStationId: digits (station_id)
+ */
+const mapSellerDropoffPoint = (point: Record<string, any>) => {
+  const pvzId = normalizePlatformStationUuid(point?.id);
+  const platformStationId = readPlatformStationId(point);
+  const operatorStationId = normalizeOperatorStationDigits(point?.operator_station_id);
+
+  return {
+    pvzId,
+    platformStationId,
+    operatorStationId,
+    name: typeof point?.name === "string" ? point.name : null,
+    addressFull: point?.address?.full_address ?? null,
+    instruction: typeof point?.instruction === "string" ? point.instruction : null,
+    geoId: point?.address?.geoId ?? point?.address?.geo_id ?? null,
+    position: point?.position ?? null,
+    available_for_c2c_dropoff: typeof point?.available_for_c2c_dropoff === "boolean" ? point.available_for_c2c_dropoff : null,
+    available_for_dropoff: typeof point?.available_for_dropoff === "boolean" ? point.available_for_dropoff : null,
+    maxWeightGross: typeof point?.max_weight_gross === "number" ? point.max_weight_gross : null,
+    distanceMeters: null as number | null
+  };
+};
 // ---------------------------------------------------------
 // Schemas
 // ---------------------------------------------------------
+/** Минимальная регистрация продавца: только базовые поля. Данные для мерчанта NDD и KYC — в разделе «Подключение продавца». */
 const sellerOnboardingSchema = z.object({
   name: z.string().min(2),
   phone: z.string().min(5),
+  email: z.string().email().optional().or(z.literal('')),
   status: z.enum(['ИП', 'ООО', 'Самозанятый']),
-  storeName: z.string().min(2),
+  storeName: z.string().optional(),
   city: z.string().min(2),
   referenceCategory: z.string().min(2),
   catalogPosition: z.string().min(2)
 });
+
+/** Данные для мерчанта NDD (раздел «Подключение продавца»). */
+const merchantDataBaseSchema = z.object({
+  contactName: z.string().trim().min(2).optional(),
+  contactEmail: z.string().email().optional().or(z.literal('')),
+  contactPhone: z.string().trim().min(5).optional(),
+  representativeName: z.string().trim().min(2).optional(),
+  legalAddressFull: z.string().trim().min(5).optional(),
+  siteUrl: z.string().trim().min(2).optional(),
+  shipmentType: z.enum(['import', 'withdraw']).optional(),
+  legalName: z.string().trim().min(1).optional(),
+  inn: z.string().trim().optional(),
+  ogrn: z.string().trim().optional(),
+  kpp: z.string().trim().optional()
+});
+
+const merchantDataSchemaOOO = merchantDataBaseSchema.required({
+  contactName: true,
+  contactEmail: true,
+  contactPhone: true,
+  representativeName: true,
+  legalName: true,
+  inn: true,
+  ogrn: true,
+  kpp: true,
+  legalAddressFull: true,
+  siteUrl: true
+}).refine((d) => /^\d{10}$/.test(d.inn ?? ''), { message: 'ИНН ООО — 10 цифр', path: ['inn'] })
+  .refine((d) => /^\d{13}$/.test(d.ogrn ?? ''), { message: 'ОГРН — 13 цифр', path: ['ogrn'] })
+  .refine((d) => /^\d{9}$/.test(d.kpp ?? ''), { message: 'КПП — 9 цифр', path: ['kpp'] })
+  .refine((d) => (d.contactEmail ?? '').length > 0, { message: 'Email обязателен', path: ['contactEmail'] });
+
+const merchantDataSchemaIP = merchantDataBaseSchema.required({
+  contactName: true,
+  contactEmail: true,
+  contactPhone: true,
+  legalAddressFull: true,
+  siteUrl: true,
+  inn: true,
+  ogrn: true
+}).refine((d) => /^\d{12}$/.test(d.inn ?? ''), { message: 'ИНН ИП — 12 цифр', path: ['inn'] })
+  .refine((d) => /^\d{15}$/.test(d.ogrn ?? ''), { message: 'ОГРНИП — 15 цифр', path: ['ogrn'] })
+  .refine((d) => (d.contactEmail ?? '').length > 0, { message: 'Email обязателен', path: ['contactEmail'] })
+  .transform((d) => ({ ...d, kpp: undefined }));
+
+const merchantDataSchemaSamozanyaty = merchantDataBaseSchema.required({
+  contactName: true,
+  contactEmail: true,
+  contactPhone: true,
+  legalAddressFull: true,
+  siteUrl: true,
+  inn: true
+}).refine((d) => /^\d{12}$/.test(d.inn ?? ''), { message: 'ИНН самозанятого — 12 цифр', path: ['inn'] })
+  .refine((d) => (d.contactEmail ?? '').length > 0, { message: 'Email обязателен', path: ['contactEmail'] })
+  .transform((d) => ({ ...d, kpp: undefined, ogrn: undefined }));
+
+function parseMerchantDataPayload(body: unknown, status: 'ООО' | 'ИП' | 'Самозанятый') {
+  if (status === 'ООО') return merchantDataSchemaOOO.parse(body);
+  if (status === 'ИП') return merchantDataSchemaIP.parse(body);
+  return merchantDataSchemaSamozanyaty.parse(body);
+}
+
+function normalizeSiteUrl(url: string | undefined): string | null {
+  if (!url || !url.trim()) return null;
+  const u = url.trim().toLowerCase();
+  if (u.startsWith('http://') || u.startsWith('https://')) return u;
+  return `https://${u}`;
+}
+
+/** Минимум документов для отправки KYC: ИП/Самозанятый — 1, ООО — 2. */
+const MIN_KYC_DOCS_IP_SAMOZANYATY = 1;
+const MIN_KYC_DOCS_OOO = 2;
 
 const sellerOrdersQuerySchema = z.object({
   status: z.enum(['CREATED', 'PRINTING', 'HANDED_TO_DELIVERY', 'IN_TRANSIT', 'DELIVERED']).optional(),
@@ -340,11 +453,26 @@ sellerRoutes.post('/onboarding', requireAuth, writeLimiter, async (req: AuthRequ
 
     const user = await prisma.user.findUnique({
       where: { id: req.user!.userId },
-      select: { phoneVerifiedAt: true, phone: true }
+      select: { phoneVerifiedAt: true, phone: true, email: true }
     });
     if (!user?.phoneVerifiedAt) return res.status(403).json({ error: { code: 'PHONE_NOT_VERIFIED' } });
 
     const phone = user.phone ?? payload.phone;
+    const storeName = (payload.storeName ?? '').trim() || payload.name;
+    const contactEmail = (payload.email ?? user.email ?? '').trim() || null;
+
+    const profileData = {
+      status: payload.status,
+      storeName,
+      phone,
+      city: payload.city,
+      referenceCategory: payload.referenceCategory,
+      catalogPosition: payload.catalogPosition,
+      legalType: payload.status,
+      contactName: payload.name.trim(),
+      contactPhone: phone,
+      contactEmail
+    };
 
     const updated = await prisma.user.update({
       where: { id: req.user!.userId },
@@ -354,22 +482,8 @@ sellerRoutes.post('/onboarding', requireAuth, writeLimiter, async (req: AuthRequ
         role: 'SELLER',
         sellerProfile: {
           upsert: {
-            create: {
-              status: payload.status,
-              storeName: payload.storeName,
-              phone,
-              city: payload.city,
-              referenceCategory: payload.referenceCategory,
-              catalogPosition: payload.catalogPosition
-            },
-            update: {
-              status: payload.status,
-              storeName: payload.storeName,
-              phone,
-              city: payload.city,
-              referenceCategory: payload.referenceCategory,
-              catalogPosition: payload.catalogPosition
-            }
+            create: profileData,
+            update: profileData
           }
         }
       }
@@ -387,6 +501,15 @@ sellerRoutes.post('/onboarding', requireAuth, writeLimiter, async (req: AuthRequ
       }
     });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        error: {
+          code: 'ONBOARDING_VALIDATION_ERROR',
+          message: 'Ошибка валидации данных',
+          issues: error.errors.map((e) => ({ path: e.path.join('.'), message: e.message }))
+        }
+      });
+    }
     next(error);
   }
 });
@@ -467,31 +590,145 @@ sellerRoutes.get('/kyc/me', async (req: AuthRequest, res, next) => {
   }
 });
 
+/** Сохранение данных для мерчанта NDD (без вызова init/status). */
+sellerRoutes.put('/kyc/merchant-data', writeLimiter, async (req: AuthRequest, res, next) => {
+  try {
+    const profile = await prisma.sellerProfile.findFirst({
+      where: { userId: req.user!.userId },
+      select: { status: true }
+    });
+    if (!profile) {
+      return res.status(409).json({ error: { code: 'SELLER_PROFILE_MISSING', message: 'Сначала завершите регистрацию продавца.' } });
+    }
+    const status = profile.status as 'ООО' | 'ИП' | 'Самозанятый';
+    const payload = parseMerchantDataPayload(req.body, status);
+
+    const representativeName = payload.representativeName ?? payload.contactName ?? '';
+    const legalName =
+      payload.legalName?.trim() ||
+      (status === 'ИП' ? `ИП ${payload.contactName ?? ''}`.trim() : null) ||
+      (status === 'Самозанятый' ? `Самозанятый ${payload.contactName ?? ''}`.trim() : null) ||
+      null;
+
+    await prisma.sellerProfile.update({
+      where: { userId: req.user!.userId },
+      data: {
+        contactName: payload.contactName?.trim() || null,
+        contactEmail: (payload.contactEmail ?? '').trim() || null,
+        contactPhone: payload.contactPhone?.trim() || null,
+        representativeName: representativeName.trim() || null,
+        legalName: legalName ?? payload.legalName?.trim() ?? null,
+        inn: payload.inn?.trim() || null,
+        ogrn: payload.ogrn?.trim() || null,
+        kpp: status === 'ООО' ? (payload.kpp?.trim() || null) : null,
+        legalAddressFull: payload.legalAddressFull?.trim() || null,
+        siteUrl: normalizeSiteUrl(payload.siteUrl ?? undefined),
+        shipmentType: payload.shipmentType ?? 'import'
+      }
+    });
+
+    return res.json({ data: { ok: true } });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        error: {
+          code: 'MERCHANT_DATA_VALIDATION_ERROR',
+          message: 'Ошибка валидации данных для мерчанта',
+          issues: error.errors.map((e) => ({ path: e.path.join('.'), message: e.message }))
+        }
+      });
+    }
+    next(error);
+  }
+});
+
 sellerRoutes.post('/kyc/submit', writeLimiter, async (req: AuthRequest, res, next) => {
   try {
     const payload = z.object({
       dropoffPlatformStationId: z.string().optional(),
+      dropoffStationId: z.string().optional(),
       dropoffStationMeta: z.record(z.string(), z.unknown()).optional()
     }).parse(req.body ?? {});
 
-    const dropoffPlatformStationId = payload.dropoffPlatformStationId?.trim();
-    if (!dropoffPlatformStationId) {
+    const dropoffStationId = (payload.dropoffPlatformStationId ?? payload.dropoffStationId ?? '').trim();
+    if (!dropoffStationId) {
       return res.status(400).json({
-        error: { code: 'SELLER_STATION_ID_REQUIRED', message: 'Точка отгрузки обязательна. В будущем можно изменить в настройках.' }
+        error: { code: 'SELLER_STATION_ID_REQUIRED', message: 'Точка отгрузки обязательна. Выберите пункт сдачи в разделе «Подключение».' }
+      });
+    }
+
+    const profile = await prisma.sellerProfile.findFirst({
+      where: { userId: req.user!.userId },
+      select: { status: true }
+    });
+    if (!profile) {
+      return res.status(409).json({ error: { code: 'SELLER_PROFILE_MISSING', message: 'Сначала завершите регистрацию продавца.' } });
+    }
+
+    const submission = await prisma.sellerKycSubmission.findFirst({
+      where: { userId: req.user!.userId },
+      orderBy: { createdAt: 'desc' },
+      include: { documents: true }
+    });
+    const docCount = submission?.documents?.length ?? 0;
+    const minDocs = profile.status === 'ООО' ? MIN_KYC_DOCS_OOO : MIN_KYC_DOCS_IP_SAMOZANYATY;
+    if (docCount < minDocs) {
+      return res.status(400).json({
+        error: {
+          code: 'KYC_DOCS_REQUIRED',
+          message: profile.status === 'ООО'
+            ? `Для ООО загрузите минимум ${MIN_KYC_DOCS_OOO} документа.`
+            : `Загрузите минимум ${MIN_KYC_DOCS_IP_SAMOZANYATY} документ.`,
+          required: minDocs
+        }
       });
     }
 
     await sellerDeliveryProfileService.upsert(req.user!.userId, {
-      dropoffPlatformStationId,
+      dropoffPlatformStationId: dropoffStationId,
       dropoffStationMeta: payload.dropoffStationMeta
     });
 
-    const latest = await prisma.sellerKycSubmission.findFirst({
+    const ensureResult = await yandexMerchantService.ensureForSeller(req.user!.userId);
+
+    if (ensureResult.status === 'missing_data') {
+      return res.status(400).json({
+        error: {
+          code: 'MERCHANT_DATA_REQUIRED',
+          message: 'Заполните данные для мерчанта (ИНН, контакты, адрес, сайт и т.д.) в блоке «Данные для мерчанта».',
+          missingFields: ensureResult.missingFields
+        }
+      });
+    }
+
+    if (ensureResult.status === 'in_progress') {
+      return res.status(202).json({
+        error: {
+          code: 'MERCHANT_REGISTRATION_IN_PROGRESS',
+          message: 'Регистрация в Яндексе выполняется. Попробуйте через минуту.'
+        }
+      });
+    }
+
+    if (ensureResult.status === 'validation_error') {
+      return res.status(400).json({
+        error: {
+          code: 'MERCHANT_REGISTRATION_INVALID',
+          message: 'Ошибка валидации данных при регистрации мерчанта в Яндексе.',
+          details: ensureResult.details
+        }
+      });
+    }
+
+    let latest = await prisma.sellerKycSubmission.findFirst({
       where: { userId: req.user!.userId },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
+      include: { documents: true }
     });
 
-    if (latest && latest.status === 'PENDING') return res.json({ data: latest });
+    if (latest && latest.status === 'PENDING') {
+      return res.json({ data: latest });
+    }
 
     const created = await prisma.sellerKycSubmission.create({
       data: { userId: req.user!.userId, status: 'PENDING', submittedAt: new Date() },
@@ -719,7 +956,7 @@ sellerRoutes.put('/settings', writeLimiter, async (req: AuthRequest, res, next) 
 sellerRoutes.put('/settings/source-platform-station', writeLimiter, async (req: AuthRequest, res, next) => {
   try {
     const payload = sourcePlatformStationSchema.parse(req.body ?? {});
-    const validatedStationId = await validateSourcePlatformStationId(payload.source_platform_station);
+    const validatedStationId = await validateSourceStationIdDigits(payload.source_platform_station);
 
     const profile = await sellerDeliveryProfileService.upsert(req.user!.userId, {
       dropoffOperatorStationId: validatedStationId,
@@ -1089,6 +1326,15 @@ sellerRoutes.post('/orders/:orderId/ready-to-ship', writeLimiter, async (req: Au
     const shipment = await yandexNddShipmentOrchestrator.readyToShip(req.user!.userId, req.params.orderId);
     res.json({ data: shipment });
   } catch (error) {
+    const err = error as { code?: string; message?: string };
+    if (err?.code === 'NDD_MERCHANT_NOT_READY' || err?.code === 'NDD_SELLER_REQUIRED') {
+      return res.status(409).json({
+        error: {
+          code: 'NDD_MERCHANT_NOT_READY',
+          message: err?.message ?? 'Завершите «Подключение продавца» (точка отгрузки ПВЗ).'
+        }
+      });
+    }
     next(error);
   }
 });

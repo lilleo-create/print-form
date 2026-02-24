@@ -5,7 +5,7 @@ import { writeLimiter } from '../middleware/rateLimiters';
 import { prisma } from '../lib/prisma';
 import { yandexDeliveryService } from '../services/yandexDeliveryService';
 import { resolvePlatformStationIdByPickupPointId } from '../services/yandexNdd/resolvePlatformStationIdByPickupPointId';
-import { looksLikeDigits, looksLikePvzId } from '../services/yandexNdd/nddIdSemantics';
+import { isUuid, looksLikeDigits, looksLikePvzId } from '../services/yandexNdd/nddIdSemantics';
 
 export const checkoutRoutes = Router();
 
@@ -26,11 +26,18 @@ const addressSchema = z.object({
 });
 
 const pickupPointSchema = z.object({
+  // PVZ id from widget (uuid)
   id: z.string().min(1),
+
   buyerPickupPointId: z.string().optional(),
-  buyerPickupPlatformStationId: z.string().regex(/^\d+$/).nullable().optional(),
+
+  // ✅ platform_id for request/create is UUID (PVZ id), not digits.
+  buyerPickupPlatformStationId: z.string().nullable().optional(),
+
+  // digits operator station id (useful for offers/* расчёты)
   buyerPickupOperatorStationId: z.string().regex(/^\d+$/).nullable().optional(),
   operator_station_id: z.string().regex(/^\d+$/).nullable().optional(),
+
   fullAddress: z.string().min(1),
   country: z.string().optional(),
   locality: z.string().optional(),
@@ -105,7 +112,6 @@ let setupPromise: Promise<void> | null = null;
 const ensureCheckoutTables = async () => {
   if (!setupPromise) {
     setupPromise = (async () => {
-      // ✅ строго последовательно, никаких Promise.all
       await prisma.$executeRawUnsafe(`
         CREATE TABLE IF NOT EXISTS user_checkout_preferences (
           user_id TEXT PRIMARY KEY,
@@ -157,21 +163,16 @@ const getBrand = (cardNumber: string) => {
   return 'CARD';
 };
 
-
 const resolveDeliveryDaysFromOffer = (offer: Record<string, unknown> | null): number | null => {
   if (!offer) return null;
 
-  const direct = offer.delivery_days;
-  if (typeof direct === 'number' && Number.isFinite(direct) && direct >= 0) {
-    return Math.ceil(direct);
-  }
+  const direct = (offer as any).delivery_days;
+  if (typeof direct === 'number' && Number.isFinite(direct) && direct >= 0) return Math.ceil(direct);
 
-  const delivery = offer.delivery;
+  const delivery = (offer as any).delivery;
   if (delivery && typeof delivery === 'object' && !Array.isArray(delivery)) {
-    const days = (delivery as Record<string, unknown>).days;
-    if (typeof days === 'number' && Number.isFinite(days) && days >= 0) {
-      return Math.ceil(days);
-    }
+    const days = (delivery as any).days;
+    if (typeof days === 'number' && Number.isFinite(days) && days >= 0) return Math.ceil(days);
   }
 
   return null;
@@ -220,48 +221,66 @@ const getCheckoutData = async (userId: string) => {
   });
 
   const parsedPickupPoint = pickupPointSchema.safeParse(prefs?.pickup_point_json);
-
   const selectedPickupPointId = parsedPickupPoint.success ? parsedPickupPoint.data.id : null;
-  const sellerIds = Array.from(new Set(products.map((item) => item.sellerId).filter((value): value is string => Boolean(value))));
+
+  const sellerIds = Array.from(
+    new Set(products.map((item) => item.sellerId).filter((value): value is string => Boolean(value)))
+  );
+
+  // offers/create (3.01): source/dest = platform_station.platform_id (UUID), no merchant_id
   const deliveryProfiles = sellerIds.length
     ? await prisma.sellerDeliveryProfile.findMany({
-        where: { sellerId: { in: sellerIds } },
-        select: { sellerId: true, dropoffPlatformStationId: true, dropoffSchedule: true }
-      })
+      where: { sellerId: { in: sellerIds } },
+      select: {
+        sellerId: true,
+        dropoffOperatorStationId: true,
+        dropoffPlatformStationId: true,
+        dropoffSchedule: true
+      }
+    })
     : [];
+
   const profileBySellerId = new Map(deliveryProfiles.map((profile) => [profile.sellerId, profile]));
 
   const cartItems = await Promise.all(
     products.map(async (item) => {
       const profile = item.sellerId ? profileBySellerId.get(item.sellerId) : null;
+      const sourcePlatformIdUuid = profile?.dropoffPlatformStationId ?? null;
+
       const deliveryDays =
-        selectedPickupPointId && profile?.dropoffPlatformStationId
+        selectedPickupPointId && sourcePlatformIdUuid && isUuid(sourcePlatformIdUuid)
           ? await (async () => {
-              try {
-                const offersResponse = await yandexDeliveryService.createOffers({
-                  station_id: profile.dropoffPlatformStationId,
-                  self_pickup_id: selectedPickupPointId,
-                  payment_method: 'already_paid',
-                  places: [
-                    {
-                      physical_dims: {
-                        dx: item.dxCm ?? 10,
-                        dy: item.dyCm ?? 10,
-                        dz: item.dzCm ?? 10,
-                        weight_gross: item.weightGrossG ?? 100
-                      }
+            try {
+              const offersResponse = await yandexDeliveryService.createOffers({
+                last_mile_policy: 'self_pickup',
+                billing_info: { payment_method: 'already_paid' },
+                source: { platform_station: { platform_id: sourcePlatformIdUuid } },
+                destination: {
+                  type: 'platform_station',
+                  platform_station: { platform_id: selectedPickupPointId }
+                },
+                places: [
+                  {
+                    physical_dims: {
+                      dx: item.dxCm ?? 10,
+                      dy: item.dyCm ?? 10,
+                      dz: item.dzCm ?? 10,
+                      weight_gross: item.weightGrossG ?? 100
                     }
-                  ]
-                });
-                const offersRaw = Array.isArray((offersResponse as Record<string, unknown>).offers)
-                  ? ((offersResponse as Record<string, unknown>).offers as Record<string, unknown>[])
-                  : [];
-                const bestOffer = offersRaw[0] ?? null;
-                return resolveDeliveryDaysFromOffer(bestOffer);
-              } catch {
-                return null;
-              }
-            })()
+                  }
+                ]
+              });
+
+              const offersRaw = Array.isArray((offersResponse as any).offers)
+                ? ((offersResponse as any).offers as Record<string, unknown>[])
+                : [];
+
+              const bestOffer = offersRaw[0] ?? null;
+              return resolveDeliveryDaysFromOffer(bestOffer);
+            } catch {
+              return null;
+            }
+          })()
           : null;
 
       const productionDays = 1;
@@ -294,14 +313,14 @@ const getCheckoutData = async (userId: string) => {
     },
     address: defaultAddress
       ? {
-          line1: defaultAddress.addressText,
-          city: 'Москва',
-          postalCode: '125040',
-          country: 'Россия',
-          apartment: defaultAddress.apartment ?? null,
-          floor: defaultAddress.floor ?? null,
-          comment: defaultAddress.courierComment ?? null
-        }
+        line1: defaultAddress.addressText,
+        city: 'Москва',
+        postalCode: '125040',
+        country: 'Россия',
+        apartment: defaultAddress.apartment ?? null,
+        floor: defaultAddress.floor ?? null,
+        comment: defaultAddress.courierComment ?? null
+      }
       : null,
     selectedPickupPoint: parsedPickupPoint.success ? parsedPickupPoint.data : null,
     selectedDeliveryMethod: normalizeDeliveryMethod(prefs?.delivery_method),
@@ -392,30 +411,35 @@ checkoutRoutes.put('/address', requireAuth, writeLimiter, async (req: AuthReques
 checkoutRoutes.put('/pickup', requireAuth, writeLimiter, async (req: AuthRequest, res, next) => {
   try {
     const payload = pickupSchema.parse(req.body);
+
     const buyerPickupPvzId = payload.pickupPoint.id.trim();
     if (!looksLikePvzId(buyerPickupPvzId)) {
       return res.status(400).json({
         error: {
           code: 'VALIDATION_ERROR',
-          message: 'pickupPoint.id должен быть pvzId, а не station_id/operator_station_id.'
+          message: 'pickupPoint.id должен быть pvzId (uuid точки виджета), а не station_id/operator_station_id.'
         }
       });
     }
 
+    // ✅ platformStationId = uuid (если фронт прислал). Валидация уже в zod (uuid).
     const explicitPlatformStationId = payload.pickupPoint.buyerPickupPlatformStationId ?? null;
-    const explicitOperatorStationId = payload.pickupPoint.buyerPickupOperatorStationId ?? payload.pickupPoint.operator_station_id ?? null;
 
-    if (explicitPlatformStationId && !looksLikeDigits(explicitPlatformStationId)) {
-      return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'buyerPickupPlatformStationId должен быть station_id платформы (digits).' } });
-    }
+    // ✅ operator station id digits (для offers/ETA)
+    const explicitOperatorStationId =
+      payload.pickupPoint.buyerPickupOperatorStationId ?? payload.pickupPoint.operator_station_id ?? null;
 
     if (explicitOperatorStationId && !looksLikeDigits(explicitOperatorStationId)) {
-      return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'buyerPickupOperatorStationId должен быть operator_station_id (digits).' } });
+      return res.status(400).json({
+        error: { code: 'VALIDATION_ERROR', message: 'buyerPickupOperatorStationId должен быть operator_station_id (digits).' }
+      });
     }
 
+    // Подтягиваем operator_station_id через pickup-points/list (обычно он там есть)
     const resolved = await resolvePlatformStationIdByPickupPointId(buyerPickupPvzId);
-    const buyerPickupPlatformStationId = explicitPlatformStationId ?? resolved.platformStationId;
-    const buyerPickupOperatorStationId = explicitOperatorStationId ?? resolved.operatorStationId;
+
+    const buyerPickupPlatformStationId = explicitPlatformStationId ?? null; // request/create будет использовать pvzId напрямую
+    const buyerPickupOperatorStationId = explicitOperatorStationId ?? resolved.operatorStationId ?? null;
 
     const rawPickupPoint = {
       ...payload.pickupPoint,
@@ -439,11 +463,7 @@ checkoutRoutes.put('/pickup', requireAuth, writeLimiter, async (req: AuthRequest
       buyerId: req.user!.userId,
       buyerPickupPvzId,
       buyerPickupOperatorStationId,
-      buyerPickupPlatformStationId,
-      source_fields: {
-        platform: explicitPlatformStationId ? 'payload.pickupPoint.buyerPickupPlatformStationId' : 'resolved.pickup-points/list',
-        operator: explicitOperatorStationId ? 'payload.pickupPoint.buyerPickupOperatorStationId|operator_station_id' : 'resolved.pickup-points/list'
-      }
+      buyerPickupPlatformStationId
     });
 
     await ensureCheckoutTables();

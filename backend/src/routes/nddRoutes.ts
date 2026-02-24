@@ -7,16 +7,10 @@ import type { AxiosError } from "axios";
 export const nddRoutes = Router();
 
 /**
+ * @deprecated Use GET /delivery/pickup-points?city=... or POST /delivery/pickup-points instead.
  * GET /api/ndd/pickup-points?city=Москва
- *
- * Возвращает массив точек:
- * [{ id, address, lat, lon, raw }]
- *
- * Важно:
- * - НДД метод Яндекса — POST /pickup-points/list
- * - Мы делаем удобный GET для фронта
+ * Returns [{ id, address, lat, lon, raw }]. New module returns normalized { pickupPointId, name, address, platformStationId?, operatorStationId?, latitude?, longitude? }.
  */
-
 // nddRoutes.get("/pickup-points", requireAuth, async (req, res) => {
 nddRoutes.get("/pickup-points", async (req, res) => {
   try {

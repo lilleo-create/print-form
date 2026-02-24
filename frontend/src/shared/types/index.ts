@@ -311,6 +311,17 @@ export interface SellerProfile {
   city: string;
   referenceCategory: string;
   catalogPosition: string;
+  contactName?: string | null;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
+  representativeName?: string | null;
+  legalName?: string | null;
+  inn?: string | null;
+  ogrn?: string | null;
+  kpp?: string | null;
+  legalAddressFull?: string | null;
+  siteUrl?: string | null;
+  shipmentType?: string | null;
 }
 
 export interface SellerContextResponse {

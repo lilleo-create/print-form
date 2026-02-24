@@ -673,8 +673,9 @@ export const api = {
   async submitSellerOnboarding(payload: {
     name: string | null;
     phone: string;
+    email?: string | null;
     status: 'ИП' | 'ООО' | 'Самозанятый';
-    storeName: string;
+    storeName?: string | null;
     city: string;
     referenceCategory: string;
     catalogPosition: string;
@@ -686,6 +687,25 @@ export const api = {
       phone?: string | null;
       role: string;
     }>('/seller/onboarding', { method: 'POST', body: payload });
+  },
+
+  async updateSellerMerchantData(payload: {
+    contactName: string;
+    contactEmail: string;
+    contactPhone: string;
+    representativeName?: string;
+    legalAddressFull: string;
+    siteUrl: string;
+    shipmentType?: 'import' | 'withdraw';
+    legalName?: string;
+    inn: string;
+    ogrn?: string;
+    kpp?: string;
+  }) {
+    return apiClient.request<{ ok: boolean }>('/seller/kyc/merchant-data', {
+      method: 'PUT',
+      body: payload
+    });
   },
 
   async getSellerContext(signal?: AbortSignal) {
@@ -732,7 +752,8 @@ export const api = {
   },
 
   async submitSellerKyc(payload: {
-    dropoffStationId: string;
+    dropoffStationId?: string;
+    dropoffPlatformStationId?: string;
     dropoffStationMeta?: Record<string, unknown>;
   }) {
     return apiClient.request<SellerKycSubmission>('/seller/kyc/submit', {

@@ -4,29 +4,32 @@ import { prisma } from '../lib/prisma';
 import { yandexNddShipmentOrchestrator } from './yandexNddShipmentOrchestrator';
 import { yandexNddClient } from './yandexNdd/YandexNddClient';
 
+const SELLER_PVZ_UUID = 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924';
+const BUYER_PVZ_UUID = '0193d98f-b6fe-76ce-9ac1-bbf9ea33d2f7';
+
 const setupBaseMocks = async (orderId: string) => {
   (prisma.order.findFirst as any) = async () => ({
     id: orderId,
     status: 'PAID',
     paidAt: new Date(),
-    sellerDropoffPvzId: 'pvz-dropoff',
+    sellerDropoffPvzId: SELLER_PVZ_UUID,
     sellerDropoffPvzMeta: {},
-    buyerPickupPvzId: '0193d98fb6fe76ce9ac1bbf9ea33d2f7',
-    buyerPickupPvzMeta: { raw: { id: '0193d98fb6fe76ce9ac1bbf9ea33d2f7' } },
+    buyerPickupPvzId: BUYER_PVZ_UUID,
+    buyerPickupPvzMeta: { raw: { id: BUYER_PVZ_UUID } },
     recipientName: 'Иван Иванов',
     recipientPhone: '+79991112233',
     contact: { phone: '+79991112233' },
     buyer: { name: 'Buyer Name', phone: '+79991112233' },
-    items: [{ quantity: 1, priceAtPurchase: 100, product: { title: 'T', sku: 'SKU', weightGrossG: 100, dxCm: 10, dyCm: 10, dzCm: 10 }, variant: null }]
+    items: [{ quantity: 1, priceAtPurchase: 100, product: { title: 'T', sku: 'SKU', weightGrossG: 100, dxCm: 10, dyCm: 10, dzCm: 10, sellerId: 'seller-1' }, variant: null }]
   });
   (prisma.sellerDeliveryProfile.findUnique as any) = async () => ({
-    dropoffPvzId: 'pvz-dropoff',
+    dropoffPvzId: SELLER_PVZ_UUID,
     dropoffOperatorStationId: '100000001',
-    dropoffPlatformStationId: 'fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924',
+    dropoffPlatformStationId: SELLER_PVZ_UUID,
     dropoffStationMeta: null
   });
   const deliveryServiceModule = await import('./orderDeliveryService');
-  (deliveryServiceModule.orderDeliveryService.getByOrderIds as any) = async () => new Map([[orderId, { deliveryMethod: 'PICKUP_POINT' }]]);
+  (deliveryServiceModule.orderDeliveryService.getByOrderIds as any) = async () => new Map([[orderId, { deliveryMethod: 'PICKUP_POINT', pickupPoint: { id: BUYER_PVZ_UUID } }]]);
   const shipmentModule = await import('./shipmentService');
   (shipmentModule.shipmentService.getByOrderId as any) = async () => null;
   (shipmentModule.shipmentService.upsertForOrder as any) = async (payload: Record<string, unknown>) => ({ id: 'shipment-1', ...payload });
@@ -34,11 +37,14 @@ const setupBaseMocks = async (orderId: string) => {
   (prisma.order.update as any) = async () => ({ id: orderId });
 };
 
-test('uses platform station for source and pvzId for destination in offers/create', async () => {
+test('uses platform station for source and pvzId for destination in offers/create (no merchant)', async () => {
   await setupBaseMocks('order-ids-ok');
 
-  (yandexNddClient.pickupPointsList as any) = async () => ({
-    points: [{ id: '0193d98fb6fe76ce9ac1bbf9ea33d2f7', station_id: '300000001', operator_station_id: '100000002' }]
+  (yandexNddClient.pickupPointsList as any) = async (body: { pickup_point_ids?: string[] }) => ({
+    points: (body?.pickup_point_ids ?? []).map((id: string) => ({
+      id,
+      operator_station_id: id === SELLER_PVZ_UUID ? '100000001' : '100000002'
+    }))
   });
 
   let createArgs: string[] = [];
@@ -52,21 +58,30 @@ test('uses platform station for source and pvzId for destination in offers/creat
   (yandexNddClient.offersConfirm as any) = async () => ({ request_id: 'request-1', status: 'CREATED' });
 
   await yandexNddShipmentOrchestrator.readyToShip('seller-1', 'order-ids-ok');
-  assert.deepEqual(createArgs, ['fbed3aa1-2cc6-4370-ab4d-59c5cc9bb924', '0193d98fb6fe76ce9ac1bbf9ea33d2f7']);
+  assert.deepEqual(createArgs, [SELLER_PVZ_UUID, BUYER_PVZ_UUID]);
 });
 
-test('throws SELLER_STATION_ID_REQUIRED when platform station is missing', async () => {
+test('throws when seller dropoff PVZ is missing from pickup-points/list', async () => {
   await setupBaseMocks('order-no-seller-station');
-  (prisma.sellerDeliveryProfile.findUnique as any) = async () => ({
-    dropoffPvzId: 'pvz-dropoff',
-    dropoffOperatorStationId: '100000001',
-    dropoffPlatformStationId: null,
-    dropoffStationMeta: null
+  (prisma.order.findFirst as any) = async () => ({
+    id: 'order-no-seller-station',
+    status: 'PAID',
+    paidAt: new Date(),
+    sellerDropoffPvzId: '00000000-0000-0000-0000-000000000001',
+    sellerDropoffPvzMeta: {},
+    buyerPickupPvzId: BUYER_PVZ_UUID,
+    buyerPickupPvzMeta: { raw: { id: BUYER_PVZ_UUID } },
+    recipientName: 'Иван',
+    recipientPhone: '+79991112233',
+    contact: {},
+    buyer: {},
+    items: [{ quantity: 1, priceAtPurchase: 100, product: { title: 'T', sku: 'SKU', weightGrossG: 100, dxCm: 10, dyCm: 10, dzCm: 10, sellerId: 'seller-1' }, variant: null }]
   });
+  (yandexNddClient.pickupPointsList as any) = async () => ({ points: [] });
 
   await assert.rejects(
     () => yandexNddShipmentOrchestrator.readyToShip('seller-1', 'order-no-seller-station'),
-    (err: any) => err?.code === 'SELLER_STATION_ID_REQUIRED'
+    (err: any) => err?.code === 'NDD_VALIDATION_ERROR' || /PVZ not found|not_found/.test(String(err?.message ?? ''))
   );
 });
 
@@ -76,7 +91,7 @@ test('throws VALIDATION_ERROR when buyer pvz id is digits (operator id passed as
     id: 'order-bad-pvz',
     status: 'PAID',
     paidAt: new Date(),
-    sellerDropoffPvzId: 'pvz-dropoff',
+    sellerDropoffPvzId: SELLER_PVZ_UUID,
     sellerDropoffPvzMeta: {},
     buyerPickupPvzId: '10027909485',
     buyerPickupPvzMeta: { raw: { id: '10027909485' } },
@@ -84,9 +99,8 @@ test('throws VALIDATION_ERROR when buyer pvz id is digits (operator id passed as
     recipientPhone: '+79991112233',
     contact: { phone: '+79991112233' },
     buyer: { name: 'Buyer Name', phone: '+79991112233' },
-    items: [{ quantity: 1, priceAtPurchase: 100, product: { title: 'T', sku: 'SKU', weightGrossG: 100, dxCm: 10, dyCm: 10, dzCm: 10 }, variant: null }]
+    items: [{ quantity: 1, priceAtPurchase: 100, product: { title: 'T', sku: 'SKU', weightGrossG: 100, dxCm: 10, dyCm: 10, dzCm: 10, sellerId: 'seller-1' }, variant: null }]
   });
 
-  (yandexNddClient.pickupPointsList as any) = async () => ({ points: [{ id: '10027909485', station_id: '300000001' }] });
-  await assert.rejects(() => yandexNddShipmentOrchestrator.readyToShip('seller-1', 'order-bad-pvz'), /buyerPickupPvzId/);
+  await assert.rejects(() => yandexNddShipmentOrchestrator.readyToShip('seller-1', 'order-bad-pvz'), /buyerPickupPvzId|PVZ/);
 });

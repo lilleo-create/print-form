@@ -22,6 +22,7 @@ export const SellerOnboardingPage = () => {
   const [form, setForm] = useState({
     name: '',
     phone: '',
+    email: '',
     status: 'ИП',
     storeName: '',
     city: '',
@@ -31,6 +32,7 @@ export const SellerOnboardingPage = () => {
   const [touched, setTouched] = useState({
     name: false,
     phone: false,
+    email: false,
     status: false,
     storeName: false,
     city: false,
@@ -43,7 +45,8 @@ export const SellerOnboardingPage = () => {
       setForm((prev) => ({
         ...prev,
         name: prev.name || user.name,
-        phone: prev.phone || formatRuPhoneInput(user.phone ?? '')
+        phone: prev.phone || formatRuPhoneInput(user.phone ?? ''),
+        email: prev.email || (user?.email ?? '')
       }));
     }
   }, [user]);
@@ -73,7 +76,7 @@ export const SellerOnboardingPage = () => {
   const nameValid = form.name.trim().length >= 2;
   const phoneValid = isRuPhone(form.phone);
   const statusValid = form.status.trim().length > 0;
-  const storeNameValid = form.storeName.trim().length >= 2;
+  const storeNameValid = true;
   const cityValid = cities.some((city) => city.name === form.city);
   const referenceCategoryValid = form.referenceCategory.trim().length >= 2;
   const catalogPositionValid = form.catalogPosition.trim().length >= 2;
@@ -127,17 +130,21 @@ export const SellerOnboardingPage = () => {
       const response = await api.submitSellerOnboarding({
         name: form.name,
         phone: toE164Ru(form.phone),
+        email: form.email.trim() || undefined,
         status: form.status as 'ИП' | 'ООО' | 'Самозанятый',
-        storeName: form.storeName,
+        storeName: form.storeName.trim() || undefined,
         city: form.city,
         referenceCategory: form.referenceCategory,
         catalogPosition: form.catalogPosition
       });
       const role = response.data.role.toLowerCase() === 'seller' ? 'seller' : 'buyer';
+      const nextName = response.data.name ?? form.name; // имя точно строка
+      const nextEmail = response.data.email ?? (form.email.trim() || ''); // если в сторе email: string
+
       setUser({
         id: response.data.id,
-        name: response.data.name,
-        email: response.data.email,
+        name: nextName,
+        email: nextEmail,
         phone: toE164Ru(response.data.phone ?? form.phone),
         role: role as Role,
         address: user?.address ?? null
@@ -229,6 +236,17 @@ export const SellerOnboardingPage = () => {
                 />
                 {touched.phone && !phoneValid && <span className={styles.error}>Введите корректный номер.</span>}
               </label>
+              <label>
+                Email (необязательно)
+                <input
+                  type="email"
+                  placeholder="email@example.com"
+                  value={form.email}
+                  onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
+                  onBlur={() => setTouched((prev) => ({ ...prev, email: true }))}
+                />
+                <span className={styles.helper}>Нужен для доставки и мерчанта. Можно указать в разделе «Подключение».</span>
+              </label>
             </div>
           )}
 
@@ -248,17 +266,15 @@ export const SellerOnboardingPage = () => {
                 {touched.status && !statusValid && <span className={styles.error}>Выберите статус.</span>}
               </label>
               <label>
-                Название магазина
+                Название магазина (необязательно)
                 <input
+                  placeholder="По умолчанию — ваше имя"
                   value={form.storeName}
                   onChange={(event) => setForm((prev) => ({ ...prev, storeName: event.target.value }))}
                   onBlur={() => setTouched((prev) => ({ ...prev, storeName: true }))}
                 />
-                {touched.storeName && !storeNameValid && (
-                  <span className={styles.error}>Укажите название магазина.</span>
-                )}
                 <span className={styles.helper}>
-                  Название отображается на витрине. Изменение — через поддержку.
+                  Название отображается на витрине. Можно указать позже в разделе «Подключение».
                 </span>
               </label>
             </div>

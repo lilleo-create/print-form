@@ -27,6 +27,8 @@ import { clientDisconnect } from "./middleware/clientDisconnect";
 import { internalRoutes } from './routes/internalRoutes';
 import { startShipmentsSyncJob } from './jobs/shipmentsSyncJob';
 import { nddRoutes } from "./routes/nddRoutes";
+import { debugRoutes } from "./routes/debugRoutes";
+import { deliveryYandexRoutes } from "./modules/deliveryYandex/routes";
 
 const app = express();
 const uploadsDir = path.join(process.cwd(), "uploads");
@@ -94,6 +96,8 @@ app.use("/favorites", favoritesRoutes);
 app.use("/checkout", checkoutRoutes);
 app.use('/internal', internalRoutes);
 app.use("/api/ndd", nddRoutes);
+app.use("/delivery", deliveryYandexRoutes);
+app.use("/debug", debugRoutes);
 app.use(errorHandler);
 
 app.listen(env.port, () => {

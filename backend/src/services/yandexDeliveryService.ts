@@ -18,18 +18,23 @@ class YandexDeliveryService {
       headers: {
         Authorization: `Bearer ${tokenRaw}`,
         "Content-Type": "application/json",
+        "Accept": "application/json",
+        "Accept-Language": config.lang ?? "ru",
       },
       timeout: 15000,
     });
 
     this.client.interceptors.request.use((request) => {
       const auth = String(request.headers?.Authorization ?? request.headers?.authorization ?? '');
+      const acceptLang = String(request.headers?.['Accept-Language'] ?? request.headers?.['accept-language'] ?? '');
       const tokenPrefix = auth.replace(/^Bearer\s+/i, '').slice(0, 10);
+
       console.info('[YANDEX_NDD][request]', {
         method: String(request.method ?? 'get').toUpperCase(),
         url: `${request.baseURL ?? ''}${request.url ?? ''}`,
         hasAuthorization: Boolean(auth),
-        authorizationTokenPrefix: tokenPrefix ? `${tokenPrefix}...` : null
+        authorizationTokenPrefix: tokenPrefix ? `${tokenPrefix}...` : null,
+        acceptLanguage: acceptLang || null
       });
       return request;
     });
@@ -50,14 +55,23 @@ class YandexDeliveryService {
 
   private async withRetry<T>(fn: () => Promise<T>, retries = 2): Promise<T> {
     let lastError: unknown;
+
     for (let attempt = 0; attempt <= retries; attempt += 1) {
       try {
         return await fn();
       } catch (error) {
         lastError = error;
+
+        const ax = error as AxiosError<any>;
+        const status = ax.response?.status;
+
+        // ✅ 403 no_permissions бессмысленно ретраить
+        if (status === 403) throw error;
+
         if (attempt === retries) throw error;
       }
     }
+
     throw lastError;
   }
 
@@ -152,18 +166,15 @@ class YandexDeliveryService {
   async createOffers(payload: Record<string, unknown>) {
     try {
       const { data } = await this.withRetry(() =>
-        this.client.post(
-          "/api/b2b/platform/offers/create?send_unix=true",
-          payload,
-        ),
+        this.client.post("/api/b2b/platform/offers/create?send_unix=true", payload),
       );
       return data;
     } catch (error) {
-      const axiosError = error as AxiosError<{ code?: string }>;
-      if (
-        axiosError.response?.status === 400 &&
-        axiosError.response.data?.code === "no_delivery_options"
-      ) {
+      const ax = error as AxiosError<any>;
+      if (ax.response?.status === 403) {
+        throw new Error("NDD_OFFERS_FORBIDDEN");
+      }
+      if (ax.response?.status === 400 && ax.response.data?.code === "no_delivery_options") {
         throw new Error("NO_DELIVERY_OPTIONS");
       }
       throw error;
@@ -263,7 +274,31 @@ class YandexDeliveryService {
       ),
     };
   }
-
+async merchantRegistrationInit(externalMerchantId: string, body: Record<string, unknown>) {
+  const q = new URLSearchParams({ external_merchant_id: externalMerchantId });
+  const { data } = await this.withRetry(() =>
+    this.client.post(`/api/b2b/platform/merchant/registration/init?${q.toString()}`, body),
+  );
+  return data as { registration_id: string };
+}
+async merchantRegistrationStatus(registrationId: string) {
+  const { data } = await this.withRetry(() =>
+    this.client.get('/api/b2b/platform/merchant/registration/status', {
+      params: { registration_id: registrationId }
+    }),
+  );
+  return data as {
+    status: 'in_progress' | 'success' | 'validation_error';
+    merchant_id?: string;
+    error?: { code?: string; message?: string; details?: any };
+  };
+}
+async merchantInfo(merchantId: string) {
+  const { data } = await this.withRetry(() =>
+    this.client.get('/api/b2b/platform/merchant/info', { params: { merchant_id: merchantId } }),
+  );
+  return data;
+}
   async getHandoverAct(
     params: Record<string, unknown>,
     body?: Record<string, unknown>,
@@ -287,5 +322,6 @@ class YandexDeliveryService {
     };
   }
 }
+
 
 export const yandexDeliveryService = new YandexDeliveryService();

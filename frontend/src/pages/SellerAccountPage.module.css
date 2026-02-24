@@ -314,6 +314,20 @@
   border: 1px solid var(--border);
 }
 
+.labelBlock {
+  display: grid;
+  gap: 4px;
+  font-weight: 500;
+}
+
+.labelBlock input,
+.labelBlock select {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+
 .linkButton {
   border: none;
   background: transparent;

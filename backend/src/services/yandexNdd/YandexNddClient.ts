@@ -193,8 +193,8 @@ export class YandexNddClient {
       const code = isUnauthorized
         ? 'NDD_UNAUTHORIZED'
         : path === '/api/b2b/platform/offers/create'
-        ? 'NDD_OFFER_CREATE_FAILED'
-        : 'NDD_REQUEST_FAILED';
+          ? 'NDD_OFFER_CREATE_FAILED'
+          : 'NDD_REQUEST_FAILED';
       throw new YandexNddHttpError(code, path, response.status, bodyText, errorDetails);
     }
 
@@ -276,28 +276,44 @@ export class YandexNddClient {
     throw new Error('NDD_REQUEST_RETRY_EXHAUSTED');
   }
 
-  async offersCreate(body: JsonRecord) {
-    const validated = assertStationAndPvzPair(body.station_id, body.self_pickup_id);
+  /** POST /api/b2b/platform/offers/create?send_unix=true — no merchant_id; source/dest use platform_station.platform_id (UUID). */
+  async offersCreate(body: JsonRecord, opts?: { requestId?: string; orderId?: string }) {
+    const path = '/api/b2b/platform/offers/create?send_unix=true';
     const payload = {
-      ...body,
-      station_id: validated.stationId,
-      self_pickup_id: validated.selfPickupId
+      sourcePlatformId: (body?.source as any)?.platform_station?.platform_id ?? null,
+      destPlatformId: (body?.destination as any)?.platform_station?.platform_id ?? null,
+      last_mile_policy: (body as any)?.last_mile_policy ?? null
     };
-
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('[NDD offers/create body]', JSON.stringify(payload));
-    }
-
-    const response = await this.request<JsonRecord>('/api/b2b/platform/offers/create', {
+    console.info('[YANDEX_NDD][offers/create]', {
+      orderId: opts?.orderId ?? 'n/a',
+      requestId: opts?.requestId ?? 'n/a',
+      url: this.buildUrl(path),
       method: 'POST',
-      body: JSON.stringify(payload)
+      ...payload
     });
-
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('[NDD offers/create response]', JSON.stringify(response));
+    try {
+      const response = await this.request<JsonRecord>(path, {
+        method: 'POST',
+        body: JSON.stringify(body),
+        requestId: opts?.requestId
+      });
+      return response;
+    } catch (err: any) {
+      const details = err?.details ?? err?.raw ?? '';
+      const detailStr = typeof details === 'string' ? details : JSON.stringify(details);
+      if (
+        /station_id.*digits|platform station id.*digits|platform_id.*uuid/i.test(detailStr) ||
+        /должен быть|must be.*digit|must be.*uuid/i.test(detailStr)
+      ) {
+        console.warn('[YANDEX_NDD][offers/create] uuid/digits mix suspected', {
+          orderId: opts?.orderId,
+          sentSourcePlatformId: payload.sourcePlatformId,
+          sentDestPlatformId: payload.destPlatformId,
+          responseDetail: detailStr
+        });
+      }
+      throw err;
     }
-
-    return response;
   }
 
   async offersInfo(stationId: string, selfPickupId: string, sendUnix = true) {

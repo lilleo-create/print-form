@@ -113,6 +113,23 @@ export const SellerDashboardPage = () => {
   const [kycMessage, setKycMessage] = useState<string | null>(null);
   const [kycError, setKycError] = useState<string | null>(null);
 
+  const [merchantForm, setMerchantForm] = useState({
+    contactName: '',
+    contactEmail: '',
+    contactPhone: '',
+    representativeName: '',
+    legalName: '',
+    inn: '',
+    ogrn: '',
+    kpp: '',
+    legalAddressFull: '',
+    siteUrl: '',
+    shipmentType: 'import' as 'import' | 'withdraw'
+  });
+  const [isMerchantSaving, setIsMerchantSaving] = useState(false);
+  const [merchantSaveMessage, setMerchantSaveMessage] = useState<string | null>(null);
+  const [merchantSaveError, setMerchantSaveError] = useState<string | null>(null);
+
   const [payments, setPayments] = useState<Payment[]>([]);
   const [paymentsLoading, setPaymentsLoading] = useState(true);
   const [paymentsError, setPaymentsError] = useState<string | null>(null);
@@ -152,11 +169,31 @@ export const SellerDashboardPage = () => {
   const isAuthLoading = authStatus === 'loading' || contextStatus === 'loading';
 
   const hasDropoffStation = Boolean(dropoffStationId.trim());
-  const kycSubmitDisabledReason = !kycSubmission?.documents?.length
-    ? 'Сначала загрузите документы.'
+
+  const requiredMerchantFieldsByStatus: Record<string, string[]> = {
+    ООО: ['contactName', 'contactEmail', 'contactPhone', 'representativeName', 'legalName', 'inn', 'ogrn', 'kpp', 'legalAddressFull', 'siteUrl'],
+    ИП: ['contactName', 'contactEmail', 'contactPhone', 'inn', 'ogrn', 'legalAddressFull', 'siteUrl'],
+    Самозанятый: ['contactName', 'contactEmail', 'contactPhone', 'inn', 'legalAddressFull', 'siteUrl']
+  };
+  const hasMerchantData = (() => {
+    if (!sellerProfile) return false;
+    const required = requiredMerchantFieldsByStatus[sellerProfile.status] ?? requiredMerchantFieldsByStatus['ИП'];
+    return required.every((field) => {
+      const v = (sellerProfile as Record<string, unknown>)[field];
+      return v !== undefined && v !== null && String(v).trim() !== '';
+    });
+  })();
+
+  const minKycDocs = sellerProfile?.status === 'ООО' ? 2 : 1;
+  const hasEnoughDocs = (kycSubmission?.documents?.length ?? 0) >= minKycDocs;
+
+  const kycSubmitDisabledReason = !hasEnoughDocs
+    ? (sellerProfile?.status === 'ООО' ? 'Загрузите минимум 2 документа.' : 'Загрузите минимум 1 документ.')
     : !hasDropoffStation
-      ? 'Выберите точку отгрузки (station_id), чтобы отправить документы.'
-      : null;
+      ? 'Выберите точку отгрузки (обязательно).'
+      : !hasMerchantData
+        ? 'Заполните блок «Данные для мерчанта» и нажмите «Сохранить».'
+        : null;
 
   useEffect(() => {
     if (!sellerContextError) return;
@@ -324,6 +361,25 @@ export const SellerDashboardPage = () => {
   }, [isSellerReady]);
 
   useEffect(() => {
+    if (sellerProfile) {
+      setMerchantForm((prev) => ({
+        ...prev,
+        contactName: sellerProfile.contactName ?? prev.contactName ?? '',
+        contactEmail: sellerProfile.contactEmail ?? prev.contactEmail ?? '',
+        contactPhone: sellerProfile.contactPhone ?? sellerProfile.phone ?? prev.contactPhone ?? '',
+        representativeName: sellerProfile.representativeName ?? prev.representativeName ?? '',
+        legalName: sellerProfile.legalName ?? prev.legalName ?? '',
+        inn: sellerProfile.inn ?? prev.inn ?? '',
+        ogrn: sellerProfile.ogrn ?? prev.ogrn ?? '',
+        kpp: sellerProfile.kpp ?? prev.kpp ?? '',
+        legalAddressFull: sellerProfile.legalAddressFull ?? prev.legalAddressFull ?? '',
+        siteUrl: sellerProfile.siteUrl ?? prev.siteUrl ?? '',
+        shipmentType: (sellerProfile.shipmentType === 'withdraw' ? 'withdraw' : 'import') as 'import' | 'withdraw'
+      }));
+    }
+  }, [sellerProfile?.id, sellerProfile?.contactName, sellerProfile?.contactEmail, sellerProfile?.contactPhone, sellerProfile?.representativeName, sellerProfile?.legalName, sellerProfile?.inn, sellerProfile?.ogrn, sellerProfile?.kpp, sellerProfile?.legalAddressFull, sellerProfile?.siteUrl, sellerProfile?.shipmentType, sellerProfile?.phone]);
+
+  useEffect(() => {
     if (!isSellerReady) {
       setProducts([]);
       setPayments([]);
@@ -394,16 +450,52 @@ export const SellerDashboardPage = () => {
     }
   };
 
+  const handleSaveMerchantData = async () => {
+    setMerchantSaveMessage(null);
+    setMerchantSaveError(null);
+    setIsMerchantSaving(true);
+    try {
+      const status = sellerProfile?.status ?? 'ИП';
+      const payload: Record<string, string> = {
+        contactName: merchantForm.contactName.trim(),
+        contactEmail: merchantForm.contactEmail.trim(),
+        contactPhone: merchantForm.contactPhone.trim(),
+        legalAddressFull: merchantForm.legalAddressFull.trim(),
+        siteUrl: merchantForm.siteUrl.trim(),
+        inn: merchantForm.inn.trim(),
+        shipmentType: merchantForm.shipmentType
+      };
+      if (merchantForm.representativeName.trim()) payload.representativeName = merchantForm.representativeName.trim();
+      if (merchantForm.legalName.trim()) payload.legalName = merchantForm.legalName.trim();
+      if (status === 'ООО') {
+        payload.representativeName = merchantForm.representativeName.trim() || merchantForm.contactName.trim();
+        payload.legalName = merchantForm.legalName.trim();
+        payload.ogrn = merchantForm.ogrn.trim();
+        payload.kpp = merchantForm.kpp.trim();
+      }
+      if (status === 'ИП') payload.ogrn = merchantForm.ogrn.trim();
+      await api.updateSellerMerchantData(payload as any);
+      setMerchantSaveMessage('Данные для мерчанта сохранены.');
+      await reload();
+    } catch (error) {
+      const normalized = normalizeApiError(error);
+      setMerchantSaveError(normalized.message ?? 'Не удалось сохранить.');
+    } finally {
+      setIsMerchantSaving(false);
+    }
+  };
+
   const handleKycSubmit = async () => {
     if (!isSellerReady) {
       setKycMessage('Подключите профиль продавца, чтобы отправить документы.');
       return;
     }
-
     if (!hasDropoffStation) {
-      setKycError(
-        'Выберите точку отгрузки (station_id) перед отправкой документов.'
-      );
+      setKycError('Выберите точку отгрузки перед отправкой.');
+      return;
+    }
+    if (!hasMerchantData) {
+      setKycError('Заполните данные для мерчанта и нажмите «Сохранить».');
       return;
     }
 
@@ -413,23 +505,37 @@ export const SellerDashboardPage = () => {
     try {
       const response = await api.submitSellerKyc({
         dropoffStationId: dropoffStationId.trim(),
+        dropoffPlatformStationId: dropoffStationId.trim(),
         dropoffStationMeta: {
           addressFull: dropoffStationAddress.trim() || dropoffStationId.trim()
         }
       });
-      setKycSubmission(response.data);
-      setKycMessage('Заявка отправлена на проверку.');
+      const data = response.data as unknown as { error?: { code?: string; message?: string }; id?: string };
+      if (data?.error?.code === 'MERCHANT_REGISTRATION_IN_PROGRESS') {
+        setKycError(data.error.message ?? 'Регистрация в Яндексе выполняется. Попробуйте через минуту.');
+        return;
+      }
+      if (!data?.error && response.data) {
+        setKycSubmission(response.data as SellerKycSubmission);
+        setKycMessage('Заявка отправлена на проверку.');
+      }
       await reload();
     } catch (error) {
       const normalized = normalizeApiError(error);
+      const payload = (error as { payload?: { error?: { code?: string; message?: string } } })?.payload;
+      const code = payload?.error?.code ?? normalized.code;
       if (isAccessError(error)) {
         setKycError('Сессия истекла, войдите снова.');
-      } else if (normalized.code === 'SELLER_STATION_ID_REQUIRED') {
-        setKycError(
-          'Выберите точку отгрузки через карту: без station_id документы не отправляются.'
-        );
+      } else if (code === 'SELLER_STATION_ID_REQUIRED') {
+        setKycError('Выберите точку отгрузки (обязательно).');
+      } else if (code === 'MERCHANT_DATA_REQUIRED') {
+        setKycError(payload?.error?.message ?? 'Заполните данные для мерчанта в блоке выше.');
+      } else if (code === 'MERCHANT_REGISTRATION_INVALID') {
+        setKycError(payload?.error?.message ?? 'Ошибка валидации при регистрации мерчанта. Проверьте данные.');
+      } else if (code === 'KYC_DOCS_REQUIRED') {
+        setKycError(payload?.error?.message ?? 'Загрузите достаточно документов.');
       } else {
-        setKycError('Не удалось отправить документы.');
+        setKycError(normalized.message ?? 'Не удалось отправить на проверку.');
       }
     }
   };
@@ -906,6 +1012,122 @@ export const SellerDashboardPage = () => {
                           {kycSubmission.moderationNotes ?? kycSubmission.notes}
                         </p>
                       )}
+
+                      <div className={styles.sectionHeader}>
+                        <h3>Данные для мерчанта (Яндекс NDD)</h3>
+                        <p>Нужны для регистрации в доставке. Заполните и нажмите «Сохранить».</p>
+                      </div>
+                      <div className={styles.settingsGrid}>
+                        <label className={styles.labelBlock}>
+                          Контактное лицо (ФИО)
+                          <input
+                            value={merchantForm.contactName}
+                            onChange={(e) => setMerchantForm((p) => ({ ...p, contactName: e.target.value }))}
+                            placeholder="Иванов Иван Иванович"
+                          />
+                        </label>
+                        <label className={styles.labelBlock}>
+                          Email
+                          <input
+                            type="email"
+                            value={merchantForm.contactEmail}
+                            onChange={(e) => setMerchantForm((p) => ({ ...p, contactEmail: e.target.value }))}
+                            placeholder="email@example.com"
+                          />
+                        </label>
+                        <label className={styles.labelBlock}>
+                          Телефон
+                          <input
+                            value={merchantForm.contactPhone}
+                            onChange={(e) => setMerchantForm((p) => ({ ...p, contactPhone: e.target.value }))}
+                            placeholder="+7 (999) 123-45-67"
+                          />
+                        </label>
+                        <label className={styles.labelBlock}>
+                          ФИО представителя
+                          <input
+                            value={merchantForm.representativeName}
+                            onChange={(e) => setMerchantForm((p) => ({ ...p, representativeName: e.target.value }))}
+                            placeholder="Как у контактного лица или иное"
+                          />
+                        </label>
+                        {(sellerProfile?.status === 'ООО' || sellerProfile?.status === 'ИП') && (
+                          <label className={styles.labelBlock}>
+                            Официальное название
+                            <input
+                              value={merchantForm.legalName}
+                              onChange={(e) => setMerchantForm((p) => ({ ...p, legalName: e.target.value }))}
+                              placeholder={sellerProfile?.status === 'ИП' ? 'ИП Фамилия И. О.' : 'ООО «Название»'}
+                            />
+                          </label>
+                        )}
+                        <label className={styles.labelBlock}>
+                          ИНН
+                          <input
+                            value={merchantForm.inn}
+                            onChange={(e) => setMerchantForm((p) => ({ ...p, inn: e.target.value.replace(/\D/g, '').slice(0, sellerProfile?.status === 'ООО' ? 10 : 12) }))}
+                            placeholder={sellerProfile?.status === 'ООО' ? '10 цифр' : '12 цифр'}
+                          />
+                        </label>
+                        {(sellerProfile?.status === 'ООО' || sellerProfile?.status === 'ИП') && (
+                          <label className={styles.labelBlock}>
+                            ОГРН{sellerProfile?.status === 'ИП' ? 'ИП' : ''}
+                            <input
+                              value={merchantForm.ogrn}
+                              onChange={(e) => setMerchantForm((p) => ({ ...p, ogrn: e.target.value.replace(/\D/g, '').slice(0, sellerProfile?.status === 'ИП' ? 15 : 13) }))}
+                              placeholder={sellerProfile?.status === 'ИП' ? '15 цифр' : '13 цифр'}
+                            />
+                          </label>
+                        )}
+                        {sellerProfile?.status === 'ООО' && (
+                          <label className={styles.labelBlock}>
+                            КПП
+                            <input
+                              value={merchantForm.kpp}
+                              onChange={(e) => setMerchantForm((p) => ({ ...p, kpp: e.target.value.replace(/\D/g, '').slice(0, 9) }))}
+                              placeholder="9 цифр"
+                            />
+                          </label>
+                        )}
+                        <label className={styles.labelBlock} style={{ gridColumn: '1 / -1' }}>
+                          Юридический адрес
+                          <input
+                            value={merchantForm.legalAddressFull}
+                            onChange={(e) => setMerchantForm((p) => ({ ...p, legalAddressFull: e.target.value }))}
+                            placeholder="Полный адрес регистрации"
+                          />
+                        </label>
+                        <label className={styles.labelBlock}>
+                          Сайт
+                          <input
+                            value={merchantForm.siteUrl}
+                            onChange={(e) => setMerchantForm((p) => ({ ...p, siteUrl: e.target.value }))}
+                            placeholder="example.ru"
+                          />
+                        </label>
+                        <label className={styles.labelBlock}>
+                          Тип отгрузки
+                          <select
+                            value={merchantForm.shipmentType}
+                            onChange={(e) => setMerchantForm((p) => ({ ...p, shipmentType: e.target.value as 'import' | 'withdraw' }))}
+                          >
+                            <option value="import">Самопривоз (import)</option>
+                            <option value="withdraw">Вывоз (withdraw)</option>
+                          </select>
+                        </label>
+                      </div>
+                      <div className={styles.kycActions}>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={handleSaveMerchantData}
+                          disabled={isMerchantSaving}
+                        >
+                          {isMerchantSaving ? 'Сохранение...' : 'Сохранить данные мерчанта'}
+                        </Button>
+                        {merchantSaveMessage && <p className={styles.kycMessage}>{merchantSaveMessage}</p>}
+                        {merchantSaveError && <p className={styles.error}>{merchantSaveError}</p>}
+                      </div>
 
                       <div className={styles.settingsGrid}>
                         <div>

@@ -1,7 +1,10 @@
 import { Prisma, PaymentStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { orderUseCases } from '../usecases/orderUseCases';
-import { yandexDeliveryService } from './yandexDeliveryService';
+import { yandexNddClient } from './yandexNdd/YandexNddClient';
+import { resolvePvzIds } from './yandexNdd/resolvePvzIds';
+import { buildOffersCreatePayload } from './yandexNdd/nddOffersPayload';
+import { looksLikePvzId } from './yandexNdd/nddIdSemantics';
 
 type StartPaymentInput = {
   buyerId: string;
@@ -15,9 +18,9 @@ type StartPaymentInput = {
   items: { productId: string; variantId?: string; quantity: number }[];
   buyerPickupPvz: {
     provider: 'YANDEX_NDD';
-    pvzId: string;
-    buyerPickupPlatformStationId?: string;
-    buyerPickupOperatorStationId?: string;
+    pvzId: string; // pvz self_pickup_id (uuid)
+    buyerPickupPlatformStationId?: string; // platform_station_id (uuid) - важно!
+    buyerPickupOperatorStationId?: string; // digits (не обязателен для request/create)
     addressFull?: string;
     raw?: unknown;
   };
@@ -26,28 +29,34 @@ type StartPaymentInput = {
 const buildPaymentUrl = (paymentId: string) => `https://payment.local/checkout/${paymentId}`;
 
 const asRecord = (value: unknown): Record<string, unknown> | null => {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return null;
-  }
-
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   return value as Record<string, unknown>;
 };
 
-const normalizeDigits = (value: unknown): string | null => {
-  if (typeof value !== 'string') {
-    return null;
-  }
+const normalizeUuid = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed) ? trimmed : null;
+};
 
+const normalizeDigits = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   return /^\d+$/.test(trimmed) ? trimmed : null;
 };
 
 const normalizeBuyerPickupPvz = (input: StartPaymentInput['buyerPickupPvz']) => {
   const raw = asRecord(input.raw) ?? {};
+
+  // ✅ platform_station_id = UUID (а не digits!)
   const buyerPickupPlatformStationId =
-    normalizeDigits(input.buyerPickupPlatformStationId) ??
-    normalizeDigits(raw.buyerPickupPlatformStationId) ??
+    normalizeUuid(input.buyerPickupPlatformStationId) ??
+    normalizeUuid(raw.buyerPickupPlatformStationId) ??
+    normalizeUuid(raw.platform_station_id) ??
+    normalizeUuid(raw.station_id) ?? // иногда так называют
     null;
+
+  // digits операторская станция можно оставить как инфо
   const buyerPickupOperatorStationId =
     normalizeDigits(input.buyerPickupOperatorStationId) ??
     normalizeDigits(raw.buyerPickupOperatorStationId) ??
@@ -77,61 +86,8 @@ const buildOrderLabels = (orderId: string, packagesCount: number) => {
   return Array.from({ length: packagesCount }, (_, index) => {
     const packageNo = index + 1;
     const base = `PF-${shortId}-${packageNo}`;
-    return {
-      packageNo,
-      code: base.slice(0, 15)
-    };
+    return { packageNo, code: base.slice(0, 15) };
   });
-};
-
-const buildYandexPayload = (order: any) => {
-  const barcode = `PF-${order.id}`;
-  const invalidItem = order.items.find(
-    (item: any) =>
-      item.product.weightGrossG == null ||
-      item.product.dxCm == null ||
-      item.product.dyCm == null ||
-      item.product.dzCm == null
-  );
-  if (invalidItem) {
-    throw new Error('PRODUCT_DIMENSIONS_REQUIRED');
-  }
-
-  const weight = order.items.reduce((sum: number, item: any) => sum + (item.product.weightGrossG ?? 0) * item.quantity, 0);
-  const dx = Math.max(...order.items.map((item: any) => item.product.dxCm ?? 0));
-  const dy = Math.max(...order.items.map((item: any) => item.product.dyCm ?? 0));
-  const dz = Math.max(...order.items.map((item: any) => item.product.dzCm ?? 0));
-
-  return {
-    items: order.items.map((item: any) => ({
-      article: item.variant?.sku ?? item.product.sku,
-      name: item.product.title,
-      count: item.quantity,
-      place_barcode: barcode,
-      billing_details: {
-        unit_price: item.priceAtPurchase,
-        assessed_unit_price: item.priceAtPurchase,
-        nds: -1
-      },
-      physical_dims: {
-        dx: item.product.dxCm,
-        dy: item.product.dyCm,
-        dz: item.product.dzCm,
-        weight_gross: item.product.weightGrossG
-      }
-    })),
-    places: [{ barcode, physical_dims: { dx, dy, dz, weight_gross: weight } }],
-    last_mile_policy: 'self_pickup',
-    source: { platform_station: { platform_id: order.sellerDropoffPvzId } },
-    destination: { type: 'platform_station', platform_station: { platform_id: order.buyerPickupPvzId } },
-    recipient_info: {
-      first_name: order.buyer.name.split(' ')[0] ?? 'Покупатель',
-      last_name: order.buyer.name.split(' ').slice(1).join(' ') || '-',
-      phone: order.contact?.phone ?? order.buyer.phone ?? '',
-      email: order.contact?.email ?? order.buyer.email
-    },
-    operator_request_id: order.id
-  };
 };
 
 const createDeliveryForPaidOrder = async (orderId: string) => {
@@ -144,54 +100,96 @@ const createDeliveryForPaidOrder = async (orderId: string) => {
     }
   });
 
-  if (!order || order.status !== 'PAID' || !order.yandexRequestId || order.yandexRequestId !== 'PROCESSING') {
-    return;
-  }
-
-  const payload = buildYandexPayload(order);
-  let requestId: string | null = null;
-  let offerId: string | null = null;
-
-  try {
-    const offers = await yandexDeliveryService.createOffers(payload);
-    const list = Array.isArray((offers as Record<string, unknown>).offers)
-      ? ((offers as Record<string, unknown>).offers as Record<string, unknown>[])
-      : [];
-    const bestOffer = [...list].sort(
-      (a, b) => Number((a.pricing_total as number) ?? Number.MAX_SAFE_INTEGER) - Number((b.pricing_total as number) ?? Number.MAX_SAFE_INTEGER)
-    )[0];
-    if (bestOffer?.offer_id) {
-      offerId = String(bestOffer.offer_id);
-      const confirmed = await yandexDeliveryService.confirmOffer(offerId);
-      requestId = String((confirmed as Record<string, unknown>).request_id ?? '');
-    }
-  } catch (_error) {
-    const created = await yandexDeliveryService.createRequest(payload);
-    requestId = String((created as Record<string, unknown>).request_id ?? '');
-  }
-
-  if (!requestId) {
+  if (!order || order.status !== 'PAID' || order.yandexRequestId !== 'PROCESSING') return;
+  if (!looksLikePvzId(order.sellerDropoffPvzId) || !looksLikePvzId(order.buyerPickupPvzId)) {
+    console.warn('[PAYMENT][NDD] skip createDelivery: missing seller or buyer PVZ id', {
+      orderId,
+      sellerDropoffPvzId: order.sellerDropoffPvzId ?? null,
+      buyerPickupPvzId: order.buyerPickupPvzId ?? null
+    });
     await prisma.order.update({ where: { id: order.id }, data: { yandexRequestId: null, yandexStatus: 'CREATION_FAILED' } });
     return;
   }
 
-  const info = await yandexDeliveryService.getRequestInfo(requestId);
+  const sellerDropoffPvzId = String(order.sellerDropoffPvzId).trim();
+  const buyerPickupPvzId = String(order.buyerPickupPvzId).trim();
+
+  let requestId: string | null = null;
+  try {
+    const [sellerPvz, buyerPvz] = await Promise.all([
+      resolvePvzIds(sellerDropoffPvzId),
+      resolvePvzIds(buyerPickupPvzId)
+    ]);
+
+    console.info('[PAYMENT][NDD][offers]', {
+      orderId,
+      sellerDropoffPvzId,
+      buyerPickupPvzId,
+      resolved: {
+        sourcePlatformId: sellerPvz.platformId,
+        sourceOperatorStationId: sellerPvz.operatorStationId,
+        destPlatformId: buyerPvz.platformId,
+        destOperatorStationId: buyerPvz.operatorStationId
+      }
+    });
+
+    const payload = buildOffersCreatePayload({
+      order: order as any,
+      sellerPvz,
+      buyerPvz
+    });
+
+    const offersResponse = (await yandexNddClient.offersCreate(payload as Record<string, unknown>, {
+      orderId: order.id,
+      requestId: order.id
+    })) as { offers?: Array<{ offer_id?: string }> };
+
+    const offers = Array.isArray(offersResponse?.offers) ? offersResponse.offers : [];
+    const firstOffer = offers[0];
+    if (!firstOffer?.offer_id) {
+      throw new Error('NDD_NO_OFFERS');
+    }
+
+    const confirmResponse = (await yandexNddClient.offersConfirm({
+      offer_id: firstOffer.offer_id
+    })) as { request_id?: string; status?: string; request?: { request_id?: string; status?: string; sharing_url?: string } };
+
+    requestId = String(confirmResponse?.request_id ?? confirmResponse?.request?.request_id ?? '').trim();
+    if (!requestId) {
+      throw new Error('NDD_CONFIRM_NO_REQUEST_ID');
+    }
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error('[PAYMENT][NDD] offers/create or offers/confirm failed', { orderId, msg });
+    await prisma.order.update({ where: { id: order.id }, data: { yandexRequestId: null, yandexStatus: 'CREATION_FAILED' } });
+    throw error;
+  }
+
+  let status: string | null = null;
+  let sharingUrl: string | null = null;
+  try {
+    const info = (await yandexNddClient.requestInfo(requestId)) as { status?: string; sharing_url?: string; request?: { status?: string; sharing_url?: string } };
+    status = info?.status ?? info?.request?.status ?? null;
+    sharingUrl = info?.sharing_url ?? info?.request?.sharing_url ?? null;
+  } catch {
+    status = 'CREATED';
+  }
+
   await prisma.order.update({
     where: { id: order.id },
     data: {
-      yandexOfferId: offerId,
       yandexRequestId: requestId,
-      yandexStatus: (info as Record<string, unknown> | null)?.status as string | undefined,
-      yandexSharingUrl: (info as Record<string, unknown> | null)?.sharing_url as string | undefined,
-      yandexCourierOrderId: (info as Record<string, unknown> | null)?.courier_order_id as string | undefined,
-      yandexSelfPickupCode: (info as Record<string, unknown> | null)?.self_pickup_node_code as object | undefined
+      yandexStatus: status ?? undefined,
+      yandexSharingUrl: sharingUrl ?? undefined
     }
   });
 };
 
 export const paymentFlowService = {
   async startPayment(input: StartPaymentInput) {
-    const existingOrder = await prisma.order.findFirst({ where: { buyerId: input.buyerId, paymentAttemptKey: input.paymentAttemptKey } });
+    const existingOrder = await prisma.order.findFirst({
+      where: { buyerId: input.buyerId, paymentAttemptKey: input.paymentAttemptKey }
+    });
 
     let order = existingOrder;
     const deliveryConfigMissing = false;
@@ -202,9 +200,7 @@ export const paymentFlowService = {
         where: { id: input.items[0]?.productId },
         select: { sellerId: true }
       });
-      if (!product) {
-        throw new Error('PRODUCT_NOT_FOUND');
-      }
+      if (!product) throw new Error('PRODUCT_NOT_FOUND');
 
       const sellerSettings = await prisma.sellerSettings.findUnique({ where: { sellerId: product.sellerId } });
 
@@ -235,6 +231,7 @@ export const paymentFlowService = {
           orderLabels: [],
           items: input.items
         });
+
         order = createdOrder;
 
         const labels = buildOrderLabels(createdOrder.id, createdOrder.packagesCount ?? input.packagesCount ?? 1);
@@ -247,18 +244,15 @@ export const paymentFlowService = {
           (error.meta?.target as string[]).includes('buyerId') &&
           (error.meta?.target as string[]).includes('paymentAttemptKey');
 
-        if (!isUniqueViolation) {
-          throw error;
-        }
+        if (!isUniqueViolation) throw error;
 
-        order = await prisma.order.findFirst({ where: { buyerId: input.buyerId, paymentAttemptKey: input.paymentAttemptKey } });
+        order = await prisma.order.findFirst({
+          where: { buyerId: input.buyerId, paymentAttemptKey: input.paymentAttemptKey }
+        });
       }
     }
 
-    if (!order) {
-      throw new Error('ORDER_CREATE_FAILED');
-    }
-
+    if (!order) throw new Error('ORDER_CREATE_FAILED');
 
     const normalizedBuyerPickupPvz = normalizeBuyerPickupPvz(input.buyerPickupPvz);
     console.info('[PAYMENT][buyer_pvz]', {
@@ -271,6 +265,7 @@ export const paymentFlowService = {
 
     const shouldRefreshLabels = !order.orderLabels || !Array.isArray(order.orderLabels) || order.orderLabels.length === 0;
     const shouldUpdateRecipient = !order.recipientName || !order.recipientPhone;
+
     if (shouldRefreshLabels || shouldUpdateRecipient) {
       const labels = shouldRefreshLabels ? buildOrderLabels(order.id, order.packagesCount ?? input.packagesCount ?? 1) : order.orderLabels;
       order = await prisma.order.update({
@@ -285,7 +280,6 @@ export const paymentFlowService = {
     }
 
     const existingPayment = await prisma.payment.findFirst({ where: { orderId: order.id }, orderBy: { createdAt: 'desc' } });
-
     if (existingPayment) {
       const paymentUrl = String((existingPayment.payloadJson as Record<string, unknown> | null)?.paymentUrl ?? buildPaymentUrl(existingPayment.id));
       return { orderId: order.id, paymentId: existingPayment.id, paymentUrl, deliveryConfigMissing, blockingReason };
@@ -293,21 +287,19 @@ export const paymentFlowService = {
 
     return prisma.$transaction(async (tx) => {
       const lockedOrder = await tx.order.findUnique({ where: { id: order.id } });
-      if (!lockedOrder) {
-        throw new Error('ORDER_NOT_FOUND');
-      }
+      if (!lockedOrder) throw new Error('ORDER_NOT_FOUND');
 
       if (lockedOrder.paymentId) {
         const lockedPayment = await tx.payment.findUnique({ where: { id: lockedOrder.paymentId } });
         if (lockedPayment) {
           const paymentUrl = String((lockedPayment.payloadJson as Record<string, unknown> | null)?.paymentUrl ?? buildPaymentUrl(lockedPayment.id));
-          return { orderId: order.id, paymentId: lockedPayment.id, paymentUrl, deliveryConfigMissing, blockingReason };
+          return { orderId: lockedOrder.id, paymentId: lockedPayment.id, paymentUrl, deliveryConfigMissing, blockingReason };
         }
       }
 
       const payment = await tx.payment.create({
         data: {
-          orderId: order.id,
+          orderId: lockedOrder.id,
           provider: 'manual',
           status: 'PENDING',
           amount: lockedOrder.total,
@@ -320,25 +312,23 @@ export const paymentFlowService = {
       await tx.payment.update({ where: { id: payment.id }, data: { payloadJson: { paymentUrl } } });
 
       const claimed = await tx.order.updateMany({
-        where: { id: order.id, paymentId: null },
+        where: { id: lockedOrder.id, paymentId: null },
         data: { paymentId: payment.id, paymentProvider: payment.provider }
       });
 
       if (claimed.count === 0) {
         await tx.payment.delete({ where: { id: payment.id } });
-        const existing = await tx.order.findUnique({ where: { id: order.id } });
+        const existing = await tx.order.findUnique({ where: { id: lockedOrder.id } });
         if (existing?.paymentId) {
-          const existingPayment = await tx.payment.findUnique({ where: { id: existing.paymentId } });
-          if (existingPayment) {
-            const existingPaymentUrl = String(
-              (existingPayment.payloadJson as Record<string, unknown> | null)?.paymentUrl ?? buildPaymentUrl(existingPayment.id)
-            );
-            return { orderId: order.id, paymentId: existingPayment.id, paymentUrl: existingPaymentUrl, deliveryConfigMissing, blockingReason };
+          const existingPayment2 = await tx.payment.findUnique({ where: { id: existing.paymentId } });
+          if (existingPayment2) {
+            const url = String((existingPayment2.payloadJson as Record<string, unknown> | null)?.paymentUrl ?? buildPaymentUrl(existingPayment2.id));
+            return { orderId: existing.id, paymentId: existingPayment2.id, paymentUrl: url, deliveryConfigMissing, blockingReason };
           }
         }
       }
 
-      return { orderId: order.id, paymentId: payment.id, paymentUrl, deliveryConfigMissing, blockingReason };
+      return { orderId: lockedOrder.id, paymentId: payment.id, paymentUrl, deliveryConfigMissing, blockingReason };
     });
   },
 
@@ -348,13 +338,8 @@ export const paymentFlowService = {
       include: { order: { select: { buyerId: true } } }
     });
 
-    if (!payment) {
-      return { ok: true };
-    }
-
-    if (payment.order.buyerId !== buyerId) {
-      throw new Error('FORBIDDEN');
-    }
+    if (!payment) return { ok: true };
+    if (payment.order.buyerId !== buyerId) throw new Error('FORBIDDEN');
 
     return this.processWebhook({ paymentId, status: 'success', provider: 'manual' });
   },
@@ -367,6 +352,7 @@ export const paymentFlowService = {
       const updated = await prisma.$transaction(async (tx) => {
         const order = await tx.order.findUnique({ where: { id: payment.orderId } });
         if (!order) return { shouldCreateDelivery: false };
+
         if (order.status === 'PAID') {
           await tx.payment.update({ where: { id: payment.id }, data: { status: 'SUCCEEDED' } });
           return { shouldCreateDelivery: false };
@@ -386,7 +372,7 @@ export const paymentFlowService = {
         });
 
         const claimed = await tx.order.updateMany({
-          where: { id: order.id, yandexRequestId: null, yandexOfferId: null },
+          where: { id: order.id, yandexRequestId: null },
           data: { yandexRequestId: 'PROCESSING' }
         });
 
@@ -396,10 +382,11 @@ export const paymentFlowService = {
       if (updated.shouldCreateDelivery) {
         await createDeliveryForPaidOrder(payment.orderId);
       }
+
       return { ok: true };
     }
 
-    const paymentStatus: PaymentStatus = input.status === 'failed' ? 'FAILED' : 'FAILED';
+    const paymentStatus: PaymentStatus = 'FAILED';
 
     await prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({ where: { id: payment.orderId } });

@@ -1,0 +1,17 @@
+-- AlterTable
+ALTER TABLE "SellerProfile" ADD COLUMN     "contactName" TEXT,
+ADD COLUMN     "contactEmail" TEXT,
+ADD COLUMN     "contactPhone" TEXT,
+ADD COLUMN     "representativeName" TEXT,
+ADD COLUMN     "legalType" TEXT,
+ADD COLUMN     "legalName" TEXT,
+ADD COLUMN     "inn" TEXT,
+ADD COLUMN     "ogrn" TEXT,
+ADD COLUMN     "kpp" TEXT,
+ADD COLUMN     "legalAddressFull" TEXT,
+ADD COLUMN     "siteUrl" TEXT,
+ADD COLUMN     "shipmentType" TEXT DEFAULT 'import',
+ADD COLUMN     "yandexMerchantRegistrationId" TEXT,
+ADD COLUMN     "yandexMerchantId" TEXT,
+ADD COLUMN     "yandexMerchantStatus" TEXT,
+ADD COLUMN     "yandexMerchantError" JSONB;
