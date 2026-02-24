@@ -610,21 +610,30 @@ sellerRoutes.put('/kyc/merchant-data', writeLimiter, async (req: AuthRequest, re
       (status === 'Самозанятый' ? `Самозанятый ${payload.contactName ?? ''}`.trim() : null) ||
       null;
 
+    const updateData: Record<string, unknown> = {
+      shipmentType: payload.shipmentType ?? 'import'
+    };
+
+    if (payload.contactName !== undefined) updateData.contactName = payload.contactName?.trim() || null;
+    if (payload.contactEmail !== undefined) updateData.contactEmail = (payload.contactEmail ?? '').trim() || null;
+    if (payload.contactPhone !== undefined) updateData.contactPhone = payload.contactPhone?.trim() || null;
+    if (payload.representativeName !== undefined || payload.contactName !== undefined) {
+      updateData.representativeName = representativeName.trim() || null;
+    }
+    if (payload.legalName !== undefined || payload.contactName !== undefined) {
+      updateData.legalName = legalName ?? payload.legalName?.trim() ?? null;
+    }
+    if (payload.inn !== undefined) updateData.inn = payload.inn?.trim() || null;
+    if (payload.ogrn !== undefined) updateData.ogrn = payload.ogrn?.trim() || null;
+    if (status === 'ООО') {
+      if (payload.kpp !== undefined) updateData.kpp = payload.kpp?.trim() || null;
+    }
+    if (payload.legalAddressFull !== undefined) updateData.legalAddressFull = payload.legalAddressFull?.trim() || null;
+    if (payload.siteUrl !== undefined) updateData.siteUrl = normalizeSiteUrl(payload.siteUrl ?? undefined);
+
     await prisma.sellerProfile.update({
       where: { userId: req.user!.userId },
-      data: {
-        contactName: payload.contactName?.trim() || null,
-        contactEmail: (payload.contactEmail ?? '').trim() || null,
-        contactPhone: payload.contactPhone?.trim() || null,
-        representativeName: representativeName.trim() || null,
-        legalName: legalName ?? payload.legalName?.trim() ?? null,
-        inn: payload.inn?.trim() || null,
-        ogrn: payload.ogrn?.trim() || null,
-        kpp: status === 'ООО' ? (payload.kpp?.trim() || null) : null,
-        legalAddressFull: payload.legalAddressFull?.trim() || null,
-        siteUrl: normalizeSiteUrl(payload.siteUrl ?? undefined),
-        shipmentType: payload.shipmentType ?? 'import'
-      }
+      data: updateData
     });
 
     return res.json({ data: { ok: true } });
