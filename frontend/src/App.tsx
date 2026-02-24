@@ -24,6 +24,7 @@ import { FavoritesPage } from './pages/FavoritesPage';
 import { ReturnsPage } from './pages/ReturnsPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { ShopPage } from './pages/ShopPage/ShopPage';
+import { CdekWidgetPage } from './pages/CdekWidgetPage';
 
 const App = () => {
   return (
@@ -94,6 +95,8 @@ const App = () => {
         <Route path="reviews" element={<AdminReviewsPage />} />
         <Route path="chats" element={<AdminChatsPage />} />
       </Route>
+
+      <Route path="/cdek-widget" element={<CdekWidgetPage />} />
     </Routes>
   );
 };
