@@ -119,6 +119,15 @@ export const ordersApi = {
     deliveryMethod?: 'courier' | 'cdek_pvz';
     cdekPvzCode?: string;
     cdekPvzAddress?: string;
+    cdekPvzCityCode?: number;
+    cdekPvzRaw?: {
+      city_code: number;
+      city?: string;
+      address_full?: string;
+      latitude?: number;
+      longitude?: number;
+      work_time?: string;
+    };
   }) => {
     const result = await api.createOrder({
       contactId: payload.contactId,
@@ -126,6 +135,8 @@ export const ordersApi = {
       deliveryMethod: payload.deliveryMethod,
       cdekPvzCode: payload.cdekPvzCode,
       cdekPvzAddress: payload.cdekPvzAddress,
+      cdekPvzCityCode: payload.cdekPvzCityCode,
+      cdekPvzRaw: payload.cdekPvzRaw,
       items: payload.items.map((item) => ({
         productId: item.productId,
         quantity: item.qty

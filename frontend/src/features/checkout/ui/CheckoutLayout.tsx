@@ -15,6 +15,7 @@ import { CheckoutLegalLinks } from './CheckoutLegalLinks';
 import styles from './CheckoutLayout.module.css';
 
 export const CheckoutLayout = () => {
+  const showYandex = import.meta.env.VITE_SHOW_YANDEX === 'true';
   const {
     data,
     error,
@@ -95,7 +96,7 @@ export const CheckoutLayout = () => {
           <h2>Доставка</h2>
 
           <DeliveryMethodSelector
-            methods={data.deliveryMethods}
+            methods={showYandex ? data.deliveryMethods : data.deliveryMethods.filter((method) => method.code !== 'PICKUP_POINT')}
             selected={data.selectedDeliveryMethod ?? 'PICKUP_POINT'}
             onSelect={(code) => void setDeliveryMethod(code)}
           />
@@ -163,7 +164,7 @@ export const CheckoutLayout = () => {
         </div>
       </aside>
 
-      <YaPvzPickerModal
+      {showYandex ? <YaPvzPickerModal
         mode="pickup"
         isOpen={isPvzOpen}
         onClose={() => setPvzOpen(false)}
@@ -195,7 +196,7 @@ export const CheckoutLayout = () => {
           setPvzOpen(false);
         }}
         city={data.address?.city ?? 'Москва'}
-      />
+      /> : null}
 
       <RecipientModal
         isOpen={isRecipientOpen}

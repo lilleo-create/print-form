@@ -213,7 +213,7 @@ export const paymentFlowService = {
           buyerPickupPvz: normalizedBuyerPickupPvz,
           sellerDropoffPvz: sellerSettings?.defaultDropoffPvzId
             ? {
-                provider: 'YANDEX_NDD',
+                provider: sellerSettings.defaultDropoffProvider === 'CDEK' ? 'CDEK' : 'YANDEX_NDD',
                 pvzId: sellerSettings.defaultDropoffPvzId,
                 raw: sellerSettings.defaultDropoffPvzMeta ?? {},
                 addressFull:

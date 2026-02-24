@@ -15,6 +15,15 @@ interface OrdersState {
     deliveryMethod?: 'courier' | 'cdek_pvz';
     cdekPvzCode?: string;
     cdekPvzAddress?: string;
+    cdekPvzCityCode?: number;
+    cdekPvzRaw?: {
+      city_code: number;
+      city?: string;
+      address_full?: string;
+      latitude?: number;
+      longitude?: number;
+      work_time?: string;
+    };
   }) => Promise<Order>;
 }
 
@@ -36,7 +45,9 @@ export const useOrdersStore = create<OrdersState>((set) => ({
     total,
     deliveryMethod,
     cdekPvzCode,
-    cdekPvzAddress
+    cdekPvzAddress,
+    cdekPvzCityCode,
+    cdekPvzRaw
   }) {
     const order = await ordersApi.create({
       buyerId: user.id,
@@ -47,7 +58,9 @@ export const useOrdersStore = create<OrdersState>((set) => ({
       total,
       deliveryMethod,
       cdekPvzCode,
-      cdekPvzAddress
+      cdekPvzAddress,
+      cdekPvzCityCode,
+      cdekPvzRaw
     });
     set((state) => ({ orders: [order, ...state.orders] }));
     return order;

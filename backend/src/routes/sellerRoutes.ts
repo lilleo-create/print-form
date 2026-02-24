@@ -404,7 +404,7 @@ const sellerSettingsSchema = z.object({
 const sellerDeliveryProfileSchema = z.object({
   dropoffPvz: z.object({
     pvzId: z.string().trim().min(1),
-    provider: z.literal('YANDEX_NDD').optional(),
+    provider: z.enum(['YANDEX_NDD', 'CDEK']).optional(),
     raw: z.unknown().optional(),
     addressFull: z.string().optional(),
     country: z.string().optional(),
@@ -934,7 +934,7 @@ sellerRoutes.get('/settings', async (req: AuthRequest, res, next) => {
         dropoffSchedule: (deliveryProfile as any)?.dropoffSchedule ?? 'DAILY',
         dropoffPvz: settings?.defaultDropoffPvzId
           ? {
-              provider: 'YANDEX_NDD',
+              provider: settings.defaultDropoffProvider ?? 'YANDEX_NDD',
               pvzId: settings.defaultDropoffPvzId,
               raw: settings.defaultDropoffPvzMeta,
               addressFull:
@@ -1213,9 +1213,50 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
   try {
     const payload = sellerDeliveryProfileSchema.parse(req.body);
     const pvzId = String(payload.dropoffPvz.pvzId ?? '').trim();
+    const provider = payload.dropoffPvz.provider ?? 'YANDEX_NDD';
 
     if (!pvzId) {
       return res.status(400).json({ error: { code: 'DROP_OFF_PVZ_ID_REQUIRED', message: 'Не выбран pvzId.' } });
+    }
+
+    if (provider === 'CDEK') {
+      const incomingRaw = payload.dropoffPvz.raw && typeof payload.dropoffPvz.raw === 'object'
+        ? payload.dropoffPvz.raw as Record<string, unknown>
+        : {};
+      const cityCode = Number(incomingRaw.city_code ?? 0);
+      if (!Number.isFinite(cityCode) || cityCode <= 0) {
+        return res.status(400).json({ error: { code: 'CITY_CODE_MISSING', message: 'CDEK dropoff raw.city_code is required', details: null } });
+      }
+
+      const cdekMeta = {
+        provider: 'CDEK' as const,
+        pvzId,
+        addressFull: payload.dropoffPvz.addressFull ?? String(incomingRaw.address_full ?? ''),
+        raw: {
+          city_code: cityCode,
+          city: String(incomingRaw.city ?? ''),
+          address_full: String(incomingRaw.address_full ?? payload.dropoffPvz.addressFull ?? ''),
+          latitude: Number(incomingRaw.latitude ?? 0),
+          longitude: Number(incomingRaw.longitude ?? 0),
+          work_time: typeof incomingRaw.work_time === 'string' ? incomingRaw.work_time : undefined
+        }
+      };
+
+      const settings = await prisma.sellerSettings.upsert({
+        where: { sellerId: req.user!.userId },
+        create: {
+          sellerId: req.user!.userId,
+          defaultDropoffProvider: 'CDEK',
+          defaultDropoffPvzId: pvzId,
+          defaultDropoffPvzMeta: cdekMeta as unknown as object
+        },
+        update: {
+          defaultDropoffProvider: 'CDEK',
+          defaultDropoffPvzId: pvzId,
+          defaultDropoffPvzMeta: cdekMeta as unknown as object
+        }
+      });
+      return res.json({ data: settings });
     }
 
     const listResp = await yandexNddClient.pickupPointsList({ pickup_point_ids: [pvzId] });
@@ -1257,8 +1298,8 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
 
     const settings = await prisma.sellerSettings.upsert({
       where: { sellerId: req.user!.userId },
-      create: { sellerId: req.user!.userId, defaultDropoffPvzId: pvzId, defaultDropoffPvzMeta: dropoffPvzMeta as unknown as object },
-      update: { defaultDropoffPvzId: pvzId, defaultDropoffPvzMeta: dropoffPvzMeta as unknown as object }
+      create: { sellerId: req.user!.userId, defaultDropoffProvider: 'YANDEX_NDD', defaultDropoffPvzId: pvzId, defaultDropoffPvzMeta: dropoffPvzMeta as unknown as object },
+      update: { defaultDropoffProvider: 'YANDEX_NDD', defaultDropoffPvzId: pvzId, defaultDropoffPvzMeta: dropoffPvzMeta as unknown as object }
     });
 
     await sellerDeliveryProfileService.upsert(req.user!.userId, {

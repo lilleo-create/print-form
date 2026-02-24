@@ -1,3 +1,3 @@
-import { CheckoutLayout } from '../features/checkout/ui/CheckoutLayout';
+import { CheckoutPageLayout } from '../components/checkout/CheckoutPageLayout';
 
-export const CheckoutPage = () => <CheckoutLayout />;
+export const CheckoutPage = () => <CheckoutPageLayout />;

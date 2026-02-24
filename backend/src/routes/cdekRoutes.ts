@@ -1,8 +1,40 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { getCdekConfig } from '../config/cdek';
 import { cdekService } from '../services/cdekService';
+import { authenticate, type AuthRequest } from '../middleware/authMiddleware';
+import { prisma } from '../lib/prisma';
 
 export const cdekRoutes = Router();
+
+const allowedProxyPaths = new Set(['deliverypoints', 'location/cities', 'pvz']);
+
+const calculateForOrderSchema = z.object({
+  orderId: z.string().min(1)
+});
+
+const toErrorResponse = (error: any) => ({
+  error: {
+    code: error?.response?.data?.code ?? 'CDEK_REQUEST_FAILED',
+    message: error?.response?.data?.message ?? error?.message ?? 'CDEK request failed',
+    details: error?.response?.data ?? null
+  }
+});
+
+const readCityCode = (meta: unknown): number | null => {
+  if (!meta || typeof meta !== 'object') return null;
+  const raw = (meta as Record<string, unknown>).raw;
+  if (!raw || typeof raw !== 'object') return null;
+  const value = (raw as Record<string, unknown>).city_code;
+  const cityCode = Number(value);
+  return Number.isFinite(cityCode) && cityCode > 0 ? cityCode : null;
+};
+
+const asPositiveInt = (value: unknown, min: number, fallback: number): number => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.max(min, Math.round(parsed));
+};
 
 cdekRoutes.get('/pickup-points', async (req, res) => {
   try {
@@ -18,13 +50,7 @@ cdekRoutes.get('/pickup-points', async (req, res) => {
 
     res.json(points);
   } catch (error: any) {
-    res.status(error?.response?.status ?? 502).json({
-      error: {
-        code: error?.response?.data?.code ?? 'CDEK_REQUEST_FAILED',
-        message: error?.response?.data?.message ?? error?.message ?? 'CDEK request failed',
-        details: error?.response?.data ?? null
-      }
-    });
+    res.status(error?.response?.status ?? 502).json(toErrorResponse(error));
   }
 });
 
@@ -43,37 +69,173 @@ cdekRoutes.post('/calculate', async (req, res) => {
 
     res.json(result);
   } catch (error: any) {
-    res.status(error?.response?.status ?? 502).json({
-      error: {
-        code: error?.response?.data?.code ?? 'CDEK_REQUEST_FAILED',
-        message: error?.response?.data?.message ?? error?.message ?? 'CDEK request failed',
-        details: error?.response?.data ?? null
-      }
-    });
+    res.status(error?.response?.status ?? 502).json(toErrorResponse(error));
   }
 });
 
-cdekRoutes.all('/service', async (req, res, next) => {
+cdekRoutes.post('/calculate-for-order', authenticate, async (req: AuthRequest, res) => {
   try {
+    const { orderId } = calculateForOrderSchema.parse(req.body ?? {});
+
+    const order = await prisma.order.findFirst({
+      where: {
+        id: orderId,
+        OR: [{ buyerId: req.user!.userId }, { items: { some: { product: { sellerId: req.user!.userId } } } }]
+      },
+      include: {
+        items: {
+          include: {
+            product: {
+              select: { id: true, weightGrossG: true, dxCm: true, dyCm: true, dzCm: true }
+            },
+            variant: {
+              select: { id: true }
+            }
+          }
+        }
+      }
+    });
+
+    if (!order) {
+      return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND', message: 'Order not found', details: { orderId } } });
+    }
+
+    const fromCityCode = readCityCode(order.sellerDropoffPvzMeta);
+    const toCityCode = readCityCode(order.buyerPickupPvzMeta);
+
+    if (!fromCityCode || !toCityCode) {
+      return res.status(400).json({
+        error: {
+          code: 'CITY_CODE_MISSING',
+          message: 'sellerDropoffPvzMeta.raw.city_code and buyerPickupPvzMeta.raw.city_code are required',
+          details: {
+            orderId,
+            fromCityCode,
+            toCityCode
+          }
+        }
+      });
+    }
+
+    let totalWeightGrams = 0;
+    let maxDx = 10;
+    let maxDy = 10;
+    let maxDz = 2;
+    let totalItems = 0;
+
+    for (const item of order.items) {
+      const weightPerItem = asPositiveInt(item.product.weightGrossG, 1, 200);
+      if (!item.product.weightGrossG || Number(item.product.weightGrossG) <= 0) {
+        console.warn('[CDEK][calculate-for-order] missing weightGrossG, using fallback 200g', {
+          orderId,
+          orderItemId: item.id,
+          productId: item.productId,
+          variantId: item.variantId
+        });
+      }
+      totalWeightGrams += weightPerItem * item.quantity;
+      totalItems += item.quantity;
+      maxDx = Math.max(maxDx, asPositiveInt(item.product.dxCm, 10, 10));
+      maxDy = Math.max(maxDy, asPositiveInt(item.product.dyCm, 10, 10));
+      maxDz = Math.max(maxDz, asPositiveInt(item.product.dzCm, 2, 2));
+    }
+
+    const packageDx = Math.max(10, maxDx);
+    const packageDy = Math.max(10, maxDy);
+    const packageDz = Math.max(2, maxDz + Math.floor((Math.max(1, totalItems) - 1) / 2));
+
+    const quote = await cdekService.calculateDelivery({
+      fromCityCode,
+      toCityCode,
+      weightGrams: totalWeightGrams,
+      lengthCm: packageDx,
+      widthCm: packageDy,
+      heightCm: packageDz
+    });
+
+    return res.json({
+      ...quote,
+      weightGrams: totalWeightGrams,
+      lengthCm: packageDx,
+      widthCm: packageDy,
+      heightCm: packageDz,
+      fromCityCode,
+      toCityCode
+    });
+  } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid payload', details: error.flatten() } });
+    }
+    return res.status(error?.response?.status ?? 502).json(toErrorResponse(error));
+  }
+});
+
+cdekRoutes.all('/service', async (req, res) => {
+  const startedAt = Date.now();
+  const pathRaw = String(req.query.path ?? req.body?.path ?? '').trim().toLowerCase();
+
+  try {
+    if (!pathRaw) {
+      return res.status(400).json({ error: { code: 'INVALID_PATH', message: 'path is required', details: null } });
+    }
+
+    if (!/^[a-z0-9/_-]+$/.test(pathRaw) || pathRaw.includes('..') || pathRaw.startsWith('/') || pathRaw.includes('http')) {
+      return res.status(400).json({ error: { code: 'INVALID_PATH', message: 'path format is invalid', details: { path: pathRaw } } });
+    }
+
+    if (!allowedProxyPaths.has(pathRaw)) {
+      return res.status(400).json({ error: { code: 'INVALID_PATH', message: 'path is not allowed', details: { path: pathRaw } } });
+    }
+
+    if (!['GET', 'POST'].includes(req.method)) {
+      return res.status(405).json({ error: { code: 'METHOD_NOT_ALLOWED', message: 'Only GET and POST are allowed', details: { method: req.method } } });
+    }
+
     const config = getCdekConfig();
     const token = await cdekService.getToken();
+    const cdekUrl = new URL(`${config.baseUrl}/v2/${pathRaw}`);
 
-    const cdekPath = String(req.query.path ?? req.body?.path ?? '');
-    const method = req.method === 'GET' ? 'GET' : 'POST';
-    const cdekUrl = `${config.baseUrl}/v2/${cdekPath}`;
+    for (const [key, value] of Object.entries(req.query)) {
+      if (key === 'path') continue;
+      if (Array.isArray(value)) {
+        value.forEach((entry) => cdekUrl.searchParams.append(key, String(entry)));
+      } else if (value !== undefined) {
+        cdekUrl.searchParams.append(key, String(value));
+      }
+    }
 
-    const response = await fetch(cdekUrl, {
-      method,
+    const body = req.method === 'POST' && req.body && typeof req.body === 'object'
+      ? Object.fromEntries(Object.entries(req.body as Record<string, unknown>).filter(([key]) => key !== 'path'))
+      : undefined;
+
+    const response = await fetch(cdekUrl.toString(), {
+      method: req.method,
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json'
       },
-      body: method === 'POST' && req.body ? JSON.stringify(req.body) : undefined
+      body: req.method === 'POST' ? JSON.stringify(body ?? {}) : undefined,
+      signal: AbortSignal.timeout(12_000)
     });
 
-    const data = await response.json();
-    res.status(response.status).json(data);
-  } catch (error) {
-    next(error);
+    const contentType = response.headers.get('content-type') ?? '';
+    if (contentType.includes('application/json')) {
+      const data = await response.json();
+      return res.status(response.status).json(data);
+    }
+
+    const text = await response.text();
+    return res.status(response.status).send(text);
+  } catch (error: any) {
+    const isTimeout = error?.name === 'TimeoutError';
+    return res.status(isTimeout ? 504 : 502).json({
+      error: {
+        code: isTimeout ? 'CDEK_TIMEOUT' : 'CDEK_PROXY_FAILED',
+        message: isTimeout ? 'CDEK proxy timeout' : error?.message ?? 'CDEK proxy failed',
+        details: null
+      }
+    });
+  } finally {
+    console.info('[CDEK][proxy]', { status: res.statusCode, durationMs: Date.now() - startedAt, path: pathRaw });
   }
 });
