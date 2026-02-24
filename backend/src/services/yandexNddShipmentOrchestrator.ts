@@ -8,6 +8,7 @@ import { looksLikePvzId, NddValidationError } from './yandexNdd/nddIdSemantics';
 import { resolvePvzIds } from './yandexNdd/resolvePvzIds';
 import { buildRequestCreatePayload } from './yandexNdd/nddOffersPayload';
 import type { RequestInfoResponse } from './yandexNdd/nddTypes';
+import { yandexMerchantService } from './yandexMerchantService';
 
 type CreateNddShipmentResult = {
   requestId: string;
@@ -66,11 +67,19 @@ export const yandexNddShipmentOrchestrator = {
       }
     });
 
-    const merchantId = String(process.env.YANDEX_NDD_MERCHANT_ID ?? process.env.YANDEX_MERCHANT_ID ?? '').trim();
+    const merchantEnsureResult = await yandexMerchantService.ensureForSeller(String(sellerId));
+    let merchantId = merchantEnsureResult.status === 'ready' ? merchantEnsureResult.merchantId.trim() : '';
+
+    if (!merchantId) {
+      // Fallback for legacy single-merchant setup.
+      merchantId = String(process.env.YANDEX_NDD_MERCHANT_ID ?? process.env.YANDEX_MERCHANT_ID ?? '').trim();
+    }
+
     if (!merchantId) {
       const err: any = new Error('NDD_MERCHANT_ID_REQUIRED');
-      err.code = 'NDD_MERCHANT_ID_REQUIRED';
-      err.message = 'Не задан merchant_id для request/create.';
+      err.code = 'NDD_MERCHANT_NOT_READY';
+      err.message = 'Не задан merchant_id для request/create. Завершите регистрацию мерчанта в Яндекс Доставке.';
+      err.details = merchantEnsureResult;
       throw err;
     }
 
