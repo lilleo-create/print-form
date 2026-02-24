@@ -668,7 +668,7 @@ export const SellerDashboardPage = () => {
     }
   };
 
-  const handleDropoffSelect = async (selection: { pvzId?: string | null; id?: string | null; addressFull?: string;[key: string]: unknown }) => {
+  const handleDropoffSelect = async (selection: { pvzId?: string | null; id?: string | null; addressFull?: string; provider?: string; raw?: unknown;[key: string]: unknown }) => {
     setDeliverySettingsMessage(null);
     setDeliverySettingsError(null);
 
@@ -683,7 +683,10 @@ export const SellerDashboardPage = () => {
     try {
       await api.updateSellerDropoffPvz({
         dropoffPvz: {
-          pvzId: selectedId
+          pvzId: selectedId,
+          provider: (selection.provider as string) ?? 'CDEK',
+          addressFull: selection.addressFull,
+          raw: selection.raw
         }
       });
 
@@ -1850,7 +1853,9 @@ export const SellerDashboardPage = () => {
                   void handleDropoffSelect({
                     pvzId: selection.pvzCode,
                     id: selection.pvzCode,
-                    addressFull: selection.addressFull
+                    addressFull: selection.addressFull,
+                    provider: 'CDEK',
+                    raw: selection.raw
                   });
                 }}
               />

@@ -246,14 +246,17 @@ cdekRoutes.all('/service', async (req, res) => {
   }
 });
 
-cdekRoutes.post('/widget/service', async (req, res) => {
+cdekRoutes.all('/widget/service', async (req, res) => {
   const startedAt = Date.now();
+  // Виджет CDEK v3 может слать как POST с JSON-телом, так и GET с query-параметрами
   const rawBody = req.body && typeof req.body === 'object' ? req.body as Record<string, unknown> : {};
-  const action = String(rawBody.action ?? rawBody.path ?? '').trim().toLowerCase();
+  const rawQuery = req.query as Record<string, unknown>;
+  const merged = { ...rawQuery, ...rawBody };
+  const action = String(merged.action ?? merged.path ?? '').trim().toLowerCase();
 
   const resolvePath = () => {
-    const pathFromBody = String(rawBody.path ?? '').trim().toLowerCase();
-    if (pathFromBody) return pathFromBody;
+    const pathFromMerged = String(merged.path ?? '').trim().toLowerCase();
+    if (pathFromMerged) return pathFromMerged;
 
     switch (action) {
       case 'cities':
@@ -273,7 +276,8 @@ cdekRoutes.post('/widget/service', async (req, res) => {
   };
 
   const path = resolvePath();
-  const method = String(rawBody.method ?? rawBody.httpMethod ?? 'POST').toUpperCase() === 'GET' ? 'GET' : 'POST';
+  // GET-запросы от виджета идут как GET, POST — как POST
+  const httpMethod = req.method === 'GET' ? 'GET' : 'POST';
 
   const { action: _action, path: _path, method: _method, httpMethod: _httpMethod, ...restBody } = rawBody;
 
@@ -292,16 +296,28 @@ cdekRoutes.post('/widget/service', async (req, res) => {
     const token = await cdekService.getToken();
     const cdekUrl = new URL(`${config.baseUrl}/v2/${path}`);
 
+    // Для GET — пробрасываем все query-параметры (кроме служебных)
+    if (httpMethod === 'GET') {
+      for (const [key, value] of Object.entries(rawQuery)) {
+        if (['action', 'path', 'method'].includes(key)) continue;
+        if (value === undefined || value === null) continue;
+        cdekUrl.searchParams.append(key, String(value));
+      }
+    }
+
+    // Для POST — пробрасываем params из тела
     const params = rawBody.params && typeof rawBody.params === 'object'
       ? rawBody.params as Record<string, unknown>
       : {};
 
-    for (const [key, value] of Object.entries(params)) {
-      if (value === undefined || value === null) continue;
-      if (Array.isArray(value)) {
-        value.forEach((entry) => cdekUrl.searchParams.append(key, String(entry)));
-      } else {
-        cdekUrl.searchParams.append(key, String(value));
+    if (httpMethod === 'POST') {
+      for (const [key, value] of Object.entries(params)) {
+        if (value === undefined || value === null) continue;
+        if (Array.isArray(value)) {
+          value.forEach((entry) => cdekUrl.searchParams.append(key, String(entry)));
+        } else {
+          cdekUrl.searchParams.append(key, String(value));
+        }
       }
     }
 
@@ -312,12 +328,12 @@ cdekRoutes.post('/widget/service', async (req, res) => {
         : restBody;
 
     const response = await fetch(cdekUrl.toString(), {
-      method,
+      method: httpMethod,
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json'
       },
-      body: method === 'POST' ? JSON.stringify(payload ?? {}) : undefined,
+      body: httpMethod === 'POST' ? JSON.stringify(payload ?? {}) : undefined,
       signal: AbortSignal.timeout(15_000)
     });
 

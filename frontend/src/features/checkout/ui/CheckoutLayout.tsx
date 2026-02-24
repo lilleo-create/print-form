@@ -5,7 +5,7 @@ import { useCheckoutStore } from '../model/useCheckoutStore';
 import { DeliveryMethodSelector } from './DeliveryMethodSelector';
 import { AddressBlock } from './AddressBlock';
 import { PickupPointBlock } from './PickupPointBlock';
-import { YaPvzPickerModal } from '../../../components/delivery/YaPvzPickerModal';
+import { CdekPvzPickerModal } from '../../../components/checkout/CdekPvzPickerModal';
 import { RecipientModal } from './RecipientModal';
 import { DeliveryDatesSection } from './DeliveryDatesSection';
 import { CheckoutItemsList } from './CheckoutItemsList';
@@ -15,7 +15,6 @@ import { CheckoutLegalLinks } from './CheckoutLegalLinks';
 import styles from './CheckoutLayout.module.css';
 
 export const CheckoutLayout = () => {
-  const showYandex = import.meta.env.VITE_SHOW_YANDEX === 'true';
   const {
     data,
     error,
@@ -50,14 +49,9 @@ export const CheckoutLayout = () => {
     [data?.cartItems]
   );
 
-  const selectedDeliveryMethod =
-    !showYandex && data?.selectedDeliveryMethod === 'PICKUP_POINT'
-      ? 'COURIER'
-      : data?.selectedDeliveryMethod ?? 'COURIER';
+  const selectedDeliveryMethod = data?.selectedDeliveryMethod ?? 'COURIER';
 
-  const availableDeliveryMethods = showYandex
-    ? data?.deliveryMethods ?? []
-    : (data?.deliveryMethods ?? []).filter((method) => method.code !== 'PICKUP_POINT');
+  const availableDeliveryMethods = data?.deliveryMethods ?? [];
 
   const handlePayClick = async () => {
     if (isPaying) return;
@@ -143,68 +137,54 @@ export const CheckoutLayout = () => {
       </div>
 
       <aside className={styles.right}>
-        <PaymentMethodSelector
-          data={data}
-          onSelectMethod={(method, cardId) =>
-            void setPaymentMethod(method, cardId)
-          }
-          onOpenAddCard={() => setAddCardOpen(true)}
-        />
+        <div className={styles.block}>
+          <PaymentMethodSelector
+            data={data}
+            onSelectMethod={(method, cardId) =>
+              void setPaymentMethod(method, cardId)
+            }
+            onOpenAddCard={() => setAddCardOpen(true)}
+          />
 
-        <div className={styles.summary}>
-          <div>Итого: {total.toLocaleString('ru-RU')} ₽</div>
+          <div className={styles.summary}>
+            <div>Итого: {total.toLocaleString('ru-RU')} ₽</div>
 
-          <Button
-            isLoading={isSubmittingOrder || isPaying}
-            disabled={isPaying}
-            onClick={() => void handlePayClick()}
-          >
-            Пополнить и оплатить
-          </Button>
-
-          {import.meta.env.DEV && pendingPaymentId ? (
-            <Button variant="ghost" disabled={isPaying} onClick={() => void handleMockSuccess()}>
-              Симулировать оплату
+            <Button
+              isLoading={isSubmittingOrder || isPaying}
+              disabled={isPaying}
+              onClick={() => void handlePayClick()}
+            >
+              Пополнить и оплатить
             </Button>
-          ) : null}
 
-          {error ? <p className={styles.error}>{error}</p> : null}
+            {import.meta.env.DEV && pendingPaymentId ? (
+              <Button variant="ghost" disabled={isPaying} onClick={() => void handleMockSuccess()}>
+                Симулировать оплату
+              </Button>
+            ) : null}
+
+            {error ? <p className={styles.error}>{error}</p> : null}
+          </div>
         </div>
       </aside>
 
-      {showYandex ? <YaPvzPickerModal
-        mode="pickup"
+      <CdekPvzPickerModal
         isOpen={isPvzOpen}
         onClose={() => setPvzOpen(false)}
         onSelect={(sel) => {
           if (import.meta.env.DEV) {
-            console.debug('[Checkout] PVZ selected', {
-              pvzId: sel.pvzId,
-              addressFull: sel.addressFull
-            });
+            console.debug('[Checkout] CDEK PVZ selected', sel);
           }
-
-          const raw = sel.raw && typeof sel.raw === 'object' ? (sel.raw as Record<string, unknown>) : null;
-          const point = raw?.point && typeof raw.point === 'object' ? (raw.point as Record<string, unknown>) : raw;
-          const buyerPickupStationId =
-            sel.buyerPickupStationId ??
-            (typeof point?.operator_station_id === 'string'
-              ? point.operator_station_id
-              : typeof raw?.operator_station_id === 'string'
-                ? raw.operator_station_id
-                : undefined);
-
           void setPickupPoint({
-            provider: 'YANDEX_NDD',
-            pvzId: sel.pvzId,
-            buyerPickupStationId,
-            addressFull: sel.addressFull ?? '',
-            raw: point ?? raw ?? sel.raw
+            provider: 'CDEK',
+            pvzId: sel.pvzCode,
+            addressFull: sel.addressFull,
+            raw: sel.raw
           });
           setPvzOpen(false);
         }}
         city={data.address?.city ?? 'Москва'}
-      /> : null}
+      />
 
       <RecipientModal
         isOpen={isRecipientOpen}

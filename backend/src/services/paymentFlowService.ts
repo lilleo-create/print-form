@@ -1,10 +1,6 @@
 import { Prisma, PaymentStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { orderUseCases } from '../usecases/orderUseCases';
-import { yandexNddClient } from './yandexNdd/YandexNddClient';
-import { resolvePvzIds } from './yandexNdd/resolvePvzIds';
-import { buildOffersCreatePayload } from './yandexNdd/nddOffersPayload';
-import { looksLikePvzId } from './yandexNdd/nddIdSemantics';
 
 type StartPaymentInput = {
   buyerId: string;
@@ -17,10 +13,10 @@ type StartPaymentInput = {
   packagesCount?: number;
   items: { productId: string; variantId?: string; quantity: number }[];
   buyerPickupPvz: {
-    provider: 'YANDEX_NDD';
-    pvzId: string; // pvz self_pickup_id (uuid)
-    buyerPickupPlatformStationId?: string; // platform_station_id (uuid) - важно!
-    buyerPickupOperatorStationId?: string; // digits (не обязателен для request/create)
+    provider: 'CDEK' | 'YANDEX_NDD';
+    pvzId: string;
+    buyerPickupPlatformStationId?: string;
+    buyerPickupOperatorStationId?: string;
     addressFull?: string;
     raw?: unknown;
   };
@@ -48,15 +44,12 @@ const normalizeDigits = (value: unknown): string | null => {
 const normalizeBuyerPickupPvz = (input: StartPaymentInput['buyerPickupPvz']) => {
   const raw = asRecord(input.raw) ?? {};
 
-  // ✅ platform_station_id = UUID (а не digits!)
   const buyerPickupPlatformStationId =
     normalizeUuid(input.buyerPickupPlatformStationId) ??
     normalizeUuid(raw.buyerPickupPlatformStationId) ??
     normalizeUuid(raw.platform_station_id) ??
-    normalizeUuid(raw.station_id) ?? // иногда так называют
     null;
 
-  // digits операторская станция можно оставить как инфо
   const buyerPickupOperatorStationId =
     normalizeDigits(input.buyerPickupOperatorStationId) ??
     normalizeDigits(raw.buyerPickupOperatorStationId) ??
@@ -87,101 +80,6 @@ const buildOrderLabels = (orderId: string, packagesCount: number) => {
     const packageNo = index + 1;
     const base = `PF-${shortId}-${packageNo}`;
     return { packageNo, code: base.slice(0, 15) };
-  });
-};
-
-const createDeliveryForPaidOrder = async (orderId: string) => {
-  const order = await prisma.order.findUnique({
-    where: { id: orderId },
-    include: {
-      buyer: true,
-      contact: true,
-      items: { include: { product: true, variant: true } }
-    }
-  });
-
-  if (!order || order.status !== 'PAID' || order.yandexRequestId !== 'PROCESSING') return;
-  if (!looksLikePvzId(order.sellerDropoffPvzId) || !looksLikePvzId(order.buyerPickupPvzId)) {
-    console.warn('[PAYMENT][NDD] skip createDelivery: missing seller or buyer PVZ id', {
-      orderId,
-      sellerDropoffPvzId: order.sellerDropoffPvzId ?? null,
-      buyerPickupPvzId: order.buyerPickupPvzId ?? null
-    });
-    await prisma.order.update({ where: { id: order.id }, data: { yandexRequestId: null, yandexStatus: 'CREATION_FAILED' } });
-    return;
-  }
-
-  const sellerDropoffPvzId = String(order.sellerDropoffPvzId).trim();
-  const buyerPickupPvzId = String(order.buyerPickupPvzId).trim();
-
-  let requestId: string | null = null;
-  try {
-    const [sellerPvz, buyerPvz] = await Promise.all([
-      resolvePvzIds(sellerDropoffPvzId),
-      resolvePvzIds(buyerPickupPvzId)
-    ]);
-
-    console.info('[PAYMENT][NDD][offers]', {
-      orderId,
-      sellerDropoffPvzId,
-      buyerPickupPvzId,
-      resolved: {
-        sourcePlatformId: sellerPvz.platformId,
-        sourceOperatorStationId: sellerPvz.operatorStationId,
-        destPlatformId: buyerPvz.platformId,
-        destOperatorStationId: buyerPvz.operatorStationId
-      }
-    });
-
-    const payload = buildOffersCreatePayload({
-      order: order as any,
-      sellerPvz,
-      buyerPvz
-    });
-
-    const offersResponse = (await yandexNddClient.offersCreate(payload as Record<string, unknown>, {
-      orderId: order.id,
-      requestId: order.id
-    })) as { offers?: Array<{ offer_id?: string }> };
-
-    const offers = Array.isArray(offersResponse?.offers) ? offersResponse.offers : [];
-    const firstOffer = offers[0];
-    if (!firstOffer?.offer_id) {
-      throw new Error('NDD_NO_OFFERS');
-    }
-
-    const confirmResponse = (await yandexNddClient.offersConfirm({
-      offer_id: firstOffer.offer_id
-    })) as { request_id?: string; status?: string; request?: { request_id?: string; status?: string; sharing_url?: string } };
-
-    requestId = String(confirmResponse?.request_id ?? confirmResponse?.request?.request_id ?? '').trim();
-    if (!requestId) {
-      throw new Error('NDD_CONFIRM_NO_REQUEST_ID');
-    }
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    console.error('[PAYMENT][NDD] offers/create or offers/confirm failed', { orderId, msg });
-    await prisma.order.update({ where: { id: order.id }, data: { yandexRequestId: null, yandexStatus: 'CREATION_FAILED' } });
-    throw error;
-  }
-
-  let status: string | null = null;
-  let sharingUrl: string | null = null;
-  try {
-    const info = (await yandexNddClient.requestInfo(requestId)) as { status?: string; sharing_url?: string; request?: { status?: string; sharing_url?: string } };
-    status = info?.status ?? info?.request?.status ?? null;
-    sharingUrl = info?.sharing_url ?? info?.request?.sharing_url ?? null;
-  } catch {
-    status = 'CREATED';
-  }
-
-  await prisma.order.update({
-    where: { id: order.id },
-    data: {
-      yandexRequestId: requestId,
-      yandexStatus: status ?? undefined,
-      yandexSharingUrl: sharingUrl ?? undefined
-    }
   });
 };
 
@@ -257,6 +155,7 @@ export const paymentFlowService = {
     const normalizedBuyerPickupPvz = normalizeBuyerPickupPvz(input.buyerPickupPvz);
     console.info('[PAYMENT][buyer_pvz]', {
       buyerId: input.buyerId,
+      provider: input.buyerPickupPvz.provider,
       buyerPickupPvzId: input.buyerPickupPvz.pvzId,
       buyerPickupPlatformStationId: normalizedBuyerPickupPvz.buyerPickupPlatformStationId ?? null,
       buyerPickupOperatorStationId: normalizedBuyerPickupPvz.buyerPickupOperatorStationId ?? null,
@@ -349,13 +248,13 @@ export const paymentFlowService = {
     if (!payment) return { ok: true };
 
     if (input.status === 'success') {
-      const updated = await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx) => {
         const order = await tx.order.findUnique({ where: { id: payment.orderId } });
-        if (!order) return { shouldCreateDelivery: false };
+        if (!order) return;
 
         if (order.status === 'PAID') {
           await tx.payment.update({ where: { id: payment.id }, data: { status: 'SUCCEEDED' } });
-          return { shouldCreateDelivery: false };
+          return;
         }
 
         await tx.payment.update({ where: { id: payment.id }, data: { status: 'SUCCEEDED' } });
@@ -370,18 +269,7 @@ export const paymentFlowService = {
             payoutStatus: 'HOLD'
           }
         });
-
-        const claimed = await tx.order.updateMany({
-          where: { id: order.id, yandexRequestId: null },
-          data: { yandexRequestId: 'PROCESSING' }
-        });
-
-        return { shouldCreateDelivery: claimed.count > 0 };
       });
-
-      if (updated.shouldCreateDelivery) {
-        await createDeliveryForPaidOrder(payment.orderId);
-      }
 
       return { ok: true };
     }

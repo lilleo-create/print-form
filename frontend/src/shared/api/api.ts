@@ -417,6 +417,9 @@ export const api = {
   async updateSellerDropoffPvz(payload: {
     dropoffPvz: {
       pvzId: string;
+      provider?: string;
+      addressFull?: string;
+      raw?: unknown;
     };
   }) {
     return apiClient.request<SellerDeliveryProfile>(

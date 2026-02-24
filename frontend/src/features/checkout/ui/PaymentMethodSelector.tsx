@@ -9,7 +9,7 @@ type Props = {
 };
 
 export const PaymentMethodSelector = ({ data, onSelectMethod, onOpenAddCard }: Props) => (
-  <div className={styles.block}>
+  <div className={styles.wrap}>
     <h3>Оплата</h3>
     <div className={styles.grid}>
       {data.savedCards.map((card) => (

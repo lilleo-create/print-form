@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc --noEmit)",
+      "Bash(xargs grep -li \"yandex\")",
+      "Bash(grep -v \"//.*yandex\")"
+    ]
+  }
+}

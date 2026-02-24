@@ -210,6 +210,8 @@ model Order {
   yandexCourierOrderId String?
   yandexSelfPickupCode Json?
   yandexActualInfo     Json?
+  cdekOrderId          String?
+  cdekStatus           String?
   payoutStatus         String               @default("HOLD")
   readyForShipmentAt   DateTime?
   dropoffDeadlineAt    DateTime?

@@ -8,17 +8,19 @@ declare global {
   }
 }
 
+const CDEK_SCRIPT_URL = 'https://cdn.jsdelivr.net/npm/@cdek-it/widget@3';
 const rootId = 'cdek-widget-root';
 
 const toNumber = (value: unknown): number | undefined => {
-  const numberValue = Number(value);
-  return Number.isFinite(numberValue) ? numberValue : undefined;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : undefined;
 };
 
 const buildSelectionPayload = (address: Record<string, unknown>): CdekPvzSelection => {
-  const location = address.location && typeof address.location === 'object'
-    ? (address.location as Record<string, unknown>)
-    : null;
+  const location =
+    address.location && typeof address.location === 'object'
+      ? (address.location as Record<string, unknown>)
+      : null;
 
   return {
     pvzCode: String(address.code ?? ''),
@@ -32,6 +34,30 @@ const buildSelectionPayload = (address: Record<string, unknown>): CdekPvzSelecti
   };
 };
 
+function loadCdekScript(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (window.CDEKWidget) {
+      resolve();
+      return;
+    }
+
+    const existing = document.querySelector(`script[src="${CDEK_SCRIPT_URL}"]`);
+    if (existing) {
+      existing.addEventListener('load', () => resolve());
+      existing.addEventListener('error', () => reject(new Error('Ошибка загрузки скрипта CDEK')));
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = CDEK_SCRIPT_URL;
+    script.charset = 'utf-8';
+    script.type = 'text/javascript';
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Ошибка загрузки скрипта CDEK'));
+    document.head.appendChild(script);
+  });
+}
+
 export const CdekWidgetPage = () => {
   const [searchParams] = useSearchParams();
   const city = searchParams.get('city') || 'Москва';
@@ -43,64 +69,87 @@ export const CdekWidgetPage = () => {
     initializedRef.current = false;
     setError(null);
 
-    const frame = requestAnimationFrame(() => {
+    let cancelled = false;
+
+    const init = async () => {
+      try {
+        await loadCdekScript();
+      } catch (e) {
+        if (cancelled) return;
+        const reason = e instanceof Error ? e.message : 'Ошибка загрузки скрипта CDEK';
+        setError(reason);
+        window.parent.postMessage(
+          { type: 'CDEK_WIDGET_STATUS', payload: { ok: false, reason } },
+          window.location.origin
+        );
+        return;
+      }
+
+      if (cancelled) return;
+
       const root = document.getElementById(rootId);
       if (!root) {
         const reason = 'Не найден контейнер виджета';
         setError(reason);
-        window.parent.postMessage({ type: 'CDEK_WIDGET_STATUS', payload: { ok: false, reason } }, window.location.origin);
-        console.info('[CDEK][widget][init]', { ok: false, reason });
+        window.parent.postMessage(
+          { type: 'CDEK_WIDGET_STATUS', payload: { ok: false, reason } },
+          window.location.origin
+        );
         return;
       }
+
+      if (!window.CDEKWidget) {
+        const reason = 'window.CDEKWidget отсутствует после загрузки скрипта';
+        setError(reason);
+        window.parent.postMessage(
+          { type: 'CDEK_WIDGET_STATUS', payload: { ok: false, reason } },
+          window.location.origin
+        );
+        return;
+      }
+
+      if (initializedRef.current) return;
+      initializedRef.current = true;
 
       root.innerHTML = '';
 
-      if (!window.CDEKWidget) {
-        const reason = 'window.CDEKWidget отсутствует';
-        setError(reason);
-        window.parent.postMessage({ type: 'CDEK_WIDGET_STATUS', payload: { ok: false, reason } }, window.location.origin);
-        console.info('[CDEK][widget][init]', { ok: false, reason });
-        return;
-      }
-
-      if (initializedRef.current) {
-        return;
-      }
-
-      initializedRef.current = true;
-
       new window.CDEKWidget({
         from: city,
-        root,
-        apiKey: import.meta.env.VITE_YANDEX_MAPS_KEY ?? '',
+        root: rootId,
+        apiKey: import.meta.env.VITE_YMAPS_API_KEY ?? '',
         servicePath: `${window.location.origin}/api/cdek/widget/service`,
         defaultLocation: city,
-        hideDeliveryOptions: {
-          door: true
-        },
+        hideDeliveryOptions: { door: true },
         onReady: () => {
+          if (cancelled) return;
           setError(null);
-          window.parent.postMessage({ type: 'CDEK_WIDGET_STATUS', payload: { ok: true } }, window.location.origin);
-          console.info('[CDEK][widget][init]', { ok: true });
+          window.parent.postMessage(
+            { type: 'CDEK_WIDGET_STATUS', payload: { ok: true } },
+            window.location.origin
+          );
         },
         onChoose: (
           _type: string,
           _tariff: unknown,
           address: Record<string, unknown>
         ) => {
+          if (cancelled) return;
           const payload = buildSelectionPayload(address);
-          window.parent.postMessage({ type: 'CDEK_PVZ_SELECTED', payload }, window.location.origin);
+          window.parent.postMessage(
+            { type: 'CDEK_PVZ_SELECTED', payload },
+            window.location.origin
+          );
         }
       });
-    });
+    };
+
+    void init();
 
     return () => {
-      cancelAnimationFrame(frame);
+      cancelled = true;
       initializedRef.current = false;
       const root = document.getElementById(rootId);
-      if (root) {
-        root.innerHTML = '';
-      }
+      if (root) root.innerHTML = '';
     };
   }, [city, retryToken]);
 
@@ -108,10 +157,10 @@ export const CdekWidgetPage = () => {
     <main style={{ height: '100vh', minHeight: 600, width: '100%' }}>
       {error ? (
         <div style={{ padding: '12px', color: '#b42318' }}>
-          Виджет не загрузился
+          {error}
           <button
             type="button"
-            onClick={() => setRetryToken((value) => value + 1)}
+            onClick={() => setRetryToken((v) => v + 1)}
             style={{ marginLeft: '0.5rem' }}
           >
             Повторить
