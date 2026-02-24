@@ -68,6 +68,27 @@ export class YandexDeliveryService {
     return { buffer: Buffer.from(buffer), contentType: 'application/pdf' };
   }
 
+  async merchantRegistrationInit(
+    externalMerchantId: string,
+    payload: Record<string, unknown>,
+    meta?: { requestId?: string; sellerId?: string; orderId?: string }
+  ): Promise<{ registration_id: string }> {
+    const response = await yandexDeliveryIntegration.merchantRegistrationInit(externalMerchantId, payload, meta);
+    console.info('[YANDEX_MERCHANT][init]', {
+      registrationId: String(response.registration_id ?? '').slice(0, 8) || undefined,
+    });
+    return response;
+  }
+
+  async merchantRegistrationStatus(
+    registrationId: string,
+    meta?: { requestId?: string; sellerId?: string; orderId?: string }
+  ): Promise<{ status: 'in_progress' | 'success' | 'validation_error'; merchant_id?: string; error?: unknown }> {
+    const response = await yandexDeliveryIntegration.merchantRegistrationStatus(registrationId, meta);
+    console.info('[YANDEX_MERCHANT][status]', { status: response.status });
+    return response;
+  }
+
   // available, not yet orchestrated in routes
   mapError(error: unknown): AppError {
     return mapYandexError(error);

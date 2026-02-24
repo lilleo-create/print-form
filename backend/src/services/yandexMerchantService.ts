@@ -66,7 +66,24 @@ function buildInitPayload(profile: {
   legalAddressFull: string | null;
   siteUrl: string | null;
   shipmentType: string | null;
-}) {
+}): {
+  contact: {
+    name: string;
+    email: string;
+    phone: string;
+    representative_name: string;
+  };
+  legal_info: {
+    type: string;
+    name: string;
+    inn: string;
+    address: { full_address: string };
+    ogrn?: string;
+    kpp?: string;
+  };
+  site_url: string;
+  shipment_type: 'import' | 'withdraw';
+} {
   const contact = {
     name: String(profile.contactName ?? '').trim(),
     email: String(profile.contactEmail ?? '').trim(),
@@ -75,11 +92,23 @@ function buildInitPayload(profile: {
   };
 
   const legalType = profile.legalType ?? 'ИП';
-  const legalInfo: Record<string, unknown> = {
-    type: legalType === LEGAL_TYPE_OOO ? 'legal_entity' : legalType === LEGAL_TYPE_IP ? 'individual_entrepreneur' : 'self_employed',
+  const typeMap: Record<string, string> = {
+    [LEGAL_TYPE_OOO]: LEGAL_TYPE_OOO,
+    [LEGAL_TYPE_IP]: LEGAL_TYPE_IP,
+    [LEGAL_TYPE_SAMOZANYATY]: 'Физ. лицо'
+  };
+  const legalInfo: {
+    type: string;
+    name: string;
+    inn: string;
+    address: { full_address: string };
+    ogrn?: string;
+    kpp?: string;
+  } = {
+    type: typeMap[legalType] ?? LEGAL_TYPE_IP,
     name: String(profile.legalName ?? '').trim(),
     inn: String(profile.inn ?? '').trim(),
-    address: String(profile.legalAddressFull ?? '').trim()
+    address: { full_address: String(profile.legalAddressFull ?? '').trim() }
   };
   if (profile.ogrn && profile.ogrn.trim()) legalInfo.ogrn = profile.ogrn.trim();
   if (profile.kpp && profile.kpp.trim()) legalInfo.kpp = profile.kpp.trim();

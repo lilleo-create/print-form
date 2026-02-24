@@ -14,12 +14,31 @@ export const yandexDeliveryService = {
     yandexDeliveryOrchestrator.getHandoverAct(params, body),
   getRequestHistory: async (_requestId: string) => null,
   getActualInfo: async (_requestId: string) => null,
-  merchantRegistrationInit: async () => {
-    throw new Error('NOT_IMPLEMENTED');
-  },
-  merchantRegistrationStatus: async () => {
-    throw new Error('NOT_IMPLEMENTED');
-  },
+  merchantRegistrationInit: async (
+    externalMerchantId: string,
+    payload: {
+      contact: {
+        name: string;
+        email: string;
+        phone: string;
+        representative_name: string;
+      };
+      legal_info: {
+        type: string;
+        name: string;
+        inn: string;
+        address: { full_address: string };
+        ogrn?: string;
+        kpp?: string;
+      };
+      site_url: string;
+      shipment_type: 'import' | 'withdraw';
+    }
+  ): Promise<{ registration_id: string }> => yandexDeliveryOrchestrator.merchantRegistrationInit(externalMerchantId, payload),
+  merchantRegistrationStatus: async (
+    registrationId: string
+  ): Promise<{ status: 'in_progress' | 'success' | 'validation_error'; merchant_id?: string; error?: unknown }> =>
+    yandexDeliveryOrchestrator.merchantRegistrationStatus(registrationId),
   merchantInfo: async () => {
     throw new Error('NOT_IMPLEMENTED');
   },
