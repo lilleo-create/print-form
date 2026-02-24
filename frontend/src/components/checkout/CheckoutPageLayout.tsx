@@ -63,6 +63,7 @@ export const CheckoutPageLayout = () => {
   const [deliveryMethod, setDeliveryMethod] = useState<'courier' | 'cdek_pvz'>('cdek_pvz');
   const [cdekPvz, setCdekPvz] = useState<CdekPvzSelection | null>(null);
   const [isCdekModalOpen, setIsCdekModalOpen] = useState(false);
+  const [deliveryQuote, setDeliveryQuote] = useState<null | { totalSum: number; deliveryDaysMin: number; deliveryDaysMax: number }>(null);
 
   const {
     contacts,
@@ -229,8 +230,33 @@ export const CheckoutPageLayout = () => {
       total,
       deliveryMethod,
       cdekPvzCode: cdekPvz?.pvzCode,
-      cdekPvzAddress: cdekPvz?.addressFull
+      cdekPvzAddress: cdekPvz?.addressFull,
+      cdekPvzCityCode: cdekPvz?.cityCode,
+      cdekPvzRaw: cdekPvz?.cityCode
+        ? {
+            city_code: cdekPvz.cityCode,
+            city: cdekPvz.cityName,
+            address_full: cdekPvz.addressFull,
+            latitude: cdekPvz.latitude,
+            longitude: cdekPvz.longitude,
+            work_time: cdekPvz.workTime
+          }
+        : undefined
     });
+
+    if (deliveryMethod === 'cdek_pvz') {
+      try {
+        const quote = await api.calculateCdekForOrder(order.id);
+        alert(`СДЭК: ${quote.data.totalSum} ₽, срок ${quote.data.deliveryDaysMin}-${quote.data.deliveryDaysMax} дн.`);
+        setDeliveryQuote({
+          totalSum: quote.data.totalSum,
+          deliveryDaysMin: quote.data.deliveryDaysMin,
+          deliveryDaysMax: quote.data.deliveryDaysMax
+        });
+      } catch (error) {
+        console.warn('[Checkout] Failed to calculate CDEK quote for created order', error);
+      }
+    }
 
     let createdPaymentIntent: PaymentIntent | null = null;
     try {
@@ -311,6 +337,11 @@ export const CheckoutPageLayout = () => {
 
               {deliveryMethod === 'cdek_pvz' && (
                 <div>
+                  {deliveryQuote ? (
+                    <p style={{ marginTop: 0, marginBottom: '0.75rem', color: '#444' }}>
+                      Доставка: ~{deliveryQuote.totalSum} ₽, {deliveryQuote.deliveryDaysMin}-{deliveryQuote.deliveryDaysMax} дн.
+                    </p>
+                  ) : null}
                   {cdekPvz ? (
                     <div style={{ marginBottom: '0.75rem' }}>
                       <p style={{ margin: 0, fontWeight: 500 }}>📍 {cdekPvz.addressFull}</p>

@@ -134,7 +134,7 @@ class CdekService {
         return {
           code: String(point.code ?? ''),
           name: String(point.name ?? ''),
-          address: String(point.location?.address_full ?? point.work_time ?? ''),
+          address: String(point.location?.address_full ?? ''),
           cityCode: Number(point.location?.city_code ?? 0),
           cityName: String(point.location?.city ?? ''),
           latitude: Number.isFinite(lat) ? lat : 0,

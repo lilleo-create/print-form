@@ -516,11 +516,38 @@ export const api = {
     deliveryMethod?: 'courier' | 'cdek_pvz';
     cdekPvzCode?: string;
     cdekPvzAddress?: string;
+    cdekPvzCityCode?: number;
+    cdekPvzRaw?: {
+      city_code: number;
+      city?: string;
+      address_full?: string;
+      latitude?: number;
+      longitude?: number;
+      work_time?: string;
+    };
     items: { productId: string; variantId?: string; quantity: number }[];
   }) {
     return apiClient.request<Order>('/orders', {
       method: 'POST',
       body: payload
+    });
+  },
+
+  async calculateCdekForOrder(orderId: string) {
+    return apiClient.request<{
+      totalSum: number;
+      deliveryDaysMin: number;
+      deliveryDaysMax: number;
+      tariffCode: 136;
+      weightGrams: number;
+      lengthCm: number;
+      widthCm: number;
+      heightCm: number;
+      fromCityCode: number;
+      toCityCode: number;
+    }>('/cdek/calculate-for-order', {
+      method: 'POST',
+      body: { orderId }
     });
   },
 

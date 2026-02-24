@@ -19,10 +19,21 @@ const yaPvzSelectionSchema = z.object({
   raw: z.unknown()
 });
 
+const cdekPvzRawSchema = z.object({
+  city_code: z.number().int().positive(),
+  city: z.string().optional(),
+  address_full: z.string().optional(),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
+  work_time: z.string().optional()
+});
+
 const createOrderSchema = z.object({
   buyerPickupPvz: yaPvzSelectionSchema.optional(),
   cdekPvzCode: z.string().min(1).optional(),
   cdekPvzAddress: z.string().optional(),
+  cdekPvzCityCode: z.number().int().positive().optional(),
+  cdekPvzRaw: cdekPvzRawSchema.optional(),
   deliveryMethod: z.enum(['courier', 'cdek_pvz']).optional(),
   contactId: z.string().optional(),
   shippingAddressId: z.string().optional(),
@@ -40,11 +51,22 @@ const createOrderSchema = z.object({
 orderRoutes.post('/', authenticate, writeLimiter, async (req: AuthRequest, res, next) => {
   try {
     const payload = createOrderSchema.parse(req.body);
-    const { cdekPvzCode, cdekPvzAddress, deliveryMethod } = req.body as {
+    const { cdekPvzCode, cdekPvzAddress, deliveryMethod, cdekPvzRaw, cdekPvzCityCode } = payload as {
       cdekPvzCode?: string;
       cdekPvzAddress?: string;
+      cdekPvzRaw?: z.infer<typeof cdekPvzRawSchema>;
+      cdekPvzCityCode?: number;
       deliveryMethod?: 'courier' | 'cdek_pvz';
     };
+
+    if (deliveryMethod === 'cdek_pvz' && !cdekPvzCode) {
+      return res.status(400).json({ error: { code: 'CDEK_PVZ_CODE_REQUIRED', message: 'cdekPvzCode is required for cdek_pvz', details: null } });
+    }
+
+    const resolvedBuyerCityCode = Number(cdekPvzCityCode ?? cdekPvzRaw?.city_code ?? 0);
+    if (deliveryMethod === 'cdek_pvz' && (!Number.isFinite(resolvedBuyerCityCode) || resolvedBuyerCityCode <= 0)) {
+      return res.status(400).json({ error: { code: 'CITY_CODE_MISSING', message: 'cdekPvzCityCode or cdekPvzRaw.city_code is required', details: null } });
+    }
 
     const product = await prisma.product.findFirst({
       where: { id: payload.items[0]?.productId },
@@ -57,6 +79,20 @@ orderRoutes.post('/', authenticate, writeLimiter, async (req: AuthRequest, res, 
 
     const sellerSettings = await prisma.sellerSettings.findUnique({ where: { sellerId: product.sellerId } });
 
+    if (sellerSettings?.defaultDropoffProvider === 'CDEK') {
+      const raw = (sellerSettings.defaultDropoffPvzMeta as Record<string, unknown> | null)?.raw;
+      const cityCode = raw && typeof raw === 'object' ? Number((raw as Record<string, unknown>).city_code ?? 0) : 0;
+      if (!Number.isFinite(cityCode) || cityCode <= 0) {
+        return res.status(400).json({
+          error: {
+            code: 'CITY_CODE_MISSING',
+            message: 'seller CDEK dropoff PVZ meta must contain raw.city_code',
+            details: { sellerId: product.sellerId }
+          }
+        });
+      }
+    }
+
     const order = await orderUseCases.create({
       buyerId: req.user!.userId,
       contactId: payload.contactId,
@@ -66,8 +102,15 @@ orderRoutes.post('/', authenticate, writeLimiter, async (req: AuthRequest, res, 
         ? {
             provider: 'CDEK',
             pvzId: cdekPvzCode,
-            raw: {},
-            addressFull: cdekPvzAddress ?? ''
+            raw: {
+              city_code: resolvedBuyerCityCode,
+              city: cdekPvzRaw?.city ?? '',
+              address_full: cdekPvzRaw?.address_full ?? cdekPvzAddress ?? '',
+              latitude: cdekPvzRaw?.latitude,
+              longitude: cdekPvzRaw?.longitude,
+              work_time: cdekPvzRaw?.work_time
+            },
+            addressFull: cdekPvzAddress ?? cdekPvzRaw?.address_full ?? ''
           }
         : payload.buyerPickupPvz
           ? {
@@ -79,7 +122,7 @@ orderRoutes.post('/', authenticate, writeLimiter, async (req: AuthRequest, res, 
             : undefined,
       sellerDropoffPvz: sellerSettings?.defaultDropoffPvzId
         ? {
-            provider: 'YANDEX_NDD',
+            provider: sellerSettings.defaultDropoffProvider === 'CDEK' ? 'CDEK' : 'YANDEX_NDD',
             pvzId: sellerSettings.defaultDropoffPvzId,
             raw: sellerSettings.defaultDropoffPvzMeta ?? {},
             addressFull: typeof sellerSettings.defaultDropoffPvzMeta === 'object' && sellerSettings.defaultDropoffPvzMeta

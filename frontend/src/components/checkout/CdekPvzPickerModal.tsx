@@ -11,6 +11,10 @@ export type CdekPvzSelection = {
   pvzCode: string;
   addressFull: string;
   cityName?: string;
+  cityCode?: number;
+  latitude?: number;
+  longitude?: number;
+  workTime?: string;
   raw?: unknown;
 };
 
@@ -83,10 +87,18 @@ export function CdekPvzPickerModal({
           _tariff: unknown,
           address: Record<string, unknown>
         ) => {
+          const location = address.location && typeof address.location === 'object' ? address.location as Record<string, unknown> : null;
+          const cityCode = Number(address.city_code ?? address.cityCode ?? location?.city_code ?? 0);
+          const latitude = Number(address.latitude ?? location?.latitude ?? 0);
+          const longitude = Number(address.longitude ?? location?.longitude ?? 0);
           onSelect({
             pvzCode: String(address.code ?? ''),
-            addressFull: String(address.address ?? ''),
+            addressFull: String(address.address_full ?? address.address ?? ''),
             cityName: String(address.city ?? ''),
+            cityCode: Number.isFinite(cityCode) ? cityCode : undefined,
+            latitude: Number.isFinite(latitude) ? latitude : undefined,
+            longitude: Number.isFinite(longitude) ? longitude : undefined,
+            workTime: typeof address.work_time === 'string' ? address.work_time : undefined,
             raw: address
           });
           onClose();
