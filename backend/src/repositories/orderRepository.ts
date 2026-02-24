@@ -7,8 +7,8 @@ export const orderRepository = {
     paymentAttemptKey?: string;
     contactId?: string;
     shippingAddressId?: string;
-    buyerPickupPvz?: { provider: 'YANDEX_NDD'; pvzId: string; raw: unknown; addressFull?: string };
-    sellerDropoffPvz?: { provider: 'YANDEX_NDD'; pvzId: string; raw: unknown; addressFull?: string };
+    buyerPickupPvz?: { provider: 'YANDEX_NDD' | 'CDEK'; pvzId: string; raw: unknown; addressFull?: string };
+    sellerDropoffPvz?: { provider: 'YANDEX_NDD' | 'CDEK'; pvzId: string; raw: unknown; addressFull?: string };
     recipient?: { name: string; phone: string; email?: string | null };
     packagesCount?: number;
     orderLabels?: { packageNo: number; code: string }[];

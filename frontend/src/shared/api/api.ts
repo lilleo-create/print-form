@@ -513,6 +513,9 @@ export const api = {
   async createOrder(payload: {
     contactId?: string;
     shippingAddressId?: string;
+    deliveryMethod?: 'courier' | 'cdek_pvz';
+    cdekPvzCode?: string;
+    cdekPvzAddress?: string;
     items: { productId: string; variantId?: string; quantity: number }[];
   }) {
     return apiClient.request<Order>('/orders', {
