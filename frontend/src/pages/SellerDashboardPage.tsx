@@ -179,7 +179,7 @@ export const SellerDashboardPage = () => {
     if (!sellerProfile) return false;
     const required = requiredMerchantFieldsByStatus[sellerProfile.status] ?? requiredMerchantFieldsByStatus['ИП'];
     return required.every((field) => {
-      const v = (sellerProfile as Record<string, unknown>)[field];
+      const v = (sellerProfile as unknown as Record<string, unknown>)[field];
       return v !== undefined && v !== null && String(v).trim() !== '';
     });
   })();
@@ -266,8 +266,8 @@ export const SellerDashboardPage = () => {
       setDropoffStationId(stationId);
       setDropoffStationAddress(
         dropoffMeta?.addressFull ??
-          dropoffPvz?.addressFull ??
-          ''
+        dropoffPvz?.addressFull ??
+        ''
       );
       setDropoffPvzAddress(dropoffPvz?.addressFull ?? dropoffMeta?.addressFull ?? '');
       setDropoffSchedule(profileResponse.data?.dropoffSchedule === 'DAILY' ? 'DAILY' : 'WEEKDAYS');
@@ -668,7 +668,7 @@ export const SellerDashboardPage = () => {
     }
   };
 
-  const handleDropoffSelect = async (selection: { pvzId?: string | null; id?: string | null; addressFull?: string; [key: string]: unknown }) => {
+  const handleDropoffSelect = async (selection: { pvzId?: string | null; id?: string | null; addressFull?: string;[key: string]: unknown }) => {
     setDeliverySettingsMessage(null);
     setDeliverySettingsError(null);
 
@@ -884,9 +884,8 @@ export const SellerDashboardPage = () => {
     <section className={styles.page}>
       <div className={styles.shell}>
         <aside
-          className={`${styles.sidebar} ${
-            isMenuOpen ? styles.sidebarOpen : ''
-          }`}
+          className={`${styles.sidebar} ${isMenuOpen ? styles.sidebarOpen : ''
+            }`}
         >
           <div className={styles.sidebarHeader}>
             <h2>Кабинет продавца</h2>
@@ -1007,11 +1006,11 @@ export const SellerDashboardPage = () => {
 
                       {(kycSubmission?.moderationNotes ||
                         kycSubmission?.notes) && (
-                        <p className={styles.kycNotes}>
-                          Комментарий:{' '}
-                          {kycSubmission.moderationNotes ?? kycSubmission.notes}
-                        </p>
-                      )}
+                          <p className={styles.kycNotes}>
+                            Комментарий:{' '}
+                            {kycSubmission.moderationNotes ?? kycSubmission.notes}
+                          </p>
+                        )}
 
                       <div className={styles.sectionHeader}>
                         <h3>Данные для мерчанта (Яндекс NDD)</h3>
@@ -1425,8 +1424,8 @@ export const SellerDashboardPage = () => {
                                 {order.shipment?.status ?? 'не создана'}
                                 {order.shipment?.lastSyncAt
                                   ? ` · обновлено ${new Date(
-                                      order.shipment.lastSyncAt
-                                    ).toLocaleString('ru-RU')}`
+                                    order.shipment.lastSyncAt
+                                  ).toLocaleString('ru-RU')}`
                                   : ''}
                               </p>
 

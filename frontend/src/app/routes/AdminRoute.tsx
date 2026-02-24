@@ -32,6 +32,7 @@ export const AdminRoute = ({ children }: AdminRouteProps) => {
         const role = normalizeRole(profile.role);
         const user: User = {
           ...profile,
+          name: profile.name ?? "",   // ← ключевой фикс
           role,
           phone: profile.phone ?? null,
           address: profile.address ?? null
