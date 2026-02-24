@@ -1,11 +1,5 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import styles from '../../shared/ui/address/AddressModal.module.css';
-
-declare global {
-  interface Window {
-    CDEKWidget: new (config: Record<string, unknown>) => unknown;
-  }
-}
 
 export type CdekPvzSelection = {
   pvzCode: string;
@@ -25,13 +19,26 @@ type Props = {
   city?: string;
 };
 
+type CdekWidgetMessage =
+  | {
+      type: 'CDEK_PVZ_SELECTED';
+      payload: CdekPvzSelection;
+    }
+  | {
+      type: 'CDEK_WIDGET_STATUS';
+      payload: { ok: boolean; reason?: string };
+    };
+
 export function CdekPvzPickerModal({
   isOpen,
   onClose,
   onSelect,
   city = 'Москва'
 }: Props) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [widgetStatus, setWidgetStatus] = useState<{ ok: boolean; reason?: string } | null>(null);
+  const [iframeToken, setIframeToken] = useState(0);
+
+  const iframeSrc = useMemo(() => `/cdek-widget?city=${encodeURIComponent(city)}`, [city]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -61,53 +68,30 @@ export function CdekPvzPickerModal({
   useEffect(() => {
     if (!isOpen) return;
 
-    const timer = window.setTimeout(() => {
-      if (!window.CDEKWidget) {
-        console.error('[CdekPvzPickerModal] CDEKWidget не загружен');
+    const messageHandler = (event: MessageEvent<CdekWidgetMessage>) => {
+      if (event.origin !== window.location.origin) return;
+      if (!event.data || typeof event.data !== 'object') return;
+
+      if (event.data.type === 'CDEK_WIDGET_STATUS') {
+        setWidgetStatus(event.data.payload);
         return;
       }
 
-      if (!containerRef.current) return;
-      containerRef.current.innerHTML = '';
+      if (event.data.type === 'CDEK_PVZ_SELECTED') {
+        onSelect(event.data.payload);
+        onClose();
+      }
+    };
 
-      new window.CDEKWidget({
-        from: city,
-        root: containerRef.current,
-        apiKey: '',
-        servicePath: `${import.meta.env.VITE_API_URL ?? 'http://localhost:4000'}/api/cdek/service`,
-        defaultLocation: city,
-        hideDeliveryOptions: {
-          door: true
-        },
-        onReady: () => {
-          console.info('[CdekPvzPickerModal] widget ready');
-        },
-        onChoose: (
-          _type: string,
-          _tariff: unknown,
-          address: Record<string, unknown>
-        ) => {
-          const location = address.location && typeof address.location === 'object' ? address.location as Record<string, unknown> : null;
-          const cityCode = Number(address.city_code ?? address.cityCode ?? location?.city_code ?? 0);
-          const latitude = Number(address.latitude ?? location?.latitude ?? 0);
-          const longitude = Number(address.longitude ?? location?.longitude ?? 0);
-          onSelect({
-            pvzCode: String(address.code ?? ''),
-            addressFull: String(address.address_full ?? address.address ?? ''),
-            cityName: String(address.city ?? ''),
-            cityCode: Number.isFinite(cityCode) ? cityCode : undefined,
-            latitude: Number.isFinite(latitude) ? latitude : undefined,
-            longitude: Number.isFinite(longitude) ? longitude : undefined,
-            workTime: typeof address.work_time === 'string' ? address.work_time : undefined,
-            raw: address
-          });
-          onClose();
-        }
-      });
-    }, 150);
+    window.addEventListener('message', messageHandler);
+    return () => window.removeEventListener('message', messageHandler);
+  }, [isOpen, onClose, onSelect]);
 
-    return () => clearTimeout(timer);
-  }, [isOpen, city, onSelect, onClose]);
+  useEffect(() => {
+    if (!isOpen) {
+      setWidgetStatus(null);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -129,9 +113,33 @@ export function CdekPvzPickerModal({
             ✕
           </button>
         </div>
-        <div style={{ height: '600px', overflow: 'hidden' }}>
-          <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
-        </div>
+        {!widgetStatus?.ok && widgetStatus?.reason ? (
+          <div style={{ marginBottom: '0.75rem', color: '#b42318' }}>
+            Виджет не загрузился: {widgetStatus.reason}
+            <button
+              type="button"
+              onClick={() => {
+                setWidgetStatus(null);
+                setIframeToken((value) => value + 1);
+              }}
+              style={{ marginLeft: '0.75rem' }}
+            >
+              Повторить
+            </button>
+          </div>
+        ) : null}
+        <iframe
+          key={iframeToken}
+          title="Выбор пункта выдачи CDEK"
+          src={iframeSrc}
+          style={{
+            width: '100%',
+            height: '70vh',
+            minHeight: '520px',
+            border: 0,
+            borderRadius: 'var(--radius-card)'
+          }}
+        />
       </div>
     </div>
   );

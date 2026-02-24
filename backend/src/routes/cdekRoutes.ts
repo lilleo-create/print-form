@@ -8,6 +8,12 @@ import { prisma } from '../lib/prisma';
 export const cdekRoutes = Router();
 
 const allowedProxyPaths = new Set(['deliverypoints', 'location/cities', 'pvz']);
+const allowedWidgetServicePaths = new Set([
+  'deliverypoints',
+  'location/cities',
+  'pvz',
+  'calculator/tariff'
+]);
 
 const calculateForOrderSchema = z.object({
   orderId: z.string().min(1)
@@ -237,5 +243,106 @@ cdekRoutes.all('/service', async (req, res) => {
     });
   } finally {
     console.info('[CDEK][proxy]', { status: res.statusCode, durationMs: Date.now() - startedAt, path: pathRaw });
+  }
+});
+
+cdekRoutes.post('/widget/service', async (req, res) => {
+  const startedAt = Date.now();
+  const rawBody = req.body && typeof req.body === 'object' ? req.body as Record<string, unknown> : {};
+  const action = String(rawBody.action ?? rawBody.path ?? '').trim().toLowerCase();
+
+  const resolvePath = () => {
+    const pathFromBody = String(rawBody.path ?? '').trim().toLowerCase();
+    if (pathFromBody) return pathFromBody;
+
+    switch (action) {
+      case 'cities':
+      case 'city':
+      case 'location/cities':
+        return 'location/cities';
+      case 'deliverypoints':
+      case 'pvz':
+      case 'offices':
+        return 'deliverypoints';
+      case 'calculator/tariff':
+      case 'calculate':
+        return 'calculator/tariff';
+      default:
+        return action;
+    }
+  };
+
+  const path = resolvePath();
+  const method = String(rawBody.method ?? rawBody.httpMethod ?? 'POST').toUpperCase() === 'GET' ? 'GET' : 'POST';
+
+  const { action: _action, path: _path, method: _method, httpMethod: _httpMethod, ...restBody } = rawBody;
+
+  try {
+    if (!path || !allowedWidgetServicePaths.has(path)) {
+      return res.status(400).json({
+        error: {
+          code: 'INVALID_WIDGET_ACTION',
+          message: 'Unsupported widget action/path',
+          details: { action, path }
+        }
+      });
+    }
+
+    const config = getCdekConfig();
+    const token = await cdekService.getToken();
+    const cdekUrl = new URL(`${config.baseUrl}/v2/${path}`);
+
+    const params = rawBody.params && typeof rawBody.params === 'object'
+      ? rawBody.params as Record<string, unknown>
+      : {};
+
+    for (const [key, value] of Object.entries(params)) {
+      if (value === undefined || value === null) continue;
+      if (Array.isArray(value)) {
+        value.forEach((entry) => cdekUrl.searchParams.append(key, String(entry)));
+      } else {
+        cdekUrl.searchParams.append(key, String(value));
+      }
+    }
+
+    const payload = rawBody.payload && typeof rawBody.payload === 'object'
+      ? rawBody.payload
+      : rawBody.data && typeof rawBody.data === 'object'
+        ? rawBody.data
+        : restBody;
+
+    const response = await fetch(cdekUrl.toString(), {
+      method,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: method === 'POST' ? JSON.stringify(payload ?? {}) : undefined,
+      signal: AbortSignal.timeout(15_000)
+    });
+
+    const contentType = response.headers.get('content-type') ?? '';
+    if (contentType.includes('application/json')) {
+      const data = await response.json();
+      return res.status(response.status).json(data);
+    }
+
+    const text = await response.text();
+    return res.status(response.status).send(text);
+  } catch (error: any) {
+    const isTimeout = error?.name === 'TimeoutError';
+    return res.status(isTimeout ? 504 : 502).json({
+      error: {
+        code: isTimeout ? 'CDEK_TIMEOUT' : 'CDEK_WIDGET_PROXY_FAILED',
+        message: isTimeout ? 'CDEK widget service timeout' : error?.message ?? 'CDEK widget service failed',
+        details: null
+      }
+    });
+  } finally {
+    console.info('[CDEK][widgetService]', {
+      action: action || path,
+      status: res.statusCode,
+      durationMs: Date.now() - startedAt
+    });
   }
 });

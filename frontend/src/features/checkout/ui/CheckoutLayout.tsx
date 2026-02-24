@@ -50,6 +50,14 @@ export const CheckoutLayout = () => {
     [data?.cartItems]
   );
 
+  const selectedDeliveryMethod =
+    !showYandex && data?.selectedDeliveryMethod === 'PICKUP_POINT'
+      ? 'COURIER'
+      : data?.selectedDeliveryMethod ?? 'COURIER';
+
+  const availableDeliveryMethods = showYandex
+    ? data?.deliveryMethods ?? []
+    : (data?.deliveryMethods ?? []).filter((method) => method.code !== 'PICKUP_POINT');
 
   const handlePayClick = async () => {
     if (isPaying) return;
@@ -96,12 +104,12 @@ export const CheckoutLayout = () => {
           <h2>Доставка</h2>
 
           <DeliveryMethodSelector
-            methods={showYandex ? data.deliveryMethods : data.deliveryMethods.filter((method) => method.code !== 'PICKUP_POINT')}
-            selected={data.selectedDeliveryMethod ?? 'PICKUP_POINT'}
+            methods={availableDeliveryMethods}
+            selected={selectedDeliveryMethod}
             onSelect={(code) => void setDeliveryMethod(code)}
           />
 
-          {data.selectedDeliveryMethod === 'PICKUP_POINT' ? (
+          {selectedDeliveryMethod === 'PICKUP_POINT' ? (
             <PickupPointBlock
               point={data.selectedPickupPoint ?? null}
               onOpen={() => {
