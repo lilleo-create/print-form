@@ -458,10 +458,18 @@ export class YandexNddClient {
     return normalized;
   }
 
-  requestCreate(body: JsonRecord) {
-    return this.request<JsonRecord>('/api/b2b/platform/request/create', {
+  requestCreate(body: JsonRecord, opts?: { requestId?: string; orderId?: string }) {
+    const path = '/api/b2b/platform/request/create?send_unix=true';
+    console.info('[YANDEX_NDD][request/create]', {
+      orderId: opts?.orderId ?? 'n/a',
+      requestId: opts?.requestId ?? 'n/a',
+      url: this.buildUrl(path),
+      method: 'POST'
+    });
+    return this.request<JsonRecord>(path, {
       method: 'POST',
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      requestId: opts?.requestId
     });
   }
 
