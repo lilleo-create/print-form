@@ -29,6 +29,7 @@ import { startShipmentsSyncJob } from './jobs/shipmentsSyncJob';
 import { nddRoutes } from "./routes/nddRoutes";
 import { debugRoutes } from "./routes/debugRoutes";
 import { deliveryYandexRoutes } from "./modules/deliveryYandex/routes";
+import { cdekRoutes } from './routes/cdekRoutes';
 
 const app = express();
 const uploadsDir = path.join(process.cwd(), "uploads");
@@ -96,6 +97,7 @@ app.use("/favorites", favoritesRoutes);
 app.use("/checkout", checkoutRoutes);
 app.use('/internal', internalRoutes);
 app.use("/api/ndd", nddRoutes);
+app.use('/api/cdek', cdekRoutes);
 app.use("/delivery", deliveryYandexRoutes);
 app.use("/debug", debugRoutes);
 app.use(errorHandler);
