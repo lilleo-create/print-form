@@ -76,6 +76,7 @@ export const yandexNddShipmentOrchestrator = {
     }
 
     if (!merchantId) {
+      // TODO: если Яндекс недоступен — использовать cdekService.createOrder()
       const err: any = new Error('NDD_MERCHANT_ID_REQUIRED');
       err.code = 'NDD_MERCHANT_NOT_READY';
       err.message = 'Не задан merchant_id для request/create. Завершите регистрацию мерчанта в Яндекс Доставке.';
