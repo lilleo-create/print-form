@@ -1,4 +1,4 @@
-import { ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../app/store/authStore';
 import { api } from '../shared/api';
@@ -109,9 +109,10 @@ export const SellerDashboardPage = () => {
   const [kycSubmission, setKycSubmission] =
     useState<SellerKycSubmission | null>(null);
   const [kycLoading, setKycLoading] = useState(false);
-  const [isKycUploading, setIsKycUploading] = useState(false);
+  const [isKycSubmitting, setIsKycSubmitting] = useState(false);
   const [kycMessage, setKycMessage] = useState<string | null>(null);
   const [kycError, setKycError] = useState<string | null>(null);
+  const [selectedKycFiles, setSelectedKycFiles] = useState<File[]>([]);
 
   const [merchantForm, setMerchantForm] = useState({
     contactName: '',
@@ -126,17 +127,13 @@ export const SellerDashboardPage = () => {
     siteUrl: '',
     shipmentType: 'import' as 'import' | 'withdraw'
   });
-  const [isMerchantSaving, setIsMerchantSaving] = useState(false);
-  const [merchantSaveMessage, setMerchantSaveMessage] = useState<string | null>(null);
-  const [merchantSaveError, setMerchantSaveError] = useState<string | null>(null);
 
   const [payments, setPayments] = useState<Payment[]>([]);
   const [paymentsLoading, setPaymentsLoading] = useState(true);
   const [paymentsError, setPaymentsError] = useState<string | null>(null);
 
   // === Delivery profile ===
-  const [dropoffStationId, setDropoffStationId] = useState('');
-  const [dropoffStationAddress, setDropoffStationAddress] = useState('');
+  const [dropoffPvzId, setDropoffPvzId] = useState('');
   const [dropoffPvzAddress, setDropoffPvzAddress] = useState('');
   const [dropoffSchedule, setDropoffSchedule] = useState<'DAILY' | 'WEEKDAYS'>('WEEKDAYS');
   const [isDropoffModalOpen, setDropoffModalOpen] = useState(false);
@@ -168,7 +165,7 @@ export const SellerDashboardPage = () => {
 
   const isAuthLoading = authStatus === 'loading' || contextStatus === 'loading';
 
-  const hasDropoffStation = Boolean(dropoffStationId.trim());
+  const hasDropoffPvz = Boolean(dropoffPvzId.trim());
 
   const requiredMerchantFieldsByStatus: Record<string, string[]> = {
     ООО: ['contactName', 'contactEmail', 'contactPhone', 'representativeName', 'legalName', 'inn', 'ogrn', 'kpp', 'legalAddressFull', 'siteUrl'],
@@ -179,21 +176,25 @@ export const SellerDashboardPage = () => {
     if (!sellerProfile) return false;
     const required = requiredMerchantFieldsByStatus[sellerProfile.status] ?? requiredMerchantFieldsByStatus['ИП'];
     return required.every((field) => {
-      const v = (sellerProfile as unknown as Record<string, unknown>)[field];
+      const v = (merchantForm as unknown as Record<string, unknown>)[field];
       return v !== undefined && v !== null && String(v).trim() !== '';
     });
   })();
 
   const minKycDocs = sellerProfile?.status === 'ООО' ? 2 : 1;
-  const hasEnoughDocs = (kycSubmission?.documents?.length ?? 0) >= minKycDocs;
+  const totalDocs = (kycSubmission?.documents?.length ?? 0) + selectedKycFiles.length;
+  const hasEnoughDocs = totalDocs >= minKycDocs;
+  const isKycPending = kycSubmission?.status === 'PENDING';
 
-  const kycSubmitDisabledReason = !hasEnoughDocs
-    ? (sellerProfile?.status === 'ООО' ? 'Загрузите минимум 2 документа.' : 'Загрузите минимум 1 документ.')
-    : !hasDropoffStation
-      ? 'Выберите точку отгрузки (обязательно).'
-      : !hasMerchantData
-        ? 'Заполните блок «Данные для мерчанта» и нажмите «Сохранить».'
-        : null;
+  const kycSubmitDisabledReason = isKycPending
+    ? 'Заявка уже находится на проверке.'
+    : !hasEnoughDocs
+      ? (sellerProfile?.status === 'ООО' ? 'Загрузите минимум 2 документа.' : 'Загрузите минимум 1 документ.')
+      : !hasDropoffPvz
+        ? 'Выберите точку отгрузки (обязательно).'
+        : !hasMerchantData
+          ? 'Заполните обязательные поля продавца.'
+          : null;
 
   useEffect(() => {
     if (!sellerContextError) return;
@@ -258,17 +259,11 @@ export const SellerDashboardPage = () => {
         return next;
       });
 
-      // load seller delivery profile (dropoff station)
       const profileResponse = await api.getSellerDeliveryProfile();
       const dropoffPvz = profileResponse.data?.dropoffPvz;
       const dropoffMeta = profileResponse.data?.defaultDropoffPvzMeta;
-      const stationId = profileResponse.data?.dropoffStationId ?? '';
-      setDropoffStationId(stationId);
-      setDropoffStationAddress(
-        dropoffMeta?.addressFull ??
-        dropoffPvz?.addressFull ??
-        ''
-      );
+      const selectedPvzId = dropoffPvz?.pvzId ?? profileResponse.data?.defaultDropoffPvzId ?? '';
+      setDropoffPvzId(selectedPvzId);
       setDropoffPvzAddress(dropoffPvz?.addressFull ?? dropoffMeta?.addressFull ?? '');
       setDropoffSchedule(profileResponse.data?.dropoffSchedule === 'DAILY' ? 'DAILY' : 'WEEKDAYS');
     } catch (error) {
@@ -419,44 +414,23 @@ export const SellerDashboardPage = () => {
     void loadOrdersByStatus(statusFilter);
   }, [isSellerReady, loadOrdersByStatus, orders, statusFilter]);
 
-  const handleKycUpload = async (event: ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (!files || files.length === 0) return;
-
+  const handleKycSubmit = async () => {
     if (!isSellerReady) {
-      setKycMessage('Подключите профиль продавца, чтобы загрузить документы.');
-      event.target.value = '';
+      setKycMessage('Подключите профиль продавца, чтобы отправить документы.');
+      return;
+    }
+    if (!hasDropoffPvz) {
+      setKycError('Выберите точку отгрузки перед отправкой.');
       return;
     }
 
-    setIsKycUploading(true);
     setKycMessage(null);
     setKycError(null);
+    setIsKycSubmitting(true);
 
-    try {
-      await api.uploadSellerKycDocuments(files);
-      const response = await api.getSellerKyc();
-      setKycSubmission(response.data);
-      setKycMessage('Документы загружены.');
-    } catch (error) {
-      if (isAccessError(error)) {
-        setKycError('Сессия истекла, войдите снова.');
-      } else {
-        setKycError('Не удалось загрузить документы.');
-      }
-    } finally {
-      setIsKycUploading(false);
-      event.target.value = '';
-    }
-  };
-
-  const handleSaveMerchantData = async () => {
-    setMerchantSaveMessage(null);
-    setMerchantSaveError(null);
-    setIsMerchantSaving(true);
     try {
       const status = sellerProfile?.status ?? 'ИП';
-      const payload: Record<string, string> = {
+      const merchantPayload: Record<string, string> = {
         contactName: merchantForm.contactName.trim(),
         contactEmail: merchantForm.contactEmail.trim(),
         contactPhone: merchantForm.contactPhone.trim(),
@@ -465,60 +439,42 @@ export const SellerDashboardPage = () => {
         inn: merchantForm.inn.trim(),
         shipmentType: merchantForm.shipmentType
       };
-      if (merchantForm.representativeName.trim()) payload.representativeName = merchantForm.representativeName.trim();
-      if (merchantForm.legalName.trim()) payload.legalName = merchantForm.legalName.trim();
+
+      if (merchantForm.representativeName.trim()) merchantPayload.representativeName = merchantForm.representativeName.trim();
+      if (merchantForm.legalName.trim()) merchantPayload.legalName = merchantForm.legalName.trim();
       if (status === 'ООО') {
-        payload.representativeName = merchantForm.representativeName.trim() || merchantForm.contactName.trim();
-        payload.legalName = merchantForm.legalName.trim();
-        payload.ogrn = merchantForm.ogrn.trim();
-        payload.kpp = merchantForm.kpp.trim();
+        merchantPayload.representativeName = merchantForm.representativeName.trim() || merchantForm.contactName.trim();
+        merchantPayload.legalName = merchantForm.legalName.trim();
+        merchantPayload.ogrn = merchantForm.ogrn.trim();
+        merchantPayload.kpp = merchantForm.kpp.trim();
       }
-      if (status === 'ИП') payload.ogrn = merchantForm.ogrn.trim();
-      await api.updateSellerMerchantData(payload as any);
-      setMerchantSaveMessage('Данные для мерчанта сохранены.');
-      await reload();
-    } catch (error) {
-      const normalized = normalizeApiError(error);
-      setMerchantSaveError(normalized.message ?? 'Не удалось сохранить.');
-    } finally {
-      setIsMerchantSaving(false);
-    }
-  };
+      if (status === 'ИП') merchantPayload.ogrn = merchantForm.ogrn.trim();
 
-  const handleKycSubmit = async () => {
-    if (!isSellerReady) {
-      setKycMessage('Подключите профиль продавца, чтобы отправить документы.');
-      return;
-    }
-    if (!hasDropoffStation) {
-      setKycError('Выберите точку отгрузки перед отправкой.');
-      return;
-    }
-    if (!hasMerchantData) {
-      setKycError('Заполните данные для мерчанта и нажмите «Сохранить».');
-      return;
-    }
-
-    setKycMessage(null);
-    setKycError(null);
-
-    try {
       const response = await api.submitSellerKyc({
-        dropoffStationId: dropoffStationId.trim(),
-        dropoffPlatformStationId: dropoffStationId.trim(),
-        dropoffStationMeta: {
-          addressFull: dropoffStationAddress.trim() || dropoffStationId.trim()
-        }
+        merchantData: merchantPayload as {
+          contactName: string;
+          contactEmail: string;
+          contactPhone: string;
+          representativeName?: string;
+          legalAddressFull: string;
+          siteUrl: string;
+          shipmentType?: 'import' | 'withdraw';
+          legalName?: string;
+          inn: string;
+          ogrn?: string;
+          kpp?: string;
+        },
+        dropoffPvzId: dropoffPvzId.trim(),
+        dropoffPvzMeta: {
+          addressFull: dropoffPvzAddress.trim() || dropoffPvzId.trim(),
+          provider: 'CDEK'
+        },
+        files: selectedKycFiles
       });
-      const data = response.data as unknown as { error?: { code?: string; message?: string }; id?: string };
-      if (data?.error?.code === 'MERCHANT_REGISTRATION_IN_PROGRESS') {
-        setKycError(data.error.message ?? 'Регистрация в Яндексе выполняется. Попробуйте через минуту.');
-        return;
-      }
-      if (!data?.error && response.data) {
-        setKycSubmission(response.data as SellerKycSubmission);
-        setKycMessage('Заявка отправлена на проверку.');
-      }
+
+      setKycSubmission(response.data);
+      setKycMessage('Заявка отправлена на проверку.');
+      setSelectedKycFiles([]);
       await reload();
     } catch (error) {
       const normalized = normalizeApiError(error);
@@ -526,17 +482,17 @@ export const SellerDashboardPage = () => {
       const code = payload?.error?.code ?? normalized.code;
       if (isAccessError(error)) {
         setKycError('Сессия истекла, войдите снова.');
-      } else if (code === 'SELLER_STATION_ID_REQUIRED') {
+      } else if (code === 'DROP_OFF_PVZ_REQUIRED') {
         setKycError('Выберите точку отгрузки (обязательно).');
-      } else if (code === 'MERCHANT_DATA_REQUIRED') {
-        setKycError(payload?.error?.message ?? 'Заполните данные для мерчанта в блоке выше.');
-      } else if (code === 'MERCHANT_REGISTRATION_INVALID') {
-        setKycError(payload?.error?.message ?? 'Ошибка валидации при регистрации мерчанта. Проверьте данные.');
+      } else if (code === 'MERCHANT_DATA_VALIDATION_ERROR') {
+        setKycError(payload?.error?.message ?? 'Проверьте данные продавца.');
       } else if (code === 'KYC_DOCS_REQUIRED') {
         setKycError(payload?.error?.message ?? 'Загрузите достаточно документов.');
       } else {
         setKycError(normalized.message ?? 'Не удалось отправить на проверку.');
       }
+    } finally {
+      setIsKycSubmitting(false);
     }
   };
 
@@ -635,9 +591,9 @@ export const SellerDashboardPage = () => {
     setDeliverySettingsMessage(null);
     setDeliverySettingsError(null);
 
-    const stationId = dropoffStationId.trim();
+    const selectedPvzId = dropoffPvzId.trim();
 
-    if (!stationId) {
+    if (!selectedPvzId) {
       setDeliverySettingsError('Выберите пункт приёма в списке.');
       return;
     }
@@ -645,20 +601,19 @@ export const SellerDashboardPage = () => {
     try {
       await api.updateSellerDropoffPvz({
         dropoffPvz: {
-          pvzId: stationId
+          pvzId: selectedPvzId
         }
       });
 
       const profileResponse = await api.getSellerDeliveryProfile();
-      const syncedStationId = profileResponse.data?.dropoffStationId ?? stationId;
-      const dropoffMeta = profileResponse.data?.dropoffStationMeta;
+      const syncedPvzId = profileResponse.data?.dropoffPvz?.pvzId ?? profileResponse.data?.defaultDropoffPvzId ?? selectedPvzId;
+      const dropoffMeta = profileResponse.data?.defaultDropoffPvzMeta;
       const metaAddress =
         dropoffMeta && typeof dropoffMeta === 'object'
           ? String((dropoffMeta as Record<string, unknown>).addressFull ?? '')
           : '';
 
-      setDropoffStationId(syncedStationId);
-      setDropoffStationAddress(metaAddress || dropoffStationAddress || dropoffPvzAddress);
+      setDropoffPvzId(syncedPvzId);
       setDropoffPvzAddress(metaAddress || dropoffPvzAddress);
 
       setDeliverySettingsMessage('Пункт приёма сохранён.');
@@ -690,8 +645,7 @@ export const SellerDashboardPage = () => {
         }
       });
 
-      setDropoffStationId(selectedId);
-      setDropoffStationAddress(selection.addressFull ?? '');
+      setDropoffPvzId(selectedId);
       setDropoffPvzAddress(selection.addressFull ?? '');
       setDeliverySettingsMessage('Пункт приёма сохранён.');
       setDropoffModalOpen(false);
@@ -722,7 +676,7 @@ export const SellerDashboardPage = () => {
         return;
       }
       setOrderUpdateError(
-        'Не удалось создать заявку доставки. Проверьте станцию отгрузки и данные ПВЗ.'
+        'Не удалось создать заявку доставки. Проверьте точку отгрузки и данные ПВЗ.'
       );
     }
   };
@@ -805,7 +759,7 @@ export const SellerDashboardPage = () => {
 
   const readyToShipDisabledReason = (order: Order) => {
     if (!order.paidAt && order.status !== 'PAID') return 'Ожидает оплаты';
-    if (!order.sellerDropoffPvzMeta && !dropoffStationId)
+    if (!order.sellerDropoffPvzMeta && !dropoffPvzId)
       return 'Не выбран ПВЗ сдачи';
     if (
       !order.shipment?.requestId &&
@@ -991,8 +945,8 @@ export const SellerDashboardPage = () => {
                 <div className={styles.section}>
                   <div className={styles.sectionHeader}>
                     <div>
-                      <h2>KYC документы</h2>
-                      <p>Загрузите документы для верификации продавца.</p>
+                      <h2>Подключение продавца</h2>
+                      <p>Заполните данные продавца, выберите точку отгрузки и прикрепите документы одним отправлением.</p>
                     </div>
                   </div>
 
@@ -1016,9 +970,10 @@ export const SellerDashboardPage = () => {
                         )}
 
                       <div className={styles.sectionHeader}>
-                        <h3>Данные для мерчанта (Яндекс NDD)</h3>
-                        <p>Нужны для регистрации в доставке. Заполните и нажмите «Сохранить».</p>
+                        <h3>Данные продавца</h3>
+                        <p>Все поля отправляются вместе с точкой отгрузки и документами.</p>
                       </div>
+                      <fieldset disabled={isKycPending || isKycSubmitting} style={{ border: 0, padding: 0, margin: 0, display: 'grid', gap: '12px' }}>
                       <div className={styles.settingsGrid}>
                         <label className={styles.labelBlock}>
                           Контактное лицо (ФИО)
@@ -1118,53 +1073,35 @@ export const SellerDashboardPage = () => {
                           </select>
                         </label>
                       </div>
-                      <div className={styles.kycActions}>
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          onClick={handleSaveMerchantData}
-                          disabled={isMerchantSaving}
-                        >
-                          {isMerchantSaving ? 'Сохранение...' : 'Сохранить данные мерчанта'}
-                        </Button>
-                        {merchantSaveMessage && <p className={styles.kycMessage}>{merchantSaveMessage}</p>}
-                        {merchantSaveError && <p className={styles.error}>{merchantSaveError}</p>}
+                      <div className={styles.sectionHeader}>
+                        <h3>Точка отгрузки</h3>
                       </div>
 
                       <div className={styles.settingsGrid}>
                         <div>
-                          <span className={styles.muted}>
-                            Точка отгрузки (обязательно)
-                          </span>
-                          <p>
-                            {hasDropoffStation
-                              ? dropoffStationId
-                              : 'Не выбрана'}
-                          </p>
-                          {dropoffStationAddress ? (
-                            <p className={styles.muted}>
-                              {dropoffStationAddress}
-                            </p>
-                          ) : null}
+                          <span className={styles.muted}>Выбранный dropoffPvzId</span>
+                          <p>{hasDropoffPvz ? dropoffPvzId : 'Не выбрана'}</p>
+                          {dropoffPvzAddress ? <p className={styles.muted}>{dropoffPvzAddress}</p> : null}
                           <Button
                             type="button"
                             variant="secondary"
                             onClick={() => setDropoffModalOpen(true)}
+                            disabled={isKycPending}
                           >
                             Выбрать на карте
                           </Button>
                         </div>
                       </div>
 
+                      <div className={styles.sectionHeader}>
+                        <h3>Документы</h3>
+                      </div>
+
                       {kycSubmission?.documents?.length ? (
                         <ul className={styles.kycDocs}>
                           {kycSubmission.documents.map((doc) => (
                             <li key={doc.id}>
-                              <a
-                                href={doc.url}
-                                target="_blank"
-                                rel="noreferrer"
-                              >
+                              <a href={doc.url} target="_blank" rel="noreferrer">
                                 {doc.originalName}
                               </a>
                             </li>
@@ -1174,17 +1111,8 @@ export const SellerDashboardPage = () => {
                         <p className={styles.muted}>Документы не загружены.</p>
                       )}
 
-                      <p className={styles.muted}>
-                        Без точки отгрузки документы не отправятся. В будущем
-                        можно изменить в настройках. Поле отправляется вместе с
-                        документами на проверку.
-                      </p>
-
-                      {!hasDropoffStation && (
-                        <p className={styles.error}>
-                          Выберите точку отгрузки (station_id) через карту в
-                          настройках продавца.
-                        </p>
+                      {selectedKycFiles.length > 0 && (
+                        <p className={styles.muted}>Новые документы к отправке: {selectedKycFiles.map((file) => file.name).join(', ')}</p>
                       )}
 
                       <div className={styles.kycActions}>
@@ -1193,33 +1121,27 @@ export const SellerDashboardPage = () => {
                             type="file"
                             multiple
                             accept=".pdf,image/png,image/jpeg"
-                            onChange={handleKycUpload}
-                            disabled={isKycUploading}
+                            onChange={(event) => setSelectedKycFiles(Array.from(event.target.files ?? []))}
+                            disabled={isKycPending || isKycSubmitting}
                           />
-                          {isKycUploading
-                            ? 'Загрузка...'
-                            : 'Загрузить документы'}
+                          {isKycSubmitting ? 'Отправка...' : 'Выбрать документы'}
                         </label>
 
                         <Button
                           type="button"
                           onClick={handleKycSubmit}
-                          disabled={Boolean(kycSubmitDisabledReason)}
+                          disabled={Boolean(kycSubmitDisabledReason) || isKycSubmitting}
                         >
                           Отправить на проверку
                         </Button>
+
+                        {isKycPending && <p className={styles.kycMessage}>На проверке</p>}
                       </div>
 
-                      {kycSubmitDisabledReason && (
-                        <p className={styles.muted}>
-                          {kycSubmitDisabledReason}
-                        </p>
-                      )}
-
+                      {kycSubmitDisabledReason && <p className={styles.muted}>{kycSubmitDisabledReason}</p>}
+                      </fieldset>
                       {kycError && <p className={styles.error}>{kycError}</p>}
-                      {kycMessage && (
-                        <p className={styles.kycMessage}>{kycMessage}</p>
-                      )}
+                      {kycMessage && <p className={styles.kycMessage}>{kycMessage}</p>}
                     </div>
                   )}
                 </div>
@@ -1416,8 +1338,8 @@ export const SellerDashboardPage = () => {
                                   '—'}
                               </p>
                               <p className={styles.muted}>
-                                source_platform_station:{' '}
-                                {dropoffStationId || 'не задана'}
+                                source_dropoff_pvz:{' '}
+                                {dropoffPvzId || 'не задана'}
                               </p>
                               <p className={styles.muted}>
                                 Выплата: {payoutLabel(order.payoutStatus)}
@@ -1781,11 +1703,11 @@ export const SellerDashboardPage = () => {
                         Пункт приёма (C2C dropoff)
                       </span>
                       <p>
-                        {dropoffStationId || 'Не определена'}
+                        {dropoffPvzId || 'Не определена'}
                       </p>
 
-                      {dropoffStationAddress ? (
-                        <p className={styles.muted}>{dropoffStationAddress}</p>
+                      {dropoffPvzAddress ? (
+                        <p className={styles.muted}>{dropoffPvzAddress}</p>
                       ) : null}
 
                       <div className={styles.inlineActions}>
@@ -1798,10 +1720,10 @@ export const SellerDashboardPage = () => {
                         </Button>
                       </div>
 
-                      {dropoffStationId ? (
+                      {dropoffPvzId ? (
                         <p className={styles.muted}>
-                          Пункт приёма: {dropoffStationId}
-                          {dropoffStationAddress ? ` (${dropoffStationAddress})` : ''}
+                          Пункт приёма: {dropoffPvzId}
+                          {dropoffPvzAddress ? ` (${dropoffPvzAddress})` : ''}
                         </p>
                       ) : (
                         <p className={styles.muted}>Пункт приёма не выбран.</p>
@@ -1824,7 +1746,7 @@ export const SellerDashboardPage = () => {
                   <Button
                     type="button"
                     onClick={handleSaveDeliveryProfile}
-                    disabled={!dropoffStationId.trim()}
+                    disabled={!dropoffPvzId.trim()}
                   >
                     Сохранить пункт приёма
                   </Button>

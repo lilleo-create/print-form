@@ -722,25 +722,6 @@ export const api = {
     }>('/seller/onboarding', { method: 'POST', body: payload });
   },
 
-  async updateSellerMerchantData(payload: {
-    contactName: string;
-    contactEmail: string;
-    contactPhone: string;
-    representativeName?: string;
-    legalAddressFull: string;
-    siteUrl: string;
-    shipmentType?: 'import' | 'withdraw';
-    legalName?: string;
-    inn: string;
-    ogrn?: string;
-    kpp?: string;
-  }) {
-    return apiClient.request<{ ok: boolean }>('/seller/kyc/merchant-data', {
-      method: 'PUT',
-      body: payload
-    });
-  },
-
   async getSellerContext(signal?: AbortSignal) {
     return apiClient.request<SellerContextResponse>('/seller/context', {
       signal
@@ -785,35 +766,53 @@ export const api = {
   },
 
   async submitSellerKyc(payload: {
-    dropoffStationId?: string;
-    dropoffPlatformStationId?: string;
-    dropoffStationMeta?: Record<string, unknown>;
+    merchantData: {
+      contactName: string;
+      contactEmail: string;
+      contactPhone: string;
+      representativeName?: string;
+      legalAddressFull: string;
+      siteUrl: string;
+      shipmentType?: 'import' | 'withdraw';
+      legalName?: string;
+      inn: string;
+      ogrn?: string;
+      kpp?: string;
+    };
+    dropoffPvzId: string;
+    dropoffPvzMeta?: Record<string, unknown>;
+    files: File[] | FileList;
   }) {
-    return apiClient.request<SellerKycSubmission>('/seller/kyc/submit', {
-      method: 'POST',
-      body: payload
-    });
-  },
-
-  async uploadSellerKycDocuments(files: FileList) {
     const formData = new FormData();
-    Array.from(files).forEach((file) => formData.append('files', file));
+    formData.append(
+      'payload',
+      JSON.stringify({
+        merchantData: payload.merchantData,
+        dropoffPvzId: payload.dropoffPvzId,
+        dropoffPvzMeta: payload.dropoffPvzMeta ?? null
+      })
+    );
+    Array.from(payload.files).forEach((file) => formData.append('files', file));
 
-    const response = await fetch(`${baseUrl}/seller/kyc/documents`, {
+    const response = await fetch(`${baseUrl}/seller/kyc/submit`, {
       method: 'POST',
       headers: authHeaders(),
       body: formData,
       credentials: 'include'
     });
 
-    if (!response.ok) throw new Error('UPLOAD_FAILED');
-
-    return response.json() as Promise<{
-      data: {
-        submissionId: string;
-        documents: SellerKycSubmission['documents'];
+    if (!response.ok) {
+      const payloadJson = await response.json().catch(() => null);
+      const error = new Error(payloadJson?.error?.message ?? 'KYC_SUBMIT_FAILED') as Error & {
+        status?: number;
+        payload?: unknown;
       };
-    }>;
+      error.status = response.status;
+      error.payload = payloadJson;
+      throw error;
+    }
+
+    return (await response.json()) as { data: SellerKycSubmission };
   },
 
   async getAdminKyc(status: 'PENDING' | 'APPROVED' | 'REJECTED' = 'PENDING') {

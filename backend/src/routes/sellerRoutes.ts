@@ -70,13 +70,6 @@ const kycUpload = multer({
 // ---------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------
-const ensureSellerDeliveryProfile = async (sellerId: string) => {
-  await prisma.sellerDeliveryProfile.upsert({
-    where: { sellerId },
-    create: { sellerId },
-    update: {}
-  });
-};
 
 
 // ---------------------------------------------------------
@@ -161,6 +154,41 @@ function normalizeSiteUrl(url: string | undefined): string | null {
   if (u.startsWith('http://') || u.startsWith('https://')) return u;
   return `https://${u}`;
 }
+
+const normalizeMerchantUpdateData = (
+  payload: z.infer<typeof merchantDataBaseSchema>,
+  status: 'ООО' | 'ИП' | 'Самозанятый'
+) => {
+  const representativeName = payload.representativeName ?? payload.contactName ?? '';
+  const legalName =
+    payload.legalName?.trim() ||
+    (status === 'ИП' ? `ИП ${payload.contactName ?? ''}`.trim() : null) ||
+    (status === 'Самозанятый' ? `Самозанятый ${payload.contactName ?? ''}`.trim() : null) ||
+    null;
+
+  const updateData: Record<string, unknown> = {
+    shipmentType: payload.shipmentType ?? 'import'
+  };
+
+  if (payload.contactName !== undefined) updateData.contactName = payload.contactName?.trim() || null;
+  if (payload.contactEmail !== undefined) updateData.contactEmail = (payload.contactEmail ?? '').trim() || null;
+  if (payload.contactPhone !== undefined) updateData.contactPhone = payload.contactPhone?.trim() || null;
+  if (payload.representativeName !== undefined || payload.contactName !== undefined) {
+    updateData.representativeName = representativeName.trim() || null;
+  }
+  if (payload.legalName !== undefined || payload.contactName !== undefined) {
+    updateData.legalName = legalName ?? payload.legalName?.trim() ?? null;
+  }
+  if (payload.inn !== undefined) updateData.inn = payload.inn?.trim() || null;
+  if (payload.ogrn !== undefined) updateData.ogrn = payload.ogrn?.trim() || null;
+  if (status === 'ООО') {
+    if (payload.kpp !== undefined) updateData.kpp = payload.kpp?.trim() || null;
+  }
+  if (payload.legalAddressFull !== undefined) updateData.legalAddressFull = payload.legalAddressFull?.trim() || null;
+  if (payload.siteUrl !== undefined) updateData.siteUrl = normalizeSiteUrl(payload.siteUrl ?? undefined);
+
+  return updateData;
+};
 
 /** Минимум документов для отправки KYC: ИП/Самозанятый — 1, ООО — 2. */
 const MIN_KYC_DOCS_IP_SAMOZANYATY = 1;
@@ -253,8 +281,6 @@ sellerRoutes.post('/onboarding', requireAuth, writeLimiter, async (req: AuthRequ
       }
     });
 
-    await ensureSellerDeliveryProfile(req.user!.userId);
-
     return res.json({
       data: {
         id: updated.id,
@@ -304,8 +330,6 @@ const loadSellerContext = async (userId: string) => {
 const respondSellerContext = async (req: AuthRequest, res: Response) => {
   if (req.user?.role !== 'SELLER') return res.status(403).json({ code: 'FORBIDDEN', message: 'Seller only' });
 
-  await ensureSellerDeliveryProfile(req.user.userId);
-
   const context = await loadSellerContext(req.user.userId);
   if (!context) {
     console.warn('Seller profile missing for user', { userId: req.user.userId });
@@ -354,69 +378,18 @@ sellerRoutes.get('/kyc/me', async (req: AuthRequest, res, next) => {
   }
 });
 
-/** Сохранение данных для мерчанта NDD (без вызова init/status). */
-sellerRoutes.put('/kyc/merchant-data', writeLimiter, async (req: AuthRequest, res, next) => {
-  try {
-    const profile = await prisma.sellerProfile.findFirst({
-      where: { userId: req.user!.userId },
-      select: { status: true }
-    });
-    if (!profile) {
-      return res.status(409).json({ error: { code: 'SELLER_PROFILE_MISSING', message: 'Сначала завершите регистрацию продавца.' } });
-    }
-    const status = profile.status as 'ООО' | 'ИП' | 'Самозанятый';
-    const payload = parseMerchantDataPayload(req.body, status);
-
-    const representativeName = payload.representativeName ?? payload.contactName ?? '';
-    const legalName =
-      payload.legalName?.trim() ||
-      (status === 'ИП' ? `ИП ${payload.contactName ?? ''}`.trim() : null) ||
-      (status === 'Самозанятый' ? `Самозанятый ${payload.contactName ?? ''}`.trim() : null) ||
-      null;
-
-    const updateData: Record<string, unknown> = {
-      shipmentType: payload.shipmentType ?? 'import'
-    };
-
-    if (payload.contactName !== undefined) updateData.contactName = payload.contactName?.trim() || null;
-    if (payload.contactEmail !== undefined) updateData.contactEmail = (payload.contactEmail ?? '').trim() || null;
-    if (payload.contactPhone !== undefined) updateData.contactPhone = payload.contactPhone?.trim() || null;
-    if (payload.representativeName !== undefined || payload.contactName !== undefined) {
-      updateData.representativeName = representativeName.trim() || null;
-    }
-    if (payload.legalName !== undefined || payload.contactName !== undefined) {
-      updateData.legalName = legalName ?? payload.legalName?.trim() ?? null;
-    }
-    if (payload.inn !== undefined) updateData.inn = payload.inn?.trim() || null;
-    if (payload.ogrn !== undefined) updateData.ogrn = payload.ogrn?.trim() || null;
-    if (status === 'ООО') {
-      if (payload.kpp !== undefined) updateData.kpp = payload.kpp?.trim() || null;
-    }
-    if (payload.legalAddressFull !== undefined) updateData.legalAddressFull = payload.legalAddressFull?.trim() || null;
-    if (payload.siteUrl !== undefined) updateData.siteUrl = normalizeSiteUrl(payload.siteUrl ?? undefined);
-
-    await prisma.sellerProfile.update({
-      where: { userId: req.user!.userId },
-      data: updateData
-    });
-
-    return res.json({ data: { ok: true } });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({
-        error: {
-          code: 'MERCHANT_DATA_VALIDATION_ERROR',
-          message: 'Ошибка валидации данных для мерчанта',
-          issues: error.errors.map((e) => ({ path: e.path.join('.'), message: e.message }))
-        }
-      });
-    }
-    next(error);
-  }
+const kycSubmitPayloadSchema = z.object({
+  merchantData: merchantDataBaseSchema,
+  dropoffPvzId: z.string().trim().min(1),
+  dropoffPvzMeta: z.record(z.unknown()).optional()
 });
 
-sellerRoutes.post('/kyc/submit', writeLimiter, async (req: AuthRequest, res, next) => {
+sellerRoutes.post('/kyc/submit', writeLimiter, kycUpload.array('files', 5), async (req: AuthRequest, res, next) => {
   try {
+    const files = (req.files as Express.Multer.File[]) ?? [];
+    const rawPayload = typeof req.body?.payload === 'string' ? JSON.parse(req.body.payload) : req.body;
+    const submitPayload = kycSubmitPayloadSchema.parse(rawPayload);
+
     const profile = await prisma.sellerProfile.findFirst({
       where: { userId: req.user!.userId },
       select: { status: true }
@@ -425,19 +398,16 @@ sellerRoutes.post('/kyc/submit', writeLimiter, async (req: AuthRequest, res, nex
       return res.status(409).json({ error: { code: 'SELLER_PROFILE_MISSING', message: 'Сначала завершите регистрацию продавца.' } });
     }
 
-    const settings = await prisma.sellerSettings.findUnique({ where: { sellerId: req.user!.userId } });
-    if (!settings?.defaultDropoffPvzId || settings.defaultDropoffProvider !== 'CDEK') {
-      return res.status(400).json({
-        error: { code: 'DROP_OFF_PVZ_REQUIRED', message: 'Выберите ПВЗ СДЭК перед отправкой KYC.' }
-      });
-    }
+    const status = profile.status as 'ООО' | 'ИП' | 'Самозанятый';
+    const merchantPayload = parseMerchantDataPayload(submitPayload.merchantData, status);
 
-    const submission = await prisma.sellerKycSubmission.findFirst({
+    const latestSubmission = await prisma.sellerKycSubmission.findFirst({
       where: { userId: req.user!.userId },
       orderBy: { createdAt: 'desc' },
       include: { documents: true }
     });
-    const docCount = submission?.documents?.length ?? 0;
+
+    const docCount = (latestSubmission?.documents?.length ?? 0) + files.length;
     const minDocs = profile.status === 'ООО' ? MIN_KYC_DOCS_OOO : MIN_KYC_DOCS_IP_SAMOZANYATY;
     if (docCount < minDocs) {
       return res.status(400).json({
@@ -451,61 +421,93 @@ sellerRoutes.post('/kyc/submit', writeLimiter, async (req: AuthRequest, res, nex
       });
     }
 
-    const latest = await prisma.sellerKycSubmission.findFirst({
-      where: { userId: req.user!.userId },
-      orderBy: { createdAt: 'desc' },
-      include: { documents: true }
-    });
+    const dropoffPvzMeta = {
+      provider: 'CDEK' as const,
+      pvzId: submitPayload.dropoffPvzId,
+      ...(submitPayload.dropoffPvzMeta ?? {})
+    };
 
-    if (latest && latest.status === 'PENDING') {
-      return res.json({ data: latest });
-    }
-
-    const created = await prisma.sellerKycSubmission.create({
-      data: { userId: req.user!.userId, status: 'PENDING', submittedAt: new Date() },
-      include: { documents: true }
-    });
-
-    res.status(201).json({ data: created });
-  } catch (error) {
-    next(error);
-  }
-});
-
-sellerRoutes.post('/kyc/documents', writeLimiter, kycUpload.array('files', 5), async (req: AuthRequest, res, next) => {
-  try {
-    const files = (req.files as Express.Multer.File[]) ?? [];
-    if (!files.length) return res.status(400).json({ error: { code: 'KYC_FILES_REQUIRED' } });
-
-    let submission = await prisma.sellerKycSubmission.findFirst({
-      where: { userId: req.user!.userId },
-      orderBy: { createdAt: 'desc' }
-    });
-
-    if (!submission || submission.status === 'REJECTED') {
-      submission = await prisma.sellerKycSubmission.create({
-        data: { userId: req.user!.userId, status: 'PENDING', submittedAt: new Date() }
+    const submitted = await prisma.$transaction(async (tx) => {
+      await tx.sellerProfile.update({
+        where: { userId: req.user!.userId },
+        data: normalizeMerchantUpdateData(merchantPayload, status)
       });
-    }
 
-    const createdDocs = await prisma.$transaction(
-      files.map((file) =>
-        prisma.sellerDocument.create({
-          data: {
-            submissionId: submission!.id,
+      await tx.sellerSettings.upsert({
+        where: { sellerId: req.user!.userId },
+        create: {
+          sellerId: req.user!.userId,
+          defaultDropoffProvider: 'CDEK',
+          defaultDropoffPvzId: submitPayload.dropoffPvzId,
+          defaultDropoffPvzMeta: dropoffPvzMeta as unknown as object
+        },
+        update: {
+          defaultDropoffProvider: 'CDEK',
+          defaultDropoffPvzId: submitPayload.dropoffPvzId,
+          defaultDropoffPvzMeta: dropoffPvzMeta as unknown as object
+        }
+      });
+
+      await tx.sellerDeliveryProfile.upsert({
+        where: { sellerId: req.user!.userId },
+        create: {
+          sellerId: req.user!.userId,
+          dropoffPvzId: submitPayload.dropoffPvzId,
+          dropoffStationMeta: dropoffPvzMeta as unknown as object
+        },
+        update: {
+          dropoffPvzId: submitPayload.dropoffPvzId,
+          dropoffStationMeta: dropoffPvzMeta as unknown as object
+        }
+      });
+
+      const submission = latestSubmission
+        ? await tx.sellerKycSubmission.update({
+            where: { id: latestSubmission.id },
+            data: {
+              status: 'PENDING',
+              submittedAt: new Date(),
+              reviewedAt: null,
+              reviewerId: null,
+              moderationNotes: null,
+              notes: null
+            }
+          })
+        : await tx.sellerKycSubmission.create({
+            data: { userId: req.user!.userId, status: 'PENDING', submittedAt: new Date() }
+          });
+
+      if (files.length > 0) {
+        await tx.sellerDocument.createMany({
+          data: files.map((file) => ({
+            submissionId: submission.id,
             type: 'document',
             url: `/uploads/kyc/${file.filename}`,
             fileName: file.filename,
             originalName: file.originalname,
             mime: file.mimetype,
             size: file.size
-          }
-        })
-      )
-    );
+          }))
+        });
+      }
 
-    res.status(201).json({ data: { submissionId: submission.id, documents: createdDocs } });
+      return tx.sellerKycSubmission.findUnique({
+        where: { id: submission.id },
+        include: { documents: true }
+      });
+    });
+
+    res.status(201).json({ data: submitted });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        error: {
+          code: 'MERCHANT_DATA_VALIDATION_ERROR',
+          message: 'Ошибка валидации данных для отправки KYC',
+          issues: error.errors.map((e) => ({ path: e.path.join('.'), message: e.message }))
+        }
+      });
+    }
     next(error);
   }
 });
@@ -640,8 +642,6 @@ sellerRoutes.post('/uploads', writeLimiter, upload.array('files', 10), async (re
 // ------------------- Settings -------------------
 sellerRoutes.get('/settings', async (req: AuthRequest, res, next) => {
   try {
-    await ensureSellerDeliveryProfile(req.user!.userId);
-
     const [settings, deliveryProfile] = await Promise.all([
       prisma.sellerSettings.findUnique({ where: { sellerId: req.user!.userId } }),
       prisma.sellerDeliveryProfile.findUnique({ where: { sellerId: req.user!.userId } })
@@ -662,9 +662,6 @@ sellerRoutes.get('/settings', async (req: AuthRequest, res, next) => {
     res.json({
       data: {
         ...(settings ?? { sellerId: req.user!.userId }),
-        dropoffPlatformStationId: null,
-        dropoffOperatorStationId: null,
-        dropoffStationMeta: null,
         dropoffSchedule: (deliveryProfile as any)?.dropoffSchedule ?? 'DAILY',
         dropoffPvz
       }
