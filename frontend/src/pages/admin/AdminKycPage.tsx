@@ -6,15 +6,17 @@ import { EmptyState } from '../../shared/ui/EmptyState';
 import { Table } from '../../shared/ui/Table';
 import styles from './AdminPage.module.css';
 
-const statusOptions = ['PENDING', 'APPROVED', 'REJECTED'] as const;
+const statusOptions = ['PENDING', 'APPROVED', 'REJECTED', 'REVISION'] as const;
+
+type KycModerationStatus = 'APPROVED' | 'REJECTED' | 'REVISION';
 
 export const AdminKycPage = () => {
   const [status, setStatus] = useState<(typeof statusOptions)[number]>('PENDING');
   const [submissions, setSubmissions] = useState<SellerKycSubmission[]>([]);
+  const [selected, setSelected] = useState<SellerKycSubmission | null>(null);
+  const [comment, setComment] = useState('');
   const [loading, setLoading] = useState(true);
-  const [rejectingId, setRejectingId] = useState<string | null>(null);
-  const [rejectNotes, setRejectNotes] = useState('');
-  const [rejectError, setRejectError] = useState('');
+  const [modalLoading, setModalLoading] = useState(false);
   const [downloadError, setDownloadError] = useState('');
   const [actionId, setActionId] = useState<string | null>(null);
 
@@ -32,30 +34,30 @@ export const AdminKycPage = () => {
     loadSubmissions();
   }, [status]);
 
-  const handleApprove = async (id: string) => {
-    setActionId(id);
+  const openDetails = async (id: string) => {
+    setModalLoading(true);
     try {
-      await api.approveAdminKyc(id);
-      await loadSubmissions();
+      const response = await api.getAdminKycById(id);
+      const details = response.data;
+      setSelected(details);
+      setComment(details.comment ?? details.moderationNotes ?? details.notes ?? '');
     } finally {
-      setActionId(null);
+      setModalLoading(false);
     }
   };
 
-  const handleReject = async () => {
-    if (!rejectingId) return;
-    const trimmed = rejectNotes.trim();
-    if (trimmed.length < 10 || trimmed.length > 500) {
-      setRejectError('Укажите причину длиной от 10 до 500 символов.');
-      return;
-    }
-    setActionId(rejectingId);
+  const closeDetails = () => {
+    setSelected(null);
+    setComment('');
+  };
+
+  const handleModeration = async (nextStatus: KycModerationStatus) => {
+    if (!selected) return;
+    setActionId(selected.id);
     try {
-      await api.rejectAdminKyc(rejectingId, { notes: trimmed });
-      setRejectingId(null);
-      setRejectNotes('');
-      setRejectError('');
+      await api.updateAdminKycStatus(selected.id, { status: nextStatus, comment: comment.trim() || undefined });
       await loadSubmissions();
+      await openDetails(selected.id);
     } finally {
       setActionId(null);
     }
@@ -119,13 +121,22 @@ export const AdminKycPage = () => {
             <span>Создана</span>
             <span>Статус</span>
             <span>Документы</span>
-            <span>Действия</span>
+            <span>Детали</span>
           </div>
           {rows.map((submission) => (
             <div
               key={submission.id}
               className={styles.tableRow}
-              style={{ gridTemplateColumns: 'minmax(180px, 1.4fr) 140px 140px minmax(220px, 1.6fr) 220px' }}
+              style={{ gridTemplateColumns: 'minmax(180px, 1.4fr) 140px 140px minmax(220px, 1.6fr) 220px', cursor: 'pointer' }}
+              onClick={() => openDetails(submission.id)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  openDetails(submission.id);
+                }
+              }}
             >
               <div>
                 <strong className={styles.cellTruncate}>{submission.user?.name ?? submission.userId}</strong>
@@ -135,7 +146,42 @@ export const AdminKycPage = () => {
               <span className={styles.status}>{submission.status}</span>
               <div className={styles.previewList}>
                 {submission.documents?.length ? (
-                  submission.documents.map((doc) => (
+                  <span>{submission.documents.length} файл(ов)</span>
+                ) : (
+                  <span className={styles.muted}>Документы не загружены.</span>
+                )}
+              </div>
+              <div className={styles.actions}>
+                <Button type="button" onClick={(e) => { e.stopPropagation(); openDetails(submission.id); }}>
+                  Открыть
+                </Button>
+              </div>
+            </div>
+          ))}
+        </Table>
+      )}
+      {downloadError && <p className={styles.errorText}>{downloadError}</p>}
+
+      {(selected || modalLoading) && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modal}>
+            {modalLoading || !selected ? (
+              <p className={styles.muted}>Загрузка заявки...</p>
+            ) : (
+              <>
+                <h2>KYC заявка</h2>
+                <p className={styles.muted}>ID: {selected.id}</p>
+
+                <h3>Merchant data</h3>
+                <pre>{JSON.stringify(selected.merchantData ?? {}, null, 2)}</pre>
+
+                <h3>Dropoff PVZ</h3>
+                <p>dropoffPvzId: {selected.dropoffPvzId ?? '—'}</p>
+                <pre>{JSON.stringify(selected.dropoffPvzMeta ?? {}, null, 2)}</pre>
+
+                <h3>Документы</h3>
+                {selected.documents?.length ? (
+                  selected.documents.map((doc) => (
                     <div key={doc.id} className={styles.previewRow}>
                       <span>{doc.originalName}</span>
                       <div className={styles.previewActions}>
@@ -149,50 +195,30 @@ export const AdminKycPage = () => {
                     </div>
                   ))
                 ) : (
-                  <span className={styles.muted}>Документы не загружены.</span>
+                  <p className={styles.muted}>Документы не загружены.</p>
                 )}
-              </div>
-              {submission.moderationNotes && (
-                <div className={styles.muted}>Причина: {submission.moderationNotes}</div>
-              )}
-              <div className={styles.actions}>
-                <Button type="button" onClick={() => handleApprove(submission.id)} disabled={actionId === submission.id}>
-                  Одобрить
-                </Button>
-                <Button type="button" onClick={() => setRejectingId(submission.id)} disabled={actionId === submission.id}>
-                  Отклонить
-                </Button>
-              </div>
-            </div>
-          ))}
-        </Table>
-      )}
-      {downloadError && <p className={styles.errorText}>{downloadError}</p>}
 
-      {rejectingId && (
-        <div className={styles.modalOverlay}>
-          <div className={styles.modal}>
-            <h2>Отклонить заявку</h2>
-            <p className={styles.muted}>Добавьте комментарий для продавца.</p>
-            <label>
-              Причина
-              <textarea
-                value={rejectNotes}
-                onChange={(event) => {
-                  setRejectNotes(event.target.value);
-                  setRejectError('');
-                }}
-              />
-            </label>
-            {rejectError && <p className={styles.errorText}>{rejectError}</p>}
-            <div className={styles.modalActions}>
-              <Button type="button" onClick={handleReject} disabled={actionId === rejectingId}>
-                Подтвердить
-              </Button>
-              <Button type="button" onClick={() => setRejectingId(null)} disabled={actionId === rejectingId}>
-                Отмена
-              </Button>
-            </div>
+                <label>
+                  Комментарий администратора
+                  <textarea value={comment} onChange={(event) => setComment(event.target.value)} />
+                </label>
+
+                <div className={styles.modalActions}>
+                  <Button type="button" onClick={() => handleModeration('APPROVED')} disabled={actionId === selected.id}>
+                    APPROVED
+                  </Button>
+                  <Button type="button" onClick={() => handleModeration('REJECTED')} disabled={actionId === selected.id}>
+                    REJECTED
+                  </Button>
+                  <Button type="button" onClick={() => handleModeration('REVISION')} disabled={actionId === selected.id}>
+                    REVISION
+                  </Button>
+                  <Button type="button" onClick={closeDetails} disabled={actionId === selected.id}>
+                    Закрыть
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

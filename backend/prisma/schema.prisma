@@ -465,6 +465,10 @@ model SellerKycSubmission {
   id              String           @id @default(cuid())
   userId          String
   status          KycStatus        @default(PENDING)
+  merchantData    Json?
+  dropoffPvzId    String?
+  dropoffPvzMeta  Json?
+  comment         String?
   submittedAt     DateTime?
   reviewedAt      DateTime?
   reviewerId      String?
@@ -654,6 +658,7 @@ enum KycStatus {
   PENDING
   APPROVED
   REJECTED
+  REVISION
 }
 
 enum PaymentStatus {

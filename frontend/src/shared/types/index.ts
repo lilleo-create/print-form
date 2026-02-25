@@ -328,7 +328,7 @@ export interface SellerContextResponse {
   canSell?: boolean;
 }
 
-export type KycStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type KycStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'REVISION';
 
 export interface SellerDocument {
   id: string;
@@ -346,6 +346,10 @@ export interface SellerKycSubmission {
   id: string;
   userId: string;
   status: KycStatus;
+  merchantData?: Record<string, unknown> | null;
+  dropoffPvzId?: string | null;
+  dropoffPvzMeta?: Record<string, unknown> | null;
+  comment?: string | null;
   submittedAt?: string | null;
   reviewedAt?: string | null;
   reviewerId?: string | null;

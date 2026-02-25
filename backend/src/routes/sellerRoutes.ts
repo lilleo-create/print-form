@@ -466,6 +466,10 @@ sellerRoutes.post('/kyc/submit', writeLimiter, kycUpload.array('files', 5), asyn
             where: { id: latestSubmission.id },
             data: {
               status: 'PENDING',
+              merchantData: submitPayload.merchantData as unknown as object,
+              dropoffPvzId: submitPayload.dropoffPvzId,
+              dropoffPvzMeta: dropoffPvzMeta as unknown as object,
+              comment: null,
               submittedAt: new Date(),
               reviewedAt: null,
               reviewerId: null,
@@ -474,7 +478,14 @@ sellerRoutes.post('/kyc/submit', writeLimiter, kycUpload.array('files', 5), asyn
             }
           })
         : await tx.sellerKycSubmission.create({
-            data: { userId: req.user!.userId, status: 'PENDING', submittedAt: new Date() }
+            data: {
+              userId: req.user!.userId,
+              status: 'PENDING',
+              merchantData: submitPayload.merchantData as unknown as object,
+              dropoffPvzId: submitPayload.dropoffPvzId,
+              dropoffPvzMeta: dropoffPvzMeta as unknown as object,
+              submittedAt: new Date()
+            }
           });
 
       if (files.length > 0) {
