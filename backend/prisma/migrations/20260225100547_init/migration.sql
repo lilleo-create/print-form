@@ -5,13 +5,16 @@ CREATE TYPE "Role" AS ENUM ('BUYER', 'SELLER', 'ADMIN');
 CREATE TYPE "ProductModerationStatus" AS ENUM ('DRAFT', 'PENDING', 'APPROVED', 'REJECTED', 'NEEDS_EDIT', 'ARCHIVED');
 
 -- CreateEnum
-CREATE TYPE "OrderStatus" AS ENUM ('CREATED', 'PAID', 'READY_FOR_SHIPMENT', 'PRINTING', 'HANDED_TO_DELIVERY', 'IN_TRANSIT', 'DELIVERED', 'CANCELLED', 'RETURNED', 'EXPIRED');
+CREATE TYPE "OrderStatus" AS ENUM ('CREATED', 'PAID', 'READY_FOR_SHIPMENT', 'PRINTING', 'HANDED_TO_DELIVERY', 'IN_TRANSIT', 'DELIVERED', 'CANCELLED', 'RETURNED', 'EXPIRED', 'PAYMENT_FAILED');
 
 -- CreateEnum
 CREATE TYPE "ReviewStatus" AS ENUM ('PENDING', 'APPROVED');
 
 -- CreateEnum
 CREATE TYPE "ReviewModerationStatus" AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'NEEDS_EDIT');
+
+-- CreateEnum
+CREATE TYPE "DropoffSchedule" AS ENUM ('DAILY', 'WEEKDAYS');
 
 -- CreateEnum
 CREATE TYPE "OtpPurpose" AS ENUM ('LOGIN', 'REGISTER', 'SELLER_VERIFY', 'PASSWORD_RESET');
@@ -66,6 +69,22 @@ CREATE TABLE "SellerProfile" (
     "catalogPosition" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "contactName" TEXT,
+    "contactEmail" TEXT,
+    "contactPhone" TEXT,
+    "representativeName" TEXT,
+    "legalType" TEXT,
+    "legalName" TEXT,
+    "inn" TEXT,
+    "ogrn" TEXT,
+    "kpp" TEXT,
+    "legalAddressFull" TEXT,
+    "siteUrl" TEXT,
+    "shipmentType" TEXT DEFAULT 'import',
+    "yandexMerchantRegistrationId" TEXT,
+    "yandexMerchantId" TEXT,
+    "yandexMerchantStatus" TEXT,
+    "yandexMerchantError" JSONB,
 
     CONSTRAINT "SellerProfile_pkey" PRIMARY KEY ("id")
 );
@@ -98,9 +117,8 @@ CREATE TABLE "Product" (
     "videoUrls" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "description" TEXT NOT NULL,
     "material" TEXT NOT NULL,
-    "size" TEXT NOT NULL,
     "technology" TEXT NOT NULL,
-    "printTime" TEXT NOT NULL,
+    "productionTimeHours" INTEGER DEFAULT 24,
     "color" TEXT NOT NULL,
     "deliveryDateEstimated" TIMESTAMP(3),
     "weightGrossG" INTEGER,
@@ -205,16 +223,42 @@ CREATE TABLE "Order" (
     "yandexCourierOrderId" TEXT,
     "yandexSelfPickupCode" JSONB,
     "yandexActualInfo" JSONB,
+    "cdekOrderId" TEXT,
+    "cdekStatus" TEXT,
     "payoutStatus" TEXT NOT NULL DEFAULT 'HOLD',
     "readyForShipmentAt" TIMESTAMP(3),
     "dropoffDeadlineAt" TIMESTAMP(3),
+    "paymentAttemptKey" TEXT,
+    "paymentProvider" TEXT,
+    "paymentId" TEXT,
+    "paidAt" TIMESTAMP(3),
+    "recipientName" TEXT,
+    "recipientPhone" TEXT,
+    "recipientEmail" TEXT,
+    "packagesCount" INTEGER NOT NULL DEFAULT 1,
+    "orderLabels" JSONB,
 
     CONSTRAINT "Order_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
+CREATE TABLE "Payout" (
+    "id" TEXT NOT NULL,
+    "orderId" TEXT NOT NULL,
+    "sellerId" TEXT NOT NULL,
+    "amount" INTEGER NOT NULL,
+    "currency" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'HOLD',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "paidAt" TIMESTAMP(3),
+
+    CONSTRAINT "Payout_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "SellerSettings" (
     "sellerId" TEXT NOT NULL,
+    "defaultDropoffProvider" TEXT NOT NULL DEFAULT 'YANDEX_NDD',
     "defaultDropoffPvzId" TEXT,
     "defaultDropoffPvzMeta" JSONB,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -243,8 +287,12 @@ CREATE TABLE "OrderDeliveryEvent" (
 CREATE TABLE "SellerDeliveryProfile" (
     "id" TEXT NOT NULL,
     "sellerId" TEXT NOT NULL,
-    "dropoffStationId" TEXT NOT NULL,
+    "dropoffStationId" TEXT,
+    "dropoffPvzId" TEXT,
+    "dropoffOperatorStationId" TEXT,
+    "dropoffPlatformStationId" TEXT,
     "dropoffStationMeta" JSONB,
+    "dropoffSchedule" "DropoffSchedule" NOT NULL DEFAULT 'DAILY',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -485,6 +533,85 @@ CREATE TABLE "PhoneOtp" (
     CONSTRAINT "PhoneOtp_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "favorites" (
+    "user_id" TEXT NOT NULL,
+    "product_id" TEXT NOT NULL,
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "favorites_pkey" PRIMARY KEY ("user_id","product_id")
+);
+
+-- CreateTable
+CREATE TABLE "order_delivery_data" (
+    "order_id" TEXT NOT NULL,
+    "delivery_payload" JSONB NOT NULL,
+    "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "order_delivery_data_pkey" PRIMARY KEY ("order_id")
+);
+
+-- CreateTable
+CREATE TABLE "order_shipment_status_history" (
+    "id" TEXT NOT NULL,
+    "shipment_id" TEXT NOT NULL,
+    "status" TEXT NOT NULL,
+    "payload_raw" JSONB,
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "order_shipment_status_history_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "order_shipments" (
+    "id" TEXT NOT NULL,
+    "order_id" TEXT NOT NULL,
+    "provider" TEXT NOT NULL,
+    "delivery_method" TEXT NOT NULL,
+    "source_station_id" TEXT NOT NULL,
+    "source_station_snapshot" JSONB,
+    "destination_station_id" TEXT NOT NULL,
+    "destination_station_snapshot" JSONB,
+    "offer_payload" TEXT,
+    "request_id" TEXT,
+    "status" TEXT NOT NULL,
+    "status_raw" JSONB,
+    "last_sync_at" TIMESTAMPTZ(6),
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "order_shipments_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "user_checkout_preferences" (
+    "user_id" TEXT NOT NULL,
+    "delivery_method" TEXT NOT NULL DEFAULT 'COURIER',
+    "delivery_sub_type" TEXT,
+    "delivery_provider" TEXT,
+    "payment_method" TEXT NOT NULL DEFAULT 'CARD',
+    "selected_card_id" TEXT,
+    "pickup_point_id" TEXT,
+    "pickup_provider" TEXT,
+    "pickup_point_json" JSONB,
+    "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "user_checkout_preferences_pkey" PRIMARY KEY ("user_id")
+);
+
+-- CreateTable
+CREATE TABLE "user_saved_cards" (
+    "id" TEXT NOT NULL,
+    "user_id" TEXT NOT NULL,
+    "brand" TEXT NOT NULL,
+    "last4" TEXT NOT NULL,
+    "exp_month" INTEGER NOT NULL,
+    "exp_year" INTEGER NOT NULL,
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "user_saved_cards_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
 
@@ -508,6 +635,15 @@ CREATE INDEX "Review_createdAt_idx" ON "Review"("createdAt");
 
 -- CreateIndex
 CREATE INDEX "Review_productId_status_isPublic_idx" ON "Review"("productId", "status", "isPublic");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Order_buyerId_paymentAttemptKey_key" ON "Order"("buyerId", "paymentAttemptKey");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Payout_orderId_key" ON "Payout"("orderId");
+
+-- CreateIndex
+CREATE INDEX "Payout_sellerId_status_idx" ON "Payout"("sellerId", "status");
 
 -- CreateIndex
 CREATE INDEX "OrderDeliveryEvent_orderId_createdAt_idx" ON "OrderDeliveryEvent"("orderId", "createdAt");
@@ -578,14 +714,17 @@ CREATE INDEX "PhoneOtp_phone_purpose_createdAt_idx" ON "PhoneOtp"("phone", "purp
 -- CreateIndex
 CREATE INDEX "PhoneOtp_expiresAt_idx" ON "PhoneOtp"("expiresAt");
 
+-- CreateIndex
+CREATE UNIQUE INDEX "order_shipments_order_id_key" ON "order_shipments"("order_id");
+
 -- AddForeignKey
 ALTER TABLE "SellerProfile" ADD CONSTRAINT "SellerProfile_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Product" ADD CONSTRAINT "Product_sellerId_fkey" FOREIGN KEY ("sellerId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Product" ADD CONSTRAINT "Product_moderatedById_fkey" FOREIGN KEY ("moderatedById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Product" ADD CONSTRAINT "Product_moderatedById_fkey" FOREIGN KEY ("moderatedById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "Product" ADD CONSTRAINT "Product_sellerId_fkey" FOREIGN KEY ("sellerId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "ProductImage" ADD CONSTRAINT "ProductImage_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -597,13 +736,13 @@ ALTER TABLE "ProductVariant" ADD CONSTRAINT "ProductVariant_productId_fkey" FORE
 ALTER TABLE "ProductSpec" ADD CONSTRAINT "ProductSpec_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "Review" ADD CONSTRAINT "Review_moderatedById_fkey" FOREIGN KEY ("moderatedById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "Review" ADD CONSTRAINT "Review_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Review" ADD CONSTRAINT "Review_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Review" ADD CONSTRAINT "Review_moderatedById_fkey" FOREIGN KEY ("moderatedById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Order" ADD CONSTRAINT "Order_buyerId_fkey" FOREIGN KEY ("buyerId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -613,6 +752,12 @@ ALTER TABLE "Order" ADD CONSTRAINT "Order_contactId_fkey" FOREIGN KEY ("contactI
 
 -- AddForeignKey
 ALTER TABLE "Order" ADD CONSTRAINT "Order_shippingAddressId_fkey" FOREIGN KEY ("shippingAddressId") REFERENCES "Address"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Payout" ADD CONSTRAINT "Payout_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "Order"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Payout" ADD CONSTRAINT "Payout_sellerId_fkey" FOREIGN KEY ("sellerId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "SellerSettings" ADD CONSTRAINT "SellerSettings_sellerId_fkey" FOREIGN KEY ("sellerId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -642,19 +787,19 @@ ALTER TABLE "OrderItem" ADD CONSTRAINT "OrderItem_variantId_fkey" FOREIGN KEY ("
 ALTER TABLE "ReturnRequest" ADD CONSTRAINT "ReturnRequest_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "ReturnItem" ADD CONSTRAINT "ReturnItem_returnRequestId_fkey" FOREIGN KEY ("returnRequestId") REFERENCES "ReturnRequest"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ReturnItem" ADD CONSTRAINT "ReturnItem_orderItemId_fkey" FOREIGN KEY ("orderItemId") REFERENCES "OrderItem"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "ReturnItem" ADD CONSTRAINT "ReturnItem_orderItemId_fkey" FOREIGN KEY ("orderItemId") REFERENCES "OrderItem"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ReturnItem" ADD CONSTRAINT "ReturnItem_returnRequestId_fkey" FOREIGN KEY ("returnRequestId") REFERENCES "ReturnRequest"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "ReturnPhoto" ADD CONSTRAINT "ReturnPhoto_returnRequestId_fkey" FOREIGN KEY ("returnRequestId") REFERENCES "ReturnRequest"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "ChatThread" ADD CONSTRAINT "ChatThread_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ChatThread" ADD CONSTRAINT "ChatThread_returnRequestId_fkey" FOREIGN KEY ("returnRequestId") REFERENCES "ReturnRequest"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "ChatThread" ADD CONSTRAINT "ChatThread_returnRequestId_fkey" FOREIGN KEY ("returnRequestId") REFERENCES "ReturnRequest"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "ChatThread" ADD CONSTRAINT "ChatThread_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "ChatMessage" ADD CONSTRAINT "ChatMessage_threadId_fkey" FOREIGN KEY ("threadId") REFERENCES "ChatThread"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -679,3 +824,9 @@ ALTER TABLE "Payment" ADD CONSTRAINT "Payment_orderId_fkey" FOREIGN KEY ("orderI
 
 -- AddForeignKey
 ALTER TABLE "RefreshToken" ADD CONSTRAINT "RefreshToken_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "order_shipment_status_history" ADD CONSTRAINT "order_shipment_status_history_shipment_id_fkey" FOREIGN KEY ("shipment_id") REFERENCES "order_shipments"("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+
+-- AddForeignKey
+ALTER TABLE "order_shipments" ADD CONSTRAINT "order_shipments_order_id_fkey" FOREIGN KEY ("order_id") REFERENCES "Order"("id") ON DELETE CASCADE ON UPDATE NO ACTION;
