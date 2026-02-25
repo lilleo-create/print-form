@@ -961,11 +961,12 @@ export const SellerDashboardPage = () => {
                         </strong>
                       </div>
 
-                      {(kycSubmission?.moderationNotes ||
+                      {(kycSubmission?.comment ||
+                        kycSubmission?.moderationNotes ||
                         kycSubmission?.notes) && (
                           <p className={styles.kycNotes}>
                             Комментарий:{' '}
-                            {kycSubmission.moderationNotes ?? kycSubmission.notes}
+                            {kycSubmission.comment ?? kycSubmission.moderationNotes ?? kycSubmission.notes}
                           </p>
                         )}
 

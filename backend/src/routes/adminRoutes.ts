@@ -40,7 +40,12 @@ const reasonPayloadSchema = z.object({
 });
 
 const kycListSchema = z.object({
-  status: z.enum(['PENDING', 'APPROVED', 'REJECTED']).default('PENDING')
+  status: z.enum(['PENDING', 'APPROVED', 'REJECTED', 'REVISION']).default('PENDING')
+});
+
+const kycStatusUpdateSchema = z.object({
+  status: z.enum(['APPROVED', 'REJECTED', 'REVISION']),
+  comment: z.string().trim().max(2000).optional()
 });
 
 const productStatusSchema = z.enum([
@@ -82,18 +87,25 @@ adminRoutes.get('/seller-documents/:id/download', async (req, res, next) => {
   }
 });
 
-const listKycSubmissions = async (status: 'PENDING' | 'APPROVED' | 'REJECTED') => {
+const kycSubmissionInclude = {
+  user: { select: { id: true, name: true, email: true, phone: true } },
+  documents: true
+} as const;
+
+const listKycSubmissions = async (status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'REVISION') => {
   return prisma.sellerKycSubmission.findMany({
     where: { status },
-    include: {
-      user: { select: { id: true, name: true, email: true, phone: true } },
-      documents: true
-    },
+    include: kycSubmissionInclude,
     orderBy: { createdAt: 'desc' }
   });
 };
 
-const reviewSubmission = async (id: string, status: 'APPROVED' | 'REJECTED', notes?: string | null, reviewerId?: string) => {
+const reviewSubmission = async (
+  id: string,
+  status: 'APPROVED' | 'REJECTED' | 'REVISION',
+  comment?: string | null,
+  reviewerId?: string
+) => {
   const submission = await prisma.sellerKycSubmission.findUnique({
     where: { id },
     include: { user: true, documents: true }
@@ -101,19 +113,18 @@ const reviewSubmission = async (id: string, status: 'APPROVED' | 'REJECTED', not
   if (!submission) {
     return null;
   }
+  const normalizedComment = comment?.trim() ? comment.trim() : null;
   const updated = await prisma.sellerKycSubmission.update({
     where: { id },
     data: {
       status,
-      moderationNotes: notes ?? null,
-      notes: notes ?? null,
+      comment: normalizedComment,
+      moderationNotes: normalizedComment,
+      notes: normalizedComment,
       reviewedAt: new Date(),
       reviewerId: reviewerId ?? null
     },
-    include: {
-      user: { select: { id: true, name: true, email: true, phone: true } },
-      documents: true
-    }
+    include: kycSubmissionInclude
   });
   if (status === 'APPROVED') {
     await prisma.user.update({
@@ -139,6 +150,34 @@ adminRoutes.get('/kyc/submissions', async (req, res, next) => {
     const query = kycListSchema.parse(req.query);
     const submissions = await listKycSubmissions(query.status);
     res.json({ data: submissions });
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRoutes.get('/kyc/:id', async (req, res, next) => {
+  try {
+    const submission = await prisma.sellerKycSubmission.findUnique({
+      where: { id: req.params.id },
+      include: kycSubmissionInclude
+    });
+    if (!submission) {
+      return notFound(res, 'KYC submission not found');
+    }
+    res.json({ data: submission });
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRoutes.patch('/kyc/:id/status', writeLimiter, async (req: AuthRequest, res, next) => {
+  try {
+    const payload = kycStatusUpdateSchema.parse(req.body);
+    const updated = await reviewSubmission(req.params.id, payload.status, payload.comment ?? null, req.user!.userId);
+    if (!updated) {
+      return notFound(res, 'KYC submission not found');
+    }
+    res.json({ data: updated });
   } catch (error) {
     next(error);
   }

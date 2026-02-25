@@ -815,10 +815,21 @@ export const api = {
     return (await response.json()) as { data: SellerKycSubmission };
   },
 
-  async getAdminKyc(status: 'PENDING' | 'APPROVED' | 'REJECTED' = 'PENDING') {
+  async getAdminKyc(status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'REVISION' = 'PENDING') {
     return apiClient.request<SellerKycSubmission[]>(
       `/admin/kyc?status=${status}`
     );
+  },
+
+  async getAdminKycById(id: string) {
+    return apiClient.request<SellerKycSubmission>(`/admin/kyc/${id}`);
+  },
+
+  async updateAdminKycStatus(id: string, payload: { status: 'APPROVED' | 'REJECTED' | 'REVISION'; comment?: string }) {
+    return apiClient.request<SellerKycSubmission>(`/admin/kyc/${id}/status`, {
+      method: 'PATCH',
+      body: payload
+    });
   },
 
   async approveAdminKyc(id: string) {
