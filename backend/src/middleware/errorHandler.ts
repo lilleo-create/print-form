@@ -1,8 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import { MulterError } from 'multer';
 import { ZodError } from 'zod';
-import { YandexNddHttpError } from '../services/yandexNdd/YandexNddClient';
-import { NddValidationError } from '../services/yandexNdd/nddIdSemantics';
 
 const mapMulterErrorCode = (code: string) => {
   switch (code) {
@@ -41,52 +39,19 @@ export const errorHandler = (
     return res.status(400).json({ error: { code: 'RETURN_UPLOAD_FILE_TYPE_INVALID' } });
   }
 
+  const extError = error as Error & {
+    status?: number;
+    code?: string;
+    details?: unknown;
+    issues?: unknown[];
+  };
 
-
-  if (error instanceof NddValidationError) {
-    return res.status(error.status).json({
+  if (typeof extError.code === 'string' && extError.code.startsWith('NDD_')) {
+    return res.status(extError.status ?? 502).json({
       error: {
-        code: error.code,
-        message: error.message,
-        ...(error.issues?.length ? { issues: error.issues } : {})
-      }
-    });
-  }
-
-  if (error instanceof YandexNddHttpError) {
-    if (error.code === 'YANDEX_SMARTCAPTCHA_BLOCK' || error.code === 'YANDEX_IP_BLOCKED') {
-      return res.status(503).json({
-        error: {
-          code: 'YANDEX_IP_BLOCKED',
-          details: error.details
-        }
-      });
-    }
-
-    if (error.status === 401) {
-      return res.status(401).json({
-        error: {
-          code: 'NDD_UNAUTHORIZED',
-          message: 'Unauthorized request to Yandex NDD.',
-          details: error.details
-        }
-      });
-    }
-
-    const detailsCode =
-      error.details && typeof error.details === 'object'
-        ? String((error.details as Record<string, unknown>).code ?? '')
-        : '';
-
-    if (error.status === 403 && detailsCode === 'no_permissions') {
-      return res.status(403).json({ error: { code: 'NDD_NO_PERMISSIONS', details: error.details } });
-    }
-
-    return res.status(502).json({
-      error: {
-        code: 'NDD_REQUEST_FAILED',
-        message: 'Yandex NDD request failed.',
-        details: { status: error.status, response: error.details }
+        code: extError.code,
+        details: extError.details ?? null,
+        ...(extError.issues?.length ? { issues: extError.issues } : {})
       }
     });
   }

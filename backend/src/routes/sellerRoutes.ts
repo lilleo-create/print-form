@@ -12,24 +12,9 @@ import { orderUseCases } from "../usecases/orderUseCases";
 import { sellerProductSchema } from "./productRoutes";
 import { writeLimiter } from "../middleware/rateLimiters";
 import { sellerDeliveryProfileService } from "../services/sellerDeliveryProfileService";
-import { yandexMerchantService } from "../services/yandexMerchantService";
-import { yandexNddShipmentOrchestrator } from "../services/yandexNddShipmentOrchestrator";
 import { payoutService } from "../services/payoutService";
 import { shipmentService } from "../services/shipmentService";
-import { yandexDeliveryService } from "../services/yandexDeliveryService";
 import { sellerOrderDocumentsService } from "../services/sellerOrderDocumentsService";
-import { getYandexNddConfig } from "../config/yandexNdd";
-import { YandexNddHttpError, yandexNddClient } from "../services/yandexNdd/YandexNddClient";
-import { haversineDistanceMeters } from "../utils/geo";
-import { TtlCache } from "../utils/cache";
-
-// ✅ ВАЖНО: ОДИН импорт семантики id, без дублей
-import {
-  isDigitsStationId,
-  isUuid,
-  normalizeUuid,
-  normalizeDigitsStation
-} from "../services/yandexNdd/nddIdSemantics";
 
 export const sellerRoutes = Router();
 
@@ -93,207 +78,7 @@ const ensureSellerDeliveryProfile = async (sellerId: string) => {
   });
 };
 
-// digits (operator_station_id / station_id)
-const normalizeOperatorStationDigits = (value: unknown): string | null => normalizeDigitsStation(value);
 
-// uuid (pickup_point_id / platform_station_id)
-const normalizePlatformStationUuid = (value: unknown): string | null => normalizeUuid(value);
-
-// --- Validation self_pickup_id for offers/info ---
-const resolveValidationSelfPickupId = () => {
-  const value = process.env.YANDEX_NDD_VALIDATION_SELF_PICKUP_ID?.trim();
-  return value || null;
-};
-
-/**
- * Проверка: station_id (digits) + self_pickup_id (uuid) через offers/info.
- * Если offers/info недоступен/ругается — не валим весь flow, а возвращаем warning.
- */
-const validateStationIdDigits = async (stationIdDigits: string | null, fallbackSelfPickupId: string) => {
-  if (!stationIdDigits) {
-    return { validatedStationIdDigits: null, warningCode: "SELLER_STATION_ID_REQUIRED" as const };
-  }
-
-  const validationSelfPickupId = resolveValidationSelfPickupId() ?? fallbackSelfPickupId;
-
-  // если self_pickup_id не uuid — проверку пропускаем
-  if (!validationSelfPickupId || !isUuid(validationSelfPickupId)) {
-    return { validatedStationIdDigits: stationIdDigits, warningCode: null };
-  }
-
-  try {
-    // third param "send_unix" = true (как у тебя)
-    await yandexNddClient.offersInfo(stationIdDigits, validationSelfPickupId, true);
-    return { validatedStationIdDigits: stationIdDigits, warningCode: null };
-  } catch (error) {
-    if (error instanceof YandexNddHttpError) {
-      const details =
-        error.details && typeof error.details === "object" ? (error.details as Record<string, unknown>) : null;
-      const detailsCode = String(details?.code ?? "");
-      if (detailsCode === "validation_error") {
-        console.warn("[DROP_OFF_PVZ_VALIDATE_STATION] validation_error", {
-          stationIdDigits,
-          validationSelfPickupId,
-          details: error.details
-        });
-        return { validatedStationIdDigits: stationIdDigits, warningCode: "SELLER_STATION_ID_REQUIRED" as const };
-      }
-    }
-
-    console.warn("[DROP_OFF_PVZ_VALIDATE_STATION] skipped", {
-      stationIdDigits,
-      validationSelfPickupId,
-      reason: error instanceof Error ? error.message : String(error)
-    });
-
-    return { validatedStationIdDigits: stationIdDigits, warningCode: "SELLER_STATION_VALIDATION_SKIPPED" as const };
-  }
-};
-
-/**
- * ВАЖНО:
- * source_platform_station в доках часто “digits”.
- * Но platform_station_id / pickup_point_id — это uuid.
- * Этот валидатор оставляем ТОЛЬКО для ручного ввода digits (если ты так используешь).
- */
-const validateSourcePlatformStationId = async (dropoffStationIdDigits: string) => {
-  const { defaultPlatformStationId } = getYandexNddConfig();
-  const normalizedDigits = normalizeDigitsStation(dropoffStationIdDigits);
-  if (!normalizedDigits) throw new Error("SELLER_STATION_ID_INVALID");
-
-  const selfPickupId = resolveValidationSelfPickupId();
-  if (!selfPickupId) return normalizedDigits;
-
-  try {
-    await yandexNddClient.offersInfo(normalizedDigits, selfPickupId, true);
-    return normalizedDigits;
-  } catch (_error) {
-    if (defaultPlatformStationId && normalizedDigits === defaultPlatformStationId) return normalizedDigits;
-    throw new Error("SELLER_STATION_ID_INVALID");
-  }
-};
-
-const normalizeText = (value: string) =>
-  value
-    .toLowerCase()
-    .replace(/ё/g, "е")
-    .replace(/\s+/g, " ")
-    .trim();
-
-const tokenize = (value: string) => normalizeText(value).split(" ").filter(Boolean);
-
-const queryLooksLikeAddress = (query: string) => /\d/.test(query) && query.trim().length > 6;
-
-type DropoffPointDTO = ReturnType<typeof mapSellerDropoffPoint>;
-
-const textSearchRank = (query: string, point: DropoffPointDTO) => {
-  const haystack = normalizeText(`${point.name ?? ""} ${point.addressFull ?? ""} ${point.instruction ?? ""}`);
-  const tokens = tokenize(query);
-  if (!tokens.length) return 0;
-  const matches = tokens.filter((token) => haystack.includes(token)).length;
-  return matches / tokens.length;
-};
-
-const hasCoordinates = (
-  point: DropoffPointDTO
-): point is DropoffPointDTO & { position: { latitude: number; longitude: number } } =>
-  typeof (point as any).position?.latitude === "number" && typeof (point as any).position?.longitude === "number";
-
-const GEOCODER_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-const geocoderCache = new TtlCache<
-  string,
-  { lat: number; lon: number; precision?: string | null; text?: string | null }
->(500);
-
-const geocodeAddress = async (query: string) => {
-  const apiKey = process.env.YMAPS_GEOCODER_API_KEY?.trim();
-  if (!apiKey) return null;
-
-  const cacheKey = normalizeText(query);
-  const cached = geocoderCache.get(cacheKey);
-  if (cached) return cached;
-
-  const geocode = `${query}, Москва`;
-  const url = new URL("https://geocode-maps.yandex.ru/1.x/");
-  url.searchParams.set("apikey", apiKey);
-  url.searchParams.set("format", "json");
-  url.searchParams.set("lang", "ru_RU");
-  url.searchParams.set("geocode", geocode);
-
-  const response = await fetch(url.toString());
-  if (!response.ok) return null;
-
-  const payload = (await response.json()) as any;
-  const first = payload?.response?.GeoObjectCollection?.featureMember?.[0]?.GeoObject;
-  const pos = String(first?.Point?.pos ?? "").trim();
-  const [lonRaw, latRaw] = pos.split(" ");
-  const lat = Number(latRaw);
-  const lon = Number(lonRaw);
-  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-
-  const value = {
-    lat,
-    lon,
-    precision: first?.metaDataProperty?.GeocoderMetaData?.precision ?? null,
-    text: first?.metaDataProperty?.GeocoderMetaData?.text ?? null
-  };
-  geocoderCache.set(cacheKey, value, GEOCODER_TTL_MS);
-  return value;
-};
-
-/**
- * ✅ ЧИТАЕМ UUID для self_pickup_id/platform_station_id:
- * В NDD pickup-points/list “точка” обычно имеет id = uuid.
- * Иногда прилетает platform_station_id / platform_station.platform_id.
- */
-const readPlatformStationId = (point: Record<string, any>): string | null => {
-  const platformStation = point?.platform_station && typeof point.platform_station === "object" ? point.platform_station : null;
-
-  const candidates = [
-    point?.platform_station_id,
-    platformStation?.platform_id,
-    point?.id // fallback: pickup_point_id
-  ];
-
-  for (const c of candidates) {
-    const u = normalizePlatformStationUuid(c);
-    if (u) return u;
-  }
-  return null;
-};
-
-/**
- * ✅ alias чтобы не падали старые вызовы (у тебя в коде осталось имя readPlatformStationDigitsId)
- * На самом деле возвращает UUID.
- */
-const readPlatformStationDigitsId = readPlatformStationId;
-
-/**
- * Маппер для ответа фронту:
- * - pvzId: uuid точки (self_pickup_id)
- * - platformStationId: uuid (для self_pickup_id / platform_station_id)
- * - operatorStationId: digits (station_id)
- */
-const mapSellerDropoffPoint = (point: Record<string, any>) => {
-  const pvzId = normalizePlatformStationUuid(point?.id);
-  const platformStationId = readPlatformStationId(point);
-  const operatorStationId = normalizeOperatorStationDigits(point?.operator_station_id);
-
-  return {
-    pvzId,
-    platformStationId,
-    operatorStationId,
-    name: typeof point?.name === "string" ? point.name : null,
-    addressFull: point?.address?.full_address ?? null,
-    instruction: typeof point?.instruction === "string" ? point.instruction : null,
-    geoId: point?.address?.geoId ?? point?.address?.geo_id ?? null,
-    position: point?.position ?? null,
-    available_for_c2c_dropoff: typeof point?.available_for_c2c_dropoff === "boolean" ? point.available_for_c2c_dropoff : null,
-    available_for_dropoff: typeof point?.available_for_dropoff === "boolean" ? point.available_for_dropoff : null,
-    maxWeightGross: typeof point?.max_weight_gross === "number" ? point.max_weight_gross : null,
-    distanceMeters: null as number | null
-  };
-};
 // ---------------------------------------------------------
 // Schemas
 // ---------------------------------------------------------
@@ -393,9 +178,6 @@ const sellerOrderStatusSchema = z.object({
   carrier: z.string().min(2).optional()
 });
 
-const sourcePlatformStationSchema = z.object({
-  source_platform_station: z.string().min(1).trim()
-});
 
 const sellerSettingsSchema = z.object({
   dropoffSchedule: z.enum(['DAILY', 'WEEKDAYS'])
@@ -419,30 +201,8 @@ const sellerDropoffPvzSaveSchema = z.object({
   dropoffPvz: sellerDropoffPvzSchema
 });
 
-const dropoffStationsQuerySchema = z.object({
-  geoId: z.coerce.number().int().positive(),
-  limit: z.coerce.number().int().min(1).max(500).optional()
-});
 
-const dropoffStationsSearchBodySchema = z.object({
-  query: z.string().trim().min(2),
-  geoId: z.coerce.number().int().positive().optional(),
-  limit: z.coerce.number().int().min(1).max(500).default(50)
-});
 
-const dropoffStationSaveSchema = z.object({
-  stationId: z.string().trim().min(1),
-  addressFull: z.string().optional(),
-  raw: z.unknown().optional(),
-  geoId: z.coerce.number().int().positive().optional(),
-  query: z.string().optional(),
-  position: z
-    .object({
-      latitude: z.coerce.number(),
-      longitude: z.coerce.number()
-    })
-    .optional()
-});
 
 const orderStatusFlow: OrderStatus[] = ['CREATED', 'PRINTING', 'HANDED_TO_DELIVERY', 'IN_TRANSIT', 'DELIVERED'];
 
@@ -657,25 +417,19 @@ sellerRoutes.put('/kyc/merchant-data', writeLimiter, async (req: AuthRequest, re
 
 sellerRoutes.post('/kyc/submit', writeLimiter, async (req: AuthRequest, res, next) => {
   try {
-    const payload = z.object({
-      dropoffPlatformStationId: z.string().optional(),
-      dropoffStationId: z.string().optional(),
-      dropoffStationMeta: z.record(z.string(), z.unknown()).optional()
-    }).parse(req.body ?? {});
-
-    const dropoffStationId = (payload.dropoffPlatformStationId ?? payload.dropoffStationId ?? '').trim();
-    if (!dropoffStationId) {
-      return res.status(400).json({
-        error: { code: 'SELLER_STATION_ID_REQUIRED', message: 'Точка отгрузки обязательна. Выберите пункт сдачи в разделе «Подключение».' }
-      });
-    }
-
     const profile = await prisma.sellerProfile.findFirst({
       where: { userId: req.user!.userId },
       select: { status: true }
     });
     if (!profile) {
       return res.status(409).json({ error: { code: 'SELLER_PROFILE_MISSING', message: 'Сначала завершите регистрацию продавца.' } });
+    }
+
+    const settings = await prisma.sellerSettings.findUnique({ where: { sellerId: req.user!.userId } });
+    if (!settings?.defaultDropoffPvzId || settings.defaultDropoffProvider !== 'CDEK') {
+      return res.status(400).json({
+        error: { code: 'DROP_OFF_PVZ_REQUIRED', message: 'Выберите ПВЗ СДЭК перед отправкой KYC.' }
+      });
     }
 
     const submission = await prisma.sellerKycSubmission.findFirst({
@@ -697,43 +451,7 @@ sellerRoutes.post('/kyc/submit', writeLimiter, async (req: AuthRequest, res, nex
       });
     }
 
-    await sellerDeliveryProfileService.upsert(req.user!.userId, {
-      dropoffPlatformStationId: dropoffStationId,
-      dropoffStationMeta: payload.dropoffStationMeta
-    });
-
-    const ensureResult = await yandexMerchantService.ensureForSeller(req.user!.userId);
-
-    if (ensureResult.status === 'missing_data') {
-      return res.status(400).json({
-        error: {
-          code: 'MERCHANT_DATA_REQUIRED',
-          message: 'Заполните данные для мерчанта (ИНН, контакты, адрес, сайт и т.д.) в блоке «Данные для мерчанта».',
-          missingFields: ensureResult.missingFields
-        }
-      });
-    }
-
-    if (ensureResult.status === 'in_progress') {
-      return res.status(202).json({
-        error: {
-          code: 'MERCHANT_REGISTRATION_IN_PROGRESS',
-          message: 'Регистрация в Яндексе выполняется. Попробуйте через минуту.'
-        }
-      });
-    }
-
-    if (ensureResult.status === 'validation_error') {
-      return res.status(400).json({
-        error: {
-          code: 'MERCHANT_REGISTRATION_INVALID',
-          message: 'Ошибка валидации данных при регистрации мерчанта в Яндексе.',
-          details: ensureResult.details
-        }
-      });
-    }
-
-    let latest = await prisma.sellerKycSubmission.findFirst({
+    const latest = await prisma.sellerKycSubmission.findFirst({
       where: { userId: req.user!.userId },
       orderBy: { createdAt: 'desc' },
       include: { documents: true }
@@ -919,7 +637,7 @@ sellerRoutes.post('/uploads', writeLimiter, upload.array('files', 10), async (re
   res.json({ data: { urls } });
 });
 
-// ------------------- Settings + NDD -------------------
+// ------------------- Settings -------------------
 sellerRoutes.get('/settings', async (req: AuthRequest, res, next) => {
   try {
     await ensureSellerDeliveryProfile(req.user!.userId);
@@ -929,24 +647,26 @@ sellerRoutes.get('/settings', async (req: AuthRequest, res, next) => {
       prisma.sellerDeliveryProfile.findUnique({ where: { sellerId: req.user!.userId } })
     ]);
 
+    const dropoffPvz = settings?.defaultDropoffPvzId
+      ? {
+          provider: 'CDEK' as const,
+          pvzId: settings.defaultDropoffPvzId,
+          raw: settings.defaultDropoffPvzMeta,
+          addressFull:
+            typeof settings.defaultDropoffPvzMeta === 'object' && settings.defaultDropoffPvzMeta
+              ? String((settings.defaultDropoffPvzMeta as Record<string, unknown>).addressFull ?? '')
+              : undefined
+        }
+      : null;
+
     res.json({
       data: {
         ...(settings ?? { sellerId: req.user!.userId }),
-        dropoffPlatformStationId: deliveryProfile?.dropoffPlatformStationId ?? null,
-        dropoffOperatorStationId: deliveryProfile?.dropoffOperatorStationId ?? null,
-        dropoffStationMeta: deliveryProfile?.dropoffStationMeta ?? null,
+        dropoffPlatformStationId: null,
+        dropoffOperatorStationId: null,
+        dropoffStationMeta: null,
         dropoffSchedule: (deliveryProfile as any)?.dropoffSchedule ?? 'DAILY',
-        dropoffPvz: settings?.defaultDropoffPvzId
-          ? {
-              provider: settings.defaultDropoffProvider ?? 'YANDEX_NDD',
-              pvzId: settings.defaultDropoffPvzId,
-              raw: settings.defaultDropoffPvzMeta,
-              addressFull:
-                typeof settings.defaultDropoffPvzMeta === 'object' && settings.defaultDropoffPvzMeta
-                  ? String((settings.defaultDropoffPvzMeta as Record<string, unknown>).addressFull ?? '')
-                  : undefined
-            }
-          : null
+        dropoffPvz
       }
     });
   } catch (error) {
@@ -963,253 +683,6 @@ sellerRoutes.put('/settings', writeLimiter, async (req: AuthRequest, res, next) 
     res.json({ data: profile });
   } catch (error) {
     next(error);
-  }
-});
-
-sellerRoutes.put('/settings/source-platform-station', writeLimiter, async (req: AuthRequest, res, next) => {
-  try {
-    const payload = sourcePlatformStationSchema.parse(req.body ?? {});
-    const validatedStationId = await validateSourceStationIdDigits(payload.source_platform_station);
-
-    const profile = await sellerDeliveryProfileService.upsert(req.user!.userId, {
-      dropoffOperatorStationId: validatedStationId,
-      dropoffPlatformStationId: validatedStationId,
-      dropoffStationMeta: { source: 'manual_input', sourcePlatformStation: validatedStationId }
-    });
-
-    await prisma.sellerDeliveryProfile.update({
-      where: { sellerId: req.user!.userId },
-      data: { dropoffStationId: validatedStationId }
-    });
-
-    return res.json({ data: profile });
-  } catch (error) {
-    if (error instanceof Error && error.message === 'SELLER_STATION_ID_INVALID') {
-      return res.status(400).json({
-        error: { code: 'SELLER_STATION_ID_INVALID', message: 'Укажите корректный source_platform_station (digits).' }
-      });
-    }
-    return next(error);
-  }
-});
-
-sellerRoutes.put('/settings/dropoff-station', writeLimiter, async (req: AuthRequest, res, next) => {
-  try {
-    const payload = dropoffStationSaveSchema.parse(req.body ?? {});
-    const stationId = payload.stationId.trim();
-    const validatedStationId = await validateSourcePlatformStationId(stationId);
-
-    const profile = await sellerDeliveryProfileService.upsert(req.user!.userId, {
-      dropoffOperatorStationId: validatedStationId,
-      dropoffPlatformStationId: validatedStationId,
-      dropoffStationMeta: {
-        source: 'ndd/location_detect+pickup_points_list',
-        source_platform_station: validatedStationId,
-        addressFull: payload.addressFull,
-        geoId: payload.geoId,
-        query: payload.query,
-        position: payload.position,
-        raw: payload.raw ?? null
-      }
-    });
-
-    await prisma.sellerDeliveryProfile.update({
-      where: { sellerId: req.user!.userId },
-      data: { dropoffStationId: validatedStationId }
-    });
-
-    return res.json({ data: profile });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: { code: 'DROP_OFF_STATION_ID_REQUIRED', message: 'Не выбран stationId.' } });
-    }
-    if (error instanceof Error && error.message === 'SELLER_STATION_ID_INVALID') {
-      return res.status(400).json({ error: { code: 'SELLER_STATION_ID_INVALID', message: 'Укажите корректный stationId (digits).' } });
-    }
-    return next(error);
-  }
-});
-
-const MAX_OUTPUT_LIMIT = 500;
-
-sellerRoutes.get('/ndd/dropoff-stations', async (req: AuthRequest, res, next) => {
-  try {
-    const geoIdRaw = typeof req.query?.geoId === 'string' ? req.query.geoId : String(req.query?.geoId ?? '');
-    const geoId = Number(geoIdRaw);
-    if (!geoIdRaw.trim() || Number.isNaN(geoId) || !Number.isFinite(geoId) || geoId <= 0) {
-      return res.status(400).json({ error: { code: 'GEO_ID_REQUIRED', message: 'geoId обязателен' } });
-    }
-
-    const { limit = 100 } = dropoffStationsQuerySchema.parse({ geoId, limit: req.query?.limit });
-
-    const pickupPointResp = await yandexNddClient.pickupPointsList({
-      geo_id: geoId,
-      type: 'pickup_point',
-      available_for_dropoff: true,
-      available_for_c2c_dropoff: true,
-      is_yandex_branded: false,
-      is_not_branded_partner_station: true
-    });
-
-    const terminalResp = await yandexNddClient.pickupPointsList({
-      geo_id: geoId,
-      type: 'terminal',
-      available_for_dropoff: true,
-      available_for_c2c_dropoff: true,
-      is_yandex_branded: false,
-      is_not_branded_partner_station: true
-    });
-
-    const warehouseResp = await yandexNddClient.pickupPointsList({
-      geo_id: geoId,
-      type: 'warehouse',
-      available_for_dropoff: true,
-      available_for_c2c_dropoff: true,
-      is_yandex_branded: false,
-      is_not_branded_partner_station: true
-    });
-
-    const pickupPointsRaw = (pickupPointResp as any)?.points ?? (pickupPointResp as any)?.result?.points ?? [];
-    const terminalPointsRaw = (terminalResp as any)?.points ?? (terminalResp as any)?.result?.points ?? [];
-    const warehousePointsRaw = (warehouseResp as any)?.points ?? (warehouseResp as any)?.result?.points ?? [];
-
-    const incomingPoints = [
-      ...(Array.isArray(pickupPointsRaw) ? pickupPointsRaw : []),
-      ...(Array.isArray(terminalPointsRaw) ? terminalPointsRaw : []),
-      ...(Array.isArray(warehousePointsRaw) ? warehousePointsRaw : [])
-    ];
-
-    const points = incomingPoints
-      .slice(0, Math.min(limit, MAX_OUTPUT_LIMIT))
-      .map((p: Record<string, any>) => mapSellerDropoffPoint(p));
-
-    return res.json({ points });
-  } catch (error) {
-    if (error instanceof YandexNddHttpError && error.code === 'NDD_REQUEST_FAILED') {
-      return res.status(502).json({
-        error: { code: 'NDD_REQUEST_FAILED', message: 'Не удалось получить станции сдачи из NDD.', details: (error as any).details ?? null }
-      });
-    }
-    return next(error);
-  }
-});
-
-sellerRoutes.post('/ndd/dropoff-stations/search', async (req: AuthRequest, res, next) => {
-  try {
-    const { query, geoId: providedGeoId, limit } = dropoffStationsSearchBodySchema.parse(req.body ?? {});
-    const geoId = providedGeoId ?? 213;
-
-    const pickupPointResp = await yandexNddClient.pickupPointsList({
-      geo_id: geoId,
-      type: 'pickup_point',
-      available_for_dropoff: true,
-      available_for_c2c_dropoff: true,
-      is_yandex_branded: false,
-      is_not_branded_partner_station: true,
-      limit: MAX_FETCH_LIMIT
-    });
-
-    const terminalResp = await yandexNddClient.pickupPointsList({
-      geo_id: geoId,
-      type: 'terminal',
-      available_for_dropoff: true,
-      available_for_c2c_dropoff: true,
-      is_yandex_branded: false,
-      is_not_branded_partner_station: true,
-      limit: MAX_FETCH_LIMIT
-    });
-
-    const warehouseResp = await yandexNddClient.pickupPointsList({
-      geo_id: geoId,
-      type: 'warehouse',
-      available_for_dropoff: true,
-      available_for_c2c_dropoff: true,
-      is_yandex_branded: false,
-      is_not_branded_partner_station: true,
-      limit: MAX_FETCH_LIMIT
-    });
-
-    const pickupPointsRaw = (pickupPointResp as any)?.points ?? (pickupPointResp as any)?.result?.points ?? [];
-    const terminalPointsRaw = (terminalResp as any)?.points ?? (terminalResp as any)?.result?.points ?? [];
-    const warehousePointsRaw = (warehouseResp as any)?.points ?? (warehouseResp as any)?.result?.points ?? [];
-
-    const allPoints = [
-      ...(Array.isArray(pickupPointsRaw) ? pickupPointsRaw : []),
-      ...(Array.isArray(terminalPointsRaw) ? terminalPointsRaw : []),
-      ...(Array.isArray(warehousePointsRaw) ? warehousePointsRaw : [])
-    ];
-
-    const normalizedPoints = allPoints
-      .map((p: Record<string, any>) => mapSellerDropoffPoint(p))
-      .filter((p) => Boolean(p.pvzId))
-      .filter((p) => p.available_for_c2c_dropoff !== false);
-
-    const isAddressSearch = queryLooksLikeAddress(query);
-    const geocode = isAddressSearch ? await geocodeAddress(query) : null;
-
-    let resultPoints = normalizedPoints;
-
-    if (geocode) {
-      resultPoints = normalizedPoints
-        .map((p) => {
-          if (!hasCoordinates(p)) return { ...p, distanceMeters: null };
-          return {
-            ...p,
-            distanceMeters: Math.round(
-              haversineDistanceMeters(
-                { latitude: geocode.lat, longitude: geocode.lon },
-                { latitude: (p as any).position.latitude, longitude: (p as any).position.longitude }
-              )
-            )
-          };
-        })
-        .sort((a, b) => {
-          const ad = a.distanceMeters;
-          const bd = b.distanceMeters;
-          if (ad == null && bd == null) return 0;
-          if (ad == null) return 1;
-          if (bd == null) return -1;
-          return ad - bd;
-        });
-    } else {
-      const ranked = normalizedPoints
-        .map((p) => ({ point: p, rank: textSearchRank(query, p) }))
-        .filter(({ rank }) => rank >= 0.5)
-        .sort((a, b) => b.rank - a.rank)
-        .map(({ point }) => point);
-      resultPoints = ranked;
-    }
-
-    resultPoints = resultPoints.slice(0, Math.min(limit, MAX_OUTPUT_LIMIT));
-
-    return res.json({
-      points: resultPoints,
-      debug: {
-        geoId,
-        ...(geocode ? { geocode: { lat: geocode.lat, lon: geocode.lon, precision: geocode.precision, text: geocode.text } } : {})
-      }
-    });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: { code: 'GEO_QUERY_REQUIRED', message: 'query обязателен (мин 2 символа).' } });
-    }
-
-    if (error instanceof YandexNddHttpError && error.code === 'NDD_REQUEST_FAILED') {
-      const unauthorized = error.status === 401 || error.status === 403;
-      return res.status(502).json({
-        error: {
-          code: 'NDD_REQUEST_FAILED',
-          message: unauthorized ? 'Нет доступа к NDD (проверь токен/BASE_URL).' : 'Не удалось получить станции сдачи из NDD.',
-          details: unauthorized ? { code: 'unauthorized', message: 'Not authorized request' } : (error as any).details ?? null
-        }
-      });
-    }
-
-    if (error instanceof TypeError) {
-      return res.status(502).json({ error: { code: 'NDD_REQUEST_FAILED', message: 'Ошибка сети при запросе станций сдачи.', details: error.message } });
-    }
-
-    return next(error);
   }
 });
 
@@ -1270,43 +743,22 @@ sellerRoutes.get('/orders', async (req: AuthRequest, res, next) => {
   }
 });
 
-sellerRoutes.post('/orders/:orderId/ready-to-ship', writeLimiter, async (req: AuthRequest, res, next) => {
-  try {
-    const shipment = await yandexNddShipmentOrchestrator.readyToShip(req.user!.userId, req.params.orderId);
-    res.json({ data: shipment });
-  } catch (error) {
-    const err = error as { code?: string; message?: string };
-    if (err?.code === 'NDD_MERCHANT_NOT_READY' || err?.code === 'NDD_SELLER_REQUIRED') {
-      return res.status(409).json({
-        error: {
-          code: 'NDD_MERCHANT_NOT_READY',
-          message: err?.message ?? 'Завершите «Подключение продавца» (точка отгрузки ПВЗ).'
-        }
-      });
+sellerRoutes.post('/orders/:orderId/ready-to-ship', writeLimiter, async (_req: AuthRequest, res) => {
+  return res.status(410).json({
+    error: {
+      code: 'YANDEX_DISABLED',
+      message: 'Маршрут отключен: интеграция Яндекс/NDD больше не поддерживается.'
     }
-    next(error);
-  }
+  });
 });
 
-sellerRoutes.get('/orders/:orderId/shipping-label', async (req: AuthRequest, res, next) => {
-  try {
-    const order = await prisma.order.findFirst({
-      where: { id: req.params.orderId, items: { some: { product: { sellerId: req.user!.userId } } } },
-      select: { id: true }
-    });
-    if (!order) return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND' } });
-
-    const result = await yandexNddShipmentOrchestrator.generateLabel(order.id);
-    if (result.pdfBuffer) {
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename="shipping-label-${order.id}.pdf"`);
-      return res.send(result.pdfBuffer);
+sellerRoutes.get('/orders/:orderId/shipping-label', async (_req: AuthRequest, res) => {
+  return res.status(410).json({
+    error: {
+      code: 'YANDEX_DISABLED',
+      message: 'Маршрут отключен: интеграция Яндекс/NDD больше не поддерживается.'
     }
-
-    return res.json({ data: { url: result.url, raw: result.raw } });
-  } catch (error) {
-    next(error);
-  }
+  });
 });
 
 const loadSellerOrderForDocuments = async (sellerId: string, orderId: string) =>
