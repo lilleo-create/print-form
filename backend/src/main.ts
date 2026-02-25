@@ -25,10 +25,7 @@ import { errorHandler } from "./middleware/errorHandler";
 import { globalLimiter } from "./middleware/rateLimiters";
 import { clientDisconnect } from "./middleware/clientDisconnect";
 import { internalRoutes } from './routes/internalRoutes';
-import { startShipmentsSyncJob } from './jobs/shipmentsSyncJob';
-import { nddRoutes } from "./routes/nddRoutes";
 import { debugRoutes } from "./routes/debugRoutes";
-import { deliveryYandexRoutes } from "./modules/deliveryYandex/routes";
 import { cdekRoutes } from './routes/cdekRoutes';
 
 const app = express();
@@ -97,9 +94,7 @@ const mountRoutes = (prefix = '') => {
   app.use(`${prefix}/favorites`, favoritesRoutes);
   app.use(`${prefix}/checkout`, checkoutRoutes);
   app.use(`${prefix}/internal`, internalRoutes);
-  app.use(`${prefix}/ndd`, nddRoutes);
   app.use(`${prefix}/cdek`, cdekRoutes);
-  app.use(`${prefix}/delivery`, deliveryYandexRoutes);
   app.use(`${prefix}/debug`, debugRoutes);
 };
 
@@ -112,7 +107,7 @@ app.listen(env.port, () => {
   console.log(`API running on ${env.port}`);
 });
 
-startShipmentsSyncJob();
+// startShipmentsSyncJob();
 
 
 process.on('unhandledRejection', (reason) => {
