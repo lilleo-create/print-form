@@ -251,7 +251,7 @@ export interface SellerDeliveryProfile {
 
   // payload/profile shape for dropoff PVZ
   dropoffPvz?: {
-    provider: 'YANDEX_NDD';
+    provider: 'CDEK' | 'YANDEX_NDD';
     pvzId: string;
     raw: Record<string, unknown> | null;
     addressFull?: string;
@@ -260,9 +260,6 @@ export interface SellerDeliveryProfile {
   createdAt: string;
   updatedAt: string;
 
-  // legacy, если где-то ещё используется
-  dropoffStationId?: string;
-  dropoffStationMeta?: { addressFull?: string };
   dropoffSchedule?: 'DAILY' | 'WEEKDAYS';
 }
 
