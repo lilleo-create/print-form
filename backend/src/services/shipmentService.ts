@@ -244,18 +244,36 @@ export const shipmentService = {
       err.code = 'CDEK_DROPOFF_PVZ_NOT_SET';
       throw err;
     }
+    console.info('[CDEK][readyToShip] shippingAddress keys', {
+      orderId: order.id,
+      shippingAddress: order.shippingAddress
+    });
 
-    // Пытаемся вытащить PVZ получателя из shippingAddress (как бы оно ни называлось)
+    // 1) Если shippingAddress вообще нет, говорим честно
+    if (!order.shippingAddress) {
+      const err: any = new Error('ORDER_SHIPPING_ADDRESS_MISSING');
+      err.code = 'ORDER_SHIPPING_ADDRESS_MISSING';
+      throw err;
+    }
+
+    // 2) Достаём PVZ из shippingAddress
     const shipAddr = asRecord(order.shippingAddress as any);
     const toPvzCode =
-      readString(shipAddr, 'pvzId') ||
-      readString(shipAddr, 'pvzCode') ||
-      readString(shipAddr, 'pickupPointId') ||
-      readString(shipAddr, 'pickupPointCode');
+      // сначала из shippingAddress
+      (order.shippingAddress ? (
+        readString(asRecord(order.shippingAddress as any), 'pvzId') ||
+        readString(asRecord(order.shippingAddress as any), 'pvzCode') ||
+        readString(asRecord(order.shippingAddress as any), 'pickupPointId') ||
+        readString(asRecord(order.shippingAddress as any), 'pickupPointCode')
+      ) : '') ||
+      // fallback из Order (если такие поля реально есть)
+      String((order as any).buyerPickupPvzId ?? '').trim() ||
+      String((order as any).buyerPickupPointId ?? '').trim();
 
     if (!toPvzCode) {
       const err: any = new Error('CDEK_DESTINATION_PVZ_MISSING');
       err.code = 'CDEK_DESTINATION_PVZ_MISSING';
+      err.debug = { shippingAddress: shipAddr };
       throw err;
     }
 

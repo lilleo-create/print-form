@@ -15,7 +15,7 @@ import { sellerDeliveryProfileService } from "../services/sellerDeliveryProfileS
 import { payoutService } from "../services/payoutService";
 import { shipmentService } from "../services/shipmentService";
 import { sellerOrderDocumentsService } from "../services/sellerOrderDocumentsService";
-
+import { cdekService } from "../services/cdekService";
 export const sellerRoutes = Router();
 
 // ---------------------------------------------------------
@@ -226,7 +226,12 @@ const sellerDropoffPvzSchema = z.object({
 });
 
 const sellerDropoffPvzSaveSchema = z.object({
-  dropoffPvz: sellerDropoffPvzSchema
+  dropoffPvz: z.object({
+    provider: z.literal('CDEK').optional().default('CDEK'),
+    pvzId: z.string().trim().min(1),
+    addressFull: z.string().optional(),
+    raw: z.record(z.unknown()).optional()
+  })
 });
 
 
@@ -463,30 +468,30 @@ sellerRoutes.post('/kyc/submit', writeLimiter, kycUpload.array('files', 5), asyn
 
       const submission = latestSubmission
         ? await tx.sellerKycSubmission.update({
-            where: { id: latestSubmission.id },
-            data: {
-              status: 'PENDING',
-              merchantData: submitPayload.merchantData as unknown as object,
-              dropoffPvzId: submitPayload.dropoffPvzId,
-              dropoffPvzMeta: dropoffPvzMeta as unknown as object,
-              comment: null,
-              submittedAt: new Date(),
-              reviewedAt: null,
-              reviewerId: null,
-              moderationNotes: null,
-              notes: null
-            }
-          })
+          where: { id: latestSubmission.id },
+          data: {
+            status: 'PENDING',
+            merchantData: submitPayload.merchantData as unknown as object,
+            dropoffPvzId: submitPayload.dropoffPvzId,
+            dropoffPvzMeta: dropoffPvzMeta as unknown as object,
+            comment: null,
+            submittedAt: new Date(),
+            reviewedAt: null,
+            reviewerId: null,
+            moderationNotes: null,
+            notes: null
+          }
+        })
         : await tx.sellerKycSubmission.create({
-            data: {
-              userId: req.user!.userId,
-              status: 'PENDING',
-              merchantData: submitPayload.merchantData as unknown as object,
-              dropoffPvzId: submitPayload.dropoffPvzId,
-              dropoffPvzMeta: dropoffPvzMeta as unknown as object,
-              submittedAt: new Date()
-            }
-          });
+          data: {
+            userId: req.user!.userId,
+            status: 'PENDING',
+            merchantData: submitPayload.merchantData as unknown as object,
+            dropoffPvzId: submitPayload.dropoffPvzId,
+            dropoffPvzMeta: dropoffPvzMeta as unknown as object,
+            submittedAt: new Date()
+          }
+        });
 
       if (files.length > 0) {
         await tx.sellerDocument.createMany({
@@ -660,14 +665,14 @@ sellerRoutes.get('/settings', async (req: AuthRequest, res, next) => {
 
     const dropoffPvz = settings?.defaultDropoffPvzId
       ? {
-          provider: 'CDEK' as const,
-          pvzId: settings.defaultDropoffPvzId,
-          raw: settings.defaultDropoffPvzMeta,
-          addressFull:
-            typeof settings.defaultDropoffPvzMeta === 'object' && settings.defaultDropoffPvzMeta
-              ? String((settings.defaultDropoffPvzMeta as Record<string, unknown>).addressFull ?? '')
-              : undefined
-        }
+        provider: 'CDEK' as const,
+        pvzId: settings.defaultDropoffPvzId,
+        raw: settings.defaultDropoffPvzMeta,
+        addressFull:
+          typeof settings.defaultDropoffPvzMeta === 'object' && settings.defaultDropoffPvzMeta
+            ? String((settings.defaultDropoffPvzMeta as Record<string, unknown>).addressFull ?? '')
+            : undefined
+      }
       : null;
 
     res.json({
@@ -693,16 +698,31 @@ sellerRoutes.put('/settings', writeLimiter, async (req: AuthRequest, res, next) 
     next(error);
   }
 });
-
 sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest, res, next) => {
   try {
     const payload = sellerDropoffPvzSaveSchema.parse(req.body ?? {});
-    const addressFull = payload.dropoffPvz.addressFull ?? payload.dropoffPvz.raw.address_full ?? '';
+    const pvzId = payload.dropoffPvz.pvzId;
+
+    let raw: Record<string, unknown> | undefined =
+      payload.dropoffPvz.raw && typeof payload.dropoffPvz.raw === 'object'
+        ? (payload.dropoffPvz.raw as Record<string, unknown>)
+        : undefined;
+
+    if (!raw) {
+      const point = await cdekService.getPickupPointByCode(pvzId);
+      raw = point as unknown as Record<string, unknown>;
+    }
+    const rawRec = raw as any;
+
+    const addressFull =
+      payload.dropoffPvz.addressFull ??
+      String(rawRec?.address_full ?? rawRec?.location?.address_full ?? '');
+
     const dropoffPvzMeta = {
       provider: 'CDEK' as const,
-      pvzId: payload.dropoffPvz.pvzId,
+      pvzId,
       addressFull,
-      raw: payload.dropoffPvz.raw
+      raw
     };
 
     const settings = await prisma.sellerSettings.upsert({
@@ -710,12 +730,12 @@ sellerRoutes.put('/settings/dropoff-pvz', writeLimiter, async (req: AuthRequest,
       create: {
         sellerId: req.user!.userId,
         defaultDropoffProvider: 'CDEK',
-        defaultDropoffPvzId: payload.dropoffPvz.pvzId,
+        defaultDropoffPvzId: pvzId,
         defaultDropoffPvzMeta: dropoffPvzMeta as unknown as object
       },
       update: {
         defaultDropoffProvider: 'CDEK',
-        defaultDropoffPvzId: payload.dropoffPvz.pvzId,
+        defaultDropoffPvzId: pvzId,
         defaultDropoffPvzMeta: dropoffPvzMeta as unknown as object
       }
     });

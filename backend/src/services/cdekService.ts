@@ -153,7 +153,34 @@ class CdekService {
         return point.cityName.toLowerCase().includes(city.toLowerCase());
       });
   }
+  async getPickupPointByCode(pvzCode: string) {
+    const code = String(pvzCode ?? '').trim();
+    if (!code) throw new Error('CDEK_PVZ_CODE_REQUIRED');
 
+    const points = await this.getPickupPoints(); // без cityCode, вернет все доступные (может быть много)
+    const found = points.find((p) => String(p.code).toUpperCase() === code.toUpperCase());
+
+    if (!found) {
+      const err: any = new Error(`CDEK_PVZ_NOT_FOUND: ${code}`);
+      err.code = 'CDEK_PVZ_NOT_FOUND';
+      throw err;
+    }
+
+    // Сформируем raw в том формате, который твой sellerDropoffPvzSchema ожидает
+    return {
+      code: found.code,
+      name: found.name,
+      type: found.type ?? 'PVZ',
+      location: {
+        city_code: found.cityCode,
+        city: found.cityName,
+        latitude: found.latitude,
+        longitude: found.longitude,
+        address_full: found.address
+      },
+      work_time: found.workTime
+    };
+  }
   async calculateDelivery(params: CalculateDeliveryParams) {
     const token = await this.getToken();
     const { baseUrl } = getCdekConfig();
@@ -194,6 +221,7 @@ class CdekService {
       url: `${baseUrl}/v2/orders`,
       headers: { Authorization: `Bearer ${token}` },
       data: {
+        
         tariff_code: 136,
         shipment_point: params.fromPvzCode,
         delivery_point: params.toPvzCode,
@@ -227,19 +255,19 @@ class CdekService {
         ]
       }
     });
-console.info('[CDEK][createOrder] pvz', {
-  from: params.fromPvzCode,
-  to: params.toPvzCode,
-  orderId: params.orderId
-});
+    console.info('[CDEK][createOrder] pvz', {
+      from: params.fromPvzCode,
+      to: params.toPvzCode,
+      orderId: params.orderId
+    });
 
-if (!params.fromPvzCode) throw new Error('CDEK_FROM_PVZ_MISSING');
-if (!params.toPvzCode) throw new Error('CDEK_DESTINATION_PVZ_MISSING');
-const looksLikeCdekPvz = (v?: string) => typeof v === 'string' && /^[A-Z]{3}\d{2,6}$/.test(v);
+    if (!params.fromPvzCode) throw new Error('CDEK_FROM_PVZ_MISSING');
+    if (!params.toPvzCode) throw new Error('CDEK_DESTINATION_PVZ_MISSING');
+    const looksLikeCdekPvz = (v?: string) => typeof v === 'string' && /^[A-Z]{3}\d{2,6}$/.test(v);
 
-if (!looksLikeCdekPvz(params.toPvzCode)) {
-  throw new Error(`CDEK_DESTINATION_PVZ_INVALID_CODE: ${params.toPvzCode}`);
-}
+    if (!looksLikeCdekPvz(params.toPvzCode)) {
+      throw new Error(`CDEK_DESTINATION_PVZ_INVALID_CODE: ${params.toPvzCode}`);
+    }
     return {
       cdekOrderId: String(response.entity?.uuid ?? ''),
       trackingNumber: String(response.entity?.cdek_number ?? '')
@@ -286,6 +314,7 @@ if (!looksLikeCdekPvz(params.toPvzCode)) {
     widthCm?: number;
     heightCm?: number;
   }) {
+    
     return this.createOrder({
       orderId: payload.orderId,
       fromPvzCode: payload.fromPvzCode,
