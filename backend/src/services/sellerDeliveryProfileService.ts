@@ -34,16 +34,10 @@ const toDto = (profile: {
   updatedAt: profile.updatedAt
 });
 
-const toJsonInput = (value?: Record<string, unknown>): Prisma.InputJsonValue | typeof Prisma.JsonNull | undefined => {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  if (!value) {
-    return Prisma.JsonNull;
-  }
-
-  return value as Prisma.InputJsonValue;
+const toJsonInput = (value?: Record<string, unknown> | null) => {
+  if (value === undefined) return undefined;
+  if (!value) return null;
+  return value; // prisma сам съест object как JSON
 };
 
 export const sellerDeliveryProfileService = {

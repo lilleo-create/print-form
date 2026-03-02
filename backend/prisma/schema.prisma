@@ -479,7 +479,6 @@ model SellerKycSubmission {
   documents       SellerDocument[]
   reviewer        User?            @relation("KycReviewer", fields: [reviewerId], references: [id])
   user            User             @relation(fields: [userId], references: [id])
-
   @@index([userId, status])
 }
 

@@ -1,1 +1,7 @@
-{}
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://go.trybons.ai",
+    "ANTHROPIC_AUTH_TOKEN": "sk_cr_9xrzhj1iuBSA9gFVkjyqWmRC3SHi3hbkSbtuQbyDyGSM",
+    "ANTHROPIC_API_KEY": "sk_cr_9xrzhj1iuBSA9gFVkjyqWmRC3SHi3hbkSbtuQbyDyGSM"
+  }
+}

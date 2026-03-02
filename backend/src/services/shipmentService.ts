@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma';
+import { cdekService } from './cdekService';
 
 export type ShipmentInternalStatus =
   | 'CREATED'
@@ -95,14 +96,16 @@ const mapShipmentRow = (row: ShipmentRow) => ({
   updatedAt: row.updated_at
 });
 
+const asRecord = (v: unknown): Record<string, unknown> => (v && typeof v === 'object' ? (v as any) : {});
+const readString = (obj: Record<string, unknown>, key: string): string => String(obj[key] ?? '').trim();
+
 export const shipmentService = {
   ensure: ensureShipmentTables,
   isFinalStatus: (status: ShipmentInternalStatus) => FINAL_STATUSES.includes(status),
+
   getByOrderIds: async (orderIds: string[]) => {
     await ensureShipmentTables();
-    if (!orderIds.length) {
-      return new Map<string, ReturnType<typeof mapShipmentRow>>();
-    }
+    if (!orderIds.length) return new Map<string, ReturnType<typeof mapShipmentRow>>();
 
     const rows = await prisma.$queryRawUnsafe<ShipmentRow[]>(
       `SELECT * FROM order_shipments WHERE order_id = ANY($1::text[])`,
@@ -111,16 +114,25 @@ export const shipmentService = {
 
     return new Map(rows.map((row) => [row.order_id, mapShipmentRow(row)]));
   },
+
   getByOrderId: async (orderId: string) => {
     await ensureShipmentTables();
-    const rows = await prisma.$queryRawUnsafe<ShipmentRow[]>(`SELECT * FROM order_shipments WHERE order_id = $1 LIMIT 1`, orderId);
+    const rows = await prisma.$queryRawUnsafe<ShipmentRow[]>(
+      `SELECT * FROM order_shipments WHERE order_id = $1 LIMIT 1`,
+      orderId
+    );
     return rows[0] ? mapShipmentRow(rows[0]) : null;
   },
+
   getById: async (shipmentId: string) => {
     await ensureShipmentTables();
-    const rows = await prisma.$queryRawUnsafe<ShipmentRow[]>(`SELECT * FROM order_shipments WHERE id = $1 LIMIT 1`, shipmentId);
+    const rows = await prisma.$queryRawUnsafe<ShipmentRow[]>(
+      `SELECT * FROM order_shipments WHERE id = $1 LIMIT 1`,
+      shipmentId
+    );
     return rows[0] ? mapShipmentRow(rows[0]) : null;
   },
+
   upsertForOrder: async (payload: {
     orderId: string;
     deliveryMethod: 'COURIER' | 'PICKUP_POINT';
@@ -136,6 +148,7 @@ export const shipmentService = {
   }) => {
     await ensureShipmentTables();
     const id = `sh_${payload.orderId}`;
+
     const rows = await prisma.$queryRawUnsafe<ShipmentRow[]>(
       `
       INSERT INTO order_shipments (
@@ -143,7 +156,7 @@ export const shipmentService = {
         source_station_id, source_station_snapshot,
         destination_station_id, destination_station_snapshot,
         offer_payload, request_id, status, status_raw, last_sync_at, updated_at
-      ) VALUES ($1, $2, 'YANDEX_NDD', $3, $4, $5::jsonb, $6, $7::jsonb, $8, $9, $10, $11::jsonb, $12, NOW())
+      ) VALUES ($1, $2, 'CDEK', $3, $4, $5::jsonb, $6, $7::jsonb, $8, $9, $10, $11::jsonb, $12, NOW())
       ON CONFLICT (order_id)
       DO UPDATE SET
         provider = EXCLUDED.provider,
@@ -176,6 +189,7 @@ export const shipmentService = {
 
     return mapShipmentRow(rows[0]);
   },
+
   pushHistory: async (shipmentId: string, status: ShipmentInternalStatus, payloadRaw: Record<string, unknown>) => {
     await ensureShipmentTables();
     await prisma.$executeRawUnsafe(
@@ -186,11 +200,151 @@ export const shipmentService = {
       JSON.stringify(payloadRaw)
     );
   },
+
   listForSync: async () => {
     await ensureShipmentTables();
     const rows = await prisma.$queryRawUnsafe<ShipmentRow[]>(
       `SELECT * FROM order_shipments WHERE request_id IS NOT NULL AND status NOT IN ('DELIVERED', 'CANCELLED', 'FAILED') ORDER BY updated_at ASC LIMIT 100`
     );
     return rows.map(mapShipmentRow);
+  },
+
+  /**
+   * ✅ То, что у тебя вызывается из sellerRoutes:
+   * shipmentService.readyToShipCdek(...)
+   */
+  readyToShipCdek: async (params: { orderId: string; sellerId: string }) => {
+    const order = await prisma.order.findUnique({
+      where: { id: params.orderId },
+      include: {
+        items: { include: { product: true } },
+        contact: true,
+        shippingAddress: true
+      }
+    });
+
+    if (!order) {
+      const err: any = new Error('ORDER_NOT_FOUND');
+      err.code = 'ORDER_NOT_FOUND';
+      throw err;
+    }
+
+    // Проверка что это заказ этого продавца (хотя бы по 1 item)
+    const sellerItems = (order.items ?? []).filter((it: any) => String(it?.product?.sellerId ?? '') === params.sellerId);
+    if (!sellerItems.length) {
+      const err: any = new Error('SELLER_ORDER_ACCESS_DENIED');
+      err.code = 'SELLER_ORDER_ACCESS_DENIED';
+      throw err;
+    }
+
+    const settings = await prisma.sellerSettings.findUnique({ where: { sellerId: params.sellerId } });
+    const fromPvzCode = String(settings?.defaultDropoffPvzId ?? '').trim();
+    if (!fromPvzCode) {
+      const err: any = new Error('CDEK_DROPOFF_PVZ_NOT_SET');
+      err.code = 'CDEK_DROPOFF_PVZ_NOT_SET';
+      throw err;
+    }
+
+    // Пытаемся вытащить PVZ получателя из shippingAddress (как бы оно ни называлось)
+    const shipAddr = asRecord(order.shippingAddress as any);
+    const toPvzCode =
+      readString(shipAddr, 'pvzId') ||
+      readString(shipAddr, 'pvzCode') ||
+      readString(shipAddr, 'pickupPointId') ||
+      readString(shipAddr, 'pickupPointCode');
+
+    if (!toPvzCode) {
+      const err: any = new Error('CDEK_DESTINATION_PVZ_MISSING');
+      err.code = 'CDEK_DESTINATION_PVZ_MISSING';
+      throw err;
+    }
+
+    const recipientName =
+      String((order.contact as any)?.name ?? '').trim() ||
+      String((order.contact as any)?.fullName ?? '').trim() ||
+      'Получатель';
+
+    const recipientPhone =
+      String((order.contact as any)?.phone ?? '').trim() ||
+      String((order.contact as any)?.phoneNumber ?? '').trim() ||
+      '+70000000000';
+
+    const items = sellerItems.map((it: any) => ({
+      id: String(it.id ?? ''),
+      name: String(it.product?.title ?? it.product?.name ?? 'Товар'),
+      article: String(it.product?.sku ?? it.product?.id ?? ''),
+      price: Number(it.priceAtPurchase ?? it.product?.price ?? 0),
+      quantity: Number(it.quantity ?? 1)
+    }));
+
+    const created = await cdekService.createOrderFromMarketplaceOrder({
+      orderId: order.id,
+      fromPvzCode,
+      toPvzCode,
+      recipientName,
+      recipientPhone,
+      items,
+      comment: `Order ${order.id}`
+    });
+
+    const shipment = await shipmentService.upsertForOrder({
+      orderId: order.id,
+      deliveryMethod: 'PICKUP_POINT',
+      sourceStationId: fromPvzCode,
+      destinationStationId: toPvzCode,
+      requestId: created.cdekOrderId, // uuid заказа CDEK
+      status: 'READY_TO_SHIP',
+      statusRaw: { cdek_order_uuid: created.cdekOrderId, trackingNumber: created.trackingNumber },
+      lastSyncAt: new Date()
+    });
+
+    await shipmentService.pushHistory(shipment.id, 'READY_TO_SHIP', { created });
+
+    return {
+      shipment,
+      cdek: created
+    };
+  },
+
+  /**
+   * ✅ То, что у тебя вызывается из sellerRoutes:
+   * shipmentService.getCdekShippingLabelPdf(...)
+   */
+  getCdekShippingLabelPdf: async (params: { orderId: string; sellerId: string }) => {
+    const order = await prisma.order.findUnique({
+      where: { id: params.orderId },
+      include: { items: { include: { product: true } } }
+    });
+
+    if (!order) {
+      const err: any = new Error('ORDER_NOT_FOUND');
+      err.code = 'ORDER_NOT_FOUND';
+      throw err;
+    }
+
+    const sellerItems = (order.items ?? []).filter((it: any) => String(it?.product?.sellerId ?? '') === params.sellerId);
+    if (!sellerItems.length) {
+      const err: any = new Error('SELLER_ORDER_ACCESS_DENIED');
+      err.code = 'SELLER_ORDER_ACCESS_DENIED';
+      throw err;
+    }
+
+    const shipment = await shipmentService.getByOrderId(order.id);
+    if (!shipment || shipment.provider !== 'CDEK') {
+      const err: any = new Error('CDEK_SHIPMENT_NOT_FOUND');
+      err.code = 'CDEK_SHIPMENT_NOT_FOUND';
+      throw err;
+    }
+
+    const raw = asRecord(shipment.statusRaw);
+    const orderUuid = String(raw.cdek_order_uuid ?? shipment.requestId ?? '').trim();
+    if (!orderUuid) {
+      const err: any = new Error('CDEK_ORDER_UUID_MISSING');
+      err.code = 'CDEK_ORDER_UUID_MISSING';
+      throw err;
+    }
+
+    // Реальный запрос pdf (а не “придуманный метод”)
+    return cdekService.getWaybillPdfByOrderUuid(orderUuid);
   }
 };

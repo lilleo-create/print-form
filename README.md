@@ -124,5 +124,5 @@ YMAPS_GEOCODER_API_KEY=your-yandex-geocoder-api-key
    - endpoint: `POST /internal/jobs/shipments-sync`
    - либо script: `cd backend && npm run shipments:sync`
 7. Для ярлыка в заказе продавца нажмите **Скачать ярлык** (или вызовите `GET /seller/orders/:orderId/shipping-label`).
-
+270603
 > Подсказка для tst-контура: используйте тестовые станции и ПВЗ в Москве/МО (Москва-only ограничения Яндекс NDD).

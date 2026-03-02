@@ -20,7 +20,7 @@ CREATE TYPE "DropoffSchedule" AS ENUM ('DAILY', 'WEEKDAYS');
 CREATE TYPE "OtpPurpose" AS ENUM ('LOGIN', 'REGISTER', 'SELLER_VERIFY', 'PASSWORD_RESET');
 
 -- CreateEnum
-CREATE TYPE "KycStatus" AS ENUM ('PENDING', 'APPROVED', 'REJECTED');
+CREATE TYPE "KycStatus" AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'REVISION');
 
 -- CreateEnum
 CREATE TYPE "PaymentStatus" AS ENUM ('PENDING', 'REQUIRES_ACTION', 'SUCCEEDED', 'FAILED');
@@ -466,6 +466,10 @@ CREATE TABLE "SellerKycSubmission" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "status" "KycStatus" NOT NULL DEFAULT 'PENDING',
+    "merchantData" JSONB,
+    "dropoffPvzId" TEXT,
+    "dropoffPvzMeta" JSONB,
+    "comment" TEXT,
     "submittedAt" TIMESTAMP(3),
     "reviewedAt" TIMESTAMP(3),
     "reviewerId" TEXT,

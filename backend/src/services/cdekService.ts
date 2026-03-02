@@ -63,6 +63,10 @@ type CdekOrderResponse = {
   statuses?: Array<{ code?: string }>;
 };
 
+type CdekPrintTaskResponse = {
+  entity?: { uuid?: string };
+};
+
 class CdekService {
   private tokenCache: { token: string; expiresAtMs: number } | null = null;
 
@@ -162,12 +166,14 @@ class CdekService {
         tariff_code: 136,
         from_location: { code: params.fromCityCode },
         to_location: { code: params.toCityCode },
-        packages: [{
-          weight: params.weightGrams,
-          length: params.lengthCm ?? 10,
-          width: params.widthCm ?? 10,
-          height: params.heightCm ?? 10
-        }]
+        packages: [
+          {
+            weight: params.weightGrams,
+            length: params.lengthCm ?? 10,
+            width: params.widthCm ?? 10,
+            height: params.heightCm ?? 10
+          }
+        ]
       }
     });
 
@@ -201,25 +207,39 @@ class CdekService {
           phones: [{ number: params.senderPhone ?? '+70000000000' }]
         },
         services: [],
-        packages: [{
-          number: params.orderId,
-          weight: params.weightGrams ?? 500,
-          length: params.lengthCm ?? 10,
-          width: params.widthCm ?? 10,
-          height: params.heightCm ?? 10,
-          comment: params.comment ?? '',
-          items: params.items.map((item) => ({
-            name: item.name,
-            ware_key: item.article ?? item.id,
-            payment: { value: 0 },
-            cost: item.price,
-            weight: 50,
-            amount: item.quantity
-          }))
-        }]
+        packages: [
+          {
+            number: params.orderId,
+            weight: params.weightGrams ?? 500,
+            length: params.lengthCm ?? 10,
+            width: params.widthCm ?? 10,
+            height: params.heightCm ?? 10,
+            comment: params.comment ?? '',
+            items: params.items.map((item) => ({
+              name: item.name,
+              ware_key: item.article ?? item.id,
+              payment: { value: 0 },
+              cost: item.price,
+              weight: 50,
+              amount: item.quantity
+            }))
+          }
+        ]
       }
     });
+console.info('[CDEK][createOrder] pvz', {
+  from: params.fromPvzCode,
+  to: params.toPvzCode,
+  orderId: params.orderId
+});
 
+if (!params.fromPvzCode) throw new Error('CDEK_FROM_PVZ_MISSING');
+if (!params.toPvzCode) throw new Error('CDEK_DESTINATION_PVZ_MISSING');
+const looksLikeCdekPvz = (v?: string) => typeof v === 'string' && /^[A-Z]{3}\d{2,6}$/.test(v);
+
+if (!looksLikeCdekPvz(params.toPvzCode)) {
+  throw new Error(`CDEK_DESTINATION_PVZ_INVALID_CODE: ${params.toPvzCode}`);
+}
     return {
       cdekOrderId: String(response.entity?.uuid ?? ''),
       trackingNumber: String(response.entity?.cdek_number ?? '')
@@ -244,6 +264,92 @@ class CdekService {
       status: String(lastStatus),
       trackingNumber: String(response.entity?.cdek_number ?? response.cdek_number ?? '')
     };
+  }
+
+  /**
+   * ✅ Обертка под “старый” вызов из проекта:
+   * cdekService.createOrderFromMarketplaceOrder(...)
+   * Чтобы не переписывать полпроекта.
+   */
+  async createOrderFromMarketplaceOrder(payload: {
+    orderId: string;
+    fromPvzCode: string;
+    toPvzCode: string;
+    recipientName: string;
+    recipientPhone: string;
+    items: CreateOrderItem[];
+    comment?: string;
+    senderName?: string;
+    senderPhone?: string;
+    weightGrams?: number;
+    lengthCm?: number;
+    widthCm?: number;
+    heightCm?: number;
+  }) {
+    return this.createOrder({
+      orderId: payload.orderId,
+      fromPvzCode: payload.fromPvzCode,
+      toPvzCode: payload.toPvzCode,
+      recipientName: payload.recipientName,
+      recipientPhone: payload.recipientPhone,
+      items: payload.items,
+      comment: payload.comment,
+      senderName: payload.senderName,
+      senderPhone: payload.senderPhone,
+      weightGrams: payload.weightGrams,
+      lengthCm: payload.lengthCm,
+      widthCm: payload.widthCm,
+      heightCm: payload.heightCm
+    });
+  }
+
+  /**
+   * Создает задачу печати (накладная/квитанция).
+   * CDEK обычно возвращает uuid задачи печати.
+   */
+  async createWaybillPrintTask(orderUuid: string) {
+    const token = await this.getToken();
+    const { baseUrl } = getCdekConfig();
+
+    const resp = await this.request<CdekPrintTaskResponse>('createWaybillPrintTask', {
+      method: 'POST',
+      url: `${baseUrl}/v2/print/orders`,
+      headers: { Authorization: `Bearer ${token}` },
+      data: {
+        orders: [{ order_uuid: orderUuid }],
+        copy_count: 1
+      }
+    });
+
+    const uuid = String(resp.entity?.uuid ?? '');
+    if (!uuid) throw new Error('CDEK_PRINT_TASK_UUID_MISSING');
+    return uuid;
+  }
+
+  /**
+   * Забирает PDF по uuid задачи печати.
+   * У CDEK это обычно GET /v2/print/orders/{uuid}.pdf
+   */
+  async getWaybillPdfByPrintTaskUuid(printTaskUuid: string): Promise<Buffer> {
+    const token = await this.getToken();
+    const { baseUrl } = getCdekConfig();
+
+    const arrayBuffer = await this.request<ArrayBuffer>('getWaybillPdfByPrintTaskUuid', {
+      method: 'GET',
+      url: `${baseUrl}/v2/print/orders/${printTaskUuid}.pdf`,
+      headers: { Authorization: `Bearer ${token}` },
+      responseType: 'arraybuffer'
+    });
+
+    return Buffer.from(arrayBuffer);
+  }
+
+  /**
+   * Удобный метод: сразу pdf по uuid заказа.
+   */
+  async getWaybillPdfByOrderUuid(orderUuid: string): Promise<Buffer> {
+    const printTaskUuid = await this.createWaybillPrintTask(orderUuid);
+    return this.getWaybillPdfByPrintTaskUuid(printTaskUuid);
   }
 }
 

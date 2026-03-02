@@ -751,22 +751,32 @@ sellerRoutes.get('/orders', async (req: AuthRequest, res, next) => {
   }
 });
 
-sellerRoutes.post('/orders/:orderId/ready-to-ship', writeLimiter, async (_req: AuthRequest, res) => {
-  return res.status(410).json({
-    error: {
-      code: 'YANDEX_DISABLED',
-      message: 'Маршрут отключен: интеграция Яндекс/NDD больше не поддерживается.'
-    }
-  });
+sellerRoutes.post('/orders/:orderId/ready-to-ship', writeLimiter, async (req: AuthRequest, res, next) => {
+  try {
+    const result = await shipmentService.readyToShipCdek({
+      orderId: req.params.orderId,
+      sellerId: req.user!.userId
+    });
+
+    return res.json({ data: result });
+  } catch (e) {
+    next(e);
+  }
 });
 
-sellerRoutes.get('/orders/:orderId/shipping-label', async (_req: AuthRequest, res) => {
-  return res.status(410).json({
-    error: {
-      code: 'YANDEX_DISABLED',
-      message: 'Маршрут отключен: интеграция Яндекс/NDD больше не поддерживается.'
-    }
-  });
+sellerRoutes.get('/orders/:orderId/shipping-label', async (req: AuthRequest, res, next) => {
+  try {
+    const pdf = await shipmentService.getCdekShippingLabelPdf({
+      orderId: req.params.orderId,
+      sellerId: req.user!.userId
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="cdek-label-${req.params.orderId}.pdf"`);
+    return res.status(200).send(pdf);
+  } catch (e) {
+    next(e);
+  }
 });
 
 const loadSellerOrderForDocuments = async (sellerId: string, orderId: string) =>
