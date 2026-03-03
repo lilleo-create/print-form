@@ -32,10 +32,10 @@ export const orderDeliveryService = {
     await ensureOrderDeliveryTable();
     if (orderIds.length === 0) return new Map<string, unknown>();
 
-    const rows = await prisma.$queryRawUnsafe<OrderDeliveryRow[]>(
+    const rows = (await prisma.$queryRawUnsafe(
       `SELECT order_id, delivery_payload FROM order_delivery WHERE order_id = ANY($1::text[])`,
       orderIds
-    );
+    )) as OrderDeliveryRow[];
 
     return new Map(rows.map((row) => [row.order_id, row.delivery_payload]));
   }

@@ -5,7 +5,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { requireAuth, requireSeller, AuthRequest } from "../middleware/authMiddleware";
-import { OrderStatus } from "@prisma/client";
+import { OrderStatus, type Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { productUseCases } from "../usecases/productUseCases";
 import { orderUseCases } from "../usecases/orderUseCases";
@@ -432,7 +432,7 @@ sellerRoutes.post('/kyc/submit', writeLimiter, kycUpload.array('files', 5), asyn
       ...(submitPayload.dropoffPvzMeta ?? {})
     };
 
-    const submitted = await prisma.$transaction(async (tx) => {
+    const submitted = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.sellerProfile.update({
         where: { userId: req.user!.userId },
         data: normalizeMerchantUpdateData(merchantPayload, status)
@@ -892,7 +892,7 @@ sellerRoutes.patch('/orders/:id/status', writeLimiter, async (req: AuthRequest, 
       return res.status(400).json({ error: { code: 'TRACKING_REQUIRED' } });
     }
 
-    const updated = await prisma.$transaction(async (tx) => {
+    const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const nextOrder = await tx.order.update({
         where: { id: order.id },
         data: { status: payload.status, statusUpdatedAt: new Date(), trackingNumber, carrier },
@@ -905,7 +905,7 @@ sellerRoutes.patch('/orders/:id/status', writeLimiter, async (req: AuthRequest, 
       });
 
       if (payload.status === 'DELIVERED') {
-        await payoutService.releaseForDeliveredOrder(order.id, tx as any);
+        await payoutService.releaseForDeliveredOrder(order.id, tx);
       }
       return nextOrder;
     });
