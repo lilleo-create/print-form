@@ -34,10 +34,12 @@ const toDto = (profile: {
   updatedAt: profile.updatedAt
 });
 
-const toJsonInput = (value?: Record<string, unknown> | null) => {
+const toJsonInput = (
+  value?: Record<string, unknown> | null
+): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | undefined => {
   if (value === undefined) return undefined;
-  if (!value) return null;
-  return value; // prisma сам съест object как JSON
+  if (value === null) return Prisma.DbNull;
+  return value as Prisma.InputJsonObject;
 };
 
 export const sellerDeliveryProfileService = {
@@ -54,7 +56,7 @@ export const sellerDeliveryProfileService = {
         dropoffPvzId: payload.dropoffPvzId ?? null,
         dropoffOperatorStationId: payload.dropoffOperatorStationId ?? null,
         dropoffPlatformStationId: payload.dropoffPlatformStationId ?? null,
-        dropoffStationMeta: toJsonInput(payload.dropoffStationMeta) ?? Prisma.JsonNull,
+        dropoffStationMeta: toJsonInput(payload.dropoffStationMeta),
         dropoffSchedule: payload.dropoffSchedule ?? 'DAILY'
       },
       update: {
