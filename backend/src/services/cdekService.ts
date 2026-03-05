@@ -63,6 +63,7 @@ type CdekApiRequestInfo = {
   type?: string;
   date_time?: string;
   state?: string; // OK / INVALID / etc
+  request_uuid?: string;
   errors?: CdekApiError[];
 };
 
@@ -355,26 +356,28 @@ class CdekService {
     });
     console.info("[CDEK][createOrder][raw]", JSON.stringify(response, null, 2));
 
-    const cdekOrderId = this.extractOrderUuid(response);
+    const cdekOrderUuid = this.extractOrderUuid(response);
+    const cdekRequestUuid = String(response?.requests?.[0]?.request_uuid ?? '').trim();
+    const state = String(response?.requests?.[0]?.state ?? '').trim();
     const trackingNumber = this.extractCdekNumber(response);
 
     // лог на один раз (потом уберешь)
     console.info("[CDEK][createOrder][parsed]", {
-      cdekOrderId,
+      cdekOrderId: cdekOrderUuid,
+      cdekRequestUuid,
       trackingNumber,
-      state: response?.requests?.[0]?.state,
+      state,
       errors: response?.requests?.flatMap((r) => r?.errors ?? []) ?? [],
     });
 
-    if (!cdekOrderId) {
-      const state = String(response?.requests?.[0]?.state ?? "");
+    if (!cdekOrderUuid) {
       const errors = response?.requests?.flatMap((r) => r?.errors ?? []) ?? [];
       throw new Error(
         `CDEK_CREATE_ORDER_NO_UUID: ${JSON.stringify({ state, errors, response }, null, 2)}`,
       );
     }
 
-    return { cdekOrderId, trackingNumber };
+    return { cdekOrderId: cdekOrderUuid, trackingNumber, cdekRequestUuid, state };
   }
 
   async getOrderInfo(cdekOrderId: string) {
@@ -391,7 +394,7 @@ class CdekService {
     });
 
     return {
-      cdekOrderId: this.extractOrderUuid(response) || id,
+      cdekOrderId: this.extractOrderUuid(response),
       status: this.extractLastStatusCode(response),
       trackingNumber: this.extractCdekNumber(response),
     };

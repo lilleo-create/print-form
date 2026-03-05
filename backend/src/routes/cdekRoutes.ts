@@ -176,6 +176,59 @@ cdekRoutes.post('/calculate-for-order', authenticate, async (req: AuthRequest, r
   }
 });
 
+
+cdekRoutes.post('/orders/:orderId/sync', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const order = await prisma.order.findFirst({
+      where: {
+        id: req.params.orderId,
+        OR: [{ buyerId: req.user!.userId }, { items: { some: { product: { sellerId: req.user!.userId } } } }]
+      },
+      select: { id: true, cdekOrderId: true }
+    });
+
+    if (!order) {
+      return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND', message: 'Order not found', details: null } });
+    }
+
+    const cdekOrderUuid = String(order.cdekOrderId ?? '').trim();
+    if (!cdekOrderUuid) {
+      return res.status(400).json({ error: { code: 'CDEK_ORDER_UUID_MISSING', message: 'Order does not have CDEK order UUID', details: { orderId: order.id } } });
+    }
+
+    const info = await cdekService.getOrderInfo(cdekOrderUuid);
+
+    await prisma.$transaction(async (tx) => {
+      await tx.order.update({
+        where: { id: order.id },
+        data: {
+          cdekStatus: info.status || undefined,
+          trackingNumber: info.trackingNumber || undefined
+        }
+      });
+
+      const existingShipment = await tx.orderShipment.findUnique({ where: { orderId: order.id } });
+      if (existingShipment) {
+        const statusRaw = (existingShipment.statusRaw ?? {}) as Record<string, unknown>;
+        await tx.orderShipment.update({
+          where: { id: existingShipment.id },
+          data: {
+            statusRaw: {
+              ...statusRaw,
+              cdek_order_uuid: cdekOrderUuid,
+              trackingNumber: info.trackingNumber ?? ''
+            }
+          }
+        });
+      }
+    });
+
+    return res.json({ data: info });
+  } catch (error: any) {
+    return res.status(error?.response?.status ?? 502).json(toErrorResponse(error));
+  }
+});
+
 cdekRoutes.all('/service', async (req, res) => {
   const startedAt = Date.now();
   const pathRaw = String(req.query.path ?? req.body?.path ?? '').trim().toLowerCase();

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { OrderShipment, Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { cdekService } from './cdekService';
@@ -40,6 +41,13 @@ const makeError = (code: string) => {
   return error;
 };
 
+
+const readPvzProvider = (meta: Prisma.JsonValue | null | undefined): string => {
+  if (!meta || typeof meta !== 'object' || Array.isArray(meta)) return '';
+  const provider = (meta as Record<string, unknown>).provider;
+  return String(provider ?? '').trim().toUpperCase();
+};
+
 export const markReadyToShipCdek = async (orderId: string) => {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -80,88 +88,148 @@ export const markReadyToShipCdek = async (orderId: string) => {
 
   const totalWeight = order.items.reduce((sum, item) => sum + (item.product.weightGrossG ?? 0) * item.quantity, 0);
   const firstProduct = order.items[0]?.product;
-
-  const created = await cdekService.createOrderFromMarketplaceOrder({
-    orderId: order.id,
-    fromPvzCode,
-    toPvzCode,
-    recipientName,
-    recipientPhone,
-    items,
-    comment: `Order ${order.id}`,
-    weightGrams: totalWeight > 0 ? totalWeight : undefined,
-    lengthCm: firstProduct?.dxCm ?? undefined,
-    widthCm: firstProduct?.dyCm ?? undefined,
-    heightCm: firstProduct?.dzCm ?? undefined
-  });
+  const internalRequestId = randomUUID();
 
   const now = new Date();
 
-  const shipment = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    const nextShipment = await tx.orderShipment.upsert({
-      where: { orderId: order.id },
-      create: {
-        orderId: order.id,
-        provider: 'CDEK',
-        deliveryMethod: 'PICKUP_POINT',
-        sourceStationId: fromPvzCode,
-        destinationStationId: toPvzCode,
-        requestId: created.cdekOrderId,
-        status: 'READY_TO_SHIP',
-        statusRaw: {
-          cdek_order_uuid: created.cdekOrderId,
-          trackingNumber: created.trackingNumber ?? ''
-        },
-        lastSyncAt: now
-      },
-      update: {
-        provider: 'CDEK',
-        deliveryMethod: 'PICKUP_POINT',
-        sourceStationId: fromPvzCode,
-        destinationStationId: toPvzCode,
-        requestId: created.cdekOrderId,
-        status: 'READY_TO_SHIP',
-        statusRaw: {
-          cdek_order_uuid: created.cdekOrderId,
-          trackingNumber: created.trackingNumber ?? ''
-        },
-        lastSyncAt: now
-      }
-    });
-
-    await tx.order.update({
-      where: { id: order.id },
-      data: {
-        carrier: 'CDEK',
-        cdekOrderId: created.cdekOrderId,
-        cdekStatus: 'READY_TO_SHIP',
-        trackingNumber: created.trackingNumber || null,
-        readyForShipmentAt: now,
-        statusUpdatedAt: now
-      }
-    });
-
-    await tx.orderShipmentStatusHistory.create({
-      data: {
-        shipmentId: nextShipment.id,
-        status: 'READY_TO_SHIP',
-        payloadRaw: {
-          cdek_order_uuid: created.cdekOrderId,
-          trackingNumber: created.trackingNumber ?? ''
-        }
-      }
-    });
-
-    return nextShipment;
-  });
-
-  return {
-    shipment,
-    cdek: {
-      cdekOrderId: created.cdekOrderId,
-      trackingNumber: created.trackingNumber
+  try {
+    const destinationPvzProvider = readPvzProvider(order.buyerPickupPvzMeta as Prisma.JsonValue | null);
+    if (destinationPvzProvider && destinationPvzProvider !== 'CDEK') {
+      throw makeError('CDEK_DESTINATION_PVZ_PROVIDER_MISMATCH');
     }
-  };
+
+    const created = await cdekService.createOrderFromMarketplaceOrder({
+      orderId: order.id,
+      fromPvzCode,
+      toPvzCode,
+      recipientName,
+      recipientPhone,
+      items,
+      comment: `Order ${order.id}`,
+      weightGrams: totalWeight > 0 ? totalWeight : undefined,
+      lengthCm: firstProduct?.dxCm ?? undefined,
+      widthCm: firstProduct?.dyCm ?? undefined,
+      heightCm: firstProduct?.dzCm ?? undefined
+    });
+
+    if (!created.cdekOrderId) {
+      throw makeError('CDEK_CREATE_ORDER_NO_UUID');
+    }
+
+    const shipment = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const statusRaw = {
+        cdek_order_uuid: created.cdekOrderId,
+        cdek_request_uuid: created.cdekRequestUuid ?? '',
+        cdek_state: created.state ?? '',
+        trackingNumber: created.trackingNumber ?? ''
+      };
+
+      const nextShipment = await tx.orderShipment.upsert({
+        where: { orderId: order.id },
+        create: {
+          orderId: order.id,
+          provider: 'CDEK',
+          deliveryMethod: 'PICKUP_POINT',
+          sourceStationId: fromPvzCode,
+          destinationStationId: toPvzCode,
+          requestId: internalRequestId,
+          status: 'READY_TO_SHIP',
+          statusRaw,
+          lastSyncAt: now
+        },
+        update: {
+          provider: 'CDEK',
+          deliveryMethod: 'PICKUP_POINT',
+          sourceStationId: fromPvzCode,
+          destinationStationId: toPvzCode,
+          requestId: internalRequestId,
+          status: 'READY_TO_SHIP',
+          statusRaw,
+          lastSyncAt: now
+        }
+      });
+
+      await tx.order.update({
+        where: { id: order.id },
+        data: {
+          carrier: 'CDEK',
+          cdekOrderId: created.cdekOrderId,
+          cdekStatus: created.state || 'ACCEPTED',
+          trackingNumber: created.trackingNumber || null,
+          readyForShipmentAt: now,
+          statusUpdatedAt: now
+        }
+      });
+
+      await tx.orderShipmentStatusHistory.create({
+        data: {
+          shipmentId: nextShipment.id,
+          status: 'READY_TO_SHIP',
+          payloadRaw: statusRaw
+        }
+      });
+
+      return nextShipment;
+    });
+
+    return {
+      shipment,
+      cdek: {
+        cdekOrderId: created.cdekOrderId,
+        trackingNumber: created.trackingNumber,
+        cdekRequestUuid: created.cdekRequestUuid,
+        state: created.state
+      }
+    };
+  } catch (error) {
+    const shipment = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const errorPayload = {
+        error: {
+          code: (error as Error & { code?: string })?.code ?? 'CDEK_CREATE_ORDER_FAILED',
+          message: (error as Error)?.message ?? 'CDEK create order failed'
+        }
+      };
+
+      const failedShipment = await tx.orderShipment.upsert({
+        where: { orderId: order.id },
+        create: {
+          orderId: order.id,
+          provider: 'CDEK',
+          deliveryMethod: 'PICKUP_POINT',
+          sourceStationId: fromPvzCode,
+          destinationStationId: toPvzCode,
+          requestId: internalRequestId,
+          status: 'FAILED',
+          statusRaw: errorPayload,
+          lastSyncAt: now
+        },
+        update: {
+          provider: 'CDEK',
+          deliveryMethod: 'PICKUP_POINT',
+          sourceStationId: fromPvzCode,
+          destinationStationId: toPvzCode,
+          requestId: internalRequestId,
+          status: 'FAILED',
+          statusRaw: errorPayload,
+          lastSyncAt: now
+        }
+      });
+
+      await tx.orderShipmentStatusHistory.create({
+        data: {
+          shipmentId: failedShipment.id,
+          status: 'FAILED',
+          payloadRaw: errorPayload
+        }
+      });
+
+      return failedShipment;
+    });
+
+    console.error('[CDEK][markReadyToShipCdek] failed', { orderId: order.id, error });
+    void shipment;
+    throw error;
+  }
 };
 
 export const shipmentService = {
@@ -276,7 +344,8 @@ export const shipmentService = {
     if (order.status !== 'PAID' || !order.paidAt) throw makeError('ORDER_NOT_PAID');
 
     const shipment = await prisma.orderShipment.findUnique({ where: { orderId: order.id } });
-    const orderUuid = String(order.cdekOrderId ?? shipment?.requestId ?? '').trim();
+    const raw = (shipment?.statusRaw ?? {}) as Record<string, unknown>;
+    const orderUuid = String(order.cdekOrderId ?? raw.cdek_order_uuid ?? '').trim();
     if (!orderUuid) throw makeError('CDEK_ORDER_UUID_MISSING');
 
     return cdekService.getWaybillPdfByOrderUuid(orderUuid);
