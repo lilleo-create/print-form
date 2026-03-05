@@ -8,8 +8,7 @@ import styles from '../../pages/ProductPage.module.css';
 import { ProductActionsInline } from '../../pages/ProductPage/components/ProductActionsInline/ProductActionsInline';
 import { useFavoritesStore } from '../../features/favorites/model/useFavoritesStore';
 import { ShareModal } from '../../features/share/ui/ShareModal';
-import { formatNearestDeliveryLabel } from './utils';
-import { formatEtaDateRange, formatEtaDays } from '../../shared/lib/deliveryEta';
+import { formatReadyToShipLabel } from '../../shared/lib/dateLabels';
 
 type ProductDetailsProps = {
   product: Product;
@@ -17,11 +16,18 @@ type ProductDetailsProps = {
   reviewsCount: number;
 };
 
-export const ProductDetails = ({ product, ratingCount, reviewsCount }: ProductDetailsProps) => {
+export const ProductDetails = ({
+  product,
+  ratingCount,
+  reviewsCount
+}: ProductDetailsProps) => {
   const navigate = useNavigate();
   const addItem = useCartStore((state) => state.addItem);
 
-  const variants = useMemo<ProductVariant[]>(() => product.variants ?? [], [product.variants]);
+  const variants = useMemo<ProductVariant[]>(
+    () => product.variants ?? [],
+    [product.variants]
+  );
   const [selectedVariant, setSelectedVariant] = useState<string>('');
   const [isShareOpen, setIsShareOpen] = useState(false);
   const isFavorite = useFavoritesStore((state) => state.isFavorite(product.id));
@@ -36,7 +42,9 @@ export const ProductDetails = ({ product, ratingCount, reviewsCount }: ProductDe
   const handleVariantChange = (variantId: string) => {
     setSelectedVariant(variantId);
 
-    const variant = variants.find((item) => item.id === variantId) as ProductVariant | undefined;
+    const variant = variants.find((item) => item.id === variantId) as
+      | ProductVariant
+      | undefined;
     const nextProductId = variant?.productId ?? variantId;
 
     if (nextProductId && nextProductId !== product.id) {
@@ -48,12 +56,7 @@ export const ProductDetails = ({ product, ratingCount, reviewsCount }: ProductDe
     setIsShareOpen(true);
   };
 
-  const nearestDeliveryLabel = formatNearestDeliveryLabel(
-    product.deliveryDateEstimated,
-    product.productionTimeHours
-  );
-  const etaDays = formatEtaDays(product.deliveryDaysMin, product.deliveryDaysMax);
-  const etaDates = formatEtaDateRange(new Date().toISOString(), product.deliveryDaysMin, product.deliveryDaysMax);
+  const readyToShipLabel = formatReadyToShipLabel(product.productionTimeHours);
 
   return (
     <div className={styles.details}>
@@ -75,29 +78,37 @@ export const ProductDetails = ({ product, ratingCount, reviewsCount }: ProductDe
         />
         <h1>{product.title}</h1>
         <div className={styles.ratingRow}>
-          <Rating value={product.ratingAvg ?? 0} count={ratingCount} size="md" />
-          <Link to={`/product/${product.id}/reviews`} className={styles.reviewLink}>
+          <Rating
+            value={product.ratingAvg ?? 0}
+            count={ratingCount}
+            size="md"
+          />
+          <Link
+            to={`/product/${product.id}/reviews`}
+            className={styles.reviewLink}
+          >
             {ratingCount} оценки · {reviewsCount} отзывов
           </Link>
         </div>
       </div>
 
-            <div className={styles.priceBlock}>
+      <div className={styles.priceBlock}>
         <span className={styles.price}>
           {Number((product as any).price ?? 0).toLocaleString('ru-RU')} ₽
         </span>
-        <span className={styles.delivery}>Ближайшая доставка: {nearestDeliveryLabel}</span>
-        <span className={styles.delivery}>{etaDays ?? 'СДЭК: уточняется'}</span>
-        {etaDates ? <span className={styles.delivery}>{etaDates}</span> : null}
+        <span className={styles.delivery}>
+          Готово к отправке: {readyToShipLabel}
+        </span>
+        <span className={styles.delivery}>СДЭК: уточняется при оформлении</span>
         {product.dxCm && product.dyCm && product.dzCm ? (
           <span className={styles.delivery}>
-            Размер: {product.dxCm} × {product.dyCm} × {product.dzCm} см{product.weightGrossG ? `, вес: ${product.weightGrossG} г` : ''}
+            Размер: {product.dxCm} × {product.dyCm} × {product.dzCm} см
+            {product.weightGrossG ? `, вес: ${product.weightGrossG} г` : ''}
           </span>
         ) : product.weightGrossG ? (
           <span className={styles.delivery}>Вес: {product.weightGrossG} г</span>
         ) : null}
       </div>
-
 
       <div className={styles.sku}>Артикул: {(product as any).sku ?? '—'}</div>
 
@@ -109,7 +120,11 @@ export const ProductDetails = ({ product, ratingCount, reviewsCount }: ProductDe
               <button
                 type="button"
                 key={variant.id}
-                className={selectedVariant === variant.id ? styles.variantActive : styles.variantButton}
+                className={
+                  selectedVariant === variant.id
+                    ? styles.variantActive
+                    : styles.variantButton
+                }
                 onClick={() => handleVariantChange(variant.id)}
               >
                 {variant.name}
@@ -130,12 +145,18 @@ export const ProductDetails = ({ product, ratingCount, reviewsCount }: ProductDe
           Купить сейчас
         </Button>
 
-        <Button variant="secondary" className={styles.compactActionButton} onClick={() => addItem(product, 1)}>
+        <Button
+          variant="secondary"
+          className={styles.compactActionButton}
+          onClick={() => addItem(product, 1)}
+        >
           В корзину
         </Button>
       </div>
 
-      <p className={styles.shortDescription}>{product.descriptionShort ?? product.description}</p>
+      <p className={styles.shortDescription}>
+        {product.descriptionShort ?? product.description}
+      </p>
       <ShareModal
         isOpen={isShareOpen}
         onClose={() => setIsShareOpen(false)}
