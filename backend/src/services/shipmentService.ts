@@ -152,7 +152,13 @@ const loadOrderForCdekShipment = async (orderId: string, sellerId?: string) => {
   }
   order = await normalizePvzProvider(order);
 
-  if (order.status !== 'PAID' || !order.paidAt) throw makeError('ORDER_NOT_PAID');
+  const latestPayment = await prisma.payment.findFirst({
+    where: { orderId: order.id },
+    orderBy: { createdAt: 'desc' },
+    select: { status: true }
+  });
+  const isPaid = Boolean(order.paidAt) || latestPayment?.status === 'SUCCEEDED';
+  if (!isPaid) throw makeError('ORDER_NOT_PAID');
   const fulfillment = order as Order & { isPacked?: boolean };
   if (!fulfillment.isPacked) {
     throw makeError('FULFILLMENT_STEPS_INCOMPLETE', 'Перед отгрузкой отметьте: Упаковка.');

@@ -828,7 +828,7 @@ sellerRoutes.patch('/orders/:id/fulfillment-steps', writeLimiter, async (req: Au
     const payload = sellerFulfillmentStepsSchema.parse(req.body);
     const order = await prisma.order.findFirst({ where: { id: req.params.id, items: { some: { product: { sellerId: req.user!.userId } } } } });
     if (!order) return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND' } });
-    if (order.status !== 'PAID' && !order.paidAt) {
+    if (!(await isOrderPaid(order))) {
       return res.status(400).json({ error: { code: 'PAYMENT_REQUIRED', message: 'Чеклист доступен только для оплаченных заказов.' } });
     }
 
@@ -1019,6 +1019,18 @@ const FORMS_NOT_READY_ERROR = {
   retryAfterSec: 10
 };
 
+const hasSuccessfulPayment = async (orderId: string) => {
+  const payment = await prisma.payment.findFirst({
+    where: { orderId },
+    orderBy: { createdAt: 'desc' },
+    select: { status: true }
+  });
+  return payment?.status === 'SUCCEEDED';
+};
+
+const isOrderPaid = async (order: { id: string; paidAt: Date | null }) =>
+  Boolean(order.paidAt) || (await hasSuccessfulPayment(order.id));
+
 sellerRoutes.get('/orders/:orderId/documents/packing-slip.pdf', async (req: AuthRequest, res, next) => {
   try {
     const order = await loadSellerOrderForDocuments(req.user!.userId, req.params.orderId);
@@ -1037,6 +1049,10 @@ sellerRoutes.get('/orders/:orderId/documents/label.pdf', async (req: AuthRequest
   try {
     const order = await loadSellerOrderForDocuments(req.user!.userId, req.params.orderId);
     if (!order) return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND' } });
+
+    if (!(await isOrderPaid(order))) {
+      return res.status(409).json({ error: { code: 'PAYMENT_REQUIRED', message: 'Документы доступны только для оплаченных заказов.' } });
+    }
 
     if (!order.cdekOrderId && !order.shipment?.id) {
       return res.status(409).json({ error: NEED_READY_TO_SHIP_ERROR });
@@ -1069,6 +1085,10 @@ sellerRoutes.get('/orders/:orderId/documents/handover-act.pdf', async (req: Auth
   try {
     const order = await loadSellerOrderForDocuments(req.user!.userId, req.params.orderId);
     if (!order) return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND' } });
+
+    if (!(await isOrderPaid(order))) {
+      return res.status(409).json({ error: { code: 'PAYMENT_REQUIRED', message: 'Документы доступны только для оплаченных заказов.' } });
+    }
 
     if (!order.cdekOrderId && !order.shipment?.id) {
       return res.status(409).json({ error: NEED_READY_TO_SHIP_ERROR });
@@ -1195,7 +1215,7 @@ sellerRoutes.patch('/orders/:id/shipment-stage', writeLimiter, async (req: AuthR
       return res.status(400).json({ error: { code: 'STATUS_SKIP_NOT_ALLOWED', message: 'Нельзя пропускать этапы доставки.' } });
     }
 
-    if (payload.stage === 'READY_FOR_PICKUP' && !(order.status === 'PAID' || order.paidAt)) {
+    if (payload.stage === 'READY_FOR_PICKUP' && !(await isOrderPaid(order))) {
       return res.status(400).json({ error: { code: 'PAYMENT_REQUIRED', message: 'Статус «Готов к выдаче» доступен только для оплаченных заказов.' } });
     }
 

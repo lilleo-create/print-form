@@ -672,31 +672,48 @@ export const SellerDashboardPage = () => {
     return 'HOLD до получения';
   };
 
+  const latestPaymentsByOrder = useMemo(() => {
+    const byOrder = new Map<string, Payment>();
+    for (const payment of payments) {
+      const existing = byOrder.get(payment.orderId);
+      if (!existing || new Date(payment.createdAt).getTime() > new Date(existing.createdAt).getTime()) {
+        byOrder.set(payment.orderId, payment);
+      }
+    }
+    return byOrder;
+  }, [payments]);
+
+  const isOrderPaid = (order: Order) =>
+    Boolean(order.paidAt) || latestPaymentsByOrder.get(order.id)?.status === 'SUCCEEDED';
+
+  const hasShipment = (order: Order) => Boolean(order.cdekOrderId || order.shipment?.id);
+
   const canDownloadLabel = (order: Order) => {
-    return order.status !== 'CANCELLED';
+    return isOrderPaid(order) && hasShipment(order) && order.status !== 'CANCELLED';
   };
   const canDownloadAct = (order: Order) => {
-    return order.status !== 'CANCELLED';
+    return isOrderPaid(order) && hasShipment(order) && order.status !== 'CANCELLED';
   };
   const canReadyToShip = (order: Order) => {
-    const isPaid = order.status === 'PAID';
-    const isNotCancelled = order.status !== 'CANCELLED';
-    return isPaid && Boolean(order.isPacked) && isNotCancelled;
+    const isNotTerminal = order.status !== 'CANCELLED' && order.status !== 'DELIVERED';
+    return isOrderPaid(order) && Boolean(order.isPacked) && isNotTerminal && order.status !== 'HANDED_TO_DELIVERY';
   };
 
   const readyToShipDisabledReason = (order: Order) => {
     if (order.status === 'CANCELLED') return 'Отменённый заказ нельзя передать в отгрузку';
-    if (order.status !== 'PAID') return 'Ожидает оплаты';
+    if (order.status === 'DELIVERED') return 'Доставленный заказ нельзя передать в отгрузку';
+    if (order.status === 'HANDED_TO_DELIVERY') return 'Уже передано в доставку';
+    if (!isOrderPaid(order)) return 'Ожидает оплаты';
     if (!order.isPacked) return 'Отметьте шаг «Упаковка»';
     return null;
   };
 
   const getOrderDeliveryLabel = (order: Order) => {
-    if (order.status === 'PAID') return 'В работе';
-    if (order.status === 'HANDED_TO_DELIVERY' || order.status === 'IN_TRANSIT' || order.status === 'DELIVERED') {
+    if (!isOrderPaid(order)) return 'Ожидает оплаты';
+    if (order.status === 'HANDED_TO_DELIVERY') {
       return getExternalDeliveryStatusLabel(order.cdekStatus ?? order.shipment?.status ?? null);
     }
-    return 'В работе';
+    return statusLabels[order.status] ?? 'В работе';
   };
   const summary = useMemo(() => {
     const totalProducts = products.length;
@@ -1192,7 +1209,7 @@ export const SellerDashboardPage = () => {
                                 type="button"
                                 variant="ghost"
                                 onClick={() => void handlePackingToggle(order, !Boolean(order.isPacked))}
-                                disabled={order.status === 'CANCELLED' || order.status !== 'PAID'}
+                                disabled={order.status === 'CANCELLED' || !isOrderPaid(order)}
                               >
                                 {order.isPacked ? 'Снять отметку упаковки' : 'Отметить упаковку'}
                               </Button>

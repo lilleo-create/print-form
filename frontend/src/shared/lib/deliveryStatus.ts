@@ -12,7 +12,7 @@ const PRINTING_STATUSES = new Set(['PRINTING', 'DOCS_PRINTING']);
 const PVZ_DROPOFF_STATUSES = new Set(['ACCEPTED_AT_SOURCE_WAREHOUSE', 'ACCEPTED_AT_PICK_UP_POINT', 'HANDED_TO_CDEK']);
 
 const normalizeStatus = (status?: string | null) => String(status ?? '').toUpperCase();
-const isPaid = (order: DeliveryStatusSource) => order.status === 'PAID' || Boolean(order.paidAt);
+const isPaid = (order: DeliveryStatusSource) => Boolean(order.paidAt);
 
 export const hasHandoverStarted = (order: DeliveryStatusSource) => Boolean(order.readyForShipmentAt) || Boolean(order.shipment);
 
