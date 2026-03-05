@@ -176,6 +176,10 @@ authRoutes.post('/refresh', async (req, res, next) => {
     const result = await authService.refresh(token);
     return res.json({ token: result.accessToken });
   } catch (error) {
+    if (error instanceof Error && error.message === 'INVALID_REFRESH') {
+      console.warn('[auth][refresh] invalid refresh token', { hasCookie: Boolean(req.cookies.refreshToken) });
+      return res.status(401).json({ error: { code: 'INVALID_REFRESH', message: 'Необходимо войти снова' } });
+    }
     return next(error);
   }
 });

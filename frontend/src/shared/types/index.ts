@@ -246,6 +246,7 @@ export interface Order {
   isPacked?: boolean;
   isLabelPrinted?: boolean;
   isActPrinted?: boolean;
+  fulfillmentUpdatedAt?: string | null;
   shipment?: {
     id: string;
     provider: string;

@@ -1,9 +1,9 @@
 import type { MouseEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Order } from '../../shared/types';
-import { getDeliveryStatusLabel, isCancellableDeliveryStage, isDeliveredDeliveryStage } from '../../shared/lib/deliveryStatus';
+import { getDeliveryStatusLabel, hasHandoverStarted, isCancellableDeliveryStage } from '../../shared/lib/deliveryStatus';
 import { getOrderDeliveryLabel } from '../../shared/lib/deliveryLabel';
-import { formatEtaDateRange } from '../../shared/lib/deliveryEta';
+import { formatEtaDateRange, formatEtaDateRangeFromDates, formatEtaDays } from '../../shared/lib/deliveryEta';
 import { ProductMiniCard } from './ProductMiniCard';
 import styles from './OrdersComponents.module.css';
 
@@ -15,13 +15,11 @@ export const OrderCompactCard = ({ order }: { order: Order }) => {
 
   const handleAction = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
-    if (isDeliveredDeliveryStage(order)) {
-      navigate(`/returns?orderId=${order.id}`);
-      return;
-    }
     if (isCancellableDeliveryStage(order)) {
       navigate(`/cancel?orderId=${order.id}`);
+      return;
     }
+    navigate(`/account?tab=returns&orderId=${order.id}`);
   };
 
   return (
@@ -39,17 +37,15 @@ export const OrderCompactCard = ({ order }: { order: Order }) => {
           СДЭК: {order.trackingNumber}
         </a>
       ) : null}
-      {order.deliveryDaysMin && order.deliveryDaysMax ? (
+      {formatEtaDays(order.deliveryDaysMin, order.deliveryDaysMax) ? (
         <>
-          <p>Срок доставки: СДЭК {order.deliveryDaysMin}–{order.deliveryDaysMax} дней</p>
-          <p>Ориентировочно: {order.estimatedDeliveryDateMin && order.estimatedDeliveryDateMax
-            ? formatEtaDateRange(order.estimatedDeliveryDateMin, 0, Math.max(0, Math.round((new Date(order.estimatedDeliveryDateMax).getTime()-new Date(order.estimatedDeliveryDateMin).getTime())/86400000)))
-            : formatEtaDateRange(order.createdAt, order.deliveryDaysMin, order.deliveryDaysMax)}</p>
+          <p>{formatEtaDays(order.deliveryDaysMin, order.deliveryDaysMax)}</p>
+          <p>{formatEtaDateRangeFromDates(order.estimatedDeliveryDateMin, order.estimatedDeliveryDateMax) ?? formatEtaDateRange(order.createdAt, order.deliveryDaysMin, order.deliveryDaysMax)}</p>
         </>
       ) : null}
-      {(isDeliveredDeliveryStage(order) || isCancellableDeliveryStage(order)) ? (
+      {(hasHandoverStarted(order) || isCancellableDeliveryStage(order)) ? (
         <button type="button" className={styles.returnLink} onClick={handleAction}>
-          {isDeliveredDeliveryStage(order) ? 'Оформить возврат' : 'Отменить заказ'}
+          {isCancellableDeliveryStage(order) ? 'Отменить заказ' : 'Оформить возврат'}
         </button>
       ) : null}
     </article>

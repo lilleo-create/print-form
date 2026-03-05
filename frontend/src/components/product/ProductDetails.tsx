@@ -87,8 +87,8 @@ export const ProductDetails = ({ product, ratingCount, reviewsCount }: ProductDe
           {Number((product as any).price ?? 0).toLocaleString('ru-RU')} ₽
         </span>
         <span className={styles.delivery}>Ближайшая доставка: {nearestDeliveryLabel}</span>
-        <span className={styles.delivery}>Доставка СДЭК: {etaDays ?? 'Оформляется'}</span>
-        {etaDates ? <span className={styles.delivery}>Ориентировочно: {etaDates}</span> : null}
+        <span className={styles.delivery}>{etaDays ?? 'СДЭК: уточняется'}</span>
+        {etaDates ? <span className={styles.delivery}>{etaDates}</span> : null}
         {product.dxCm && product.dyCm && product.dzCm ? (
           <span className={styles.delivery}>
             Размер: {product.dxCm} × {product.dyCm} × {product.dzCm} см{product.weightGrossG ? `, вес: ${product.weightGrossG} г` : ''}

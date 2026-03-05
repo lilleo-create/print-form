@@ -2,7 +2,7 @@ import { Order } from '../types';
 
 export type DeliveryStage = 'CREATING' | 'PRINTING' | 'READY_FOR_DROP' | 'IN_TRANSIT' | 'READY_FOR_PICKUP';
 
-type DeliveryStatusSource = Pick<Order, 'status' | 'paidAt' | 'shipment' | 'trackingNumber' | 'cdekOrderId'>;
+type DeliveryStatusSource = Pick<Order, 'status' | 'paidAt' | 'shipment' | 'trackingNumber' | 'cdekOrderId' | 'readyForShipmentAt'>;
 
 const IN_TRANSIT_STATUSES = new Set(['IN_TRANSIT', 'ACCEPTED_IN_TRANSIT_CITY', 'TRANSPORTING', 'ACCEPTED', 'DELIVERY_TRANSPORTATION']);
 const READY_FOR_PICKUP_STATUSES = new Set(['READY_FOR_PICKUP', 'READY_FOR_PICKUP_POINT', 'DELIVERY_AT_PICKUP_POINT']);
@@ -13,6 +13,8 @@ const PVZ_DROPOFF_STATUSES = new Set(['ACCEPTED_AT_SOURCE_WAREHOUSE', 'ACCEPTED_
 
 const normalizeStatus = (status?: string | null) => String(status ?? '').toUpperCase();
 const isPaid = (order: DeliveryStatusSource) => order.status === 'PAID' || Boolean(order.paidAt);
+
+export const hasHandoverStarted = (order: DeliveryStatusSource) => Boolean(order.readyForShipmentAt) || Boolean(order.shipment);
 
 export const getDeliveryStage = (order: DeliveryStatusSource): DeliveryStage => {
   const shipmentStatus = normalizeStatus(order.shipment?.status);
@@ -42,10 +44,7 @@ export const getDeliveryStatusLabel = (order: DeliveryStatusSource): string => {
 };
 
 export const isDeliveredDeliveryStage = (order: DeliveryStatusSource) => DELIVERED_STATUSES.has(normalizeStatus(order.shipment?.status));
-export const isCancellableDeliveryStage = (order: DeliveryStatusSource) => {
-  const shipmentStatus = normalizeStatus(order.shipment?.status);
-  return CREATING_STATUSES.has(shipmentStatus) || PRINTING_STATUSES.has(shipmentStatus) || shipmentStatus === 'READY_TO_SHIP' || shipmentStatus === 'READY_FOR_DROP' || PVZ_DROPOFF_STATUSES.has(shipmentStatus);
-};
+export const isCancellableDeliveryStage = (order: DeliveryStatusSource) => !hasHandoverStarted(order);
 
 export const getExternalDeliveryStatusLabel = (status?: string | null) => {
   const normalized = normalizeStatus(status);

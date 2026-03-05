@@ -839,7 +839,8 @@ sellerRoutes.patch('/orders/:id/fulfillment-steps', writeLimiter, async (req: Au
       data: {
         ...(payload.isPacked !== undefined ? { isPacked: payload.isPacked } : {}),
         ...(payload.isLabelPrinted !== undefined ? { isLabelPrinted: payload.isLabelPrinted } : {}),
-        ...(payload.isActPrinted !== undefined ? { isActPrinted: payload.isActPrinted } : {})
+        ...(payload.isActPrinted !== undefined ? { isActPrinted: payload.isActPrinted } : {}),
+        fulfillmentUpdatedAt: new Date()
       }
     });
 
