@@ -409,6 +409,27 @@
   color: var(--muted);
 }
 
+
+.consentsBlock {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-2);
+}
+
+.checkboxRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--text);
+}
+
+.checkboxRow a {
+  color: var(--primary);
+}
+
 @media (max-width: 960px) {
   .shell {
     grid-template-columns: 1fr;
