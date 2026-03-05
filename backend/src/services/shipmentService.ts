@@ -320,43 +320,42 @@ export const markReadyToShipCdek = async (orderId: string, sellerId?: string) =>
   const { order } = await loadOrderForCdekShipment(orderId, sellerId);
 
   const existingShipment = await prisma.orderShipment.findUnique({ where: { orderId: order.id } });
-  if (!existingShipment && !order.cdekOrderId) {
-    throw makeError('SHIPMENT_NOT_FOUND', 'Сначала создайте отправление.');
+  let cdekOrderId = String(order.cdekOrderId ?? '').trim() || null;
+  let trackingNumber = order.trackingNumber;
+  let cdekState = order.cdekStatus;
+
+  if (!existingShipment || !cdekOrderId) {
+    const created = await createShipmentCdek(orderId, sellerId);
+    cdekOrderId = created.cdek.cdekOrderId ?? cdekOrderId;
+    trackingNumber = created.cdek.trackingNumber ?? trackingNumber;
+    cdekState = created.cdek.state ?? cdekState;
+  }
+
+  const shipmentForOrder = await prisma.orderShipment.findUnique({ where: { orderId: order.id } });
+  if (!shipmentForOrder || !cdekOrderId) {
+    throw makeError('SHIPMENT_NOT_FOUND', 'Сначала нажмите «Готов к отгрузке».');
   }
 
   const now = new Date();
 
   const shipment = await prisma.$transaction(async (tx) => {
-    const nextShipment = existingShipment
-      ? await tx.orderShipment.update({
-        where: { id: existingShipment.id },
-        data: {
-          status: 'READY_TO_SHIP',
-          lastSyncAt: now
-        }
-      })
-      : await tx.orderShipment.create({
-        data: {
-          orderId: order.id,
-          provider: 'CDEK',
-          deliveryMethod: 'PICKUP_POINT',
-          sourceStationId: String(order.sellerDropoffPvzId ?? ''),
-          destinationStationId: String(order.buyerPickupPvzId ?? ''),
-          status: 'READY_TO_SHIP',
-          lastSyncAt: now,
-          statusRaw: {
-            cdek_order_number: order.id,
-            cdek_order_uuid: order.cdekOrderId
-          }
-        }
-      });
+    const nextShipment = await tx.orderShipment.update({
+      where: { id: shipmentForOrder.id },
+      data: {
+        status: 'READY_TO_SHIP',
+        lastSyncAt: now
+      }
+    });
 
     await tx.order.update({
       where: { id: order.id },
       data: {
         readyForShipmentAt: now,
-        status: 'READY_FOR_SHIPMENT' as any,
-        statusUpdatedAt: now
+        status: 'HANDED_TO_DELIVERY' as any,
+        statusUpdatedAt: now,
+        cdekOrderId: cdekOrderId,
+        cdekStatus: cdekState || undefined,
+        trackingNumber: trackingNumber || undefined
       }
     });
 
@@ -377,10 +376,10 @@ export const markReadyToShipCdek = async (orderId: string, sellerId?: string) =>
   return {
     shipment: synced?.shipment ?? shipment,
     cdek: {
-      cdekOrderId: order.cdekOrderId,
-      trackingNumber: synced?.snapshot.trackingNumber || order.trackingNumber,
+      cdekOrderId,
+      trackingNumber: synced?.snapshot.trackingNumber || trackingNumber,
       cdekRequestUuid: null,
-      state: synced?.snapshot.status || order.cdekStatus
+      state: synced?.snapshot.status || cdekState
     }
   };
 };

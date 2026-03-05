@@ -3,9 +3,11 @@ import assert from 'node:assert/strict';
 import express from 'express';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
+import axios from 'axios';
 import { sellerRoutes } from './sellerRoutes';
 import { prisma } from '../lib/prisma';
 import { env } from '../config/env';
+import { shipmentService } from '../services/shipmentService';
 
 const buildApp = () => {
   const app = express();
@@ -33,11 +35,15 @@ const mockOrder = (orderId: string) => ({
   orderLabels: [{ packageNo: 1, code: 'PF-ABC-1' }],
   buyerPickupPvzMeta: { addressFull: 'ПВЗ покупателя' },
   sellerDropoffPvzMeta: { addressFull: 'ПВЗ продавца' },
+  cdekOrderId: 'cdek-uuid',
+  shipment: { id: 'shipment-1' },
   items: [{ quantity: 1, priceAtPurchase: 1500, product: { title: 'Товар' } }]
 });
 
 test('seller documents endpoints return application/pdf and 200 for own order', async () => {
   mockAuth();
+  (shipmentService.getPrintableForms as any) = async () => ({ waybillUrl: 'https://example.test/waybill.pdf', barcodeUrls: [] });
+  (axios.get as any) = async () => ({ data: Buffer.from('%PDF-label%') });
   (prisma.order.findFirst as any) = async ({ where }: any) => {
     if (where.id === 'order-own') return mockOrder('order-own');
     return null;
@@ -47,7 +53,7 @@ test('seller documents endpoints return application/pdf and 200 for own order', 
   const auth = `Bearer ${tokenFor('seller-1')}`;
 
   const packing = await request(app).get('/seller/orders/order-own/documents/packing-slip.pdf').set('Authorization', auth);
-  const labels = await request(app).get('/seller/orders/order-own/documents/labels.pdf').set('Authorization', auth);
+  const labels = await request(app).get('/seller/orders/order-own/documents/label.pdf').set('Authorization', auth);
   const act = await request(app).get('/seller/orders/order-own/documents/handover-act.pdf').set('Authorization', auth);
 
   assert.equal(packing.status, 200);
@@ -73,4 +79,25 @@ test('seller can access documents only for own orders', async () => {
     .set('Authorization', auth);
 
   assert.equal(denied.status, 404);
+});
+
+test('seller label/act return NEED_READY_TO_SHIP when CDEK shipment is missing', async () => {
+  mockAuth();
+  (prisma.order.findFirst as any) = async ({ where }: any) => {
+    if (where.id === 'order-own') {
+      return { ...mockOrder('order-own'), cdekOrderId: null, shipment: null };
+    }
+    return null;
+  };
+
+  const app = buildApp();
+  const auth = `Bearer ${tokenFor('seller-1')}`;
+
+  const label = await request(app).get('/seller/orders/order-own/documents/label.pdf').set('Authorization', auth);
+  const act = await request(app).get('/seller/orders/order-own/documents/handover-act.pdf').set('Authorization', auth);
+
+  assert.equal(label.status, 409);
+  assert.equal(act.status, 409);
+  assert.equal(label.body?.error?.code, 'NEED_READY_TO_SHIP');
+  assert.equal(act.body?.error?.code, 'NEED_READY_TO_SHIP');
 });

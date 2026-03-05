@@ -229,6 +229,7 @@ export interface Order {
   createdAt: string;
   trackingNumber?: string | null;
   cdekOrderId?: string | null;
+  cdekStatus?: string | null;
   carrier?: string | null;
   contact?: Contact | null;
   shippingAddress?: Address | null;
