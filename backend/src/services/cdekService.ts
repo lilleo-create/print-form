@@ -39,7 +39,6 @@ type CreateOrderItem = {
 
 type CreateOrderParams = {
   orderId: string;
-  clientNumber: string;
   fromPvzCode: string;
   toPvzCode: string;
   comment?: string;
@@ -82,6 +81,11 @@ type CdekOrderResponse = {
   related_entities?: Array<{ type?: string; url?: string }>;
   cdek_number?: string;
   statuses?: Array<{ code?: string }>;
+};
+
+type CdekOrdersListResponse = {
+  entity?: Array<CdekOrderEntity & { statuses?: Array<{ code?: string }> }>;
+  requests?: CdekApiRequestInfo[];
 };
 
 export type CdekOrderSnapshot = {
@@ -313,7 +317,6 @@ class CdekService {
     if (!params.recipientName) throw new Error("CDEK_RECIPIENT_NAME_MISSING");
     if (!params.recipientPhone) throw new Error("CDEK_RECIPIENT_PHONE_MISSING");
     if (!params.orderId) throw new Error("CDEK_ORDER_ID_MISSING");
-    if (!params.clientNumber) throw new Error('CDEK_CLIENT_NUMBER_MISSING');
     if (!Array.isArray(params.items) || params.items.length === 0)
       throw new Error("CDEK_ITEMS_MISSING");
 
@@ -331,7 +334,7 @@ class CdekService {
       url: `${baseUrl}/v2/orders`,
       headers: { Authorization: `Bearer ${token}` },
       data: {
-        number: params.clientNumber,
+        number: params.orderId,
         tariff_code: 136,
         shipment_point: params.fromPvzCode,
         delivery_point: params.toPvzCode,
@@ -399,6 +402,29 @@ class CdekService {
     return this.getOrderByUuid(cdekOrderId);
   }
 
+  async getOrderByTracking(trackingNumber: string): Promise<CdekOrderSnapshot> {
+    const number = String(trackingNumber ?? '').trim();
+    if (!number) throw new Error('CDEK_TRACKING_NUMBER_REQUIRED');
+
+    const token = await this.getToken();
+    const { baseUrl } = getCdekConfig();
+
+    const response = await this.request<CdekOrdersListResponse>('getOrderByTracking', {
+      method: 'GET',
+      url: `${baseUrl}/v2/orders`,
+      headers: { Authorization: `Bearer ${token}` },
+      params: { cdek_number: number }
+    });
+
+    const first = Array.isArray(response.entity) ? response.entity[0] : null;
+    if (!first) throw new Error('CDEK_ORDER_NOT_FOUND_BY_TRACKING');
+
+    const cdekOrderId = String(first.uuid ?? first.order_uuid ?? '').trim();
+    if (!cdekOrderId) throw new Error('CDEK_ORDER_UUID_MISSING_BY_TRACKING');
+
+    return this.getOrderByUuid(cdekOrderId);
+  }
+
   async getOrderByUuid(cdekOrderId: string): Promise<CdekOrderSnapshot> {
     const id = String(cdekOrderId ?? '').trim();
     if (!id) throw new Error('CDEK_ORDER_ID_REQUIRED');
@@ -449,7 +475,6 @@ class CdekService {
    */
   async createOrderFromMarketplaceOrder(payload: {
     orderId: string;
-    clientNumber: string;
     fromPvzCode: string;
     toPvzCode: string;
     recipientName: string;
@@ -465,7 +490,6 @@ class CdekService {
   }) {
     return this.createOrder({
       orderId: payload.orderId,
-      clientNumber: payload.clientNumber,
       fromPvzCode: payload.fromPvzCode,
       toPvzCode: payload.toPvzCode,
       recipientName: payload.recipientName,

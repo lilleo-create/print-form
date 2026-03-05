@@ -101,6 +101,8 @@ export const SellerDashboardPage = () => {
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'ALL'>('ALL');
   const [orderUpdateId, setOrderUpdateId] = useState<string | null>(null);
   const [orderUpdateError, setOrderUpdateError] = useState<string | null>(null);
+  const [trackingSearch, setTrackingSearch] = useState('');
+  const [trackingResult, setTrackingResult] = useState<any | null>(null);
 
   const [trackingDrafts, setTrackingDrafts] = useState<
     Record<string, { trackingNumber: string; carrier: string }>
@@ -697,42 +699,40 @@ export const SellerDashboardPage = () => {
     try {
       const result = await ordersApi.downloadShippingLabel(shipmentId);
 
-      if (result.type === 'pdf') {
-        const url = URL.createObjectURL(result.blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `shipping-label-${orderId}.pdf`;
-        link.click();
-        URL.revokeObjectURL(url);
-        return;
-      }
-
-      if (result.url) {
-        window.open(result.url, '_blank', 'noopener,noreferrer');
-      } else {
-        setOrderUpdateError('API не вернуло файл ярлыка.');
-      }
+      const url = URL.createObjectURL(result.blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `shipping-label-${orderId}.pdf`;
+      link.click();
+      URL.revokeObjectURL(url);
     } catch {
       setOrderUpdateError('Не удалось скачать ярлык.');
     }
   };
 
-  const handleDownloadSellerDocument = async (
-    orderId: string,
-    type: 'packing-slip' | 'labels' | 'handover-act',
-    fileName: string
-  ) => {
+  const handleDownloadAct = async (shipmentId: string, orderId: string) => {
     setOrderUpdateError(null);
     try {
-      const blob = await ordersApi.downloadSellerDocument(orderId, type);
+      const blob = await api.downloadShipmentAct(shipmentId) as unknown as Blob;
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = fileName;
+      link.download = `cdek-act-${orderId}.pdf`;
       link.click();
       URL.revokeObjectURL(url);
     } catch {
-      setOrderUpdateError('Не удалось скачать документ.');
+      setOrderUpdateError('Не удалось скачать акт.');
+    }
+  };
+
+  const handleTrackingSearch = async () => {
+    if (!trackingSearch.trim()) return;
+    try {
+      const response = await api.findShipmentByTracking(trackingSearch.trim());
+      setTrackingResult(response.data);
+    } catch {
+      setTrackingResult(null);
+      setOrderUpdateError('Отправление по трек-номеру не найдено.');
     }
   };
 
@@ -752,7 +752,6 @@ export const SellerDashboardPage = () => {
     if (!order.sellerDropoffPvzMeta && !dropoffPvzId)
       return 'Не выбран ПВЗ сдачи';
     if (
-      !order.shipment?.requestId &&
       !order.buyerPickupPvzMeta &&
       !order.shippingAddressId
     )
@@ -1316,14 +1315,13 @@ export const SellerDashboardPage = () => {
 
                             <div className={styles.deliveryInputs}>
                               <p className={styles.muted}>
-                                Метод: PICKUP_POINT
+                                Способ доставки: ПВЗ (Pickup Point)
                               </p>
                               <p className={styles.muted}>
-                                ПВЗ: {order.buyerPickupPvzId ?? '—'} · {order.buyerPickupPvzMeta?.addressFull ?? '—'}
+                                Пункт выдачи: {order.buyerPickupPvzMeta?.addressFull ?? '—'}
                               </p>
                               <p className={styles.muted}>
-                                source_dropoff_pvz:{' '}
-                                {order.sellerDropoffPvzId || dropoffPvzId || 'не задана'}
+                                Пункт сдачи: {order.sellerDropoffPvzId || dropoffPvzId || '—'}
                               </p>
                               <p className={styles.muted}>
                                 Выплата: {payoutLabel(order.payoutStatus)}
@@ -1339,7 +1337,7 @@ export const SellerDashboardPage = () => {
                               </p>
 
                               <p className={styles.muted}>
-                                Трек-номер: {order.trackingNumber ?? 'создаётся (синхронизация)'}
+                                Трек-номер: {order.trackingNumber ?? '—'}
                               </p>
 
                               <Button
@@ -1347,7 +1345,7 @@ export const SellerDashboardPage = () => {
                                 variant="secondary"
                                 onClick={() => handleReadyToShip(order.id)}
                                 disabled={
-                                  Boolean(order.shipment?.requestId) ||
+                                  Boolean(order.shipment?.id) ||
                                   Boolean(readyToShipDisabledReason(order))
                                 }
                               >
@@ -1362,7 +1360,7 @@ export const SellerDashboardPage = () => {
                                 Синхронизировать CDEK
                               </Button>
                               {readyToShipDisabledReason(order) &&
-                                !order.shipment?.requestId && (
+                                !order.shipment?.id && (
                                   <p className={styles.muted}>
                                     {readyToShipDisabledReason(order)}
                                   </p>
@@ -1405,57 +1403,22 @@ export const SellerDashboardPage = () => {
                               <Button
                                 type="button"
                                 variant="ghost"
-                                onClick={() =>
-                                  handleDownloadSellerDocument(
-                                    order.id,
-                                    'packing-slip',
-                                    `packing-slip-${order.id}.pdf`
-                                  )
-                                }
-                              >
-                                Скачать PDF
-                              </Button>
-
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                onClick={() =>
-                                  handleDownloadSellerDocument(
-                                    order.id,
-                                    'labels',
-                                    `labels-${order.id}.pdf`
-                                  )
-                                }
-                              >
-                                Ярлыки
-                              </Button>
-
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                onClick={() =>
-                                  handleDownloadSellerDocument(
-                                    order.id,
-                                    'handover-act',
-                                    `handover-act-${order.id}.pdf`
-                                  )
-                                }
-                              >
-                                Акт
-                              </Button>
-
-                              <Button
-                                type="button"
-                                variant="ghost"
                                 onClick={() => order.shipment?.id && handleDownloadLabel(order.shipment.id, order.id)}
-                                disabled={!order.shipment?.id || !((order.shipment?.statusRaw as any)?.print?.waybillUrl)}
+                                disabled={!order.shipment?.id || !order.trackingNumber}
                               >
                                 Скачать ярлык
                               </Button>
 
-                              {!((order.shipment?.statusRaw as any)?.print?.waybillUrl) && (
-                                <p className={styles.muted}>ещё формируется</p>
-                              )}
+                              {!order.trackingNumber && <p className={styles.muted}>ещё формируется</p>}
+
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={() => order.shipment?.id && handleDownloadAct(order.shipment.id, order.id)}
+                                disabled={!order.shipment?.id}
+                              >
+                                Скачать акт
+                              </Button>
                             </div>
                           </div>
                         );
@@ -1475,6 +1438,22 @@ export const SellerDashboardPage = () => {
                     <div>
                       <h2>Логистика</h2>
                       <p>Данные по доставке ваших заказов.</p>
+                    </div>
+                    <div>
+                      <input
+                        className={styles.input}
+                        placeholder="Поиск по трек-номеру"
+                        value={trackingSearch}
+                        onChange={(e) => setTrackingSearch(e.target.value)}
+                      />
+                      <Button type="button" variant="secondary" onClick={handleTrackingSearch}>
+                        Найти
+                      </Button>
+                      {trackingResult && (
+                        <p className={styles.muted}>
+                          {trackingResult.trackingNumber} · {trackingResult.status} · {trackingResult.dropoffPvz ?? '—'} → {trackingResult.pvz ?? '—'}
+                        </p>
+                      )}
                     </div>
                   </div>
 

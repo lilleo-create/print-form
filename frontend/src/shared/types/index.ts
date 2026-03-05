@@ -236,10 +236,10 @@ export interface Order {
     id: string;
     provider: string;
     status: string;
-    requestId?: string | null;
     sourceStationId: string;
+    destinationStationId?: string;
     lastSyncAt?: string | null;
-    statusRaw?: Record<string, unknown> | null;
+    updatedAt?: string | null;
   } | null;
 }
 

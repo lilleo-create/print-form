@@ -27,6 +27,7 @@ import { clientDisconnect } from "./middleware/clientDisconnect";
 import { internalRoutes } from './routes/internalRoutes';
 import { debugRoutes } from "./routes/debugRoutes";
 import { cdekRoutes } from './routes/cdekRoutes';
+import { shipmentsRoutes } from './routes/shipmentsRoutes';
 
 const app = express();
 const uploadsDir = path.join(process.cwd(), "uploads");
@@ -95,6 +96,7 @@ const mountRoutes = (prefix = '') => {
   app.use(`${prefix}/checkout`, checkoutRoutes);
   app.use(`${prefix}/internal`, internalRoutes);
   app.use(`${prefix}/cdek`, cdekRoutes);
+  app.use(`${prefix}/shipments`, shipmentsRoutes);
   app.use(`${prefix}/debug`, debugRoutes);
 };
 
