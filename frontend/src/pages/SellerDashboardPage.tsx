@@ -60,7 +60,7 @@ const statusLabels: Partial<Record<OrderStatus, string>> = {
 };
 
 const sellerPreparationSteps = [
-  { key: 'isPacked', label: 'Упаковано' },
+  { key: 'isPacked', label: 'Упаковка' },
   { key: 'isLabelPrinted', label: 'Ярлык распечатан' },
   { key: 'isActPrinted', label: 'Акт распечатан' }
 ] as const;
@@ -111,8 +111,6 @@ export const SellerDashboardPage = () => {
   const [orderUpdateError, setOrderUpdateError] = useState<string | null>(null);
   const [trackingSearch, setTrackingSearch] = useState('');
   const [trackingResult, setTrackingResult] = useState<TrackingResult | null>(null);
-  const [printProcessing, setPrintProcessing] = useState<Record<string, { type: 'receipt' | 'barcode'; printUuid: string }>>({});
-
 
   const [kycSubmission, setKycSubmission] =
     useState<SellerKycSubmission | null>(null);
@@ -612,27 +610,6 @@ export const SellerDashboardPage = () => {
     URL.revokeObjectURL(url);
   };
 
-  const handleRetryPrintDownload = async (orderId: string) => {
-    const current = printProcessing[orderId];
-    if (!current) return;
-    try {
-      const blob = current.type === 'receipt'
-        ? await ordersApi.downloadCdekReceiptPdf(current.printUuid)
-        : await ordersApi.downloadCdekBarcodePdf(current.printUuid);
-      triggerDownload(blob, `${current.type}-${orderId}.pdf`);
-      setPrintProcessing((prev) => {
-        const next = { ...prev };
-        delete next[orderId];
-        return next;
-      });
-    } catch (error) {
-      if (getErrorMessage(error).includes('410')) {
-        setOrderUpdateError('ссылка истекла, сформируйте заново');
-      } else {
-        setOrderUpdateError('ещё формируется');
-      }
-    }
-  };
 
 
   const handlePreparationToggle = async (order: Order, step: (typeof sellerPreparationSteps)[number]['key'], done: boolean) => {
@@ -644,38 +621,28 @@ export const SellerDashboardPage = () => {
     }
   };
 
-  const handleDownloadLabel = async (cdekOrderUuid: string, orderId: string) => {
+  const handleDownloadLabel = async (order: Order) => {
     setOrderUpdateError(null);
 
     try {
-      const result = await ordersApi.createCdekBarcodePrintTask({ cdekOrderUuid });
-      if (result.type === 'pdf') {
-        triggerDownload(result.blob, `cdek-barcode-${orderId}.pdf`);
-        return;
-      }
-      setPrintProcessing((prev) => ({ ...prev, [orderId]: { type: 'barcode', printUuid: result.printUuid } }));
-      setOrderUpdateError('ещё формируется');
-      setTimeout(() => {
-        void handleRetryPrintDownload(orderId);
-      }, 2500);
+      const blob = order.shipment?.id
+        ? await ordersApi.downloadShipmentLabel(order.shipment.id)
+        : await ordersApi.downloadSellerDocument(order.id, 'labels');
+      triggerDownload(blob, `cdek-label-${order.id}.pdf`);
+      await loadOrders();
     } catch {
       setOrderUpdateError('Не удалось скачать ярлык.');
     }
   };
 
-  const handleDownloadAct = async (cdekOrderUuid: string, orderId: string) => {
+  const handleDownloadAct = async (order: Order) => {
     setOrderUpdateError(null);
     try {
-      const result = await ordersApi.createCdekReceiptPrintTask({ cdekOrderUuid });
-      if (result.type === 'pdf') {
-        triggerDownload(result.blob, `cdek-act-${orderId}.pdf`);
-        return;
-      }
-      setPrintProcessing((prev) => ({ ...prev, [orderId]: { type: 'receipt', printUuid: result.printUuid } }));
-      setOrderUpdateError('ещё формируется');
-      setTimeout(() => {
-        void handleRetryPrintDownload(orderId);
-      }, 2500);
+      const blob = order.shipment?.id
+        ? await ordersApi.downloadShipmentAct(order.shipment.id)
+        : await ordersApi.downloadSellerDocument(order.id, 'handover-act');
+      triggerDownload(blob, `cdek-act-${order.id}.pdf`);
+      await loadOrders();
     } catch {
       setOrderUpdateError('Не удалось скачать акт.');
     }
@@ -703,16 +670,16 @@ export const SellerDashboardPage = () => {
     return 'HOLD до получения';
   };
 
+  const hasShipment = (order: Order) => Boolean(order.shipment?.id || order.cdekOrderId);
+  const canDownloadLabel = (order: Order) => hasShipment(order);
+  const canDownloadAct = (order: Order) => hasShipment(order);
+  const canReadyToShip = (order: Order) => order.status === 'PAID' && Boolean(order.isPacked) && hasShipment(order);
+
   const readyToShipDisabledReason = (order: Order) => {
-    if (!order.paidAt && order.status !== 'PAID') return 'Ожидает оплаты';
-    if (!order.sellerDropoffPvzMeta && !dropoffPvzId)
-      return 'Не выбран ПВЗ сдачи';
-    if (
-      !order.buyerPickupPvzMeta &&
-      !order.shippingAddressId
-    )
-      return 'Не указан адрес доставки';
-    if (!order.isPacked || !order.isLabelPrinted || !order.isActPrinted) return 'Отметьте все шаги чеклиста';
+    if (order.status === 'CANCELLED') return 'Отменённый заказ нельзя передать в отгрузку';
+    if (order.status !== 'PAID') return 'Ожидает оплаты';
+    if (!hasShipment(order)) return 'Сначала создайте отправление';
+    if (!order.isPacked) return 'Отметьте шаг «Упаковка»';
     return null;
   };
   const summary = useMemo(() => {
@@ -1211,7 +1178,7 @@ export const SellerDashboardPage = () => {
                                       <input
                                         type="checkbox"
                                         checked={checked}
-                                        disabled={Boolean(!order.paidAt && order.status !== 'PAID') || Boolean(order.readyForShipmentAt)}
+                                        disabled={order.status === 'CANCELLED'}
                                         onChange={(event) => void handlePreparationToggle(order, step.key, event.target.checked)}
                                       />
                                       {step.label}
@@ -1250,14 +1217,12 @@ export const SellerDashboardPage = () => {
                                 variant="secondary"
                                 onClick={() => handleReadyToShip(order.id)}
                                 disabled={
-                                  Boolean(order.shipment?.id) ||
-                                  Boolean(readyToShipDisabledReason(order))
+                                  !canReadyToShip(order)
                                 }
                               >
                                 Готов к отгрузке
                               </Button>
-                              {readyToShipDisabledReason(order) &&
-                                !order.shipment?.id && (
+                              {readyToShipDisabledReason(order) && (
                                   <p className={styles.muted}>
                                     {readyToShipDisabledReason(order)}
                                   </p>
@@ -1300,32 +1265,22 @@ export const SellerDashboardPage = () => {
                               <Button
                                 type="button"
                                 variant="ghost"
-                                onClick={() => order.cdekOrderId && handleDownloadLabel(order.cdekOrderId, order.id)}
-                                disabled={!order.cdekOrderId}
+                                onClick={() => void handleDownloadLabel(order)}
+                                disabled={!canDownloadLabel(order)}
                               >
                                 Скачать ярлык
                               </Button>
-
-                              {printProcessing[order.id]?.type === 'barcode' && <p className={styles.muted}>ещё формируется</p>}
+                              {order.isLabelPrinted && <p className={styles.doneState}>✅ Выполнено</p>}
 
                               <Button
                                 type="button"
                                 variant="ghost"
-                                onClick={() => order.cdekOrderId && handleDownloadAct(order.cdekOrderId, order.id)}
-                                disabled={!order.cdekOrderId}
+                                onClick={() => void handleDownloadAct(order)}
+                                disabled={!canDownloadAct(order)}
                               >
                                 Скачать акт
                               </Button>
-
-                              {printProcessing[order.id] && (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  onClick={() => void handleRetryPrintDownload(order.id)}
-                                >
-                                  Повторить скачивание
-                                </Button>
-                              )}
+                              {order.isActPrinted && <p className={styles.doneState}>✅ Выполнено</p>}
 
                             </div>
                           </div>

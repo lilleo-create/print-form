@@ -546,6 +546,23 @@ export const api = {
     return await response.blob();
   },
 
+
+  async downloadShipmentLabel(shipmentId: string) {
+    const response = await fetch(`${baseUrl}/seller/shipments/${shipmentId}/label`, {
+      headers: { ...(authHeaders() ?? {}) }
+    });
+    if (!response.ok) throw new Error(`SHIPMENT_LABEL_DOWNLOAD_FAILED_${response.status}`);
+    return await response.blob();
+  },
+
+  async downloadShipmentAct(shipmentId: string) {
+    const response = await fetch(`${baseUrl}/seller/shipments/${shipmentId}/act`, {
+      headers: { ...(authHeaders() ?? {}) }
+    });
+    if (!response.ok) throw new Error(`SHIPMENT_ACT_DOWNLOAD_FAILED_${response.status}`);
+    return await response.blob();
+  },
+
   async downloadSellerOrderDocument(
     orderId: string,
     type: 'packing-slip' | 'labels' | 'handover-act'

@@ -153,9 +153,14 @@ export const markReadyToShipCdek = async (orderId: string, sellerId?: string) =>
   order = await normalizePvzProvider(order);
 
   if (order.status !== 'PAID' || !order.paidAt) throw makeError('ORDER_NOT_PAID');
-  const fulfillment = order as Order & { isPacked?: boolean; isLabelPrinted?: boolean; isActPrinted?: boolean };
-  if (!fulfillment.isPacked || !fulfillment.isLabelPrinted || !fulfillment.isActPrinted) {
-    throw makeError('FULFILLMENT_STEPS_INCOMPLETE', 'Перед отгрузкой отметьте: Упаковано, Ярлык распечатан и Акт распечатан.');
+  const fulfillment = order as Order & { isPacked?: boolean };
+  if (!fulfillment.isPacked) {
+    throw makeError('FULFILLMENT_STEPS_INCOMPLETE', 'Перед отгрузкой отметьте: Упаковка.');
+  }
+
+  const existingShipment = await prisma.orderShipment.findUnique({ where: { orderId: order.id } });
+  if (!existingShipment && !order.cdekOrderId) {
+    throw makeError('SHIPMENT_NOT_FOUND', 'Сначала создайте отправление.');
   }
 
   const fromPvzCode = String(order.sellerDropoffPvzId ?? '').trim();
