@@ -68,6 +68,12 @@ model SellerProfile {
   siteUrl      String?
   shipmentType String?   @default("import") // import | withdraw
 
+  // Согласия
+  acceptedRulesAt        DateTime?
+  acceptedRulesSlug      String?
+  acceptedPersonalDataAt DateTime?
+  acceptedPersonalDataSlug String?
+
   // Состояние регистрации в Яндекс NDD
   yandexMerchantRegistrationId String?
   yandexMerchantId             String?

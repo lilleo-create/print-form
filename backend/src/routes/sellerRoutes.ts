@@ -105,11 +105,10 @@ const sellerOnboardingSchema = z.object({
 /** Данные для мерчанта NDD (раздел «Подключение продавца»). */
 const merchantDataBaseSchema = z.object({
   contactName: z.string().trim().min(2).optional(),
-  contactEmail: z.string().email().optional().or(z.literal('')),
   contactPhone: z.string().trim().min(5).optional(),
   representativeName: z.string().trim().min(2).optional(),
-  legalAddressFull: z.string().trim().min(5).optional(),
-  siteUrl: z.string().trim().min(2).optional(),
+  legalAddressFull: z.string().trim().min(5).optional().or(z.literal('')),
+  siteUrl: z.string().trim().min(2).optional().or(z.literal('')),
   shipmentType: z.enum(['import', 'withdraw']).optional(),
   legalName: z.string().trim().min(1).optional(),
   inn: z.string().trim().optional(),
@@ -119,43 +118,29 @@ const merchantDataBaseSchema = z.object({
 
 const merchantDataSchemaOOO = merchantDataBaseSchema.required({
   contactName: true,
-  contactEmail: true,
   contactPhone: true,
-  representativeName: true,
   legalName: true,
   inn: true,
-  ogrn: true,
-  kpp: true,
-  legalAddressFull: true,
-  siteUrl: true
+  ogrn: true
 }).refine((d) => /^\d{10}$/.test(d.inn ?? ''), { message: 'ИНН ООО — 10 цифр', path: ['inn'] })
-  .refine((d) => /^\d{13}$/.test(d.ogrn ?? ''), { message: 'ОГРН — 13 цифр', path: ['ogrn'] })
-  .refine((d) => /^\d{9}$/.test(d.kpp ?? ''), { message: 'КПП — 9 цифр', path: ['kpp'] })
-  .refine((d) => (d.contactEmail ?? '').length > 0, { message: 'Email обязателен', path: ['contactEmail'] });
+  .refine((d) => /^\d{13}$/.test(d.ogrn ?? ''), { message: 'ОГРН — 13 цифр', path: ['ogrn'] });
 
 const merchantDataSchemaIP = merchantDataBaseSchema.required({
   contactName: true,
-  contactEmail: true,
   contactPhone: true,
-  legalAddressFull: true,
-  siteUrl: true,
   inn: true,
   ogrn: true
 }).refine((d) => /^\d{12}$/.test(d.inn ?? ''), { message: 'ИНН ИП — 12 цифр', path: ['inn'] })
   .refine((d) => /^\d{15}$/.test(d.ogrn ?? ''), { message: 'ОГРНИП — 15 цифр', path: ['ogrn'] })
-  .refine((d) => (d.contactEmail ?? '').length > 0, { message: 'Email обязателен', path: ['contactEmail'] })
   .transform((d) => ({ ...d, kpp: undefined }));
 
 const merchantDataSchemaSamozanyaty = merchantDataBaseSchema.required({
   contactName: true,
-  contactEmail: true,
   contactPhone: true,
-  legalAddressFull: true,
-  siteUrl: true,
+  legalName: true,
   inn: true
 }).refine((d) => /^\d{12}$/.test(d.inn ?? ''), { message: 'ИНН самозанятого — 12 цифр', path: ['inn'] })
-  .refine((d) => (d.contactEmail ?? '').length > 0, { message: 'Email обязателен', path: ['contactEmail'] })
-  .transform((d) => ({ ...d, kpp: undefined, ogrn: undefined }));
+  .transform((d) => ({ ...d, kpp: undefined }));
 
 function parseMerchantDataPayload(body: unknown, status: 'ООО' | 'ИП' | 'Самозанятый') {
   if (status === 'ООО') return merchantDataSchemaOOO.parse(body);
@@ -186,7 +171,6 @@ const normalizeMerchantUpdateData = (
   };
 
   if (payload.contactName !== undefined) updateData.contactName = payload.contactName?.trim() || null;
-  if (payload.contactEmail !== undefined) updateData.contactEmail = (payload.contactEmail ?? '').trim() || null;
   if (payload.contactPhone !== undefined) updateData.contactPhone = payload.contactPhone?.trim() || null;
   if (payload.representativeName !== undefined || payload.contactName !== undefined) {
     updateData.representativeName = representativeName.trim() || null;
@@ -204,10 +188,6 @@ const normalizeMerchantUpdateData = (
 
   return updateData;
 };
-
-/** Минимум документов для отправки KYC: ИП/Самозанятый — 1, ООО — 2. */
-const MIN_KYC_DOCS_IP_SAMOZANYATY = 1;
-const MIN_KYC_DOCS_OOO = 2;
 
 const sellerOrdersQuerySchema = z.object({
   status: z.enum(['CREATED', 'PRINTING', 'HANDED_TO_DELIVERY', 'IN_TRANSIT', 'DELIVERED']).optional(),
@@ -439,7 +419,9 @@ sellerRoutes.get('/kyc/me', async (req: AuthRequest, res, next) => {
 const kycSubmitPayloadSchema = z.object({
   merchantData: merchantDataBaseSchema,
   dropoffPvzId: z.string().trim().min(1),
-  dropoffPvzMeta: z.record(z.unknown()).optional()
+  dropoffPvzMeta: z.record(z.unknown()).optional(),
+  acceptRules: z.literal(true),
+  acceptPersonalData: z.literal(true)
 });
 
 sellerRoutes.post('/kyc/submit', writeLimiter, kycUpload.array('files', 5), async (req: AuthRequest, res, next) => {
@@ -465,20 +447,6 @@ sellerRoutes.post('/kyc/submit', writeLimiter, kycUpload.array('files', 5), asyn
       include: { documents: true }
     });
 
-    const docCount = (latestSubmission?.documents?.length ?? 0) + files.length;
-    const minDocs = profile.status === 'ООО' ? MIN_KYC_DOCS_OOO : MIN_KYC_DOCS_IP_SAMOZANYATY;
-    if (docCount < minDocs) {
-      return res.status(400).json({
-        error: {
-          code: 'KYC_DOCS_REQUIRED',
-          message: profile.status === 'ООО'
-            ? `Для ООО загрузите минимум ${MIN_KYC_DOCS_OOO} документа.`
-            : `Загрузите минимум ${MIN_KYC_DOCS_IP_SAMOZANYATY} документ.`,
-          required: minDocs
-        }
-      });
-    }
-
     const dropoffPvzMeta = {
       provider: 'CDEK' as const,
       pvzId: submitPayload.dropoffPvzId,
@@ -488,7 +456,13 @@ sellerRoutes.post('/kyc/submit', writeLimiter, kycUpload.array('files', 5), asyn
     const submitted = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.sellerProfile.update({
         where: { userId: req.user!.userId },
-        data: normalizeMerchantUpdateData(merchantPayload, status)
+        data: {
+          ...normalizeMerchantUpdateData(merchantPayload, status),
+          acceptedRulesAt: new Date(),
+          acceptedRulesSlug: 'seller-delivery-and-store-rules',
+          acceptedPersonalDataAt: new Date(),
+          acceptedPersonalDataSlug: 'privacy-policy'
+        }
       });
 
       await tx.sellerSettings.upsert({

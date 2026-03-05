@@ -346,6 +346,10 @@ export interface SellerProfile {
   legalAddressFull?: string | null;
   siteUrl?: string | null;
   shipmentType?: string | null;
+  acceptedRulesAt?: string | null;
+  acceptedRulesSlug?: string | null;
+  acceptedPersonalDataAt?: string | null;
+  acceptedPersonalDataSlug?: string | null;
 }
 
 export interface SellerContextResponse {

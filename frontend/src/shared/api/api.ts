@@ -831,20 +831,18 @@ export const api = {
   async submitSellerKyc(payload: {
     merchantData: {
       contactName: string;
-      contactEmail: string;
       contactPhone: string;
       representativeName?: string;
-      legalAddressFull: string;
-      siteUrl: string;
-      shipmentType?: 'import' | 'withdraw';
-      legalName?: string;
+      legalAddressFull?: string;
+      legalName: string;
       inn: string;
       ogrn?: string;
-      kpp?: string;
     };
     dropoffPvzId: string;
     dropoffPvzMeta?: Record<string, unknown>;
     files: File[] | FileList;
+    acceptRules: boolean;
+    acceptPersonalData: boolean;
   }) {
     const formData = new FormData();
     formData.append(
@@ -852,7 +850,9 @@ export const api = {
       JSON.stringify({
         merchantData: payload.merchantData,
         dropoffPvzId: payload.dropoffPvzId,
-        dropoffPvzMeta: payload.dropoffPvzMeta ?? null
+        dropoffPvzMeta: payload.dropoffPvzMeta ?? null,
+        acceptRules: payload.acceptRules,
+        acceptPersonalData: payload.acceptPersonalData
       })
     );
     Array.from(payload.files).forEach((file) => formData.append('files', file));
