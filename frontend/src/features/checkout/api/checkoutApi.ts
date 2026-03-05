@@ -5,15 +5,15 @@ const client = createFetchClient(baseUrl);
 
 export type DeliveryMethodCode = 'COURIER' | 'PICKUP_POINT';
 export type PaymentMethodCode = 'CARD' | 'SBP';
-export type YaPvzSelection = {
-  provider: 'YANDEX_NDD';
+export type CdekPvzSelection = {
+  provider: 'CDEK';
   pvzId: string;
   buyerPickupStationId?: string;
   addressFull?: string;
   raw?: unknown;
 };
 
-export type PickupPoint = YaPvzSelection;
+export type PickupPoint = CdekPvzSelection;
 
 export type CheckoutDto = {
   recipient: { name: string; phone: string; email: string };
@@ -26,7 +26,7 @@ export type CheckoutDto = {
     floor?: string | null;
     comment?: string | null;
   } | null;
-  selectedPickupPoint?: YaPvzSelection | null;
+  selectedPickupPoint?: CdekPvzSelection | null;
   selectedDeliveryMethod?: DeliveryMethodCode;
   selectedDeliverySubType?: string | null;
   selectedPaymentMethod?: PaymentMethodCode;
@@ -62,7 +62,7 @@ export type CheckoutDto = {
   }>;
 };
 
-const normalizePickupPoint = (pickupPoint: unknown): YaPvzSelection | null => {
+const normalizePickupPoint = (pickupPoint: unknown): CdekPvzSelection | null => {
   if (!pickupPoint || typeof pickupPoint !== 'object') return null;
 
   const raw = pickupPoint as Record<string, unknown>;
@@ -88,7 +88,7 @@ const normalizePickupPoint = (pickupPoint: unknown): YaPvzSelection | null => {
         : undefined;
 
   return {
-    provider: 'YANDEX_NDD',
+    provider: 'CDEK',
     pvzId,
     buyerPickupStationId,
     addressFull,
@@ -117,7 +117,7 @@ export const checkoutApi = {
     });
   },
   setPickupPoint: async (
-    payload: { pickupPoint: YaPvzSelection },
+    payload: { pickupPoint: CdekPvzSelection },
     signal?: AbortSignal
   ) => {
     await client.request('/checkout/pickup', {
@@ -205,7 +205,7 @@ export const checkoutApi = {
       paymentAttemptKey: string;
       recipient: { name: string; phone: string; email?: string | null };
       packagesCount?: number;
-      buyerPickupPvz: YaPvzSelection;
+      buyerPickupPvz: CdekPvzSelection;
       items: Array<{ productId: string; quantity: number }>;
     },
     signal?: AbortSignal

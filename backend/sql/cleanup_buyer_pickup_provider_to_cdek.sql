@@ -1,4 +1,4 @@
--- Normalize historical Yandex pickup provider records to CDEK.
+-- Normalize historical non-CDEK pickup provider records to CDEK.
 UPDATE "Order"
 SET "buyerPickupPvzMeta" = jsonb_set(
   jsonb_set(
@@ -15,4 +15,5 @@ SET "buyerPickupPvzMeta" = jsonb_set(
   ),
   true
 )
-WHERE COALESCE(UPPER("buyerPickupPvzMeta"->>'provider'), '') = 'YANDEX_NDD';
+WHERE COALESCE(UPPER("buyerPickupPvzMeta"->>'provider'), '') <> 'CDEK'
+  AND COALESCE("buyerPickupPvzId", '') ~ '^[A-Z]{3}[0-9]+$';

@@ -105,24 +105,17 @@ YMAPS_GEOCODER_API_KEY=your-yandex-geocoder-api-key
 - Frontend uses feature-based layering (ui/features/entities/shared) and keeps business logic in hooks/services.
 - Frontend data flows through the backend API with token-based authentication and refresh handling.
 
-## NDD Delivery test (tst)
+## CDEK Delivery test (tst)
 1. Задайте env в `backend/.env`:
    ```env
-   YANDEX_NDD_BASE_URL=https://b2b-authproxy.taxi.yandex.net
-   YANDEX_NDD_TOKEN=<ваш токен без префикса Bearer>
-   YANDEX_NDD_OPERATOR_STATION_ID=<числовой station_id продавца, например 10022023854>
-   YANDEX_NDD_LANG=ru
+   CDEK_BASE_URL=https://api.cdek.ru
+   CDEK_CLIENT_ID=<client id>
+   CDEK_CLIENT_SECRET=<client secret>
    ```
-2. Создайте заказ через checkout с `deliveryMethod=PICKUP_POINT` и валидным `pickupPoint.id` (станция назначения).
-3. В ЛК продавца откройте `Настройки` и сохраните ПВЗ сдачи через виджет; в `raw` должен сохраниться `operator_station_id` (числовой station_id), а `YANDEX_NDD_OPERATOR_STATION_ID` используется как приоритетный источник station_id.
-4. В ЛК продавца в разделе `Заказы` нажмите **Готов к отгрузке** — создастся заявка NDD.
-5. Проверьте БД:
-   - `order_shipments` (request_id, status, status_raw)
-   - `order_shipment_status_history`
-   - `seller_delivery_profile`
-6. Для ручной синхронизации статусов:
-   - endpoint: `POST /internal/jobs/shipments-sync`
-   - либо script: `cd backend && npm run shipments:sync`
-7. Для ярлыка в заказе продавца нажмите **Скачать ярлык** (или вызовите `GET /seller/orders/:orderId/shipping-label`).
-270603
-> Подсказка для tst-контура: используйте тестовые станции и ПВЗ в Москве/МО (Москва-only ограничения Яндекс NDD).
+2. Создайте заказ через checkout с `deliveryMethod=PICKUP_POINT` и валидным `pickupPoint.id` (например `MSK117`).
+3. В ЛК продавца откройте `Настройки` и сохраните ПВЗ сдачи CDEK.
+4. В ЛК продавца в разделе `Заказы` нажмите **Готов к отгрузке**.
+5. Для ручной синхронизации статусов используйте endpoint `POST /seller/shipments/:id/sync`.
+6. Для документов используйте:
+   - `GET /seller/shipments/:id/label`
+   - `GET /seller/shipments/:id/barcodes`

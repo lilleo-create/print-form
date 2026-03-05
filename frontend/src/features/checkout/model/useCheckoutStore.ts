@@ -4,7 +4,7 @@ import {
   type CheckoutDto,
   type DeliveryMethodCode,
   type PaymentMethodCode,
-  type YaPvzSelection
+  type CdekPvzSelection
 } from '../api/checkoutApi';
 
 type CheckoutState = {
@@ -17,7 +17,7 @@ type CheckoutState = {
     methodCode: DeliveryMethodCode,
     subType?: string
   ) => Promise<void>;
-  setPickupPoint: (pickupPoint: YaPvzSelection) => Promise<void>;
+  setPickupPoint: (pickupPoint: CdekPvzSelection) => Promise<void>;
   updateRecipient: (payload: CheckoutDto['recipient']) => Promise<void>;
   updateAddress: (
     payload: NonNullable<CheckoutDto['address']>
@@ -199,7 +199,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         (typeof selectedPointRaw.operator_station_id === 'string' ? selectedPointRaw.operator_station_id : undefined);
 
       const buyerPickupPvz = {
-        provider: 'YANDEX_NDD' as const,
+        provider: 'CDEK' as const,
         pvzId,
         buyerPickupStationId,
         addressFull: data.selectedPickupPoint?.addressFull,
