@@ -190,15 +190,24 @@ orderRoutes.post('/:id/ready-for-shipment', authenticate, writeLimiter, async (r
 
 orderRoutes.post('/:id/cancel', authenticate, writeLimiter, async (req: AuthRequest, res, next) => {
   try {
-    const order = await prisma.order.findFirst({ where: { id: req.params.id, buyerId: req.user!.userId } });
+    const order = await prisma.order.findFirst({
+      where: { id: req.params.id, buyerId: req.user!.userId },
+      include: { shipment: true }
+    });
     if (!order) return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND' } });
 
     if (order.status === 'CANCELLED') {
       return res.json({ data: order });
     }
 
-    if (order.status === 'IN_TRANSIT' || order.status === 'DELIVERED') {
-      return res.status(409).json({ error: { code: 'CANCEL_NOT_ALLOWED', message: 'Заказ уже передан в доставку.' } });
+    const handoverStarted = Boolean(order.readyForShipmentAt) || Boolean(order.shipment);
+    if (handoverStarted) {
+      return res.status(409).json({
+        error: {
+          code: 'CANNOT_CANCEL_AFTER_HANDOVER',
+          message: 'Заказ уже передан в доставку. Оформите возврат через кабинет.'
+        }
+      });
     }
 
     const updated = await prisma.order.update({

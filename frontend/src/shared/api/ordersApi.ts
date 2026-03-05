@@ -51,6 +51,7 @@ type ApiOrder = {
   isPacked?: boolean;
   isLabelPrinted?: boolean;
   isActPrinted?: boolean;
+  fulfillmentUpdatedAt?: string | null;
   items?: ApiOrderItem[];
 };
 
@@ -58,6 +59,10 @@ const mapStatus = (status?: string): OrderStatus => {
   switch (status) {
     case 'CREATED':
       return 'CREATED';
+    case 'PAID':
+      return 'PAID';
+    case 'READY_FOR_SHIPMENT':
+      return 'READY_FOR_SHIPMENT';
     case 'PRINTING':
       return 'PRINTING';
     case 'HANDED_TO_DELIVERY':
@@ -101,6 +106,7 @@ const mapOrder = (order: ApiOrder): Order => ({
   isPacked: order.isPacked ?? false,
   isLabelPrinted: order.isLabelPrinted ?? false,
   isActPrinted: order.isActPrinted ?? false,
+  fulfillmentUpdatedAt: order.fulfillmentUpdatedAt ?? null,
   trackingNumber: order.trackingNumber ?? null,
   cdekOrderId: order.cdekOrderId ?? null,
   carrier: order.carrier ?? null,

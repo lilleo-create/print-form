@@ -4,7 +4,7 @@ import { useAuthStore } from '../app/store/authStore';
 import { useOrdersStore } from '../app/store/ordersStore';
 import { api } from '../shared/api';
 import { ReturnRequest } from '../shared/types';
-import { getDeliveryStage, isDeliveredDeliveryStage } from '../shared/lib/deliveryStatus';
+import { getDeliveryStage, hasHandoverStarted } from '../shared/lib/deliveryStatus';
 import { Button } from '../shared/ui/Button';
 import { ReturnCandidatesList, ReturnCandidate } from '../components/returns/ReturnCandidatesList';
 import { ReturnCreateFlow, ReturnCreateStep } from '../components/returns/ReturnCreateFlow';
@@ -61,7 +61,11 @@ export const ReturnsPage = () => {
     loadReturns();
   }, [loadReturns, user]);
 
-  const deliveredOrders = orders.filter((order) => isDeliveredDeliveryStage(order));
+  const deliveredOrders = orders.filter((order) =>
+    order.status === 'PAID' ||
+    order.status === 'READY_FOR_SHIPMENT' ||
+    hasHandoverStarted(order)
+  );
   const cancellationOrders = orders.filter((order) => {
     const stage = getDeliveryStage(order);
     return (order.status === 'PAID' || order.status === 'READY_FOR_SHIPMENT') && (stage === 'CREATING' || stage === 'PRINTING' || stage === 'READY_FOR_DROP');
@@ -101,6 +105,14 @@ export const ReturnsPage = () => {
 
   const filteredCandidates = filterReturnCandidates(returnCandidates, returnsByOrderItemId, approvedOrderItemIds);
   const filteredCancellationCandidates = filterReturnCandidates(cancellationCandidates, returnsByOrderItemId, approvedOrderItemIds);
+
+  useEffect(() => {
+    if (!highlightedOrderId || isCreateFlowOpen) return;
+    const candidate = filteredCandidates.find((item) => item.orderId === highlightedOrderId);
+    if (!candidate) return;
+    openCreateFlow(candidate);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlightedOrderId, filteredCandidates, isCreateFlowOpen]);
 
   const openCreateFlow = (candidate?: ReturnCandidate | null) => {
     setIsCreateFlowOpen(true);

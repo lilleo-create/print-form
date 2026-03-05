@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ordersApi } from '../../shared/api/ordersApi';
+import { useAuthStore } from '../../app/store/authStore';
+import { useOrdersStore } from '../../app/store/ordersStore';
 import { Modal } from '../../shared/ui/Modal';
 import { Button } from '../../shared/ui/Button';
 import styles from './OrdersComponents.module.css';
@@ -10,6 +12,8 @@ const reasons = ['Изменился адрес', 'Хочу изменить с�
 export const CancelOrderModalHost = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const user = useAuthStore((state) => state.user);
+  const loadBuyerOrders = useOrdersStore((state) => state.loadBuyerOrders);
   const [reason, setReason] = useState(reasons[0]);
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -17,13 +21,16 @@ export const CancelOrderModalHost = () => {
   const orderId = useMemo(() => new URLSearchParams(location.search).get('orderId'), [location.search]);
   const isOpen = location.pathname === '/cancel' && Boolean(orderId);
 
-  const close = () => navigate('/orders');
+  const close = () => navigate('/account?tab=orders');
 
   const submit = async () => {
     if (!orderId) return;
     setSubmitting(true);
     try {
       await ordersApi.cancelOrder(orderId, { reason, comment });
+      if (user) {
+        await loadBuyerOrders(user);
+      }
       close();
     } finally {
       setSubmitting(false);

@@ -224,6 +224,7 @@ model Order {
   isPacked             Boolean              @default(false)
   isLabelPrinted       Boolean              @default(false)
   isActPrinted         Boolean              @default(false)
+  fulfillmentUpdatedAt DateTime?
   dropoffDeadlineAt    DateTime?
   paymentAttemptKey    String?
   paymentProvider      String?

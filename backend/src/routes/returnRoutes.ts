@@ -84,7 +84,9 @@ returnRoutes.post('/', requireAuth, writeLimiter, async (req: AuthRequest, res, 
         id: payload.orderItemId,
         order: {
           buyerId: req.user!.userId,
-          status: 'DELIVERED'
+          status: {
+            in: ['READY_FOR_SHIPMENT', 'HANDED_TO_DELIVERY', 'IN_TRANSIT', 'DELIVERED']
+          }
         }
       },
       include: {

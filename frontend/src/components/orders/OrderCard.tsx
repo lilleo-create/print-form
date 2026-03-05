@@ -22,7 +22,7 @@ export const OrderCard = ({ order }: OrderCardProps) => {
 
   const handleCreateReturn = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
-    navigate(`/returns?orderId=${order.id}`);
+    navigate(`/account?tab=returns&orderId=${order.id}`);
   };
 
   return (
