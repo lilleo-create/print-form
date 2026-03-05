@@ -4,8 +4,9 @@ type DeliveryStatusSource = Pick<Order, 'status' | 'shipment' | 'trackingNumber'
 
 const SHIPMENT_STATUS_LABELS: Record<string, string> = {
   READY_TO_SHIP: 'Готов к сдаче в ПВЗ',
+  ACCEPTED: 'Заказ принят СДЭК (ожидает сдачи)',
   IN_TRANSIT: 'В пути',
-  DELIVERED: 'Доставлено',
+  DELIVERED: 'Доставлен',
   CANCELLED: 'Отменено',
   FAILED: 'Ошибка доставки',
   VALIDATING: 'Оформляется',
@@ -25,3 +26,8 @@ export const getDeliveryStatusLabel = (order: DeliveryStatusSource): string => {
   return SHIPMENT_STATUS_LABELS[order.status] ?? order.status;
 };
 
+
+export const getExternalDeliveryStatusLabel = (status?: string | null) => {
+  const normalized = String(status ?? '').toUpperCase();
+  return SHIPMENT_STATUS_LABELS[normalized] ?? status ?? '—';
+};

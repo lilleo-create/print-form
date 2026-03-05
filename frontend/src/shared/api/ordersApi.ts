@@ -33,6 +33,7 @@ type ApiOrder = {
   createdAt: string;
   payoutStatus?: string | null;
   trackingNumber?: string | null;
+  cdekOrderId?: string | null;
   carrier?: string | null;
   contact?: Order['contact'];
   shippingAddress?: Order['shippingAddress'];
@@ -78,6 +79,7 @@ const mapOrder = (order: ApiOrder): Order => ({
   createdAt: order.createdAt,
   payoutStatus: order.payoutStatus ?? null,
   trackingNumber: order.trackingNumber ?? null,
+  cdekOrderId: order.cdekOrderId ?? null,
   carrier: order.carrier ?? null,
   contact: order.contact ?? null,
   shippingAddress: order.shippingAddress ?? null,
@@ -151,14 +153,17 @@ export const ordersApi = {
   syncShipment: async (shipmentId: string) => {
     return api.syncShipment(shipmentId);
   },
-  downloadShippingLabel: async (shipmentId: string) => {
-    return api.downloadShippingLabel(shipmentId);
+  createCdekReceiptPrintTask: async (payload: { cdekOrderUuid: string; copyCount?: number; type?: string }) => {
+    return api.createCdekReceiptPrintTask(payload);
   },
-  downloadShipmentBarcodes: async (shipmentId: string) => {
-    return api.downloadShipmentBarcodes(shipmentId);
+  downloadCdekReceiptPdf: async (printUuid: string) => {
+    return api.downloadCdekReceiptPdf(printUuid);
   },
-  downloadShipmentAct: async (shipmentId: string) => {
-    return api.downloadShipmentAct(shipmentId);
+  createCdekBarcodePrintTask: async (payload: { cdekOrderUuid: string; copyCount?: number; format?: 'A4' | 'A5' | 'A6' | 'A7'; lang?: 'RUS' | 'ENG' }) => {
+    return api.createCdekBarcodePrintTask(payload);
+  },
+  downloadCdekBarcodePdf: async (printUuid: string) => {
+    return api.downloadCdekBarcodePdf(printUuid);
   },
   downloadSellerDocument: async (orderId: string, type: 'packing-slip' | 'labels' | 'handover-act') => {
     return api.downloadSellerOrderDocument(orderId, type);

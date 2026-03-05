@@ -4,6 +4,7 @@ import { getCdekConfig } from '../config/cdek';
 import { cdekService } from '../services/cdekService';
 import { authenticate, type AuthRequest } from '../middleware/authMiddleware';
 import { prisma } from '../lib/prisma';
+import type { Prisma } from '@prisma/client';
 
 export const cdekRoutes = Router();
 
@@ -18,6 +19,22 @@ const allowedWidgetServicePaths = new Set([
 const calculateForOrderSchema = z.object({
   orderId: z.string().min(1)
 });
+
+const printReceiptSchema = z.object({
+  cdekOrderUuid: z.string().min(1),
+  copyCount: z.number().int().positive().max(100).optional(),
+  type: z.string().min(1).optional()
+});
+
+const printBarcodeSchema = z.object({
+  cdekOrderUuid: z.string().min(1),
+  copyCount: z.number().int().positive().max(100).optional(),
+  format: z.enum(['A4', 'A5', 'A6', 'A7']).optional(),
+  lang: z.enum(['RUS', 'ENG']).optional()
+});
+
+const PRINT_POLL_INTERVAL_MS = 750;
+const PRINT_POLL_MAX_WAIT_MS = 15_000;
 
 const toErrorResponse = (error: any) => ({
   error: {
@@ -40,6 +57,71 @@ const asPositiveInt = (value: unknown, min: number, fallback: number): number =>
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return Math.max(min, Math.round(parsed));
+};
+
+const safeRecord = (value: unknown): Record<string, unknown> =>
+  value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+
+const pollPrintTaskReady = async (
+  getStatusFn: () => Promise<{ status: string; statuses: Array<{ code: string }> }>,
+  maxWaitMs = PRINT_POLL_MAX_WAIT_MS,
+  intervalMs = PRINT_POLL_INTERVAL_MS
+) => {
+  const startedAt = Date.now();
+  let last: { status: string; statuses: Array<{ code: string }> } | null = null;
+
+  while (Date.now() - startedAt < maxWaitMs) {
+    const state = await getStatusFn();
+    last = state;
+    console.info('[CDEK][print][poll]', { status: state.status, statuses: state.statuses.map((entry) => entry.code) });
+
+    if (state.status === 'READY') return { ...state, timedOut: false };
+    if (state.status === 'INVALID') {
+      throw new Error(`CDEK_PRINT_TASK_INVALID: ${JSON.stringify(state.statuses)}`);
+    }
+    if (state.status === 'REMOVED') {
+      throw new Error('CDEK_PRINT_TASK_REMOVED_EXPIRED');
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+
+  return { ...(last ?? { status: 'PROCESSING', statuses: [] }), timedOut: true };
+};
+
+const resolveShipmentByCdekOrderUuid = async (cdekOrderUuid: string) => {
+  const order = await prisma.order.findFirst({
+    where: { cdekOrderId: cdekOrderUuid },
+    include: { shipment: true }
+  });
+  if (!order?.shipment) return null;
+  return order.shipment;
+};
+
+const upsertPrintState = async (cdekOrderUuid: string, patch: Record<string, unknown>) => {
+  const shipment = await resolveShipmentByCdekOrderUuid(cdekOrderUuid);
+  if (!shipment) return;
+  const statusRaw = safeRecord(shipment.statusRaw);
+  const printRaw = safeRecord(statusRaw.print);
+  await prisma.orderShipment.update({
+    where: { id: shipment.id },
+    data: {
+      statusRaw: {
+        ...statusRaw,
+        print: {
+          ...printRaw,
+          ...patch
+        }
+      } as Prisma.InputJsonValue
+    }
+  });
+};
+
+const streamPdfResponse = (res: any, buffer: Buffer, filename: string) => {
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.setHeader('Content-Length', buffer.length);
+  return res.status(200).send(buffer);
 };
 
 cdekRoutes.get('/pickup-points', async (req, res) => {
@@ -226,6 +308,120 @@ cdekRoutes.post('/orders/:orderId/sync', authenticate, async (req: AuthRequest, 
     return res.json({ data: info });
   } catch (error: any) {
     return res.status(error?.response?.status ?? 502).json(toErrorResponse(error));
+  }
+});
+
+cdekRoutes.post('/print/receipt', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    const payload = printReceiptSchema.parse(req.body ?? {});
+    const printUuid = await cdekService.createReceiptPrintTask({
+      orderUuid: payload.cdekOrderUuid,
+      copyCount: payload.copyCount,
+      type: payload.type ?? 'tpl_russia'
+    });
+    console.info('[CDEK][print][receipt] task created', { cdekOrderUuid: payload.cdekOrderUuid, printUuid });
+
+    const result = await pollPrintTaskReady(() => cdekService.getReceiptPrintTask(printUuid));
+    await upsertPrintState(payload.cdekOrderUuid, {
+      receiptPrintUuid: printUuid,
+      lastPrintStatusReceipt: result.status
+    });
+
+    if (result.status === 'READY') {
+      const pdf = await cdekService.getReceiptPdfByPrintTaskUuid(printUuid);
+      return streamPdfResponse(res, pdf, `cdek-receipt-${payload.cdekOrderUuid}.pdf`);
+    }
+
+    return res.json({ status: 'PROCESSING', printUuid });
+  } catch (error) {
+    next(error);
+  }
+});
+
+cdekRoutes.get('/print/receipt/:printUuid.pdf', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    const printUuid = String(req.params.printUuid ?? '').trim();
+    if (!printUuid) return res.status(400).json({ error: { code: 'PRINT_UUID_REQUIRED' } });
+
+    const status = await cdekService.getReceiptPrintTask(printUuid);
+    if (status.status === 'REMOVED') {
+      return res.status(410).json({ error: { code: 'PRINT_LINK_EXPIRED', message: 'ссылка истекла, сформируйте заново' } });
+    }
+    if (status.status !== 'READY') {
+      return res.status(409).json({ error: { code: 'PRINT_NOT_READY', message: 'ещё формируется', status: status.status } });
+    }
+
+    const pdf = await cdekService.getReceiptPdfByPrintTaskUuid(printUuid);
+    return streamPdfResponse(res, pdf, `cdek-receipt-${printUuid}.pdf`);
+  } catch (error) {
+    next(error);
+  }
+});
+
+cdekRoutes.post('/print/barcode', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    const payload = printBarcodeSchema.parse(req.body ?? {});
+    const printUuid = await cdekService.createBarcodePrintTask({
+      orderUuid: payload.cdekOrderUuid,
+      copyCount: payload.copyCount,
+      format: payload.format,
+      lang: payload.lang
+    });
+    console.info('[CDEK][print][barcode] task created', { cdekOrderUuid: payload.cdekOrderUuid, printUuid });
+
+    const result = await pollPrintTaskReady(() => cdekService.getBarcodePrintTask(printUuid));
+    await upsertPrintState(payload.cdekOrderUuid, {
+      barcodePrintUuid: printUuid,
+      lastPrintStatusBarcode: result.status
+    });
+
+    if (result.status === 'READY') {
+      const pdf = await cdekService.getBarcodePdfByPrintTaskUuid(printUuid);
+      return streamPdfResponse(res, pdf, `cdek-barcode-${payload.cdekOrderUuid}.pdf`);
+    }
+
+    return res.json({ status: 'PROCESSING', printUuid });
+  } catch (error) {
+    next(error);
+  }
+});
+
+cdekRoutes.get('/print/barcode/:printUuid.pdf', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    const printUuid = String(req.params.printUuid ?? '').trim();
+    if (!printUuid) return res.status(400).json({ error: { code: 'PRINT_UUID_REQUIRED' } });
+
+    const status = await cdekService.getBarcodePrintTask(printUuid);
+    if (status.status === 'REMOVED') {
+      return res.status(410).json({ error: { code: 'PRINT_LINK_EXPIRED', message: 'ссылка истекла, сформируйте заново' } });
+    }
+    if (status.status !== 'READY') {
+      return res.status(409).json({ error: { code: 'PRINT_NOT_READY', message: 'ещё формируется', status: status.status } });
+    }
+
+    const pdf = await cdekService.getBarcodePdfByPrintTaskUuid(printUuid);
+    return streamPdfResponse(res, pdf, `cdek-barcode-${printUuid}.pdf`);
+  } catch (error) {
+    next(error);
+  }
+});
+
+cdekRoutes.get('/track/:trackingNumber', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    const trackingNumber = String(req.params.trackingNumber ?? '').trim();
+    if (!trackingNumber) return res.status(400).json({ error: { code: 'TRACKING_NUMBER_REQUIRED' } });
+    const cdek = await cdekService.getOrderByTracking(trackingNumber);
+    const statuses = Array.isArray(cdek.raw.entity?.statuses) ? cdek.raw.entity!.statuses! : [];
+    const events = statuses.map((entry) => ({ code: String(entry.code ?? '').trim(), dateTime: null }));
+    return res.json({
+      data: {
+        trackingNumber: cdek.trackingNumber,
+        state: cdek.status,
+        events
+      }
+    });
+  } catch (error) {
+    next(error);
   }
 });
 

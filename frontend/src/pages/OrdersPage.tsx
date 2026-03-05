@@ -1,9 +1,11 @@
 import { useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../app/store/authStore';
 import { useOrdersStore } from '../app/store/ordersStore';
 import { PaymentIntent } from '../shared/types';
 import styles from './OrdersPage.module.css';
+import { resolveImageUrl } from '../shared/lib/resolveImageUrl';
+import { getDeliveryStatusLabel } from '../shared/lib/deliveryStatus';
 
 const deliveryLabel = (order: { delivery?: { deliveryMethod: 'COURIER' | 'PICKUP_POINT'; courierAddress?: { line1?: string; city?: string } | null; pickupPoint?: { id: string; fullAddress: string } | null } | null }) => {
   if (!order.delivery) return null;
@@ -24,6 +26,7 @@ export const OrdersPage = () => {
   const orders = useOrdersStore((state) => state.orders);
   const loadBuyerOrders = useOrdersStore((state) => state.loadBuyerOrders);
   const location = useLocation();
+  const navigate = useNavigate();
   const paymentIntent = (location.state as { paymentIntent?: PaymentIntent | null } | null)?.paymentIntent ?? null;
 
   useEffect(() => {
@@ -51,41 +54,46 @@ export const OrdersPage = () => {
           <p className={styles.empty}>У вас пока нет заказов.</p>
         ) : (
           <div className={styles.list}>
-            {orders.map((order) => (
-              <article key={order.id} className={styles.card}>
-                <div className={styles.cardHeader}>
-                  <div>
-                    <h3>Заказ №{order.id}</h3>
-                    <span>
-                      {new Date(order.createdAt).toLocaleDateString('ru-RU', {
-                        day: '2-digit',
-                        month: 'long',
-                        year: 'numeric'
-                      })}
-                    </span>
+            {orders.map((order) => {
+              const firstItem = order.items[0];
+              const imageUrl = resolveImageUrl(firstItem?.image);
+              return (
+                <article key={order.id} className={styles.card}>
+                  <div className={styles.cardHeader}>
+                    <div>
+                      <h3>Заказ №{order.id}</h3>
+                      <span>
+                        {new Date(order.createdAt).toLocaleDateString('ru-RU', {
+                          day: '2-digit',
+                          month: 'long',
+                          year: 'numeric'
+                        })}
+                      </span>
+                    </div>
+                    <div className={styles.total}>{order.total.toLocaleString('ru-RU')} ₽</div>
                   </div>
-                  <div className={styles.total}>{order.total.toLocaleString('ru-RU')} ₽</div>
-                </div>
-                {deliveryLabel(order) ? <p>{deliveryLabel(order)}</p> : null}
-                {order.shipment ? (
-                  <p>
-                    Статус доставки: {order.shipment.status}
-                    {order.trackingNumber ? ` · трек: ${order.trackingNumber}` : ''}
-                  </p>
-                ) : null}
-                <ul className={styles.items}>
-                  {order.items.map((item) => (
-                    <li key={`${order.id}-${item.productId}`} className={styles.item}>
+                  {firstItem && (
+                    <button
+                      type="button"
+                      className={styles.item}
+                      onClick={() => navigate(`/product/${firstItem.productId}`)}
+                    >
+                      {imageUrl ? <img src={imageUrl} alt={firstItem.title} width={48} height={48} /> : null}
                       <div className={styles.itemInfo}>
-                        <strong>{item.title}</strong>
-                        <span>{item.qty} шт.</span>
+                        <strong>{firstItem.title}</strong>
+                        <span>{firstItem.qty} шт.</span>
                       </div>
-                      <span>{item.lineTotal.toLocaleString('ru-RU')} ₽</span>
-                    </li>
-                  ))}
-                </ul>
-              </article>
-            ))}
+                    </button>
+                  )}
+                  {deliveryLabel(order) ? <p>{deliveryLabel(order)}</p> : null}
+                  <p>Статус доставки: {getDeliveryStatusLabel(order)}</p>
+                  <p>Трек-номер: {order.trackingNumber ?? '—'}</p>
+                  <button type="button" className={styles.returnLink} onClick={() => navigate(`/returns?orderId=${order.id}`)}>
+                    Оформить возврат
+                  </button>
+                </article>
+              );
+            })}
           </div>
         )}
       </div>

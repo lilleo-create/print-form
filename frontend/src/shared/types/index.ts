@@ -225,6 +225,7 @@ export interface Order {
   orderLabels?: Array<{ packageNo: number; code: string }>;
   createdAt: string;
   trackingNumber?: string | null;
+  cdekOrderId?: string | null;
   carrier?: string | null;
   contact?: Contact | null;
   shippingAddress?: Address | null;

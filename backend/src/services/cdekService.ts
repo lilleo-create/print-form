@@ -101,9 +101,20 @@ export type CdekOrderSnapshot = {
 };
 
 type CdekPrintTaskResponse = {
-  entity?: { uuid?: string };
+  entity?: { uuid?: string; statuses?: Array<{ code?: string; date_time?: string; city?: string }> };
   requests?: CdekApiRequestInfo[];
 };
+
+export type CdekPrintTaskStatusCode = 'ACCEPTED' | 'INVALID' | 'PROCESSING' | 'READY' | 'REMOVED';
+
+export type CdekPrintTaskSnapshot = {
+  uuid: string;
+  status: CdekPrintTaskStatusCode | 'UNKNOWN';
+  statuses: Array<{ code: string; dateTime?: string; city?: string }>;
+};
+
+type CdekBarcodePrintFormat = 'A4' | 'A5' | 'A6' | 'A7';
+type CdekPrintLang = 'RUS' | 'ENG';
 
 class CdekService {
   private tokenCache: { token: string; expiresAtMs: number } | null = null;
@@ -536,6 +547,106 @@ class CdekService {
     return printUuid;
   }
 
+  async createReceiptPrintTask(params: {
+    orderUuid: string;
+    copyCount?: number;
+    type?: string;
+  }) {
+    const orderUuid = String(params.orderUuid ?? '').trim();
+    if (!orderUuid) throw new Error('CDEK_ORDER_UUID_REQUIRED');
+
+    const token = await this.getToken();
+    const { baseUrl } = getCdekConfig();
+    const response = await this.request<CdekPrintTaskResponse>('createReceiptPrintTask', {
+      method: 'POST',
+      url: `${baseUrl}/v2/print/orders`,
+      headers: { Authorization: `Bearer ${token}` },
+      data: {
+        orders: [{ order_uuid: orderUuid }],
+        copy_count: params.copyCount ?? 2,
+        type: String(params.type ?? 'tpl_russia')
+      }
+    });
+
+    const printUuid = String(response.entity?.uuid ?? '').trim();
+    if (!printUuid) {
+      const { state, errors } = this.extractErrors(response);
+      throw new Error(`CDEK_RECEIPT_PRINT_TASK_UUID_MISSING: ${JSON.stringify({ state, errors }, null, 2)}`);
+    }
+
+    return printUuid;
+  }
+
+  async createBarcodePrintTask(params: {
+    orderUuid: string;
+    copyCount?: number;
+    format?: CdekBarcodePrintFormat;
+    lang?: CdekPrintLang;
+  }) {
+    const orderUuid = String(params.orderUuid ?? '').trim();
+    if (!orderUuid) throw new Error('CDEK_ORDER_UUID_REQUIRED');
+
+    const token = await this.getToken();
+    const { baseUrl } = getCdekConfig();
+    const response = await this.request<CdekPrintTaskResponse>('createBarcodePrintTask', {
+      method: 'POST',
+      url: `${baseUrl}/v2/print/barcodes`,
+      headers: { Authorization: `Bearer ${token}` },
+      data: {
+        orders: [{ order_uuid: orderUuid }],
+        copy_count: params.copyCount ?? 1,
+        format: params.format ?? 'A4',
+        lang: params.lang ?? 'RUS'
+      }
+    });
+
+    const printUuid = String(response.entity?.uuid ?? '').trim();
+    if (!printUuid) {
+      const { state, errors } = this.extractErrors(response);
+      throw new Error(`CDEK_BARCODE_PRINT_TASK_UUID_MISSING: ${JSON.stringify({ state, errors }, null, 2)}`);
+    }
+
+    return printUuid;
+  }
+
+  private normalizePrintTaskStatus(response: CdekPrintTaskResponse): CdekPrintTaskSnapshot {
+    const uuid = String(response.entity?.uuid ?? '').trim();
+    const statuses = Array.isArray(response.entity?.statuses) ? response.entity!.statuses! : [];
+    const normalizedStatuses = statuses.map((entry) => ({
+      code: String(entry?.code ?? '').trim().toUpperCase(),
+      dateTime: entry?.date_time,
+      city: entry?.city
+    })).filter((entry) => Boolean(entry.code));
+    const status = (normalizedStatuses[normalizedStatuses.length - 1]?.code ?? 'UNKNOWN') as CdekPrintTaskSnapshot['status'];
+    return { uuid, status, statuses: normalizedStatuses };
+  }
+
+  async getReceiptPrintTask(printTaskUuid: string): Promise<CdekPrintTaskSnapshot> {
+    const uuid = String(printTaskUuid ?? '').trim();
+    if (!uuid) throw new Error('CDEK_PRINT_TASK_UUID_REQUIRED');
+    const token = await this.getToken();
+    const { baseUrl } = getCdekConfig();
+    const response = await this.request<CdekPrintTaskResponse>('getReceiptPrintTask', {
+      method: 'GET',
+      url: `${baseUrl}/v2/print/orders/${uuid}`,
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return this.normalizePrintTaskStatus(response);
+  }
+
+  async getBarcodePrintTask(printTaskUuid: string): Promise<CdekPrintTaskSnapshot> {
+    const uuid = String(printTaskUuid ?? '').trim();
+    if (!uuid) throw new Error('CDEK_PRINT_TASK_UUID_REQUIRED');
+    const token = await this.getToken();
+    const { baseUrl } = getCdekConfig();
+    const response = await this.request<CdekPrintTaskResponse>('getBarcodePrintTask', {
+      method: 'GET',
+      url: `${baseUrl}/v2/print/barcodes/${uuid}`,
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return this.normalizePrintTaskStatus(response);
+  }
+
   async getWaybillPdfByPrintTaskUuid(printTaskUuid: string): Promise<Buffer> {
     const uuid = String(printTaskUuid ?? "").trim();
     if (!uuid) throw new Error("CDEK_PRINT_TASK_UUID_REQUIRED");
@@ -552,6 +663,38 @@ class CdekService {
         responseType: "arraybuffer",
       },
     );
+
+    return Buffer.from(arrayBuffer);
+  }
+
+  async getReceiptPdfByPrintTaskUuid(printTaskUuid: string): Promise<Buffer> {
+    const uuid = String(printTaskUuid ?? '').trim();
+    if (!uuid) throw new Error('CDEK_PRINT_TASK_UUID_REQUIRED');
+
+    const token = await this.getToken();
+    const { baseUrl } = getCdekConfig();
+    const arrayBuffer = await this.request<ArrayBuffer>('getReceiptPdfByPrintTaskUuid', {
+      method: 'GET',
+      url: `${baseUrl}/v2/print/orders/${uuid}.pdf`,
+      headers: { Authorization: `Bearer ${token}` },
+      responseType: 'arraybuffer'
+    });
+
+    return Buffer.from(arrayBuffer);
+  }
+
+  async getBarcodePdfByPrintTaskUuid(printTaskUuid: string): Promise<Buffer> {
+    const uuid = String(printTaskUuid ?? '').trim();
+    if (!uuid) throw new Error('CDEK_PRINT_TASK_UUID_REQUIRED');
+
+    const token = await this.getToken();
+    const { baseUrl } = getCdekConfig();
+    const arrayBuffer = await this.request<ArrayBuffer>('getBarcodePdfByPrintTaskUuid', {
+      method: 'GET',
+      url: `${baseUrl}/v2/print/barcodes/${uuid}.pdf`,
+      headers: { Authorization: `Bearer ${token}` },
+      responseType: 'arraybuffer'
+    });
 
     return Buffer.from(arrayBuffer);
   }
