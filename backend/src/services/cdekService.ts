@@ -1,5 +1,5 @@
-import axios, { type AxiosRequestConfig } from 'axios';
-import { getCdekConfig } from '../config/cdek';
+import axios, { type AxiosRequestConfig } from "axios";
+import { getCdekConfig } from "../config/cdek";
 
 type CdekTokenResponse = {
   access_token: string;
@@ -53,36 +53,98 @@ type CreateOrderParams = {
   items: CreateOrderItem[];
 };
 
+type CdekApiError = {
+  code?: string;
+  additional_code?: string;
+  message?: string;
+};
+
+type CdekApiRequestInfo = {
+  type?: string;
+  date_time?: string;
+  state?: string; // OK / INVALID / etc
+  errors?: CdekApiError[];
+};
+
+type CdekOrderEntity = {
+  uuid?: string;
+  uuids?: string[]; // ✅ важное поле: после POST /v2/orders часто приходит именно массив uuids
+  order_uuid?: string;
+  cdek_number?: string;
+  statuses?: Array<{ code?: string }>;
+};
+
 type CdekOrderResponse = {
-  entity?: {
-    uuid?: string;
-    cdek_number?: string;
-    statuses?: Array<{ code?: string }>;
-  };
+  entity?: CdekOrderEntity;
+  requests?: CdekApiRequestInfo[];
+  related_entities?: any[];
   cdek_number?: string;
   statuses?: Array<{ code?: string }>;
 };
 
 type CdekPrintTaskResponse = {
   entity?: { uuid?: string };
+  requests?: CdekApiRequestInfo[];
 };
 
 class CdekService {
   private tokenCache: { token: string; expiresAtMs: number } | null = null;
 
-  private async request<T>(methodName: string, config: AxiosRequestConfig): Promise<T> {
+  private async request<T>(
+    methodName: string,
+    config: AxiosRequestConfig,
+  ): Promise<T> {
     const startedAt = Date.now();
     try {
       const response = await axios.request<T>(config);
-      console.info(`[CDEK][${methodName}]`, { status: response.status, durationMs: Date.now() - startedAt });
+      console.info(`[CDEK][${methodName}]`, {
+        status: response.status,
+        durationMs: Date.now() - startedAt,
+      });
       return response.data;
     } catch (error: any) {
       console.info(`[CDEK][${methodName}]`, {
         status: Number(error?.response?.status ?? 0),
-        durationMs: Date.now() - startedAt
+        durationMs: Date.now() - startedAt,
+        data: error?.response?.data,
       });
       throw error;
     }
+  }
+
+  private looksLikeCdekPvz(code?: string) {
+    return typeof code === "string" && /^[A-Z]{3}\d{2,6}$/.test(code.trim());
+  }
+
+  private extractOrderUuid(resp: CdekOrderResponse): string {
+    const e = resp?.entity ?? {};
+    const uuid =
+      e.uuid ??
+      e.order_uuid ??
+      (Array.isArray(e.uuids) ? e.uuids[0] : undefined);
+
+    return String(uuid ?? "").trim();
+  }
+
+  private extractCdekNumber(resp: CdekOrderResponse): string {
+    const e = resp?.entity ?? {};
+    return String(e.cdek_number ?? resp?.cdek_number ?? "").trim();
+  }
+
+  private extractLastStatusCode(resp: CdekOrderResponse): string {
+    const statuses = (resp?.entity?.statuses ?? resp?.statuses ?? []) as Array<{
+      code?: string;
+    }>;
+    const last =
+      statuses.length > 0 ? (statuses[statuses.length - 1]?.code ?? "") : "";
+    return String(last ?? "").trim();
+  }
+
+  private extractErrors(resp: { requests?: CdekApiRequestInfo[] } | undefined) {
+    const requests = resp?.requests ?? [];
+    const state = String(requests?.[0]?.state ?? "");
+    const errors = requests.flatMap((r) => r?.errors ?? []);
+    return { state, errors };
   }
 
   async getToken(): Promise<string> {
@@ -94,21 +156,21 @@ class CdekService {
     const { baseUrl, clientId, clientSecret } = getCdekConfig();
 
     const body = new URLSearchParams({
-      grant_type: 'client_credentials',
+      grant_type: "client_credentials",
       client_id: clientId,
-      client_secret: clientSecret
+      client_secret: clientSecret,
     });
 
-    const response = await this.request<CdekTokenResponse>('getToken', {
-      method: 'POST',
+    const response = await this.request<CdekTokenResponse>("getToken", {
+      method: "POST",
       url: `${baseUrl}/v2/oauth/token`,
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      data: body.toString()
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      data: body.toString(),
     });
 
     this.tokenCache = {
       token: response.access_token,
-      expiresAtMs: now + response.expires_in * 1000
+      expiresAtMs: now + response.expires_in * 1000,
     };
 
     return response.access_token;
@@ -118,16 +180,16 @@ class CdekService {
     const token = await this.getToken();
     const { baseUrl } = getCdekConfig();
 
-    const response = await this.request<CdekPickupPoint[]>('getPickupPoints', {
-      method: 'GET',
+    const response = await this.request<CdekPickupPoint[]>("getPickupPoints", {
+      method: "GET",
       url: `${baseUrl}/v2/deliverypoints`,
       params: {
         city_code: cityCode,
-        type: 'PVZ',
+        type: "PVZ",
         is_handout: true,
-        is_reception: true
+        is_reception: true,
       },
-      headers: { Authorization: `Bearer ${token}` }
+      headers: { Authorization: `Bearer ${token}` },
     });
 
     return response
@@ -136,15 +198,15 @@ class CdekService {
         const lon = Number(point.location?.longitude ?? 0);
 
         return {
-          code: String(point.code ?? ''),
-          name: String(point.name ?? ''),
-          address: String(point.location?.address_full ?? ''),
+          code: String(point.code ?? "").trim(),
+          name: String(point.name ?? "").trim(),
+          address: String(point.location?.address_full ?? "").trim(),
           cityCode: Number(point.location?.city_code ?? 0),
-          cityName: String(point.location?.city ?? ''),
+          cityName: String(point.location?.city ?? "").trim(),
           latitude: Number.isFinite(lat) ? lat : 0,
           longitude: Number.isFinite(lon) ? lon : 0,
-          workTime: String(point.work_time ?? ''),
-          type: String(point.type ?? 'PVZ')
+          workTime: String(point.work_time ?? "").trim(),
+          type: String(point.type ?? "PVZ").trim(),
         };
       })
       .filter((point) => {
@@ -153,40 +215,51 @@ class CdekService {
         return point.cityName.toLowerCase().includes(city.toLowerCase());
       });
   }
-  async getPickupPointByCode(pvzCode: string) {
-    const code = String(pvzCode ?? '').trim();
-    if (!code) throw new Error('CDEK_PVZ_CODE_REQUIRED');
 
-    const points = await this.getPickupPoints(); // без cityCode, вернет все доступные (может быть много)
-    const found = points.find((p) => String(p.code).toUpperCase() === code.toUpperCase());
+  /**
+   * ⚠️ Не идеально: без cityCode это может быть очень много точек.
+   * Но оставляю как было, чтобы не ломать проект.
+   */
+  async getPickupPointByCode(pvzCode: string) {
+    const code = String(pvzCode ?? "").trim();
+    if (!code) throw new Error("CDEK_PVZ_CODE_REQUIRED");
+
+    const points = await this.getPickupPoints(); // может быть тяжело
+    const found = points.find(
+      (p) => String(p.code).toUpperCase() === code.toUpperCase(),
+    );
 
     if (!found) {
       const err: any = new Error(`CDEK_PVZ_NOT_FOUND: ${code}`);
-      err.code = 'CDEK_PVZ_NOT_FOUND';
+      err.code = "CDEK_PVZ_NOT_FOUND";
       throw err;
     }
 
-    // Сформируем raw в том формате, который твой sellerDropoffPvzSchema ожидает
     return {
       code: found.code,
       name: found.name,
-      type: found.type ?? 'PVZ',
+      type: found.type ?? "PVZ",
       location: {
         city_code: found.cityCode,
         city: found.cityName,
         latitude: found.latitude,
         longitude: found.longitude,
-        address_full: found.address
+        address_full: found.address,
       },
-      work_time: found.workTime
+      work_time: found.workTime,
     };
   }
+
   async calculateDelivery(params: CalculateDeliveryParams) {
     const token = await this.getToken();
     const { baseUrl } = getCdekConfig();
 
-    const response = await this.request<{ total_sum: number; period_min: number; period_max: number }>('calculateDelivery', {
-      method: 'POST',
+    const response = await this.request<{
+      total_sum: number;
+      period_min: number;
+      period_max: number;
+    }>("calculateDelivery", {
+      method: "POST",
       url: `${baseUrl}/v2/calculator/tariff`,
       headers: { Authorization: `Bearer ${token}` },
       data: {
@@ -198,43 +271,68 @@ class CdekService {
             weight: params.weightGrams,
             length: params.lengthCm ?? 10,
             width: params.widthCm ?? 10,
-            height: params.heightCm ?? 10
-          }
-        ]
-      }
+            height: params.heightCm ?? 10,
+          },
+        ],
+      },
     });
 
     return {
       totalSum: Number(response.total_sum ?? 0),
       deliveryDaysMin: Number(response.period_min ?? 0),
       deliveryDaysMax: Number(response.period_max ?? 0),
-      tariffCode: 136 as const
+      tariffCode: 136 as const,
     };
   }
 
   async createOrder(params: CreateOrderParams) {
+    // ✅ валидации ДО запроса
+    if (!params.fromPvzCode) throw new Error("CDEK_FROM_PVZ_MISSING");
+    if (!params.toPvzCode) throw new Error("CDEK_DESTINATION_PVZ_MISSING");
+
+    if (!this.looksLikeCdekPvz(params.fromPvzCode)) {
+      throw new Error(`CDEK_FROM_PVZ_INVALID_CODE: ${params.fromPvzCode}`);
+    }
+    if (!this.looksLikeCdekPvz(params.toPvzCode)) {
+      throw new Error(`CDEK_DESTINATION_PVZ_INVALID_CODE: ${params.toPvzCode}`);
+    }
+    if (!params.recipientName) throw new Error("CDEK_RECIPIENT_NAME_MISSING");
+    if (!params.recipientPhone) throw new Error("CDEK_RECIPIENT_PHONE_MISSING");
+    if (!params.orderId) throw new Error("CDEK_ORDER_ID_MISSING");
+    if (!Array.isArray(params.items) || params.items.length === 0)
+      throw new Error("CDEK_ITEMS_MISSING");
+
     const token = await this.getToken();
     const { baseUrl } = getCdekConfig();
 
-    const response = await this.request<CdekOrderResponse>('createOrder', {
-      method: 'POST',
+    console.info("[CDEK][createOrder] pvz", {
+      from: params.fromPvzCode,
+      to: params.toPvzCode,
+      orderId: params.orderId,
+    });
+
+    const response = await this.request<CdekOrderResponse>("createOrder", {
+      method: "POST",
       url: `${baseUrl}/v2/orders`,
       headers: { Authorization: `Bearer ${token}` },
       data: {
-        
         tariff_code: 136,
         shipment_point: params.fromPvzCode,
         delivery_point: params.toPvzCode,
-        comment: params.comment ?? '',
+        comment: params.comment ?? "",
+
         recipient: {
           name: params.recipientName,
-          phones: [{ number: params.recipientPhone }]
+          phones: [{ number: params.recipientPhone }],
         },
+
         sender: {
-          name: params.senderName ?? 'Маркетплейс PrintForm',
-          phones: [{ number: params.senderPhone ?? '+70000000000' }]
+          name: params.senderName ?? "Маркетплейс PrintForm",
+          phones: [{ number: params.senderPhone ?? "+70000000000" }],
         },
+
         services: [],
+
         packages: [
           {
             number: params.orderId,
@@ -242,62 +340,66 @@ class CdekService {
             length: params.lengthCm ?? 10,
             width: params.widthCm ?? 10,
             height: params.heightCm ?? 10,
-            comment: params.comment ?? '',
+            comment: params.comment ?? "",
             items: params.items.map((item) => ({
               name: item.name,
               ware_key: item.article ?? item.id,
               payment: { value: 0 },
               cost: item.price,
               weight: 50,
-              amount: item.quantity
-            }))
-          }
-        ]
-      }
+              amount: item.quantity,
+            })),
+          },
+        ],
+      },
     });
-    console.info('[CDEK][createOrder] pvz', {
-      from: params.fromPvzCode,
-      to: params.toPvzCode,
-      orderId: params.orderId
+    console.info("[CDEK][createOrder][raw]", JSON.stringify(response, null, 2));
+
+    const cdekOrderId = this.extractOrderUuid(response);
+    const trackingNumber = this.extractCdekNumber(response);
+
+    // лог на один раз (потом уберешь)
+    console.info("[CDEK][createOrder][parsed]", {
+      cdekOrderId,
+      trackingNumber,
+      state: response?.requests?.[0]?.state,
+      errors: response?.requests?.flatMap((r) => r?.errors ?? []) ?? [],
     });
 
-    if (!params.fromPvzCode) throw new Error('CDEK_FROM_PVZ_MISSING');
-    if (!params.toPvzCode) throw new Error('CDEK_DESTINATION_PVZ_MISSING');
-    const looksLikeCdekPvz = (v?: string) => typeof v === 'string' && /^[A-Z]{3}\d{2,6}$/.test(v);
-
-    if (!looksLikeCdekPvz(params.toPvzCode)) {
-      throw new Error(`CDEK_DESTINATION_PVZ_INVALID_CODE: ${params.toPvzCode}`);
+    if (!cdekOrderId) {
+      const state = String(response?.requests?.[0]?.state ?? "");
+      const errors = response?.requests?.flatMap((r) => r?.errors ?? []) ?? [];
+      throw new Error(
+        `CDEK_CREATE_ORDER_NO_UUID: ${JSON.stringify({ state, errors, response }, null, 2)}`,
+      );
     }
-    return {
-      cdekOrderId: String(response.entity?.uuid ?? ''),
-      trackingNumber: String(response.entity?.cdek_number ?? '')
-    };
+
+    return { cdekOrderId, trackingNumber };
   }
 
   async getOrderInfo(cdekOrderId: string) {
+    const id = String(cdekOrderId ?? "").trim();
+    if (!id) throw new Error("CDEK_ORDER_ID_REQUIRED");
+
     const token = await this.getToken();
     const { baseUrl } = getCdekConfig();
 
-    const response = await this.request<CdekOrderResponse>('getOrderInfo', {
-      method: 'GET',
-      url: `${baseUrl}/v2/orders/${cdekOrderId}`,
-      headers: { Authorization: `Bearer ${token}` }
+    const response = await this.request<CdekOrderResponse>("getOrderInfo", {
+      method: "GET",
+      url: `${baseUrl}/v2/orders/${id}`,
+      headers: { Authorization: `Bearer ${token}` },
     });
 
-    const statuses = response.entity?.statuses ?? response.statuses ?? [];
-    const lastStatus = statuses.length > 0 ? statuses[statuses.length - 1]?.code ?? '' : '';
-
     return {
-      cdekOrderId: String(response.entity?.uuid ?? cdekOrderId),
-      status: String(lastStatus),
-      trackingNumber: String(response.entity?.cdek_number ?? response.cdek_number ?? '')
+      cdekOrderId: this.extractOrderUuid(response) || id,
+      status: this.extractLastStatusCode(response),
+      trackingNumber: this.extractCdekNumber(response),
     };
   }
 
   /**
    * ✅ Обертка под “старый” вызов из проекта:
    * cdekService.createOrderFromMarketplaceOrder(...)
-   * Чтобы не переписывать полпроекта.
    */
   async createOrderFromMarketplaceOrder(payload: {
     orderId: string;
@@ -314,7 +416,6 @@ class CdekService {
     widthCm?: number;
     heightCm?: number;
   }) {
-    
     return this.createOrder({
       orderId: payload.orderId,
       fromPvzCode: payload.fromPvzCode,
@@ -328,54 +429,61 @@ class CdekService {
       weightGrams: payload.weightGrams,
       lengthCm: payload.lengthCm,
       widthCm: payload.widthCm,
-      heightCm: payload.heightCm
+      heightCm: payload.heightCm,
     });
   }
 
-  /**
-   * Создает задачу печати (накладная/квитанция).
-   * CDEK обычно возвращает uuid задачи печати.
-   */
   async createWaybillPrintTask(orderUuid: string) {
+    const uuid = String(orderUuid ?? "").trim();
+    if (!uuid) throw new Error("CDEK_ORDER_UUID_REQUIRED");
+
     const token = await this.getToken();
     const { baseUrl } = getCdekConfig();
 
-    const resp = await this.request<CdekPrintTaskResponse>('createWaybillPrintTask', {
-      method: 'POST',
-      url: `${baseUrl}/v2/print/orders`,
-      headers: { Authorization: `Bearer ${token}` },
-      data: {
-        orders: [{ order_uuid: orderUuid }],
-        copy_count: 1
-      }
-    });
+    const resp = await this.request<CdekPrintTaskResponse>(
+      "createWaybillPrintTask",
+      {
+        method: "POST",
+        url: `${baseUrl}/v2/print/orders`,
+        headers: { Authorization: `Bearer ${token}` },
+        data: {
+          orders: [{ order_uuid: uuid }],
+          copy_count: 1,
+        },
+      },
+    );
 
-    const uuid = String(resp.entity?.uuid ?? '');
-    if (!uuid) throw new Error('CDEK_PRINT_TASK_UUID_MISSING');
-    return uuid;
+    const printUuid = String(resp.entity?.uuid ?? "").trim();
+    if (!printUuid) {
+      const { state, errors } = this.extractErrors(resp);
+      throw new Error(
+        `CDEK_PRINT_TASK_UUID_MISSING: ${JSON.stringify({ state, errors }, null, 2)}`,
+      );
+    }
+
+    return printUuid;
   }
 
-  /**
-   * Забирает PDF по uuid задачи печати.
-   * У CDEK это обычно GET /v2/print/orders/{uuid}.pdf
-   */
   async getWaybillPdfByPrintTaskUuid(printTaskUuid: string): Promise<Buffer> {
+    const uuid = String(printTaskUuid ?? "").trim();
+    if (!uuid) throw new Error("CDEK_PRINT_TASK_UUID_REQUIRED");
+
     const token = await this.getToken();
     const { baseUrl } = getCdekConfig();
 
-    const arrayBuffer = await this.request<ArrayBuffer>('getWaybillPdfByPrintTaskUuid', {
-      method: 'GET',
-      url: `${baseUrl}/v2/print/orders/${printTaskUuid}.pdf`,
-      headers: { Authorization: `Bearer ${token}` },
-      responseType: 'arraybuffer'
-    });
+    const arrayBuffer = await this.request<ArrayBuffer>(
+      "getWaybillPdfByPrintTaskUuid",
+      {
+        method: "GET",
+        url: `${baseUrl}/v2/print/orders/${uuid}.pdf`,
+        headers: { Authorization: `Bearer ${token}` },
+        responseType: "arraybuffer",
+      },
+    );
 
     return Buffer.from(arrayBuffer);
   }
 
-  /**
-   * Удобный метод: сразу pdf по uuid заказа.
-   */
   async getWaybillPdfByOrderUuid(orderUuid: string): Promise<Buffer> {
     const printTaskUuid = await this.createWaybillPrintTask(orderUuid);
     return this.getWaybillPdfByPrintTaskUuid(printTaskUuid);
