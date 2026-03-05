@@ -73,9 +73,14 @@
 
 .item {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 12px;
   align-items: center;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
 }
 
 .itemInfo {
@@ -93,4 +98,13 @@
     flex-direction: column;
     align-items: flex-start;
   }
+}
+
+.returnLink {
+  width: fit-content;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+  padding: 8px 12px;
+  cursor: pointer;
 }

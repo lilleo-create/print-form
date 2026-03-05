@@ -444,36 +444,66 @@ export const api = {
     });
   },
 
-  async downloadShippingLabel(shipmentId: string) {
-    const response = await fetch(`${baseUrl}/seller/shipments/${shipmentId}/label`, {
+  async createCdekReceiptPrintTask(payload: {
+    cdekOrderUuid: string;
+    copyCount?: number;
+    type?: string;
+  }) {
+    const response = await fetch(`${baseUrl}/cdek/print/receipt`, {
+      method: 'POST',
       headers: {
+        'Content-Type': 'application/json',
         ...(authHeaders() ?? {})
-      }
+      },
+      body: JSON.stringify(payload)
     });
 
-    if (!response.ok) {
-      throw new Error(`LABEL_DOWNLOAD_FAILED_${response.status}`);
+    if (response.ok && response.headers.get('content-type')?.includes('application/pdf')) {
+      return { type: 'pdf' as const, blob: await response.blob() };
     }
 
-    return {
-      type: 'pdf' as const,
-      blob: await response.blob()
-    };
+    const json = await response.json();
+    if (!response.ok) throw new Error(json?.error?.message ?? `RECEIPT_PRINT_FAILED_${response.status}`);
+    return { type: 'processing' as const, ...(json as { status: 'PROCESSING'; printUuid: string }) };
   },
 
-  async downloadShipmentBarcodes(shipmentId: string) {
-    return apiClient.request<{ urls: string[] }>(`/seller/shipments/${shipmentId}/barcodes`);
-  },
-
-  async downloadShipmentAct(shipmentId: string) {
-    const response = await fetch(`${baseUrl}/seller/shipments/${shipmentId}/act`, {
-      headers: {
-        ...(authHeaders() ?? {})
-      }
+  async downloadCdekReceiptPdf(printUuid: string) {
+    const response = await fetch(`${baseUrl}/cdek/print/receipt/${printUuid}.pdf`, {
+      headers: { ...(authHeaders() ?? {}) }
     });
-    if (!response.ok) {
-      throw new Error(`ACT_DOWNLOAD_FAILED_${response.status}`);
+    if (!response.ok) throw new Error(`RECEIPT_DOWNLOAD_FAILED_${response.status}`);
+    return await response.blob();
+  },
+
+  async createCdekBarcodePrintTask(payload: {
+    cdekOrderUuid: string;
+    copyCount?: number;
+    format?: 'A4' | 'A5' | 'A6' | 'A7';
+    lang?: 'RUS' | 'ENG';
+  }) {
+    const response = await fetch(`${baseUrl}/cdek/print/barcode`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authHeaders() ?? {})
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (response.ok && response.headers.get('content-type')?.includes('application/pdf')) {
+      return { type: 'pdf' as const, blob: await response.blob() };
     }
+
+    const json = await response.json();
+    if (!response.ok) throw new Error(json?.error?.message ?? `BARCODE_PRINT_FAILED_${response.status}`);
+    return { type: 'processing' as const, ...(json as { status: 'PROCESSING'; printUuid: string }) };
+  },
+
+  async downloadCdekBarcodePdf(printUuid: string) {
+    const response = await fetch(`${baseUrl}/cdek/print/barcode/${printUuid}.pdf`, {
+      headers: { ...(authHeaders() ?? {}) }
+    });
+    if (!response.ok) throw new Error(`BARCODE_DOWNLOAD_FAILED_${response.status}`);
     return await response.blob();
   },
 
@@ -497,15 +527,10 @@ export const api = {
 
   async findShipmentByTracking(trackingNumber: string) {
     return apiClient.request<{
-      id?: string;
-      orderId?: string;
-      trackingNumber?: string | null;
-      carrier?: string | null;
-      status: string;
-      pvz?: string | null;
-      dropoffPvz?: string | null;
-      updatedAt: string;
-    }>(`/shipments/track/${encodeURIComponent(trackingNumber)}`);
+      trackingNumber: string;
+      state: string;
+      events: Array<{ code: string; dateTime: string | null }>;
+    }>(`/cdek/track/${encodeURIComponent(trackingNumber)}`);
   },
 
   async getSellerPayments() {
