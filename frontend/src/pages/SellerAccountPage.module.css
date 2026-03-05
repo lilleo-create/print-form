@@ -351,6 +351,10 @@
   font-weight: 600;
 }
 
+.documentPrintedButton {
+  border: 1px solid green;
+}
+
 .muted {
   color: var(--muted);
 }

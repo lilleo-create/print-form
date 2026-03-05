@@ -179,6 +179,10 @@ export const ordersApi = {
     const result = await api.readyToShip(orderId);
     return result.data;
   },
+  createShipment: async (orderId: string) => {
+    const result = await api.createShipment(orderId);
+    return result.data;
+  },
   syncShipment: async (shipmentId: string) => {
     return api.syncShipment(shipmentId);
   },
