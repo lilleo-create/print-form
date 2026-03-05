@@ -6,6 +6,7 @@ import { Button } from '../../shared/ui/Button';
 import { Rating } from '../../shared/ui/Rating';
 import { resolveImageUrl } from '../../shared/lib/resolveImageUrl'; // <-- поправь путь под свой проект
 import styles from './ProductCard.module.css';
+import { formatEtaDays } from '../../shared/lib/deliveryEta';
 import { useEffect } from 'react';
 interface ProductCardProps {
   product: Product;
@@ -68,6 +69,7 @@ useEffect(() => {
         <Rating value={product.ratingAvg} count={product.ratingCount} />
 
         <p className={styles.price}>{product.price.toLocaleString('ru-RU')} ₽</p>
+        <p className={styles.meta}>Доставка СДЭК: {formatEtaDays(product.deliveryDaysMin, product.deliveryDaysMax) ?? 'Срок уточняется'}</p>
 
         <div className={styles.actions}>
           <Button

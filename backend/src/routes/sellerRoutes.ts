@@ -77,7 +77,8 @@ const toShipmentView = (shipment: any) => {
     sourceStationId: shipment.sourceStationId,
     destinationStationId: shipment.destinationStationId,
     lastSyncAt: shipment.lastSyncAt,
-    updatedAt: shipment.updatedAt
+    updatedAt: shipment.updatedAt,
+    preparationChecklist: readPreparationChecklist(shipment.statusRaw)
   };
 };
 
@@ -228,6 +229,29 @@ const sellerShipmentStageSchema = z.object({
 const sellerSettingsSchema = z.object({
   dropoffSchedule: z.enum(['DAILY', 'WEEKDAYS'])
 });
+
+const sellerPreparationSchema = z.object({
+  step: z.enum(['packedDone', 'labelPrintedDone', 'actPrintedDone', 'readyForDropoffDone']),
+  done: z.boolean().default(true)
+});
+
+type PreparationChecklist = {
+  packedDone?: boolean;
+  packedAt?: string;
+  labelPrintedDone?: boolean;
+  labelPrintedAt?: string;
+  actPrintedDone?: boolean;
+  actPrintedAt?: string;
+  readyForDropoffDone?: boolean;
+  readyForDropoffAt?: string;
+};
+
+function readPreparationChecklist(statusRaw: unknown): PreparationChecklist {
+  const raw = (statusRaw && typeof statusRaw === 'object' ? statusRaw : {}) as Record<string, unknown>;
+  const prep = (raw.preparationChecklist && typeof raw.preparationChecklist === 'object' ? raw.preparationChecklist : {}) as Record<string, unknown>;
+  return prep as PreparationChecklist;
+};
+
 
 const sellerDropoffPvzSchema = z.object({
   provider: z.literal('CDEK'),
@@ -925,6 +949,12 @@ sellerRoutes.get('/orders/:orderId/documents/labels.pdf', async (req: AuthReques
     if (!order) return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND' } });
 
     const pdf = await sellerOrderDocumentsService.buildLabels(order);
+    const shipment = await prisma.orderShipment.findUnique({ where: { orderId: order.id } });
+    if (shipment) {
+      const statusRaw = (shipment.statusRaw ?? {}) as Record<string, unknown>;
+      const checklist = readPreparationChecklist(statusRaw);
+      await prisma.orderShipment.update({ where: { id: shipment.id }, data: { statusRaw: { ...statusRaw, preparationChecklist: { ...checklist, labelPrintedDone: true, labelPrintedAt: new Date().toISOString() } } } });
+    }
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="labels-${order.id}.pdf"`);
     return res.status(200).send(pdf);
@@ -939,9 +969,41 @@ sellerRoutes.get('/orders/:orderId/documents/handover-act.pdf', async (req: Auth
     if (!order) return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND' } });
 
     const pdf = await sellerOrderDocumentsService.buildHandoverAct(order);
+    const shipment = await prisma.orderShipment.findUnique({ where: { orderId: order.id } });
+    if (shipment) {
+      const statusRaw = (shipment.statusRaw ?? {}) as Record<string, unknown>;
+      const checklist = readPreparationChecklist(statusRaw);
+      await prisma.orderShipment.update({ where: { id: shipment.id }, data: { statusRaw: { ...statusRaw, preparationChecklist: { ...checklist, actPrintedDone: true, actPrintedAt: new Date().toISOString() } } } });
+    }
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="handover-act-${order.id}.pdf"`);
     return res.status(200).send(pdf);
+  } catch (error) {
+    return next(error);
+  }
+});
+
+
+sellerRoutes.patch('/orders/:id/preparation', writeLimiter, async (req: AuthRequest, res, next) => {
+  try {
+    const payload = sellerPreparationSchema.parse(req.body);
+    const order = await prisma.order.findFirst({ where: { id: req.params.id, items: { some: { product: { sellerId: req.user!.userId } } } }, include: { shipment: true } });
+    if (!order?.shipment) return res.status(404).json({ error: { code: 'SHIPMENT_NOT_FOUND' } });
+
+    const statusRaw = (order.shipment.statusRaw ?? {}) as Record<string, unknown>;
+    const checklist = readPreparationChecklist(statusRaw);
+    const doneAtKey = payload.step.replace('Done', 'At') as keyof PreparationChecklist;
+    const nextChecklist: PreparationChecklist = {
+      ...checklist,
+      [payload.step]: payload.done,
+      [doneAtKey]: payload.done ? new Date().toISOString() : null
+    };
+
+    const updated = await prisma.orderShipment.update({
+      where: { id: order.shipment.id },
+      data: { statusRaw: { ...statusRaw, preparationChecklist: nextChecklist } }
+    });
+    return res.json({ data: toShipmentView(updated) });
   } catch (error) {
     return next(error);
   }

@@ -1,5 +1,5 @@
 import type { Order } from '../../shared/types';
-import { OrderCard } from './OrderCard';
+import { OrderCompactCard } from './OrderCompactCard';
 import styles from './OrdersComponents.module.css';
 
 interface OrdersListProps {
@@ -14,7 +14,7 @@ export const OrdersList = ({ orders }: OrdersListProps) => {
   return (
     <div className={styles.list}>
       {orders.map((order) => (
-        <OrderCard key={order.id} order={order} />
+        <OrderCompactCard key={order.id} order={order} />
       ))}
     </div>
   );

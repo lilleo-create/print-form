@@ -23,7 +23,7 @@ import {
   SellerProductPayload
 } from '../widgets/seller/SellerProductModal';
 import styles from './SellerAccountPage.module.css';
-import { DeliveryStage, getDeliveryStage, getDeliveryStatusLabel, getExternalDeliveryStatusLabel } from '../shared/lib/deliveryStatus';
+import { getDeliveryStatusLabel, getExternalDeliveryStatusLabel } from '../shared/lib/deliveryStatus';
 
 const menuItems = [
   'Подключение',
@@ -59,14 +59,12 @@ const statusLabels: Partial<Record<OrderStatus, string>> = {
   EXPIRED: 'Просрочен'
 };
 
-const deliveryStageFlow: DeliveryStage[] = ['CREATING', 'PRINTING', 'READY_FOR_DROP', 'IN_TRANSIT', 'READY_FOR_PICKUP'];
-const deliveryStageLabels: Record<DeliveryStage, string> = {
-  CREATING: 'Оформляется',
-  PRINTING: 'Печатается',
-  READY_FOR_DROP: 'Готов к сдаче в ПВЗ',
-  IN_TRANSIT: 'В пути',
-  READY_FOR_PICKUP: 'Готов к выдаче'
-};
+const sellerPreparationSteps = [
+  { key: 'packedDone', label: 'Упаковано' },
+  { key: 'labelPrintedDone', label: 'Ярлык распечатан' },
+  { key: 'actPrintedDone', label: 'Акт распечатан' },
+  { key: 'readyForDropoffDone', label: 'Готов к сдаче в ПВЗ' }
+] as const;
 
 const formatCurrency = (value: number) => value.toLocaleString('ru-RU');
 const formatDate = (value: string) =>
@@ -111,15 +109,11 @@ export const SellerDashboardPage = () => {
   const [ordersError, setOrdersError] = useState<string | null>(null);
 
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'ALL'>('ALL');
-  const [orderUpdateId, setOrderUpdateId] = useState<string | null>(null);
   const [orderUpdateError, setOrderUpdateError] = useState<string | null>(null);
   const [trackingSearch, setTrackingSearch] = useState('');
   const [trackingResult, setTrackingResult] = useState<TrackingResult | null>(null);
   const [printProcessing, setPrintProcessing] = useState<Record<string, { type: 'receipt' | 'barcode'; printUuid: string }>>({});
 
-  const [trackingDrafts, setTrackingDrafts] = useState<
-    Record<string, { trackingNumber: string; carrier: string }>
-  >({});
 
   const [kycSubmission, setKycSubmission] =
     useState<SellerKycSubmission | null>(null);
@@ -262,18 +256,6 @@ export const SellerDashboardPage = () => {
 
       setOrdersView(data);
 
-      setTrackingDrafts((prev) => {
-        const next = { ...prev };
-        data.forEach((order) => {
-          next[order.id] = {
-            trackingNumber:
-              order.trackingNumber ?? next[order.id]?.trackingNumber ?? '',
-            carrier: order.carrier ?? next[order.id]?.carrier ?? ''
-          };
-        });
-        return next;
-      });
-
       const profileResponse = await api.getSellerDeliveryProfile();
       const dropoffPvz = profileResponse.data?.dropoffPvz;
       const dropoffMeta = profileResponse.data?.defaultDropoffPvzMeta;
@@ -312,18 +294,6 @@ export const SellerDashboardPage = () => {
 
         const data = await ordersApi.listBySeller(userId, status);
         setOrdersView(data);
-
-        setTrackingDrafts((prev) => {
-          const next = { ...prev };
-          data.forEach((order) => {
-            next[order.id] = {
-              trackingNumber:
-                order.trackingNumber ?? next[order.id]?.trackingNumber ?? '',
-              carrier: order.carrier ?? next[order.id]?.carrier ?? ''
-            };
-          });
-          return next;
-        });
       } catch (error) {
         setOrdersView([]);
         if (isAccessError(error) && isSellerReady) {
@@ -534,59 +504,6 @@ export const SellerDashboardPage = () => {
     }
   };
 
-  const handleStatusChange = async (order: Order, status: OrderStatus) => {
-    setOrderUpdateError(null);
-
-    const draft = trackingDrafts[order.id] ?? {
-      trackingNumber: '',
-      carrier: ''
-    };
-
-    const trackingNumber = draft.trackingNumber || order.trackingNumber || '';
-    const carrier = draft.carrier || order.carrier || '';
-
-    if (['HANDED_TO_DELIVERY', 'IN_TRANSIT', 'DELIVERED'].includes(status)) {
-      if (!trackingNumber || !carrier) {
-        setOrderUpdateError(
-          'Для доставки укажите номер отправления и службу доставки.'
-        );
-        return;
-      }
-    }
-
-    setOrderUpdateId(order.id);
-
-    try {
-      const response = await api.updateSellerOrderStatus(order.id, {
-        status,
-        trackingNumber: trackingNumber || undefined,
-        carrier: carrier || undefined
-      });
-
-      const updated = response.data;
-
-      setOrders((prev) =>
-        prev.map((item) => (item.id === updated.id ? updated : item))
-      );
-
-      setOrdersView((prev) =>
-        prev.map((item) => (item.id === updated.id ? updated : item))
-      );
-
-      setTrackingDrafts((prev) => ({
-        ...prev,
-        [updated.id]: {
-          trackingNumber:
-            updated.trackingNumber ?? prev[updated.id]?.trackingNumber ?? '',
-          carrier: updated.carrier ?? prev[updated.id]?.carrier ?? ''
-        }
-      }));
-    } catch {
-      setOrderUpdateError('Не удалось обновить статус заказа.');
-    } finally {
-      setOrderUpdateId(null);
-    }
-  };
 
 
   const handleSaveDropoffSchedule = async () => {
@@ -696,19 +613,6 @@ export const SellerDashboardPage = () => {
     }
   };
 
-  const handleDeliveryStageChange = async (order: Order, stage: DeliveryStage) => {
-    setOrderUpdateError(null);
-    setOrderUpdateId(order.id);
-    try {
-      await ordersApi.updateSellerShipmentStage(order.id, stage);
-      await loadOrders();
-    } catch (error) {
-      const normalized = normalizeApiError(error);
-      setOrderUpdateError(normalized.message ?? 'Не удалось обновить статус доставки.');
-    } finally {
-      setOrderUpdateId(null);
-    }
-  };
 
   const handleSyncShipment = async (shipmentId: string) => {
     setOrderUpdateError(null);
@@ -748,6 +652,16 @@ export const SellerDashboardPage = () => {
       } else {
         setOrderUpdateError('ещё формируется');
       }
+    }
+  };
+
+
+  const handlePreparationToggle = async (order: Order, step: (typeof sellerPreparationSteps)[number]['key'], done: boolean) => {
+    try {
+      await api.updateSellerPreparationChecklist(order.id, { step, done });
+      await loadOrders();
+    } catch (error) {
+      setOrderUpdateError(normalizeApiError(error).message || 'Не удалось обновить чеклист.');
     }
   };
 
@@ -1316,8 +1230,6 @@ export const SellerDashboardPage = () => {
                       </div>
 
                       {ordersView.map((order) => {
-                        const currentIndex = statusFlow.indexOf(order.status);
-                        const nextStatus = statusFlow[currentIndex + 1];
                         const total = order.items.reduce(
                           (sum, item) => sum + item.lineTotal,
                           0
@@ -1348,54 +1260,28 @@ export const SellerDashboardPage = () => {
                             <div>{formatCurrency(total)} ₽</div>
 
                             <div>
-                              <select
-                                className={styles.select}
-                                value={order.status}
-                                disabled={
-                                  !nextStatus || orderUpdateId === order.id
-                                }
-                                onChange={(event) =>
-                                  handleStatusChange(
-                                    order,
-                                    event.target.value as OrderStatus
-                                  )
-                                }
-                              >
-                                <option value={order.status}>
-                                  {statusLabels[order.status]}
-                                </option>
-                                {nextStatus && (
-                                  <option value={nextStatus}>
-                                    {statusLabels[nextStatus]}
-                                  </option>
-                                )}
-                              </select>
-
-                              {orderUpdateId === order.id && (
-                                <p className={styles.muted}>Обновляем...</p>
-                              )}
+                              <strong>{getDeliveryStatusLabel(order)}</strong>
                             </div>
 
                             <div className={styles.deliveryInputs}>
-                              {order.shipment ? (() => {
-                                const currentStage = getDeliveryStage(order);
-                                const currentIndex = deliveryStageFlow.indexOf(currentStage);
-                                const nextStage = deliveryStageFlow[currentIndex + 1];
-                                return (
-                                  <label>
-                                    Этап доставки:
-                                    <select
-                                      className={styles.select}
-                                      value={currentStage}
-                                      disabled={!nextStage || orderUpdateId === order.id}
-                                      onChange={(event) => handleDeliveryStageChange(order, event.target.value as DeliveryStage)}
-                                    >
-                                      <option value={currentStage}>{deliveryStageLabels[currentStage]}</option>
-                                      {nextStage ? <option value={nextStage}>{deliveryStageLabels[nextStage]}</option> : null}
-                                    </select>
-                                  </label>
-                                );
-                              })() : null}
+
+                              <div>
+                                {sellerPreparationSteps.map((step) => {
+                                  const checklist = order.shipment?.preparationChecklist;
+                                  const checked = Boolean(checklist?.[step.key]);
+                                  return (
+                                    <label key={step.key} className={styles.muted} style={{ display: 'flex', gap: 8 }}>
+                                      <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        disabled={Boolean(order.trackingNumber)}
+                                        onChange={(event) => void handlePreparationToggle(order, step.key, event.target.checked)}
+                                      />
+                                      {step.label}
+                                    </label>
+                                  );
+                                })}
+                              </div>
                               <p className={styles.muted}>
                                 Способ доставки: ПВЗ (Pickup Point)
                               </p>

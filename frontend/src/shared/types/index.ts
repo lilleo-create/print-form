@@ -38,6 +38,8 @@ export interface Product {
   printTime?: string;
   productionTimeHours?: number;
   deliveryDateEstimated?: string | null;
+  deliveryDaysMin?: number | null;
+  deliveryDaysMax?: number | null;
   color: string;
   sellerId: string | null;
   createdAt?: string;
@@ -233,6 +235,10 @@ export interface Order {
   items: OrderItem[];
   delivery?: OrderDelivery | null;
   payoutStatus?: string | null;
+  deliveryDaysMin?: number | null;
+  deliveryDaysMax?: number | null;
+  deliveryTariffCode?: number | null;
+  deliveryCalculatedAt?: string | null;
   shipment?: {
     id: string;
     provider: string;
@@ -241,6 +247,16 @@ export interface Order {
     destinationStationId?: string;
     lastSyncAt?: string | null;
     updatedAt?: string | null;
+    preparationChecklist?: {
+      packedDone?: boolean;
+      packedAt?: string | null;
+      labelPrintedDone?: boolean;
+      labelPrintedAt?: string | null;
+      actPrintedDone?: boolean;
+      actPrintedAt?: string | null;
+      readyForDropoffDone?: boolean;
+      readyForDropoffAt?: string | null;
+    } | null;
   } | null;
 }
 

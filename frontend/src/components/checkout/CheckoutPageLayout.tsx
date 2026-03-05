@@ -339,7 +339,7 @@ export const CheckoutPageLayout = () => {
                 <div>
                   {deliveryQuote ? (
                     <p style={{ marginTop: 0, marginBottom: '0.75rem', color: '#444' }}>
-                      Доставка: ~{deliveryQuote.totalSum} ₽, {deliveryQuote.deliveryDaysMin}-{deliveryQuote.deliveryDaysMax} дн.
+                      Доставка в ПВЗ: ~{deliveryQuote.totalSum} ₽, {deliveryQuote.deliveryDaysMin}–{deliveryQuote.deliveryDaysMax} дн.
                     </p>
                   ) : null}
                   {cdekPvz ? (
