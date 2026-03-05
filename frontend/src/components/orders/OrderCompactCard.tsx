@@ -40,7 +40,12 @@ export const OrderCompactCard = ({ order }: { order: Order }) => {
         </a>
       ) : null}
       {order.deliveryDaysMin && order.deliveryDaysMax ? (
-        <p>Ожидаемая доставка: {formatEtaDateRange(order.createdAt, order.deliveryDaysMin, order.deliveryDaysMax)}</p>
+        <>
+          <p>Срок доставки: СДЭК {order.deliveryDaysMin}–{order.deliveryDaysMax} дней</p>
+          <p>Ориентировочно: {order.estimatedDeliveryDateMin && order.estimatedDeliveryDateMax
+            ? formatEtaDateRange(order.estimatedDeliveryDateMin, 0, Math.max(0, Math.round((new Date(order.estimatedDeliveryDateMax).getTime()-new Date(order.estimatedDeliveryDateMin).getTime())/86400000)))
+            : formatEtaDateRange(order.createdAt, order.deliveryDaysMin, order.deliveryDaysMax)}</p>
+        </>
       ) : null}
       {(isDeliveredDeliveryStage(order) || isCancellableDeliveryStage(order)) ? (
         <button type="button" className={styles.returnLink} onClick={handleAction}>

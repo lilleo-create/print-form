@@ -64,7 +64,7 @@ export const ReturnsPage = () => {
   const deliveredOrders = orders.filter((order) => isDeliveredDeliveryStage(order));
   const cancellationOrders = orders.filter((order) => {
     const stage = getDeliveryStage(order);
-    return stage === 'CREATING' || stage === 'PRINTING' || stage === 'READY_FOR_DROP';
+    return (order.status === 'PAID' || order.status === 'READY_FOR_SHIPMENT') && (stage === 'CREATING' || stage === 'PRINTING' || stage === 'READY_FOR_DROP');
   });
 
   const toCandidates = (sourceOrders: typeof orders) => sourceOrders.flatMap((order) =>

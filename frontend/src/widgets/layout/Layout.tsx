@@ -3,6 +3,7 @@ import { Header } from '../header/Header';
 import { BottomNav } from './BottomNav';
 import { Footer } from './Footer';
 import { ProductModalHost } from '../shop/ProductModalHost';
+import { CancelOrderModalHost } from '../../components/orders/CancelOrderModalHost';
 import styles from './Layout.module.css';
 
 type LayoutProps = {
@@ -19,6 +20,7 @@ export const Layout = ({ showHeader = true }: LayoutProps) => {
       <BottomNav />
       <Footer />
       <ProductModalHost />
+      <CancelOrderModalHost />
     </div>
   );
 };

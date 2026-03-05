@@ -352,6 +352,24 @@ export const api = {
   },
 
 
+
+  async updateSellerFulfillmentSteps(
+    id: string,
+    payload: { isPacked?: boolean; isLabelPrinted?: boolean; isActPrinted?: boolean }
+  ) {
+    return apiClient.request<{ isPacked: boolean; isLabelPrinted: boolean; isActPrinted: boolean }>(`/seller/orders/${id}/fulfillment-steps`, {
+      method: 'PATCH',
+      body: payload
+    });
+  },
+
+  async cancelOrder(id: string, payload?: { reason?: string; comment?: string }) {
+    return apiClient.request<Order>(`/orders/${id}/cancel`, {
+      method: 'POST',
+      body: payload ?? {}
+    });
+  },
+
   async getSellerDeliveryProfile() {
     return apiClient.request<SellerDeliveryProfile | null>('/seller/settings');
   },

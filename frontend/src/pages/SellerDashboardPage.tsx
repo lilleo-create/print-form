@@ -60,10 +60,9 @@ const statusLabels: Partial<Record<OrderStatus, string>> = {
 };
 
 const sellerPreparationSteps = [
-  { key: 'packedDone', label: 'Упаковано' },
-  { key: 'labelPrintedDone', label: 'Ярлык распечатан' },
-  { key: 'actPrintedDone', label: 'Акт распечатан' },
-  { key: 'readyForDropoffDone', label: 'Готов к сдаче в ПВЗ' }
+  { key: 'isPacked', label: 'Упаковано' },
+  { key: 'isLabelPrinted', label: 'Ярлык распечатан' },
+  { key: 'isActPrinted', label: 'Акт распечатан' }
 ] as const;
 
 const formatCurrency = (value: number) => value.toLocaleString('ru-RU');
@@ -614,16 +613,6 @@ export const SellerDashboardPage = () => {
   };
 
 
-  const handleSyncShipment = async (shipmentId: string) => {
-    setOrderUpdateError(null);
-    try {
-      await ordersApi.syncShipment(shipmentId);
-      await loadOrders();
-    } catch {
-      setOrderUpdateError('Не удалось синхронизировать отправление CDEK.');
-    }
-  };
-
   const triggerDownload = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -658,7 +647,7 @@ export const SellerDashboardPage = () => {
 
   const handlePreparationToggle = async (order: Order, step: (typeof sellerPreparationSteps)[number]['key'], done: boolean) => {
     try {
-      await api.updateSellerPreparationChecklist(order.id, { step, done });
+      await ordersApi.updateSellerFulfillmentSteps(order.id, { [step]: done });
       await loadOrders();
     } catch (error) {
       setOrderUpdateError(normalizeApiError(error).message || 'Не удалось обновить чеклист.');
@@ -733,6 +722,7 @@ export const SellerDashboardPage = () => {
       !order.shippingAddressId
     )
       return 'Не указан адрес доставки';
+    if (!order.isPacked || !order.isLabelPrinted || !order.isActPrinted) return 'Отметьте все шаги чеклиста';
     return null;
   };
   const summary = useMemo(() => {
@@ -1267,14 +1257,13 @@ export const SellerDashboardPage = () => {
 
                               <div>
                                 {sellerPreparationSteps.map((step) => {
-                                  const checklist = order.shipment?.preparationChecklist;
-                                  const checked = Boolean(checklist?.[step.key]);
+                                  const checked = Boolean(order[step.key]);
                                   return (
                                     <label key={step.key} className={styles.muted} style={{ display: 'flex', gap: 8 }}>
                                       <input
                                         type="checkbox"
                                         checked={checked}
-                                        disabled={Boolean(order.trackingNumber)}
+                                        disabled={Boolean(!order.paidAt && order.status !== 'PAID') || Boolean(order.readyForShipmentAt)}
                                         onChange={(event) => void handlePreparationToggle(order, step.key, event.target.checked)}
                                       />
                                       {step.label}
@@ -1283,7 +1272,7 @@ export const SellerDashboardPage = () => {
                                 })}
                               </div>
                               <p className={styles.muted}>
-                                Способ доставки: ПВЗ (Pickup Point)
+                                Способ доставки: ПВЗ (CDEK)
                               </p>
                               <p className={styles.muted}>
                                 Пункт выдачи: {order.buyerPickupPvzMeta?.addressFull ?? '—'}
@@ -1318,14 +1307,6 @@ export const SellerDashboardPage = () => {
                                 }
                               >
                                 Готов к отгрузке
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                onClick={() => order.shipment?.id && handleSyncShipment(order.shipment.id)}
-                                disabled={!order.shipment?.id}
-                              >
-                                Синхронизировать CDEK
                               </Button>
                               {readyToShipDisabledReason(order) &&
                                 !order.shipment?.id && (

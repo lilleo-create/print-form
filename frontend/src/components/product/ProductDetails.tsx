@@ -9,7 +9,7 @@ import { ProductActionsInline } from '../../pages/ProductPage/components/Product
 import { useFavoritesStore } from '../../features/favorites/model/useFavoritesStore';
 import { ShareModal } from '../../features/share/ui/ShareModal';
 import { formatNearestDeliveryLabel } from './utils';
-import { formatEtaDays } from '../../shared/lib/deliveryEta';
+import { formatEtaDateRange, formatEtaDays } from '../../shared/lib/deliveryEta';
 
 type ProductDetailsProps = {
   product: Product;
@@ -52,6 +52,8 @@ export const ProductDetails = ({ product, ratingCount, reviewsCount }: ProductDe
     product.deliveryDateEstimated,
     product.productionTimeHours
   );
+  const etaDays = formatEtaDays(product.deliveryDaysMin, product.deliveryDaysMax);
+  const etaDates = formatEtaDateRange(new Date().toISOString(), product.deliveryDaysMin, product.deliveryDaysMax);
 
   return (
     <div className={styles.details}>
@@ -85,7 +87,8 @@ export const ProductDetails = ({ product, ratingCount, reviewsCount }: ProductDe
           {Number((product as any).price ?? 0).toLocaleString('ru-RU')} ₽
         </span>
         <span className={styles.delivery}>Ближайшая доставка: {nearestDeliveryLabel}</span>
-        <span className={styles.delivery}>Доставка СДЭК: {formatEtaDays(product.deliveryDaysMin, product.deliveryDaysMax) ?? 'Срок уточняется'}</span>
+        <span className={styles.delivery}>Доставка СДЭК: {etaDays ?? 'Оформляется'}</span>
+        {etaDates ? <span className={styles.delivery}>Ориентировочно: {etaDates}</span> : null}
         {product.dxCm && product.dyCm && product.dzCm ? (
           <span className={styles.delivery}>
             Размер: {product.dxCm} × {product.dyCm} × {product.dzCm} см{product.weightGrossG ? `, вес: ${product.weightGrossG} г` : ''}

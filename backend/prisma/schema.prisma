@@ -215,9 +215,15 @@ model Order {
   payoutStatus         String               @default("HOLD")
   deliveryDaysMin      Int?
   deliveryDaysMax      Int?
+  deliveryEtaText      String?
+  estimatedDeliveryDateMin DateTime?
+  estimatedDeliveryDateMax DateTime?
   deliveryTariffCode   Int?
   deliveryCalculatedAt DateTime?
   readyForShipmentAt   DateTime?
+  isPacked             Boolean              @default(false)
+  isLabelPrinted       Boolean              @default(false)
+  isActPrinted         Boolean              @default(false)
   dropoffDeadlineAt    DateTime?
   paymentAttemptKey    String?
   paymentProvider      String?

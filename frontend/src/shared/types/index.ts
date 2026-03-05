@@ -214,6 +214,7 @@ export interface Order {
   shippingAddressId: string;
   status: OrderStatus;
   statusUpdatedAt?: string;
+  readyForShipmentAt?: string | null;
   paidAt?: string | null;
   total: number;
   recipientName?: string | null;
@@ -239,6 +240,12 @@ export interface Order {
   deliveryDaysMax?: number | null;
   deliveryTariffCode?: number | null;
   deliveryCalculatedAt?: string | null;
+  deliveryEtaText?: string | null;
+  estimatedDeliveryDateMin?: string | null;
+  estimatedDeliveryDateMax?: string | null;
+  isPacked?: boolean;
+  isLabelPrinted?: boolean;
+  isActPrinted?: boolean;
   shipment?: {
     id: string;
     provider: string;
