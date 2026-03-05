@@ -1,5 +1,6 @@
 import { Order, OrderItem, OrderStatus } from '../types';
 import { api } from './index';
+import { DeliveryStage } from '../lib/deliveryStatus';
 
 type ApiOrderItem = {
   id: string;
@@ -167,5 +168,8 @@ export const ordersApi = {
   },
   downloadSellerDocument: async (orderId: string, type: 'packing-slip' | 'labels' | 'handover-act') => {
     return api.downloadSellerOrderDocument(orderId, type);
+  },
+  updateSellerShipmentStage: async (orderId: string, stage: DeliveryStage) => {
+    return api.updateSellerShipmentStage(orderId, { stage });
   }
 };

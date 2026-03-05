@@ -1,0 +1,36 @@
+.card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.image,
+.placeholder {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.image {
+  object-fit: cover;
+}
+
+.placeholder {
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+}
+
+.meta {
+  display: grid;
+  gap: 2px;
+}
+
+.meta span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.qty {
+  font-size: 12px;
+}

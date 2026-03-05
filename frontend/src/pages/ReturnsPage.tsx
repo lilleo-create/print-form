@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../app/store/authStore';
 import { useOrdersStore } from '../app/store/ordersStore';
@@ -37,7 +37,7 @@ export const ReturnsPage = () => {
   const [createStep, setCreateStep] = useState<ReturnCreateStep>('select');
   const highlightedOrderId = searchParams.get('orderId');
 
-  const loadReturns = () => {
+  const loadReturns = useCallback(() => {
     if (!user) return Promise.resolve();
     setReturnsLoading(true);
     setReturnsError(null);
@@ -49,7 +49,7 @@ export const ReturnsPage = () => {
         setReturnsError('Не удалось загрузить возвраты.');
       })
       .finally(() => setReturnsLoading(false));
-  };
+  }, [user]);
 
   useEffect(() => {
     if (user) loadBuyerOrders(user);
@@ -58,10 +58,13 @@ export const ReturnsPage = () => {
   useEffect(() => {
     if (!user) return;
     loadReturns();
-  }, [user]);
+  }, [loadReturns, user]);
 
+  const eligibleOrders = orders.filter((order) => order.status === 'PAID' && !['CANCELLED', 'RETURNED'].includes(order.status));
   const deliveredOrders = orders.filter((order) => order.status === 'DELIVERED');
-  const returnCandidates = deliveredOrders.flatMap((order) =>
+  const cancellationOrders = eligibleOrders.filter((order) => order.status !== 'DELIVERED');
+
+  const toCandidates = (sourceOrders: typeof orders) => sourceOrders.flatMap((order) =>
     (order.items ?? [])
       .filter((item) => item.id)
       .map((item) => ({
@@ -74,6 +77,9 @@ export const ReturnsPage = () => {
         orderId: order.id
       }))
   );
+
+  const returnCandidates = toCandidates(deliveredOrders);
+  const cancellationCandidates = toCandidates(cancellationOrders);
 
   const returnsByOrderItemId = new Map<string, ReturnRequest>();
   returns.forEach((request) => {
@@ -91,6 +97,7 @@ export const ReturnsPage = () => {
   );
 
   const filteredCandidates = filterReturnCandidates(returnCandidates, returnsByOrderItemId, approvedOrderItemIds);
+  const filteredCancellationCandidates = filterReturnCandidates(cancellationCandidates, returnsByOrderItemId, approvedOrderItemIds);
 
   const openCreateFlow = (candidate?: ReturnCandidate | null) => {
     setIsCreateFlowOpen(true);
@@ -183,6 +190,18 @@ export const ReturnsPage = () => {
               </div>
               <ReturnCandidatesList
                 items={filteredCandidates}
+                returnsByOrderItemId={returnsByOrderItemId}
+                onCreate={(item) => openCreateFlow(item)}
+                highlightedOrderId={highlightedOrderId}
+              />
+            </div>
+
+            <div className={styles.section}>
+              <div className={styles.sectionHeader}>
+                <h2>Отмена до отправки</h2>
+              </div>
+              <ReturnCandidatesList
+                items={filteredCancellationCandidates}
                 returnsByOrderItemId={returnsByOrderItemId}
                 onCreate={(item) => openCreateFlow(item)}
                 highlightedOrderId={highlightedOrderId}

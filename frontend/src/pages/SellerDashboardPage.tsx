@@ -23,7 +23,7 @@ import {
   SellerProductPayload
 } from '../widgets/seller/SellerProductModal';
 import styles from './SellerAccountPage.module.css';
-import { getDeliveryStatusLabel, getExternalDeliveryStatusLabel } from '../shared/lib/deliveryStatus';
+import { DeliveryStage, getDeliveryStage, getDeliveryStatusLabel, getExternalDeliveryStatusLabel } from '../shared/lib/deliveryStatus';
 
 const menuItems = [
   'Подключение',
@@ -59,6 +59,15 @@ const statusLabels: Partial<Record<OrderStatus, string>> = {
   EXPIRED: 'Просрочен'
 };
 
+const deliveryStageFlow: DeliveryStage[] = ['CREATING', 'PRINTING', 'READY_FOR_DROP', 'IN_TRANSIT', 'READY_FOR_PICKUP'];
+const deliveryStageLabels: Record<DeliveryStage, string> = {
+  CREATING: 'Оформляется',
+  PRINTING: 'Печатается',
+  READY_FOR_DROP: 'Готов к сдаче в ПВЗ',
+  IN_TRANSIT: 'В пути',
+  READY_FOR_PICKUP: 'Готов к выдаче'
+};
+
 const formatCurrency = (value: number) => value.toLocaleString('ru-RU');
 const formatDate = (value: string) =>
   new Date(value).toLocaleDateString('ru-RU', {
@@ -69,6 +78,8 @@ const formatDate = (value: string) =>
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
+
+type TrackingResult = { trackingNumber?: string; state?: string };
 
 const isAccessError = (error: unknown) => {
   const message = getErrorMessage(error).toLowerCase();
@@ -103,7 +114,7 @@ export const SellerDashboardPage = () => {
   const [orderUpdateId, setOrderUpdateId] = useState<string | null>(null);
   const [orderUpdateError, setOrderUpdateError] = useState<string | null>(null);
   const [trackingSearch, setTrackingSearch] = useState('');
-  const [trackingResult, setTrackingResult] = useState<any | null>(null);
+  const [trackingResult, setTrackingResult] = useState<TrackingResult | null>(null);
   const [printProcessing, setPrintProcessing] = useState<Record<string, { type: 'receipt' | 'barcode'; printUuid: string }>>({});
 
   const [trackingDrafts, setTrackingDrafts] = useState<
@@ -376,7 +387,7 @@ export const SellerDashboardPage = () => {
         shipmentType: (sellerProfile.shipmentType === 'withdraw' ? 'withdraw' : 'import') as 'import' | 'withdraw'
       }));
     }
-  }, [sellerProfile?.id, sellerProfile?.contactName, sellerProfile?.contactEmail, sellerProfile?.contactPhone, sellerProfile?.representativeName, sellerProfile?.legalName, sellerProfile?.inn, sellerProfile?.ogrn, sellerProfile?.kpp, sellerProfile?.legalAddressFull, sellerProfile?.siteUrl, sellerProfile?.shipmentType, sellerProfile?.phone]);
+  }, [sellerProfile]);
 
   useEffect(() => {
     if (!isSellerReady) {
@@ -682,6 +693,20 @@ export const SellerDashboardPage = () => {
       setOrderUpdateError(
         'Не удалось создать заявку доставки. Проверьте точку отгрузки и данные ПВЗ.'
       );
+    }
+  };
+
+  const handleDeliveryStageChange = async (order: Order, stage: DeliveryStage) => {
+    setOrderUpdateError(null);
+    setOrderUpdateId(order.id);
+    try {
+      await ordersApi.updateSellerShipmentStage(order.id, stage);
+      await loadOrders();
+    } catch (error) {
+      const normalized = normalizeApiError(error);
+      setOrderUpdateError(normalized.message ?? 'Не удалось обновить статус доставки.');
+    } finally {
+      setOrderUpdateId(null);
     }
   };
 
@@ -1352,6 +1377,25 @@ export const SellerDashboardPage = () => {
                             </div>
 
                             <div className={styles.deliveryInputs}>
+                              {order.shipment ? (() => {
+                                const currentStage = getDeliveryStage(order);
+                                const currentIndex = deliveryStageFlow.indexOf(currentStage);
+                                const nextStage = deliveryStageFlow[currentIndex + 1];
+                                return (
+                                  <label>
+                                    Этап доставки:
+                                    <select
+                                      className={styles.select}
+                                      value={currentStage}
+                                      disabled={!nextStage || orderUpdateId === order.id}
+                                      onChange={(event) => handleDeliveryStageChange(order, event.target.value as DeliveryStage)}
+                                    >
+                                      <option value={currentStage}>{deliveryStageLabels[currentStage]}</option>
+                                      {nextStage ? <option value={nextStage}>{deliveryStageLabels[nextStage]}</option> : null}
+                                    </select>
+                                  </label>
+                                );
+                              })() : null}
                               <p className={styles.muted}>
                                 Способ доставки: ПВЗ (Pickup Point)
                               </p>
