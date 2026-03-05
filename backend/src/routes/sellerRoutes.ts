@@ -420,8 +420,10 @@ const kycSubmitPayloadSchema = z.object({
   merchantData: merchantDataBaseSchema,
   dropoffPvzId: z.string().trim().min(1),
   dropoffPvzMeta: z.record(z.unknown()).optional(),
-  acceptRules: z.literal(true),
-  acceptPersonalData: z.literal(true)
+  acceptedRules: z.boolean(),
+  acceptedPersonalData: z.boolean(),
+  acceptedRulesSlug: z.string().trim().min(1).optional(),
+  acceptedPersonalDataSlug: z.string().trim().min(1).optional()
 });
 
 sellerRoutes.post('/kyc/submit', writeLimiter, kycUpload.array('files', 5), async (req: AuthRequest, res, next) => {
@@ -429,6 +431,15 @@ sellerRoutes.post('/kyc/submit', writeLimiter, kycUpload.array('files', 5), asyn
     const files = (req.files as Express.Multer.File[]) ?? [];
     const rawPayload = typeof req.body?.payload === 'string' ? JSON.parse(req.body.payload) : req.body;
     const submitPayload = kycSubmitPayloadSchema.parse(rawPayload);
+
+    if (!submitPayload.acceptedRules || !submitPayload.acceptedPersonalData) {
+      return res.status(400).json({
+        error: {
+          code: 'CONSENT_REQUIRED',
+          message: 'Для отправки заявки необходимо принять обязательные согласия.'
+        }
+      });
+    }
 
     const profile = await prisma.sellerProfile.findFirst({
       where: { userId: req.user!.userId },
@@ -454,14 +465,27 @@ sellerRoutes.post('/kyc/submit', writeLimiter, kycUpload.array('files', 5), asyn
     };
 
     const submitted = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const now = new Date();
+      const consentData: Prisma.SellerProfileUpdateInput = {
+        ...(submitPayload.acceptedRules
+          ? {
+            acceptedRulesAt: now,
+            acceptedRulesSlug: submitPayload.acceptedRulesSlug ?? 'seller-delivery-and-store-rules'
+          }
+          : {}),
+        ...(submitPayload.acceptedPersonalData
+          ? {
+            acceptedPersonalDataAt: now,
+            acceptedPersonalDataSlug: submitPayload.acceptedPersonalDataSlug ?? 'privacy-policy'
+          }
+          : {})
+      };
+
       await tx.sellerProfile.update({
         where: { userId: req.user!.userId },
         data: {
           ...normalizeMerchantUpdateData(merchantPayload, status),
-          acceptedRulesAt: new Date(),
-          acceptedRulesSlug: 'seller-delivery-and-store-rules',
-          acceptedPersonalDataAt: new Date(),
-          acceptedPersonalDataSlug: 'privacy-policy'
+          ...consentData
         }
       });
 
