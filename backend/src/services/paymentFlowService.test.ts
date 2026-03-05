@@ -8,7 +8,7 @@ import { orderUseCases } from '../usecases/orderUseCases';
 const inputBase = {
   buyerId: 'buyer-1',
   recipient: { name: 'Иван Иванов', phone: '+79990000000', email: 'ivan@test.dev' },
-  buyerPickupPvz: { provider: 'YANDEX_NDD' as const, pvzId: 'pvz-1' },
+  buyerPickupPvz: { provider: 'CDEK' as const, pvzId: 'pvz-1' },
   items: [{ productId: 'product-1', quantity: 1 }]
 };
 

@@ -7,8 +7,8 @@ export const orderRepository = {
     paymentAttemptKey?: string;
     contactId?: string;
     shippingAddressId?: string;
-    buyerPickupPvz?: { provider: 'YANDEX_NDD' | 'CDEK'; pvzId: string; raw: unknown; addressFull?: string };
-    sellerDropoffPvz?: { provider: 'YANDEX_NDD' | 'CDEK'; pvzId: string; raw: unknown; addressFull?: string };
+    buyerPickupPvz?: { provider?: 'CDEK'; pvzId: string; raw: unknown; addressFull?: string };
+    sellerDropoffPvz?: { provider?: 'CDEK'; pvzId: string; raw: unknown; addressFull?: string };
     recipient?: { name: string; phone: string; email?: string | null };
     packagesCount?: number;
     orderLabels?: { packageNo: number; code: string }[];
@@ -45,16 +45,38 @@ export const orderRepository = {
 
       const total = itemsWithPrice.reduce((sum, item) => sum + item.priceAtPurchase * item.quantity, 0);
 
+      const normalizePvzMeta = (pvz?: { pvzId: string; raw: unknown; addressFull?: string; provider?: 'CDEK' }) => {
+        if (!pvz) return undefined;
+        const raw = pvz.raw && typeof pvz.raw === 'object' && !Array.isArray(pvz.raw)
+          ? (pvz.raw as Record<string, unknown>)
+          : {};
+
+        return {
+          provider: 'CDEK' as const,
+          pvzId: pvz.pvzId,
+          addressFull: pvz.addressFull,
+          raw: {
+            ...raw,
+            id: pvz.pvzId,
+            type: 'PVZ'
+          }
+        };
+      };
+
+      const normalizedBuyerPickupPvz = normalizePvzMeta(data.buyerPickupPvz);
+      const normalizedSellerDropoffPvz = normalizePvzMeta(data.sellerDropoffPvz);
+
       return tx.order.create({
         data: {
           buyerId: data.buyerId,
           paymentAttemptKey: data.paymentAttemptKey,
           contactId: data.contactId,
           shippingAddressId: data.shippingAddressId,
-          buyerPickupPvzId: data.buyerPickupPvz?.pvzId,
-          buyerPickupPvzMeta: (data.buyerPickupPvz as unknown as object | undefined) ?? undefined,
-          sellerDropoffPvzId: data.sellerDropoffPvz?.pvzId,
-          sellerDropoffPvzMeta: (data.sellerDropoffPvz as unknown as object | undefined) ?? undefined,
+          buyerPickupPvzId: normalizedBuyerPickupPvz?.pvzId,
+          buyerPickupPvzMeta: (normalizedBuyerPickupPvz as unknown as object | undefined) ?? undefined,
+          sellerDropoffPvzId: normalizedSellerDropoffPvz?.pvzId,
+          sellerDropoffPvzMeta: (normalizedSellerDropoffPvz as unknown as object | undefined) ?? undefined,
+          carrier: 'CDEK',
           recipientName: data.recipient?.name,
           recipientPhone: data.recipient?.phone,
           recipientEmail: data.recipient?.email ?? null,

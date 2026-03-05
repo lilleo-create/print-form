@@ -258,7 +258,7 @@ CREATE TABLE "Payout" (
 -- CreateTable
 CREATE TABLE "SellerSettings" (
     "sellerId" TEXT NOT NULL,
-    "defaultDropoffProvider" TEXT NOT NULL DEFAULT 'YANDEX_NDD',
+    "defaultDropoffProvider" TEXT NOT NULL DEFAULT 'CDEK',
     "defaultDropoffPvzId" TEXT,
     "defaultDropoffPvzMeta" JSONB,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,

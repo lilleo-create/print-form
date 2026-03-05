@@ -15,7 +15,7 @@ const startSchema = z.object({
   }),
   packagesCount: z.number().int().min(1).default(1),
   buyerPickupPvz: z.object({
-    provider: z.literal('YANDEX_NDD'),
+    provider: z.string().optional(),
     pvzId: z.string().min(1),
     buyerPickupPlatformStationId: z.string().regex(/^\d+$/).optional(),
     buyerPickupOperatorStationId: z.string().regex(/^\d+$/).optional(),
@@ -48,7 +48,10 @@ paymentRoutes.post('/start', authenticate, writeLimiter, async (req: AuthRequest
       recipient: payload.recipient,
       packagesCount: payload.packagesCount,
       items: payload.items,
-      buyerPickupPvz: payload.buyerPickupPvz
+      buyerPickupPvz: {
+        ...payload.buyerPickupPvz,
+        provider: 'CDEK'
+      }
     });
 
     return res.status(200).json({ data });

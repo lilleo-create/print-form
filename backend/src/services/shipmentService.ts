@@ -14,7 +14,7 @@ export type ShipmentInternalStatus =
 
 const FINAL_STATUSES: ShipmentInternalStatus[] = ['DELIVERED', 'CANCELLED', 'FAILED'];
 
-export const mapYandexStatusToInternal = (status?: string | null): ShipmentInternalStatus => {
+export const mapExternalStatusToInternal = (status?: string | null): ShipmentInternalStatus => {
   const normalized = (status ?? '').toUpperCase();
   if (['DELIVERY_DELIVERED', 'DELIVERED'].includes(normalized)) return 'DELIVERED';
   if (['CANCELLED', 'DELIVERY_CANCELLED'].includes(normalized)) return 'CANCELLED';
@@ -42,11 +42,8 @@ const makeError = (code: string) => {
 };
 
 
-const readPvzProvider = (meta: Prisma.JsonValue | null | undefined): string => {
-  if (!meta || typeof meta !== 'object' || Array.isArray(meta)) return '';
-  const provider = (meta as Record<string, unknown>).provider;
-  return String(provider ?? '').trim().toUpperCase();
-};
+const CDEK_PVZ_CODE_REGEX = /^[A-Z]{3}\d{2,6}$/;
+
 
 export const markReadyToShipCdek = async (orderId: string) => {
   const order = await prisma.order.findUnique({
@@ -93,10 +90,8 @@ export const markReadyToShipCdek = async (orderId: string) => {
   const now = new Date();
 
   try {
-    const destinationPvzProvider = readPvzProvider(order.buyerPickupPvzMeta as Prisma.JsonValue | null);
-    if (destinationPvzProvider && destinationPvzProvider !== 'CDEK') {
-      throw makeError('CDEK_DESTINATION_PVZ_PROVIDER_MISMATCH');
-    }
+    if (!CDEK_PVZ_CODE_REGEX.test(fromPvzCode)) throw makeError('CDEK_DROPOFF_PVZ_INVALID_FORMAT');
+    if (!CDEK_PVZ_CODE_REGEX.test(toPvzCode)) throw makeError('CDEK_DESTINATION_PVZ_INVALID_FORMAT');
 
     const created = await cdekService.createOrderFromMarketplaceOrder({
       orderId: order.id,
