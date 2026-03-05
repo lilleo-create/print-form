@@ -182,17 +182,11 @@ export const ordersApi = {
   syncShipment: async (shipmentId: string) => {
     return api.syncShipment(shipmentId);
   },
-  createCdekReceiptPrintTask: async (payload: { cdekOrderUuid: string; copyCount?: number; type?: string }) => {
-    return api.createCdekReceiptPrintTask(payload);
+  downloadShipmentLabel: async (shipmentId: string) => {
+    return api.downloadShipmentLabel(shipmentId);
   },
-  downloadCdekReceiptPdf: async (printUuid: string) => {
-    return api.downloadCdekReceiptPdf(printUuid);
-  },
-  createCdekBarcodePrintTask: async (payload: { cdekOrderUuid: string; copyCount?: number; format?: 'A4' | 'A5' | 'A6' | 'A7'; lang?: 'RUS' | 'ENG' }) => {
-    return api.createCdekBarcodePrintTask(payload);
-  },
-  downloadCdekBarcodePdf: async (printUuid: string) => {
-    return api.downloadCdekBarcodePdf(printUuid);
+  downloadShipmentAct: async (shipmentId: string) => {
+    return api.downloadShipmentAct(shipmentId);
   },
   downloadSellerDocument: async (orderId: string, type: 'packing-slip' | 'labels' | 'handover-act') => {
     return api.downloadSellerOrderDocument(orderId, type);

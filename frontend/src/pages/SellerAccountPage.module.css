@@ -344,6 +344,13 @@
   margin-top: 4px;
 }
 
+
+.doneState {
+  color: var(--success);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .muted {
   color: var(--muted);
 }

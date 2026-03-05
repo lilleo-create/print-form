@@ -839,7 +839,7 @@ sellerRoutes.patch('/orders/:id/fulfillment-steps', writeLimiter, async (req: Au
         ...(payload.isLabelPrinted !== undefined ? { isLabelPrinted: payload.isLabelPrinted } : {}),
         ...(payload.isActPrinted !== undefined ? { isActPrinted: payload.isActPrinted } : {}),
         fulfillmentUpdatedAt: new Date()
-      }
+      } as any
     });
 
     return res.json({ data: { isPacked: (updated as any).isPacked, isLabelPrinted: (updated as any).isLabelPrinted, isActPrinted: (updated as any).isActPrinted } });
@@ -897,6 +897,16 @@ sellerRoutes.get('/shipments/:id/label', async (req: AuthRequest, res, next) => 
     const response = await axios.get(forms.waybillUrl, { responseType: 'arraybuffer' });
     const buffer = Buffer.from(response.data);
 
+    await prisma.$transaction(async (tx) => {
+      await tx.order.update({
+        where: { id: shipment.orderId },
+        data: {
+          isLabelPrinted: true,
+          fulfillmentUpdatedAt: new Date()
+        } as any
+      });
+    });
+
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="cdek-label-${shipment.id}.pdf"`);
     res.setHeader('Content-Length', buffer.length);
@@ -939,6 +949,17 @@ sellerRoutes.get('/shipments/:id/act', async (req: AuthRequest, res, next) => {
 
     const pdf = await sellerOrderDocumentsService.buildHandoverAct(shipment.order as any);
     const buffer = Buffer.from(pdf);
+
+    await prisma.$transaction(async (tx) => {
+      await tx.order.update({
+        where: { id: shipment.orderId },
+        data: {
+          isActPrinted: true,
+          fulfillmentUpdatedAt: new Date()
+        } as any
+      });
+    });
+
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="cdek-act-${shipment.id}.pdf"`);
     res.setHeader('Content-Length', buffer.length);
@@ -980,6 +1001,7 @@ sellerRoutes.get('/orders/:orderId/documents/labels.pdf', async (req: AuthReques
       const checklist = readPreparationChecklist(statusRaw);
       await prisma.orderShipment.update({ where: { id: shipment.id }, data: { statusRaw: { ...statusRaw, preparationChecklist: { ...checklist, labelPrintedDone: true, labelPrintedAt: new Date().toISOString() } } } });
     }
+    await prisma.order.update({ where: { id: order.id }, data: { isLabelPrinted: true, fulfillmentUpdatedAt: new Date() } as any });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="labels-${order.id}.pdf"`);
     return res.status(200).send(pdf);
@@ -1000,6 +1022,7 @@ sellerRoutes.get('/orders/:orderId/documents/handover-act.pdf', async (req: Auth
       const checklist = readPreparationChecklist(statusRaw);
       await prisma.orderShipment.update({ where: { id: shipment.id }, data: { statusRaw: { ...statusRaw, preparationChecklist: { ...checklist, actPrintedDone: true, actPrintedAt: new Date().toISOString() } } } });
     }
+    await prisma.order.update({ where: { id: order.id }, data: { isActPrinted: true, fulfillmentUpdatedAt: new Date() } as any });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="handover-act-${order.id}.pdf"`);
     return res.status(200).send(pdf);
