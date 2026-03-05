@@ -1,22 +1,9 @@
 import { Order } from '../../../../shared/types';
 import { resolveImageUrl } from '../../../../shared/lib/resolveImageUrl';
 import { getDeliveryStatusLabel } from '../../../../shared/lib/deliveryStatus';
+import { getOrderDeliveryLabel } from '../../../../shared/lib/deliveryLabel';
 import { useNavigate } from 'react-router-dom';
 import styles from './OrdersTab.module.css';
-
-const deliveryLabel = (order: { delivery?: { deliveryMethod: 'COURIER' | 'PICKUP_POINT'; courierAddress?: { line1?: string; city?: string } | null; pickupPoint?: { id: string; fullAddress: string } | null } | null }) => {
-  if (!order.delivery) return null;
-  if (order.delivery.deliveryMethod === 'COURIER') {
-    const line = [order.delivery.courierAddress?.line1, order.delivery.courierAddress?.city].filter(Boolean).join(', ');
-    return `Курьер: ${line || 'адрес уточняется'}`;
-  }
-
-  if (order.delivery.pickupPoint) {
-    return `ПВЗ: ${order.delivery.pickupPoint.fullAddress} (ID: ${order.delivery.pickupPoint.id})`;
-  }
-
-  return 'ПВЗ: не выбран';
-};
 
 interface OrdersTabProps {
   orders: Order[];
@@ -80,7 +67,7 @@ export const OrdersTab = ({ orders }: OrdersTabProps) => {
 
                 <p className={styles.status}>Статус доставки: {getDeliveryStatusLabel(order)}</p>
                 {order.trackingNumber ? <p className={styles.caption}>СДЭК: {order.trackingNumber}</p> : null}
-                {deliveryLabel(order) ? <p className={styles.caption}>{deliveryLabel(order)}</p> : null}
+                {getOrderDeliveryLabel(order) ? <p className={styles.caption}>{getOrderDeliveryLabel(order)}</p> : null}
 
                 <button
                   type="button"
