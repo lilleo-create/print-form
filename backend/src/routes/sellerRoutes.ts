@@ -230,9 +230,10 @@ const sellerSettingsSchema = z.object({
   dropoffSchedule: z.enum(['DAILY', 'WEEKDAYS'])
 });
 
-const sellerPreparationSchema = z.object({
-  step: z.enum(['packedDone', 'labelPrintedDone', 'actPrintedDone', 'readyForDropoffDone']),
-  done: z.boolean().default(true)
+const sellerFulfillmentStepsSchema = z.object({
+  isPacked: z.boolean().optional(),
+  isLabelPrinted: z.boolean().optional(),
+  isActPrinted: z.boolean().optional()
 });
 
 type PreparationChecklist = {
@@ -823,6 +824,31 @@ sellerRoutes.get('/orders', async (req: AuthRequest, res, next) => {
   }
 });
 
+
+sellerRoutes.patch('/orders/:id/fulfillment-steps', writeLimiter, async (req: AuthRequest, res, next) => {
+  try {
+    const payload = sellerFulfillmentStepsSchema.parse(req.body);
+    const order = await prisma.order.findFirst({ where: { id: req.params.id, items: { some: { product: { sellerId: req.user!.userId } } } } });
+    if (!order) return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND' } });
+    if (order.status !== 'PAID' && !order.paidAt) {
+      return res.status(400).json({ error: { code: 'PAYMENT_REQUIRED', message: 'Чеклист доступен только для оплаченных заказов.' } });
+    }
+
+    const updated = await prisma.order.update({
+      where: { id: order.id },
+      data: {
+        ...(payload.isPacked !== undefined ? { isPacked: payload.isPacked } : {}),
+        ...(payload.isLabelPrinted !== undefined ? { isLabelPrinted: payload.isLabelPrinted } : {}),
+        ...(payload.isActPrinted !== undefined ? { isActPrinted: payload.isActPrinted } : {})
+      }
+    });
+
+    return res.json({ data: { isPacked: (updated as any).isPacked, isLabelPrinted: (updated as any).isLabelPrinted, isActPrinted: (updated as any).isActPrinted } });
+  } catch (error) {
+    next(error);
+  }
+});
+
 sellerRoutes.post('/orders/:orderId/ready-to-ship', writeLimiter, async (req: AuthRequest, res, next) => {
   try {
     const result = await shipmentService.readyToShipCdek({
@@ -843,9 +869,9 @@ sellerRoutes.post('/shipments/:id/sync', writeLimiter, async (req: AuthRequest, 
       include: { order: { include: { items: { include: { product: true } } } } }
     });
 
-    if (!shipment) return res.status(404).json({ error: { code: 'SHIPMENT_NOT_FOUND' } });
+    if (!shipment) return res.status(409).json({ error: { code: 'SHIPMENT_NOT_FOUND', message: 'Сначала оформите отгрузку' } });
     const hasAccess = shipment.order.items.some((item) => item.product.sellerId === req.user!.userId);
-    if (!hasAccess) return res.status(404).json({ error: { code: 'SHIPMENT_NOT_FOUND' } });
+    if (!hasAccess) return res.status(409).json({ error: { code: 'SHIPMENT_NOT_FOUND', message: 'Сначала оформите отгрузку' } });
 
     const result = await shipmentService.syncByShipmentId(req.params.id);
     return res.json({ data: result });
@@ -860,9 +886,9 @@ sellerRoutes.get('/shipments/:id/label', async (req: AuthRequest, res, next) => 
       where: { id: req.params.id },
       include: { order: { include: { items: { include: { product: true } } } } }
     });
-    if (!shipment) return res.status(404).json({ error: { code: 'SHIPMENT_NOT_FOUND' } });
+    if (!shipment) return res.status(409).json({ error: { code: 'SHIPMENT_NOT_FOUND', message: 'Сначала оформите отгрузку' } });
     const hasAccess = shipment.order.items.some((item) => item.product.sellerId === req.user!.userId);
-    if (!hasAccess) return res.status(404).json({ error: { code: 'SHIPMENT_NOT_FOUND' } });
+    if (!hasAccess) return res.status(409).json({ error: { code: 'SHIPMENT_NOT_FOUND', message: 'Сначала оформите отгрузку' } });
 
     const forms = await shipmentService.getPrintableForms(shipment.orderId);
     if (!forms.waybillUrl) {
@@ -887,9 +913,9 @@ sellerRoutes.get('/shipments/:id/barcodes', async (req: AuthRequest, res, next) 
       where: { id: req.params.id },
       include: { order: { include: { items: { include: { product: true } } } } }
     });
-    if (!shipment) return res.status(404).json({ error: { code: 'SHIPMENT_NOT_FOUND' } });
+    if (!shipment) return res.status(409).json({ error: { code: 'SHIPMENT_NOT_FOUND', message: 'Сначала оформите отгрузку' } });
     const hasAccess = shipment.order.items.some((item) => item.product.sellerId === req.user!.userId);
-    if (!hasAccess) return res.status(404).json({ error: { code: 'SHIPMENT_NOT_FOUND' } });
+    if (!hasAccess) return res.status(409).json({ error: { code: 'SHIPMENT_NOT_FOUND', message: 'Сначала оформите отгрузку' } });
 
     const forms = await shipmentService.getPrintableForms(shipment.orderId);
     if (!forms.barcodeUrls.length) {
@@ -908,9 +934,9 @@ sellerRoutes.get('/shipments/:id/act', async (req: AuthRequest, res, next) => {
       where: { id: req.params.id },
       include: { order: { include: { items: { include: { product: true } } } } }
     });
-    if (!shipment) return res.status(404).json({ error: { code: 'SHIPMENT_NOT_FOUND' } });
+    if (!shipment) return res.status(409).json({ error: { code: 'SHIPMENT_NOT_FOUND', message: 'Сначала оформите отгрузку' } });
     const hasAccess = shipment.order.items.some((item) => item.product.sellerId === req.user!.userId);
-    if (!hasAccess) return res.status(404).json({ error: { code: 'SHIPMENT_NOT_FOUND' } });
+    if (!hasAccess) return res.status(409).json({ error: { code: 'SHIPMENT_NOT_FOUND', message: 'Сначала оформите отгрузку' } });
 
     const pdf = await sellerOrderDocumentsService.buildHandoverAct(shipment.order as any);
     const buffer = Buffer.from(pdf);
@@ -986,24 +1012,7 @@ sellerRoutes.get('/orders/:orderId/documents/handover-act.pdf', async (req: Auth
 
 sellerRoutes.patch('/orders/:id/preparation', writeLimiter, async (req: AuthRequest, res, next) => {
   try {
-    const payload = sellerPreparationSchema.parse(req.body);
-    const order = await prisma.order.findFirst({ where: { id: req.params.id, items: { some: { product: { sellerId: req.user!.userId } } } }, include: { shipment: true } });
-    if (!order?.shipment) return res.status(404).json({ error: { code: 'SHIPMENT_NOT_FOUND' } });
-
-    const statusRaw = (order.shipment.statusRaw ?? {}) as Record<string, unknown>;
-    const checklist = readPreparationChecklist(statusRaw);
-    const doneAtKey = payload.step.replace('Done', 'At') as keyof PreparationChecklist;
-    const nextChecklist: PreparationChecklist = {
-      ...checklist,
-      [payload.step]: payload.done,
-      [doneAtKey]: payload.done ? new Date().toISOString() : null
-    };
-
-    const updated = await prisma.orderShipment.update({
-      where: { id: order.shipment.id },
-      data: { statusRaw: { ...statusRaw, preparationChecklist: nextChecklist } }
-    });
-    return res.json({ data: toShipmentView(updated) });
+    return res.status(409).json({ error: { code: 'LEGACY_ENDPOINT', message: 'Используйте /seller/orders/:id/fulfillment-steps' } });
   } catch (error) {
     return next(error);
   }

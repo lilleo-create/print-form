@@ -28,16 +28,16 @@ export const getDeliveryStage = (order: DeliveryStatusSource): DeliveryStage => 
 const DELIVERY_STAGE_LABELS: Record<DeliveryStage, string> = {
   CREATING: 'Оформляется',
   PRINTING: 'Печатается',
-  READY_FOR_DROP: 'Готов к отгрузке',
+  READY_FOR_DROP: 'Передается в ПВЗ',
   IN_TRANSIT: 'В пути',
   READY_FOR_PICKUP: 'Готов к выдаче'
 };
 
 export const getDeliveryStatusLabel = (order: DeliveryStatusSource): string => {
   const shipmentStatus = normalizeStatus(order.shipment?.status);
-  if (shipmentStatus === 'READY_TO_SHIP' && !order.trackingNumber) return 'Оформляется (получаем трек-номер)';
-  if (DELIVERED_STATUSES.has(shipmentStatus)) return 'Получен';
-  if (PVZ_DROPOFF_STATUSES.has(shipmentStatus)) return 'Передан в ПВЗ';
+  if (shipmentStatus === 'READY_TO_SHIP' && !order.trackingNumber) return 'Передается в ПВЗ';
+  if (DELIVERED_STATUSES.has(shipmentStatus)) return 'Выдан';
+  if (PVZ_DROPOFF_STATUSES.has(shipmentStatus)) return 'Передается в ПВЗ';
   return DELIVERY_STAGE_LABELS[getDeliveryStage(order)];
 };
 
@@ -49,10 +49,10 @@ export const isCancellableDeliveryStage = (order: DeliveryStatusSource) => {
 
 export const getExternalDeliveryStatusLabel = (status?: string | null) => {
   const normalized = normalizeStatus(status);
-  if (DELIVERED_STATUSES.has(normalized)) return 'Получен';
+  if (DELIVERED_STATUSES.has(normalized)) return 'Выдан';
   if (READY_FOR_PICKUP_STATUSES.has(normalized)) return DELIVERY_STAGE_LABELS.READY_FOR_PICKUP;
   if (IN_TRANSIT_STATUSES.has(normalized)) return DELIVERY_STAGE_LABELS.IN_TRANSIT;
-  if (PVZ_DROPOFF_STATUSES.has(normalized)) return 'Передан в ПВЗ';
+  if (PVZ_DROPOFF_STATUSES.has(normalized)) return 'Передается в ПВЗ';
   if (normalized === 'READY_FOR_DROP' || normalized === 'READY_TO_SHIP') return DELIVERY_STAGE_LABELS.READY_FOR_DROP;
   if (PRINTING_STATUSES.has(normalized)) return DELIVERY_STAGE_LABELS.PRINTING;
   if (CREATING_STATUSES.has(normalized)) return DELIVERY_STAGE_LABELS.CREATING;

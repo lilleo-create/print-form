@@ -241,11 +241,19 @@ cdekRoutes.post('/calculate-for-order', authenticate, async (req: AuthRequest, r
       heightCm: packageDz
     });
 
+    const etaMin = new Date(order.createdAt);
+    etaMin.setDate(etaMin.getDate() + quote.deliveryDaysMin);
+    const etaMax = new Date(order.createdAt);
+    etaMax.setDate(etaMax.getDate() + quote.deliveryDaysMax);
+
     await prisma.order.update({
       where: { id: orderId },
       data: {
         deliveryDaysMin: quote.deliveryDaysMin,
         deliveryDaysMax: quote.deliveryDaysMax,
+        deliveryEtaText: `${quote.deliveryDaysMin}–${quote.deliveryDaysMax} дней`,
+        estimatedDeliveryDateMin: etaMin,
+        estimatedDeliveryDateMax: etaMax,
         deliveryTariffCode: quote.tariffCode,
         deliveryCalculatedAt: new Date()
       }

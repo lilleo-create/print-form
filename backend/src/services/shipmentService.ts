@@ -135,7 +135,7 @@ const syncShipmentByOrder = async (orderId: string) => {
   return { shipment: updated, snapshot };
 };
 
-export const markReadyToShipCdek = async (orderId: string) => {
+export const markReadyToShipCdek = async (orderId: string, sellerId?: string) => {
   let order = await prisma.order.findUnique({
     where: { id: orderId },
     include: {
@@ -146,9 +146,17 @@ export const markReadyToShipCdek = async (orderId: string) => {
   });
 
   if (!order) throw makeError('ORDER_NOT_FOUND');
+  if (sellerId) {
+    const hasAccess = order.items.some((item) => item.product.sellerId === sellerId);
+    if (!hasAccess) throw makeError('ORDER_NOT_FOUND');
+  }
   order = await normalizePvzProvider(order);
 
   if (order.status !== 'PAID' || !order.paidAt) throw makeError('ORDER_NOT_PAID');
+  const fulfillment = order as Order & { isPacked?: boolean; isLabelPrinted?: boolean; isActPrinted?: boolean };
+  if (!fulfillment.isPacked || !fulfillment.isLabelPrinted || !fulfillment.isActPrinted) {
+    throw makeError('FULFILLMENT_STEPS_INCOMPLETE', 'Перед отгрузкой отметьте: Упаковано, Ярлык распечатан и Акт распечатан.');
+  }
 
   const fromPvzCode = String(order.sellerDropoffPvzId ?? '').trim();
   const toPvzCode = String(order.buyerPickupPvzId ?? '').trim();
@@ -239,6 +247,7 @@ export const markReadyToShipCdek = async (orderId: string) => {
           cdekStatus: created.state || 'ACCEPTED',
           trackingNumber: created.trackingNumber || null,
           readyForShipmentAt: now,
+          status: 'READY_FOR_SHIPMENT' as any,
           statusUpdatedAt: now
         }
       });
@@ -300,7 +309,7 @@ export const shipmentService = {
 
   readyToShipCdek: async (params: { orderId: string; sellerId: string }) => {
     void params.sellerId;
-    return markReadyToShipCdek(params.orderId);
+    return markReadyToShipCdek(params.orderId, params.sellerId);
   },
 
   syncByShipmentId: async (shipmentId: string) => {

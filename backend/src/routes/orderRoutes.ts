@@ -187,11 +187,36 @@ orderRoutes.post('/:id/ready-for-shipment', authenticate, writeLimiter, async (r
   }
 });
 
+
+orderRoutes.post('/:id/cancel', authenticate, writeLimiter, async (req: AuthRequest, res, next) => {
+  try {
+    const order = await prisma.order.findFirst({ where: { id: req.params.id, buyerId: req.user!.userId } });
+    if (!order) return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND' } });
+
+    if (order.status === 'CANCELLED') {
+      return res.json({ data: order });
+    }
+
+    if (order.status === 'IN_TRANSIT' || order.status === 'DELIVERED') {
+      return res.status(409).json({ error: { code: 'CANCEL_NOT_ALLOWED', message: 'Заказ уже передан в доставку.' } });
+    }
+
+    const updated = await prisma.order.update({
+      where: { id: order.id },
+      data: { status: 'CANCELLED', statusUpdatedAt: new Date() }
+    });
+
+    return res.json({ data: updated });
+  } catch (error) {
+    return next(error);
+  }
+});
+
 orderRoutes.get('/me', authenticate, async (req: AuthRequest, res, next) => {
   try {
     const orders = await prisma.order.findMany({
       where: { buyerId: req.user!.userId },
-      include: { items: { include: { product: true, variant: true } }, deliveryEvents: { orderBy: { createdAt: 'desc' } } },
+      include: { items: { include: { product: true, variant: true } }, shipment: true, deliveryEvents: { orderBy: { createdAt: 'desc' } } },
       orderBy: { createdAt: 'desc' }
     });
     res.json({ data: orders });

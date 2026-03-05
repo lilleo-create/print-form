@@ -22,6 +22,7 @@ type ApiOrder = {
   shippingAddressId?: string | null;
   status?: string;
   statusUpdatedAt?: string;
+  readyForShipmentAt?: string | null;
   paidAt?: string | null;
   total: number;
   recipientName?: string | null;
@@ -44,6 +45,12 @@ type ApiOrder = {
   deliveryDaysMax?: number | null;
   deliveryTariffCode?: number | null;
   deliveryCalculatedAt?: string | null;
+  deliveryEtaText?: string | null;
+  estimatedDeliveryDateMin?: string | null;
+  estimatedDeliveryDateMax?: string | null;
+  isPacked?: boolean;
+  isLabelPrinted?: boolean;
+  isActPrinted?: boolean;
   items?: ApiOrderItem[];
 };
 
@@ -72,6 +79,7 @@ const mapOrder = (order: ApiOrder): Order => ({
   shippingAddressId: order.shippingAddressId ?? '',
   status: mapStatus(order.status),
   statusUpdatedAt: order.statusUpdatedAt,
+  readyForShipmentAt: order.readyForShipmentAt ?? null,
   paidAt: order.paidAt ?? null,
   total: order.total,
   recipientName: order.recipientName ?? null,
@@ -87,6 +95,12 @@ const mapOrder = (order: ApiOrder): Order => ({
   deliveryDaysMax: order.deliveryDaysMax ?? null,
   deliveryTariffCode: order.deliveryTariffCode ?? null,
   deliveryCalculatedAt: order.deliveryCalculatedAt ?? null,
+  deliveryEtaText: order.deliveryEtaText ?? null,
+  estimatedDeliveryDateMin: order.estimatedDeliveryDateMin ?? null,
+  estimatedDeliveryDateMax: order.estimatedDeliveryDateMax ?? null,
+  isPacked: order.isPacked ?? false,
+  isLabelPrinted: order.isLabelPrinted ?? false,
+  isActPrinted: order.isActPrinted ?? false,
   trackingNumber: order.trackingNumber ?? null,
   cdekOrderId: order.cdekOrderId ?? null,
   carrier: order.carrier ?? null,
@@ -179,5 +193,11 @@ export const ordersApi = {
   },
   updateSellerShipmentStage: async (orderId: string, stage: DeliveryStage) => {
     return api.updateSellerShipmentStage(orderId, { stage });
+  },
+  updateSellerFulfillmentSteps: async (orderId: string, payload: { isPacked?: boolean; isLabelPrinted?: boolean; isActPrinted?: boolean }) => {
+    return api.updateSellerFulfillmentSteps(orderId, payload);
+  },
+  cancelOrder: async (orderId: string, payload?: { reason?: string; comment?: string }) => {
+    return api.cancelOrder(orderId, payload);
   }
 };
