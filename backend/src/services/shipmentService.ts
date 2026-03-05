@@ -41,13 +41,6 @@ const makeError = (code: string, message?: string) => {
 const safeRecord = (value: unknown): Record<string, unknown> =>
   value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 
-const detectClientNumber = (order: Pick<Order, 'id' | 'orderLabels'>) => {
-  const labels = Array.isArray(order.orderLabels) ? (order.orderLabels as Array<{ code?: string }>) : [];
-  const primary = String(labels[0]?.code ?? '').trim();
-  if (primary) return primary;
-  return `PF-${order.id.replace(/[^a-zA-Z0-9]/g, '').slice(-8).toUpperCase()}`;
-};
-
 const parsePvzProvider = (meta: unknown) => String(safeRecord(meta).provider ?? '').trim().toUpperCase();
 
 export const normalizePvzProvider = async <T extends Pick<Order, 'id' | 'carrier' | 'buyerPickupPvzId' | 'buyerPickupPvzMeta'>>(order: T) => {
@@ -73,7 +66,8 @@ export const normalizePvzProvider = async <T extends Pick<Order, 'id' | 'carrier
   return { ...order, buyerPickupPvzMeta: nextMeta };
 };
 
-const buildStatusRaw = (snapshot: CdekOrderSnapshot, fallbackUuid: string) => ({
+const buildStatusRaw = (snapshot: CdekOrderSnapshot, fallbackUuid: string, orderNumber: string) => ({
+  cdek_order_number: orderNumber,
   cdek_order_uuid: snapshot.cdekOrderId || fallbackUuid,
   cdek_request_uuid: snapshot.requestUuid || '',
   cdek_state: snapshot.status || '',
@@ -94,7 +88,7 @@ const syncShipmentByOrder = async (orderId: string) => {
 
   const snapshot = await cdekService.getOrderByUuid(cdekOrderUuid);
   const nextStatus = mapExternalStatusToInternal(snapshot.status);
-  const statusRaw = buildStatusRaw(snapshot, cdekOrderUuid);
+  const statusRaw = buildStatusRaw(snapshot, cdekOrderUuid, order.id);
 
   const updated = await prisma.$transaction(async (tx) => {
     const shipment = await tx.orderShipment.upsert({
@@ -189,7 +183,6 @@ export const markReadyToShipCdek = async (orderId: string) => {
 
     const created = await cdekService.createOrderFromMarketplaceOrder({
       orderId: order.id,
-      clientNumber: detectClientNumber(order),
       fromPvzCode,
       toPvzCode,
       recipientName,
@@ -205,6 +198,7 @@ export const markReadyToShipCdek = async (orderId: string) => {
     if (!created.cdekOrderId) throw makeError('CDEK_CREATE_ORDER_NO_UUID');
 
     const statusRaw = {
+      cdek_order_number: order.id,
       cdek_order_uuid: created.cdekOrderId,
       cdek_request_uuid: created.cdekRequestUuid ?? '',
       cdek_state: created.state ?? '',

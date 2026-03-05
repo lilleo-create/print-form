@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { Response, Router } from "express";
+import axios from 'axios';
 import { z } from "zod";
 import multer from "multer";
 import path from "path";
@@ -66,6 +67,19 @@ const kycUpload = multer({
     return cb(null, true);
   }
 });
+
+const toShipmentView = (shipment: any) => {
+  if (!shipment) return null;
+  return {
+    id: shipment.id,
+    provider: shipment.provider,
+    status: shipment.status,
+    sourceStationId: shipment.sourceStationId,
+    destinationStationId: shipment.destinationStationId,
+    lastSyncAt: shipment.lastSyncAt,
+    updatedAt: shipment.updatedAt
+  };
+};
 
 // ---------------------------------------------------------
 // Helpers
@@ -765,7 +779,7 @@ sellerRoutes.get('/orders', async (req: AuthRequest, res, next) => {
       limit: query.limit
     });
     const shipments = await shipmentService.getByOrderIds(orders.map((o) => o.id));
-    res.json({ data: orders.map((o) => ({ ...o, shipment: shipments.get(o.id) ?? null })) });
+    res.json({ data: orders.map((o) => ({ ...o, shipment: toShipmentView(shipments.get(o.id) ?? null) })) });
   } catch (error) {
     next(error);
   }
@@ -778,7 +792,7 @@ sellerRoutes.post('/orders/:orderId/ready-to-ship', writeLimiter, async (req: Au
       sellerId: req.user!.userId
     });
 
-    return res.json({ data: result });
+    return res.json({ data: { shipment: toShipmentView(result.shipment), cdek: result.cdek } });
   } catch (e) {
     next(e);
   }
@@ -817,7 +831,13 @@ sellerRoutes.get('/shipments/:id/label', async (req: AuthRequest, res, next) => 
       return res.status(409).json({ error: { code: 'FORMS_NOT_READY', message: 'Label is not ready yet. Retry after sync.' } });
     }
 
-    return res.redirect(forms.waybillUrl);
+    const response = await axios.get(forms.waybillUrl, { responseType: 'arraybuffer' });
+    const buffer = Buffer.from(response.data);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="cdek-label-${shipment.id}.pdf"`);
+    res.setHeader('Content-Length', buffer.length);
+    return res.status(200).send(buffer);
   } catch (e) {
     next(e);
   }
@@ -844,8 +864,25 @@ sellerRoutes.get('/shipments/:id/barcodes', async (req: AuthRequest, res, next) 
   }
 });
 
-sellerRoutes.get('/shipments/:id/act', async (_req: AuthRequest, res) => {
-  return res.status(501).json({ error: { code: 'NOT_SUPPORTED_YET', message: 'CDEK act endpoint is not integrated yet.' } });
+sellerRoutes.get('/shipments/:id/act', async (req: AuthRequest, res, next) => {
+  try {
+    const shipment = await prisma.orderShipment.findUnique({
+      where: { id: req.params.id },
+      include: { order: { include: { items: { include: { product: true } } } } }
+    });
+    if (!shipment) return res.status(404).json({ error: { code: 'SHIPMENT_NOT_FOUND' } });
+    const hasAccess = shipment.order.items.some((item) => item.product.sellerId === req.user!.userId);
+    if (!hasAccess) return res.status(404).json({ error: { code: 'SHIPMENT_NOT_FOUND' } });
+
+    const pdf = await sellerOrderDocumentsService.buildHandoverAct(shipment.order as any);
+    const buffer = Buffer.from(pdf);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="cdek-act-${shipment.id}.pdf"`);
+    res.setHeader('Content-Length', buffer.length);
+    return res.status(200).send(buffer);
+  } catch (error) {
+    next(error);
+  }
 });
 
 const loadSellerOrderForDocuments = async (sellerId: string, orderId: string) =>

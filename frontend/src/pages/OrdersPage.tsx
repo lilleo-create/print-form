@@ -70,7 +70,7 @@ export const OrdersPage = () => {
                 {order.shipment ? (
                   <p>
                     Статус доставки: {order.shipment.status}
-                    {order.shipment.requestId ? ` · трек: ${order.shipment.requestId}` : ''}
+                    {order.trackingNumber ? ` · трек: ${order.trackingNumber}` : ''}
                   </p>
                 ) : null}
                 <ul className={styles.items}>

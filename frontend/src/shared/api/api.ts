@@ -448,16 +448,8 @@ export const api = {
     const response = await fetch(`${baseUrl}/seller/shipments/${shipmentId}/label`, {
       headers: {
         ...(authHeaders() ?? {})
-      },
-      redirect: 'manual'
+      }
     });
-
-    if (response.status === 302 || response.status === 301) {
-      return {
-        type: 'url' as const,
-        url: response.headers.get('location')
-      };
-    }
 
     if (!response.ok) {
       throw new Error(`LABEL_DOWNLOAD_FAILED_${response.status}`);
@@ -474,7 +466,15 @@ export const api = {
   },
 
   async downloadShipmentAct(shipmentId: string) {
-    return apiClient.request(`/seller/shipments/${shipmentId}/act`);
+    const response = await fetch(`${baseUrl}/seller/shipments/${shipmentId}/act`, {
+      headers: {
+        ...(authHeaders() ?? {})
+      }
+    });
+    if (!response.ok) {
+      throw new Error(`ACT_DOWNLOAD_FAILED_${response.status}`);
+    }
+    return await response.blob();
   },
 
   async downloadSellerOrderDocument(
@@ -493,6 +493,19 @@ export const api = {
       throw new Error(`ORDER_DOCUMENT_DOWNLOAD_FAILED_${response.status}`);
     }
     return await response.blob();
+  },
+
+  async findShipmentByTracking(trackingNumber: string) {
+    return apiClient.request<{
+      id?: string;
+      orderId?: string;
+      trackingNumber?: string | null;
+      carrier?: string | null;
+      status: string;
+      pvz?: string | null;
+      dropoffPvz?: string | null;
+      updatedAt: string;
+    }>(`/shipments/track/${encodeURIComponent(trackingNumber)}`);
   },
 
   async getSellerPayments() {

@@ -225,6 +225,20 @@ meRoutes.patch('/contacts/:id', requireAuth, writeLimiter, async (req: AuthReque
   }
 });
 
+
+const toShipmentView = (shipment: any) => {
+  if (!shipment) return null;
+  return {
+    id: shipment.id,
+    provider: shipment.provider,
+    status: shipment.status,
+    sourceStationId: shipment.sourceStationId,
+    destinationStationId: shipment.destinationStationId,
+    lastSyncAt: shipment.lastSyncAt,
+    updatedAt: shipment.updatedAt
+  };
+};
+
 meRoutes.get('/orders', requireAuth, async (req: AuthRequest, res, next) => {
   try {
     const orders = await orderUseCases.listByBuyer(req.user!.userId);
@@ -234,7 +248,7 @@ meRoutes.get('/orders', requireAuth, async (req: AuthRequest, res, next) => {
       data: orders.map((order) => ({
         ...order,
         delivery: deliveries.get(order.id) ?? null,
-        shipment: shipments.get(order.id) ?? null
+        shipment: toShipmentView(shipments.get(order.id) ?? null)
       }))
     });
   } catch (error) {
