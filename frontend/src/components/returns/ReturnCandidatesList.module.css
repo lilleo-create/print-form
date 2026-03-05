@@ -27,25 +27,7 @@
 }
 
 .row {
-  display: flex;
-  gap: 16px;
-  align-items: center;
-}
-
-.row img {
-  width: 72px;
-  height: 72px;
-  border-radius: 12px;
-  object-fit: cover;
-}
-
-.imagePlaceholder {
-  width: 72px;
-  height: 72px;
-  border-radius: 12px;
-  background: var(--bg-2);
-  border: 1px solid var(--border);
-  flex-shrink: 0;
+  display: block;
 }
 
 .meta {

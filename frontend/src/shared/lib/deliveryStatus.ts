@@ -1,33 +1,67 @@
 import { Order } from '../types';
 
-type DeliveryStatusSource = Pick<Order, 'status' | 'shipment' | 'trackingNumber'>;
+export type DeliveryStage = 'CREATING' | 'PRINTING' | 'READY_FOR_DROP' | 'IN_TRANSIT' | 'READY_FOR_PICKUP';
 
-const SHIPMENT_STATUS_LABELS: Record<string, string> = {
-  READY_TO_SHIP: 'Готов к сдаче в ПВЗ',
-  ACCEPTED: 'Заказ принят СДЭК (ожидает сдачи)',
+type DeliveryStatusSource = Pick<Order, 'status' | 'paidAt' | 'shipment' | 'trackingNumber' | 'cdekOrderId'>;
+
+const IN_TRANSIT_STATUSES = new Set(['IN_TRANSIT', 'ACCEPTED_IN_TRANSIT_CITY', 'TRANSPORTING', 'ACCEPTED', 'DELIVERY_TRANSPORTATION']);
+const READY_FOR_PICKUP_STATUSES = new Set(['READY_FOR_PICKUP', 'DELIVERED', 'DELIVERY_AT_PICKUP_POINT', 'ISSUED']);
+const CREATING_STATUSES = new Set(['CREATED', 'VALIDATING', 'NEW', 'CREATING']);
+const PRINTING_STATUSES = new Set(['PRINTING', 'DOCS_PRINTING']);
+
+const normalizeStatus = (status?: string | null) => String(status ?? '').toUpperCase();
+
+const isPaid = (order: DeliveryStatusSource) => order.status === 'PAID' || Boolean(order.paidAt);
+
+export const getDeliveryStage = (order: DeliveryStatusSource): DeliveryStage => {
+  const shipmentStatus = normalizeStatus(order.shipment?.status);
+
+  if (READY_FOR_PICKUP_STATUSES.has(shipmentStatus) && isPaid(order)) {
+    return 'READY_FOR_PICKUP';
+  }
+
+  if (IN_TRANSIT_STATUSES.has(shipmentStatus)) {
+    return 'IN_TRANSIT';
+  }
+
+  if (shipmentStatus === 'READY_FOR_DROP' || (shipmentStatus === 'READY_TO_SHIP' && (order.trackingNumber || order.cdekOrderId))) {
+    return 'READY_FOR_DROP';
+  }
+
+  if (PRINTING_STATUSES.has(shipmentStatus) || (shipmentStatus && order.status === 'PRINTING')) {
+    return 'PRINTING';
+  }
+
+  if (!order.shipment || CREATING_STATUSES.has(shipmentStatus) || (shipmentStatus === 'READY_TO_SHIP' && !order.trackingNumber)) {
+    return 'CREATING';
+  }
+
+  return 'CREATING';
+};
+
+const DELIVERY_STAGE_LABELS: Record<DeliveryStage, string> = {
+  CREATING: 'Оформляется',
+  PRINTING: 'Печатается',
+  READY_FOR_DROP: 'Готов к сдаче в ПВЗ',
   IN_TRANSIT: 'В пути',
-  DELIVERED: 'Доставлен',
-  CANCELLED: 'Отменено',
-  FAILED: 'Ошибка доставки',
-  VALIDATING: 'Оформляется',
-  CREATED: 'Оформляется'
+  READY_FOR_PICKUP: 'Готов к выдаче'
 };
 
 export const getDeliveryStatusLabel = (order: DeliveryStatusSource): string => {
-  const shipmentStatus = order.shipment?.status;
-  if (shipmentStatus) {
-    if (shipmentStatus === 'READY_TO_SHIP' && !order.trackingNumber) {
-      return 'Оформляется (получаем трек-номер)';
-    }
-
-    return SHIPMENT_STATUS_LABELS[shipmentStatus] ?? shipmentStatus;
+  const shipmentStatus = normalizeStatus(order.shipment?.status);
+  if (shipmentStatus === 'READY_TO_SHIP' && !order.trackingNumber) {
+    return 'Оформляется (получаем трек-номер)';
   }
 
-  return SHIPMENT_STATUS_LABELS[order.status] ?? order.status;
+  return DELIVERY_STAGE_LABELS[getDeliveryStage(order)];
 };
 
-
 export const getExternalDeliveryStatusLabel = (status?: string | null) => {
-  const normalized = String(status ?? '').toUpperCase();
-  return SHIPMENT_STATUS_LABELS[normalized] ?? status ?? '—';
+  const normalized = normalizeStatus(status);
+  if (READY_FOR_PICKUP_STATUSES.has(normalized)) return DELIVERY_STAGE_LABELS.READY_FOR_PICKUP;
+  if (IN_TRANSIT_STATUSES.has(normalized)) return DELIVERY_STAGE_LABELS.IN_TRANSIT;
+  if (normalized === 'READY_FOR_DROP' || normalized === 'READY_TO_SHIP') return DELIVERY_STAGE_LABELS.READY_FOR_DROP;
+  if (PRINTING_STATUSES.has(normalized)) return DELIVERY_STAGE_LABELS.PRINTING;
+  if (CREATING_STATUSES.has(normalized)) return DELIVERY_STAGE_LABELS.CREATING;
+  return status ?? '—';
 };

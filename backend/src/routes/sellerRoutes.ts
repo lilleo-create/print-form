@@ -220,6 +220,10 @@ const sellerOrderStatusSchema = z.object({
   carrier: z.string().min(2).optional()
 });
 
+const sellerShipmentStageSchema = z.object({
+  stage: z.enum(['CREATING', 'PRINTING', 'READY_FOR_DROP', 'IN_TRANSIT', 'READY_FOR_PICKUP'])
+});
+
 
 const sellerSettingsSchema = z.object({
   dropoffSchedule: z.enum(['DAILY', 'WEEKDAYS'])
@@ -252,6 +256,16 @@ const sellerDropoffPvzSaveSchema = z.object({
 
 
 const orderStatusFlow: OrderStatus[] = ['CREATED', 'PRINTING', 'HANDED_TO_DELIVERY', 'IN_TRANSIT', 'DELIVERED'];
+const shipmentStageFlow = ['CREATING', 'PRINTING', 'READY_FOR_DROP', 'IN_TRANSIT', 'READY_FOR_PICKUP'] as const;
+
+const normalizeShipmentStage = (status?: string | null) => {
+  const normalized = String(status ?? '').toUpperCase();
+  if (normalized === 'READY_FOR_PICKUP' || normalized === 'DELIVERED') return 'READY_FOR_PICKUP';
+  if (normalized === 'IN_TRANSIT' || normalized === 'ACCEPTED' || normalized === 'TRANSPORTING') return 'IN_TRANSIT';
+  if (normalized === 'READY_FOR_DROP' || normalized === 'READY_TO_SHIP') return 'READY_FOR_DROP';
+  if (normalized === 'PRINTING' || normalized === 'DOCS_PRINTING') return 'PRINTING';
+  return 'CREATING';
+};
 
 const MAX_FETCH_LIMIT = 5000;
 
@@ -999,6 +1013,56 @@ sellerRoutes.patch('/orders/:id/status', writeLimiter, async (req: AuthRequest, 
     res.json({ data: updated });
   } catch (error) {
     next(error);
+  }
+});
+
+sellerRoutes.patch('/orders/:id/shipment-stage', writeLimiter, async (req: AuthRequest, res, next) => {
+  try {
+    const payload = sellerShipmentStageSchema.parse(req.body);
+    const order = await prisma.order.findFirst({
+      where: { id: req.params.id, items: { some: { product: { sellerId: req.user!.userId } } } },
+      include: { shipment: true }
+    });
+
+    if (!order) return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND', message: 'Заказ не найден.' } });
+    if (!order.shipment) return res.status(400).json({ error: { code: 'SHIPMENT_NOT_FOUND', message: 'Отправление ещё не создано.' } });
+
+    const currentStage = normalizeShipmentStage(order.shipment.status);
+    const currentIndex = shipmentStageFlow.indexOf(currentStage);
+    const nextIndex = shipmentStageFlow.indexOf(payload.stage);
+
+    if (nextIndex === -1 || currentIndex === -1) {
+      return res.status(400).json({ error: { code: 'STATUS_INVALID', message: 'Некорректный статус доставки.' } });
+    }
+
+    if (nextIndex < currentIndex) {
+      return res.status(400).json({ error: { code: 'STATUS_BACKWARD', message: 'Нельзя откатывать статус доставки назад.' } });
+    }
+
+    if (nextIndex > currentIndex + 1) {
+      return res.status(400).json({ error: { code: 'STATUS_SKIP_NOT_ALLOWED', message: 'Нельзя пропускать этапы доставки.' } });
+    }
+
+    if (payload.stage === 'READY_FOR_PICKUP' && !(order.status === 'PAID' || order.paidAt)) {
+      return res.status(400).json({ error: { code: 'PAYMENT_REQUIRED', message: 'Статус «Готов к выдаче» доступен только для оплаченных заказов.' } });
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const shipment = await tx.orderShipment.update({
+        where: { id: order.shipment!.id },
+        data: { status: payload.stage }
+      });
+
+      await tx.orderShipmentStatusHistory.create({
+        data: { shipmentId: shipment.id, status: payload.stage, payloadRaw: { source: 'seller-panel' } }
+      });
+
+      return shipment;
+    });
+
+    return res.json({ data: toShipmentView(updated) });
+  } catch (error) {
+    return next(error);
   }
 });
 

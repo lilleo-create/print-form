@@ -331,6 +331,16 @@ export const api = {
     });
   },
 
+  async updateSellerShipmentStage(
+    id: string,
+    payload: { stage: 'CREATING' | 'PRINTING' | 'READY_FOR_DROP' | 'IN_TRANSIT' | 'READY_FOR_PICKUP' }
+  ) {
+    return apiClient.request<{ id: string; status: string }>(`/seller/orders/${id}/shipment-stage`, {
+      method: 'PATCH',
+      body: payload
+    });
+  },
+
   async getSellerDeliveryProfile() {
     return apiClient.request<SellerDeliveryProfile | null>('/seller/settings');
   },
