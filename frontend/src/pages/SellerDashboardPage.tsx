@@ -23,7 +23,7 @@ import {
   SellerProductPayload
 } from '../widgets/seller/SellerProductModal';
 import styles from './SellerAccountPage.module.css';
-import { getDeliveryStatusLabel, getExternalDeliveryStatusLabel } from '../shared/lib/deliveryStatus';
+import { getExternalDeliveryStatusLabel } from '../shared/lib/deliveryStatus';
 
 const menuItems = [
   'Подключение',
@@ -595,27 +595,6 @@ export const SellerDashboardPage = () => {
     }
   };
 
-  const handleCreateShipment = async (orderId: string) => {
-    setOrderUpdateError(null);
-
-    try {
-      await ordersApi.createShipment(orderId);
-      await loadOrders();
-    } catch (error) {
-      const normalized = normalizeApiError(error);
-      if (normalized.code === 'PAYMENT_REQUIRED') {
-        setOrderUpdateError('Заказ не оплачен.');
-        return;
-      }
-      if (normalized.code === 'FULFILLMENT_STEPS_INCOMPLETE') {
-        setOrderUpdateError('Сначала завершите упаковку заказа.');
-        return;
-      }
-      setOrderUpdateError('Не удалось создать отправление. Проверьте данные доставки и ПВЗ.');
-    }
-  };
-
-
   const triggerDownload = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -639,12 +618,16 @@ export const SellerDashboardPage = () => {
     setDocumentErrors((prev) => ({ ...prev, [order.id]: { ...prev[order.id], label: undefined } }));
 
     try {
-      const blob = order.shipment?.id
-        ? await ordersApi.downloadShipmentLabel(order.shipment.id)
-        : await ordersApi.downloadSellerDocument(order.id, 'labels');
+      const blob = await ordersApi.downloadSellerDocument(order.id, 'label');
       triggerDownload(blob, `cdek-label-${order.id}.pdf`);
       await loadOrders();
-    } catch {
+    } catch (error) {
+      const normalized = normalizeApiError(error);
+      if (normalized.code === 'FORMS_NOT_READY') {
+        setDocumentErrors((prev) => ({ ...prev, [order.id]: { ...prev[order.id], label: 'Документы формируются…' } }));
+        setTimeout(() => void handleDownloadLabel(order), 2000);
+        return;
+      }
       setDocumentErrors((prev) => ({ ...prev, [order.id]: { ...prev[order.id], label: 'Ошибка документа' } }));
     }
   };
@@ -653,12 +636,16 @@ export const SellerDashboardPage = () => {
     setOrderUpdateError(null);
     setDocumentErrors((prev) => ({ ...prev, [order.id]: { ...prev[order.id], act: undefined } }));
     try {
-      const blob = order.shipment?.id
-        ? await ordersApi.downloadShipmentAct(order.shipment.id)
-        : await ordersApi.downloadSellerDocument(order.id, 'handover-act');
+      const blob = await ordersApi.downloadSellerDocument(order.id, 'handover-act');
       triggerDownload(blob, `cdek-act-${order.id}.pdf`);
       await loadOrders();
-    } catch {
+    } catch (error) {
+      const normalized = normalizeApiError(error);
+      if (normalized.code === 'FORMS_NOT_READY') {
+        setDocumentErrors((prev) => ({ ...prev, [order.id]: { ...prev[order.id], act: 'Документы формируются…' } }));
+        setTimeout(() => void handleDownloadAct(order), 2000);
+        return;
+      }
       setDocumentErrors((prev) => ({ ...prev, [order.id]: { ...prev[order.id], act: 'Ошибка документа' } }));
     }
   };
@@ -685,34 +672,31 @@ export const SellerDashboardPage = () => {
     return 'HOLD до получения';
   };
 
-  const hasShipment = (order: Order) => Boolean(order.shipment?.id || order.cdekOrderId);
-  const canCreateShipment = (order: Order) => {
-    const isPaid = order.status === 'PAID';
-    const isNotCancelled = order.status !== 'CANCELLED';
-    return isPaid && Boolean(order.isPacked) && !hasShipment(order) && isNotCancelled;
-  };
   const canDownloadLabel = (order: Order) => {
-    const isPaid = order.status === 'PAID';
-    const isNotCancelled = order.status !== 'CANCELLED';
-    return isPaid && hasShipment(order) && isNotCancelled;
+    return order.status !== 'CANCELLED';
   };
   const canDownloadAct = (order: Order) => {
-    const isPaid = order.status === 'PAID';
-    const isNotCancelled = order.status !== 'CANCELLED';
-    return isPaid && hasShipment(order) && isNotCancelled;
+    return order.status !== 'CANCELLED';
   };
   const canReadyToShip = (order: Order) => {
     const isPaid = order.status === 'PAID';
     const isNotCancelled = order.status !== 'CANCELLED';
-    return isPaid && Boolean(order.isPacked) && hasShipment(order) && isNotCancelled;
+    return isPaid && Boolean(order.isPacked) && isNotCancelled;
   };
 
   const readyToShipDisabledReason = (order: Order) => {
     if (order.status === 'CANCELLED') return 'Отменённый заказ нельзя передать в отгрузку';
     if (order.status !== 'PAID') return 'Ожидает оплаты';
-    if (!hasShipment(order)) return 'Сначала создайте отправление';
     if (!order.isPacked) return 'Отметьте шаг «Упаковка»';
     return null;
+  };
+
+  const getOrderDeliveryLabel = (order: Order) => {
+    if (order.status === 'PAID') return 'В работе';
+    if (order.status === 'HANDED_TO_DELIVERY' || order.status === 'IN_TRANSIT' || order.status === 'DELIVERED') {
+      return getExternalDeliveryStatusLabel(order.cdekStatus ?? order.shipment?.status ?? null);
+    }
+    return 'В работе';
   };
   const summary = useMemo(() => {
     const totalProducts = products.length;
@@ -1197,7 +1181,7 @@ export const SellerDashboardPage = () => {
                             <div>{formatCurrency(total)} ₽</div>
 
                             <div>
-                              <strong>{getDeliveryStatusLabel(order)}</strong>
+                              <strong>{getOrderDeliveryLabel(order)}</strong>
                             </div>
 
                             <div className={styles.deliveryInputs}>
@@ -1226,7 +1210,7 @@ export const SellerDashboardPage = () => {
                               </p>
                               <p className={styles.muted}>
                                 Статус доставки:{' '}
-                                {getDeliveryStatusLabel(order)}
+                                {getOrderDeliveryLabel(order)}
                                 {order.shipment?.lastSyncAt
                                   ? ` · обновлено ${new Date(
                                     order.shipment.lastSyncAt
@@ -1237,17 +1221,6 @@ export const SellerDashboardPage = () => {
                               <p className={styles.muted}>
                                 Трек-номер: {order.trackingNumber ?? '—'}
                               </p>
-
-                              {!hasShipment(order) && (
-                                <Button
-                                  type="button"
-                                  variant="secondary"
-                                  onClick={() => void handleCreateShipment(order.id)}
-                                  disabled={!canCreateShipment(order)}
-                                >
-                                  Создать отправление
-                                </Button>
-                              )}
 
                               <Button
                                 type="button"

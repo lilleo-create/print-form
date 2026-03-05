@@ -855,7 +855,12 @@ sellerRoutes.post('/orders/:orderId/ready-to-ship', writeLimiter, async (req: Au
       sellerId: req.user!.userId
     });
 
-    return res.json({ data: { shipment: toShipmentView(result.shipment), cdek: result.cdek } });
+    const order = await prisma.order.findFirst({
+      where: { id: req.params.orderId, items: { some: { product: { sellerId: req.user!.userId } } } },
+      include: { shipment: true }
+    });
+
+    return res.json({ data: { order, shipment: toShipmentView(result.shipment), cdek: result.cdek } });
   } catch (e) {
     next(e);
   }
@@ -1000,8 +1005,19 @@ sellerRoutes.get('/shipments/:id/act', async (req: AuthRequest, res, next) => {
 const loadSellerOrderForDocuments = async (sellerId: string, orderId: string) =>
   prisma.order.findFirst({
     where: { id: orderId, items: { some: { product: { sellerId } } } },
-    include: { items: { include: { product: true } } }
+    include: { items: { include: { product: true } }, shipment: true }
   });
+
+const NEED_READY_TO_SHIP_ERROR = {
+  code: 'NEED_READY_TO_SHIP',
+  message: 'Сначала нажмите ‘Готов к отгрузке’'
+};
+
+const FORMS_NOT_READY_ERROR = {
+  code: 'FORMS_NOT_READY',
+  message: 'Документы ещё формируются. Повторите после синхронизации.',
+  retryAfterSec: 10
+};
 
 sellerRoutes.get('/orders/:orderId/documents/packing-slip.pdf', async (req: AuthRequest, res, next) => {
   try {
@@ -1017,21 +1033,32 @@ sellerRoutes.get('/orders/:orderId/documents/packing-slip.pdf', async (req: Auth
   }
 });
 
-sellerRoutes.get('/orders/:orderId/documents/labels.pdf', async (req: AuthRequest, res, next) => {
+sellerRoutes.get('/orders/:orderId/documents/label.pdf', async (req: AuthRequest, res, next) => {
   try {
     const order = await loadSellerOrderForDocuments(req.user!.userId, req.params.orderId);
     if (!order) return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND' } });
 
-    const pdf = await sellerOrderDocumentsService.buildLabels(order);
-    const shipment = await prisma.orderShipment.findUnique({ where: { orderId: order.id } });
-    if (shipment) {
-      const statusRaw = (shipment.statusRaw ?? {}) as Record<string, unknown>;
-      const checklist = readPreparationChecklist(statusRaw);
-      await prisma.orderShipment.update({ where: { id: shipment.id }, data: { statusRaw: { ...statusRaw, preparationChecklist: { ...checklist, labelPrintedDone: true, labelPrintedAt: new Date().toISOString() } } } });
+    if (!order.cdekOrderId && !order.shipment?.id) {
+      return res.status(409).json({ error: NEED_READY_TO_SHIP_ERROR });
     }
+
+    const forms = await shipmentService.getPrintableForms(order.id).catch(() => null);
+    if (!forms?.waybillUrl) {
+      return res.status(409).json({ error: FORMS_NOT_READY_ERROR });
+    }
+
+    let response;
+    try {
+      response = await axios.get(forms.waybillUrl, { responseType: 'arraybuffer' });
+    } catch {
+      return res.status(409).json({ error: FORMS_NOT_READY_ERROR });
+    }
+    const pdf = Buffer.from(response.data);
+
     await prisma.order.update({ where: { id: order.id }, data: { isLabelPrinted: true, fulfillmentUpdatedAt: new Date() } as any });
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="labels-${order.id}.pdf"`);
+    res.setHeader('Content-Disposition', `attachment; filename="cdek-label-${order.id}.pdf"`);
+    res.setHeader('Content-Length', pdf.length);
     return res.status(200).send(pdf);
   } catch (error) {
     return next(error);
@@ -1043,16 +1070,20 @@ sellerRoutes.get('/orders/:orderId/documents/handover-act.pdf', async (req: Auth
     const order = await loadSellerOrderForDocuments(req.user!.userId, req.params.orderId);
     if (!order) return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND' } });
 
-    const pdf = await sellerOrderDocumentsService.buildHandoverAct(order);
-    const shipment = await prisma.orderShipment.findUnique({ where: { orderId: order.id } });
-    if (shipment) {
-      const statusRaw = (shipment.statusRaw ?? {}) as Record<string, unknown>;
-      const checklist = readPreparationChecklist(statusRaw);
-      await prisma.orderShipment.update({ where: { id: shipment.id }, data: { statusRaw: { ...statusRaw, preparationChecklist: { ...checklist, actPrintedDone: true, actPrintedAt: new Date().toISOString() } } } });
+    if (!order.cdekOrderId && !order.shipment?.id) {
+      return res.status(409).json({ error: NEED_READY_TO_SHIP_ERROR });
     }
+
+    const forms = await shipmentService.getPrintableForms(order.id).catch(() => null);
+    if (!forms?.waybillUrl) {
+      return res.status(409).json({ error: FORMS_NOT_READY_ERROR });
+    }
+
+    const pdf = await sellerOrderDocumentsService.buildHandoverAct(order);
     await prisma.order.update({ where: { id: order.id }, data: { isActPrinted: true, fulfillmentUpdatedAt: new Date() } as any });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="handover-act-${order.id}.pdf"`);
+    res.setHeader('Content-Length', Buffer.byteLength(pdf));
     return res.status(200).send(pdf);
   } catch (error) {
     return next(error);

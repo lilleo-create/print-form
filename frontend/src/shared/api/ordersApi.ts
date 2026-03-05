@@ -36,6 +36,7 @@ type ApiOrder = {
   payoutStatus?: string | null;
   trackingNumber?: string | null;
   cdekOrderId?: string | null;
+  cdekStatus?: string | null;
   carrier?: string | null;
   contact?: Order['contact'];
   shippingAddress?: Order['shippingAddress'];
@@ -109,6 +110,7 @@ const mapOrder = (order: ApiOrder): Order => ({
   fulfillmentUpdatedAt: order.fulfillmentUpdatedAt ?? null,
   trackingNumber: order.trackingNumber ?? null,
   cdekOrderId: order.cdekOrderId ?? null,
+  cdekStatus: order.cdekStatus ?? null,
   carrier: order.carrier ?? null,
   contact: order.contact ?? null,
   shippingAddress: order.shippingAddress ?? null,
@@ -192,7 +194,7 @@ export const ordersApi = {
   downloadShipmentAct: async (shipmentId: string) => {
     return api.downloadShipmentAct(shipmentId);
   },
-  downloadSellerDocument: async (orderId: string, type: 'packing-slip' | 'labels' | 'handover-act') => {
+  downloadSellerDocument: async (orderId: string, type: 'packing-slip' | 'label' | 'handover-act') => {
     return api.downloadSellerOrderDocument(orderId, type);
   },
   updateSellerShipmentStage: async (orderId: string, stage: DeliveryStage) => {

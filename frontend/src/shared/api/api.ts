@@ -581,7 +581,7 @@ export const api = {
 
   async downloadSellerOrderDocument(
     orderId: string,
-    type: 'packing-slip' | 'labels' | 'handover-act'
+    type: 'packing-slip' | 'label' | 'handover-act'
   ) {
     const response = await fetch(
       `${baseUrl}/seller/orders/${orderId}/documents/${type}.pdf`,
@@ -592,9 +592,17 @@ export const api = {
       }
     );
     if (!response.ok) {
-      throw new Error(`ORDER_DOCUMENT_DOWNLOAD_FAILED_${response.status}`);
+      const payload = await response.json().catch(() => null);
+      const error = new Error(payload?.error?.message ?? `ORDER_DOCUMENT_DOWNLOAD_FAILED_${response.status}`) as Error & {
+        status?: number;
+        payload?: unknown;
+      };
+      error.status = response.status;
+      error.payload = payload;
+      throw error;
     }
-    return await response.blob();
+    const buffer = await response.arrayBuffer();
+    return new Blob([buffer], { type: 'application/pdf' });
   },
 
   async findShipmentByTracking(trackingNumber: string) {
