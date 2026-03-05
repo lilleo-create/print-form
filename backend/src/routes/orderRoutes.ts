@@ -7,8 +7,8 @@ import { orderUseCases } from '../usecases/orderUseCases';
 
 export const orderRoutes = Router();
 
-const yaPvzSelectionSchema = z.object({
-  provider: z.literal('YANDEX_NDD'),
+const buyerPvzSelectionSchema = z.object({
+  provider: z.string().optional(),
   pvzId: z.string().min(1),
   addressFull: z.string().optional(),
   country: z.string().optional(),
@@ -29,7 +29,7 @@ const cdekPvzRawSchema = z.object({
 });
 
 const createOrderSchema = z.object({
-  buyerPickupPvz: yaPvzSelectionSchema.optional(),
+  buyerPickupPvz: buyerPvzSelectionSchema.optional(),
   cdekPvzCode: z.string().min(1).optional(),
   cdekPvzAddress: z.string().optional(),
   cdekPvzCityCode: z.number().int().positive().optional(),
@@ -79,7 +79,7 @@ orderRoutes.post('/', authenticate, writeLimiter, async (req: AuthRequest, res, 
 
     const sellerSettings = await prisma.sellerSettings.findUnique({ where: { sellerId: product.sellerId } });
 
-    if (sellerSettings?.defaultDropoffProvider === 'CDEK') {
+    if (sellerSettings?.defaultDropoffPvzId) {
       const raw = (sellerSettings.defaultDropoffPvzMeta as Record<string, unknown> | null)?.raw;
       const cityCode = raw && typeof raw === 'object' ? Number((raw as Record<string, unknown>).city_code ?? 0) : 0;
       if (!Number.isFinite(cityCode) || cityCode <= 0) {
@@ -122,7 +122,9 @@ orderRoutes.post('/', authenticate, writeLimiter, async (req: AuthRequest, res, 
           }
         : payload.buyerPickupPvz
           ? {
-              ...payload.buyerPickupPvz,
+              provider: 'CDEK',
+              pvzId: payload.buyerPickupPvz.pvzId,
+              addressFull: payload.buyerPickupPvz.addressFull,
               raw: payload.buyerPickupPvz.raw ?? {}
             }
           : deliveryMethod === 'courier'
@@ -130,7 +132,7 @@ orderRoutes.post('/', authenticate, writeLimiter, async (req: AuthRequest, res, 
             : undefined,
       sellerDropoffPvz: sellerSettings?.defaultDropoffPvzId
         ? {
-            provider: sellerSettings.defaultDropoffProvider === 'CDEK' ? 'CDEK' : 'YANDEX_NDD',
+            provider: 'CDEK',
             pvzId: sellerSettings.defaultDropoffPvzId,
             raw: sellerDropoffRaw,
             addressFull: sellerDropoffAddress

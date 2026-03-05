@@ -13,7 +13,7 @@ type StartPaymentInput = {
   packagesCount?: number;
   items: { productId: string; variantId?: string; quantity: number }[];
   buyerPickupPvz: {
-    provider: 'CDEK' | 'YANDEX_NDD';
+    provider?: 'CDEK';
     pvzId: string;
     buyerPickupPlatformStationId?: string;
     buyerPickupOperatorStationId?: string;
@@ -59,6 +59,7 @@ const normalizeBuyerPickupPvz = (input: StartPaymentInput['buyerPickupPvz']) => 
   const normalizedRaw = {
     ...raw,
     id: input.pvzId,
+    type: 'PVZ',
     buyerPickupPointId: input.pvzId,
     buyerPickupPlatformStationId,
     buyerPickupOperatorStationId,
@@ -68,6 +69,7 @@ const normalizeBuyerPickupPvz = (input: StartPaymentInput['buyerPickupPvz']) => 
 
   return {
     ...input,
+    provider: 'CDEK' as const,
     buyerPickupPlatformStationId: buyerPickupPlatformStationId ?? undefined,
     buyerPickupOperatorStationId: buyerPickupOperatorStationId ?? undefined,
     raw: normalizedRaw
@@ -111,7 +113,7 @@ export const paymentFlowService = {
           buyerPickupPvz: normalizedBuyerPickupPvz,
           sellerDropoffPvz: sellerSettings?.defaultDropoffPvzId
             ? {
-                provider: sellerSettings.defaultDropoffProvider === 'CDEK' ? 'CDEK' : 'YANDEX_NDD',
+                provider: 'CDEK',
                 pvzId: sellerSettings.defaultDropoffPvzId,
                 raw: sellerSettings.defaultDropoffPvzMeta ?? {},
                 addressFull:
@@ -155,7 +157,7 @@ export const paymentFlowService = {
     const normalizedBuyerPickupPvz = normalizeBuyerPickupPvz(input.buyerPickupPvz);
     console.info('[PAYMENT][buyer_pvz]', {
       buyerId: input.buyerId,
-      provider: input.buyerPickupPvz.provider,
+      provider: normalizedBuyerPickupPvz.provider,
       buyerPickupPvzId: input.buyerPickupPvz.pvzId,
       buyerPickupPlatformStationId: normalizedBuyerPickupPvz.buyerPickupPlatformStationId ?? null,
       buyerPickupOperatorStationId: normalizedBuyerPickupPvz.buyerPickupOperatorStationId ?? null,

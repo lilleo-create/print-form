@@ -254,7 +254,7 @@ model Payout {
 
 model SellerSettings {
   sellerId              String   @id
-  defaultDropoffProvider String   @default("YANDEX_NDD")
+  defaultDropoffProvider String   @default("CDEK")
   defaultDropoffPvzId   String?
   defaultDropoffPvzMeta Json?
   createdAt             DateTime @default(now())
