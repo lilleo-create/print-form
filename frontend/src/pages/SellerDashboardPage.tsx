@@ -441,8 +441,8 @@ export const SellerDashboardPage = () => {
           provider: 'CDEK'
         },
         files: [],
-        acceptRules,
-        acceptPersonalData
+        acceptedRules: acceptRules,
+        acceptedPersonalData: acceptPersonalData
       });
 
       setKycSubmission(response.data);
@@ -456,6 +456,8 @@ export const SellerDashboardPage = () => {
         setKycError('Сессия истекла, войдите снова.');
       } else if (code === 'DROP_OFF_PVZ_REQUIRED') {
         setKycError('Выберите точку отгрузки (обязательно).');
+      } else if (code === 'CONSENT_REQUIRED') {
+        setKycError(payload?.error?.message ?? 'Необходимо принять обязательные согласия.');
       } else if (code === 'MERCHANT_DATA_VALIDATION_ERROR') {
         setKycError(payload?.error?.message ?? 'Проверьте данные продавца.');
       } else if (code === 'KYC_DOCS_REQUIRED') {

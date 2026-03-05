@@ -841,8 +841,10 @@ export const api = {
     dropoffPvzId: string;
     dropoffPvzMeta?: Record<string, unknown>;
     files: File[] | FileList;
-    acceptRules: boolean;
-    acceptPersonalData: boolean;
+    acceptedRules: boolean;
+    acceptedPersonalData: boolean;
+    acceptedRulesSlug?: string;
+    acceptedPersonalDataSlug?: string;
   }) {
     const formData = new FormData();
     formData.append(
@@ -851,8 +853,10 @@ export const api = {
         merchantData: payload.merchantData,
         dropoffPvzId: payload.dropoffPvzId,
         dropoffPvzMeta: payload.dropoffPvzMeta ?? null,
-        acceptRules: payload.acceptRules,
-        acceptPersonalData: payload.acceptPersonalData
+        acceptedRules: payload.acceptedRules,
+        acceptedPersonalData: payload.acceptedPersonalData,
+        acceptedRulesSlug: payload.acceptedRulesSlug,
+        acceptedPersonalDataSlug: payload.acceptedPersonalDataSlug
       })
     );
     Array.from(payload.files).forEach((file) => formData.append('files', file));
