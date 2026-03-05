@@ -477,6 +477,16 @@ export const api = {
     });
   },
 
+  async createShipment(orderId: string) {
+    return apiClient.request<{
+      id: string;
+      requestId?: string | null;
+      status: string;
+    }>(`/seller/orders/${orderId}/shipment`, {
+      method: 'POST'
+    });
+  },
+
   async syncShipment(shipmentId: string) {
     return apiClient.request<{ shipment: { id: string } }>(`/seller/shipments/${shipmentId}/sync`, {
       method: 'POST'
@@ -551,7 +561,10 @@ export const api = {
     const response = await fetch(`${baseUrl}/seller/shipments/${shipmentId}/label`, {
       headers: { ...(authHeaders() ?? {}) }
     });
-    if (!response.ok) throw new Error(`SHIPMENT_LABEL_DOWNLOAD_FAILED_${response.status}`);
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      throw new Error(payload?.error?.message ?? `SHIPMENT_LABEL_DOWNLOAD_FAILED_${response.status}`);
+    }
     return await response.blob();
   },
 
@@ -559,7 +572,10 @@ export const api = {
     const response = await fetch(`${baseUrl}/seller/shipments/${shipmentId}/act`, {
       headers: { ...(authHeaders() ?? {}) }
     });
-    if (!response.ok) throw new Error(`SHIPMENT_ACT_DOWNLOAD_FAILED_${response.status}`);
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      throw new Error(payload?.error?.message ?? `SHIPMENT_ACT_DOWNLOAD_FAILED_${response.status}`);
+    }
     return await response.blob();
   },
 
