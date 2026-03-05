@@ -7,7 +7,7 @@ type OrderLike = Pick<Order, 'status' | 'paidAt' | 'trackingNumber' | 'cdekOrder
 const normalize = (value?: string | null) => String(value ?? '').toUpperCase();
 
 export const resolveDeliveryStatusLabel = (order: OrderLike) => {
-  if (order.status !== 'PAID' && !order.paidAt) return 'Ожидает оплаты';
+  if (!order.paidAt) return 'Ожидает оплаты';
 
   const shipmentStatus = normalize(order.shipmentStatus);
 
