@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import type { OrderShipment, Prisma } from '@prisma/client';
+import type { Order, OrderShipment, Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import { cdekService } from './cdekService';
+import { cdekService, type CdekOrderSnapshot } from './cdekService';
 
 export type ShipmentInternalStatus =
   | 'CREATED'
@@ -13,18 +13,15 @@ export type ShipmentInternalStatus =
   | 'FAILED';
 
 const FINAL_STATUSES: ShipmentInternalStatus[] = ['DELIVERED', 'CANCELLED', 'FAILED'];
+const CDEK_PVZ_CODE_REGEX = /^[A-Z]{3}\d{2,6}$/;
 
 export const mapExternalStatusToInternal = (status?: string | null): ShipmentInternalStatus => {
   const normalized = (status ?? '').toUpperCase();
   if (['DELIVERY_DELIVERED', 'DELIVERED'].includes(normalized)) return 'DELIVERED';
-  if (['CANCELLED', 'DELIVERY_CANCELLED'].includes(normalized)) return 'CANCELLED';
+  if (['CANCELLED', 'DELIVERY_CANCELLED', 'INVALID', 'REFUSED'].includes(normalized)) return 'CANCELLED';
   if (['DRAFT', 'VALIDATING'].includes(normalized)) return 'VALIDATING';
   if (['CREATED', 'ACCEPTED', 'READY_FOR_PICKUP', 'READY_TO_SHIP'].includes(normalized)) return 'READY_TO_SHIP';
-  if (
-    ['DELIVERY_ARRIVED_PICKUP_POINT', 'DELIVERY_TRANSPORTATION', 'IN_TRANSIT', 'DELIVERY_TRANSMITTED_TO_RECIPIENT'].includes(
-      normalized
-    )
-  ) {
+  if (['DELIVERY_ARRIVED_PICKUP_POINT', 'DELIVERY_TRANSPORTATION', 'IN_TRANSIT', 'DELIVERY_TRANSMITTED_TO_RECIPIENT'].includes(normalized)) {
     return 'IN_TRANSIT';
   }
   return 'CREATED';
@@ -35,18 +32,117 @@ const ensureShipmentTables = async () => undefined;
 const toJson = (value: Record<string, unknown> | undefined): Prisma.InputJsonObject | undefined =>
   value ? (value as Prisma.InputJsonObject) : undefined;
 
-const makeError = (code: string) => {
-  const error = new Error(code) as Error & { code: string };
+const makeError = (code: string, message?: string) => {
+  const error = new Error(message ?? code) as Error & { code: string };
   error.code = code;
   return error;
 };
 
+const safeRecord = (value: unknown): Record<string, unknown> =>
+  value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 
-const CDEK_PVZ_CODE_REGEX = /^[A-Z]{3}\d{2,6}$/;
+const detectClientNumber = (order: Pick<Order, 'id' | 'orderLabels'>) => {
+  const labels = Array.isArray(order.orderLabels) ? (order.orderLabels as Array<{ code?: string }>) : [];
+  const primary = String(labels[0]?.code ?? '').trim();
+  if (primary) return primary;
+  return `PF-${order.id.replace(/[^a-zA-Z0-9]/g, '').slice(-8).toUpperCase()}`;
+};
 
+const parsePvzProvider = (meta: unknown) => String(safeRecord(meta).provider ?? '').trim().toUpperCase();
+
+export const normalizePvzProvider = async <T extends Pick<Order, 'id' | 'carrier' | 'buyerPickupPvzId' | 'buyerPickupPvzMeta'>>(order: T) => {
+  const carrier = String(order.carrier ?? '').toUpperCase();
+  const pvzId = String(order.buyerPickupPvzId ?? '').trim().toUpperCase();
+  const currentProvider = parsePvzProvider(order.buyerPickupPvzMeta);
+
+  if (carrier !== 'CDEK' || !CDEK_PVZ_CODE_REGEX.test(pvzId) || currentProvider === 'CDEK') {
+    return order;
+  }
+
+  const nextMeta = {
+    ...safeRecord(order.buyerPickupPvzMeta),
+    provider: 'CDEK',
+    pvzId
+  };
+
+  await prisma.order.update({
+    where: { id: order.id },
+    data: { buyerPickupPvzMeta: nextMeta as unknown as Prisma.InputJsonValue }
+  });
+
+  return { ...order, buyerPickupPvzMeta: nextMeta };
+};
+
+const buildStatusRaw = (snapshot: CdekOrderSnapshot, fallbackUuid: string) => ({
+  cdek_order_uuid: snapshot.cdekOrderId || fallbackUuid,
+  cdek_request_uuid: snapshot.requestUuid || '',
+  cdek_state: snapshot.status || '',
+  trackingNumber: snapshot.trackingNumber || '',
+  print: {
+    waybillUrl: snapshot.relatedEntities.waybillUrl,
+    barcodeUrls: snapshot.relatedEntities.barcodeUrls
+  },
+  related_entities: snapshot.raw.related_entities ?? []
+});
+
+const syncShipmentByOrder = async (orderId: string) => {
+  const order = await prisma.order.findUnique({ where: { id: orderId }, include: { shipment: true } });
+  if (!order) throw makeError('ORDER_NOT_FOUND');
+
+  const cdekOrderUuid = String(order.cdekOrderId ?? '').trim() || String((order.shipment?.statusRaw as any)?.cdek_order_uuid ?? '').trim();
+  if (!cdekOrderUuid) throw makeError('CDEK_ORDER_UUID_MISSING');
+
+  const snapshot = await cdekService.getOrderByUuid(cdekOrderUuid);
+  const nextStatus = mapExternalStatusToInternal(snapshot.status);
+  const statusRaw = buildStatusRaw(snapshot, cdekOrderUuid);
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const shipment = await tx.orderShipment.upsert({
+      where: { orderId },
+      create: {
+        orderId,
+        provider: 'CDEK',
+        deliveryMethod: 'PICKUP_POINT',
+        sourceStationId: String(order.sellerDropoffPvzId ?? ''),
+        destinationStationId: String(order.buyerPickupPvzId ?? ''),
+        requestId: snapshot.requestUuid || null,
+        status: nextStatus,
+        statusRaw,
+        lastSyncAt: new Date()
+      },
+      update: {
+        requestId: snapshot.requestUuid || undefined,
+        status: nextStatus,
+        statusRaw,
+        lastSyncAt: new Date()
+      }
+    });
+
+    await tx.order.update({
+      where: { id: orderId },
+      data: {
+        cdekStatus: snapshot.status || undefined,
+        cdekOrderId: snapshot.cdekOrderId || cdekOrderUuid,
+        trackingNumber: snapshot.trackingNumber || undefined
+      }
+    });
+
+    await tx.orderShipmentStatusHistory.create({
+      data: {
+        shipmentId: shipment.id,
+        status: nextStatus,
+        payloadRaw: statusRaw
+      }
+    });
+
+    return shipment;
+  });
+
+  return { shipment: updated, snapshot };
+};
 
 export const markReadyToShipCdek = async (orderId: string) => {
-  const order = await prisma.order.findUnique({
+  let order = await prisma.order.findUnique({
     where: { id: orderId },
     include: {
       items: { include: { product: true, variant: true } },
@@ -56,6 +152,8 @@ export const markReadyToShipCdek = async (orderId: string) => {
   });
 
   if (!order) throw makeError('ORDER_NOT_FOUND');
+  order = await normalizePvzProvider(order);
+
   if (order.status !== 'PAID' || !order.paidAt) throw makeError('ORDER_NOT_PAID');
 
   const fromPvzCode = String(order.sellerDropoffPvzId ?? '').trim();
@@ -63,16 +161,13 @@ export const markReadyToShipCdek = async (orderId: string) => {
   if (!fromPvzCode) throw makeError('CDEK_DROPOFF_PVZ_NOT_SET');
   if (!toPvzCode) throw makeError('CDEK_DESTINATION_PVZ_MISSING');
 
-  const recipientName =
-    String(order.recipientName ?? '').trim() ||
-    String(order.contact?.name ?? '').trim() ||
-    String(order.buyer?.name ?? '').trim() ||
-    'Получатель';
+  const buyerProvider = parsePvzProvider(order.buyerPickupPvzMeta);
+  if (buyerProvider && buyerProvider !== 'CDEK') {
+    throw makeError('CDEK_DESTINATION_PVZ_PROVIDER_MISMATCH', `buyerPickupPvzMeta.provider must be CDEK for carrier CDEK (got ${buyerProvider})`);
+  }
 
-  const recipientPhone =
-    String(order.recipientPhone ?? '').trim() ||
-    String(order.contact?.phone ?? '').trim() ||
-    String(order.buyer?.phone ?? '').trim();
+  const recipientName = String(order.recipientName ?? '').trim() || String(order.contact?.name ?? '').trim() || String(order.buyer?.name ?? '').trim() || 'Получатель';
+  const recipientPhone = String(order.recipientPhone ?? '').trim() || String(order.contact?.phone ?? '').trim() || String(order.buyer?.phone ?? '').trim();
   if (!recipientPhone) throw makeError('RECIPIENT_PHONE_REQUIRED');
 
   const items = order.items.map((item) => ({
@@ -86,7 +181,6 @@ export const markReadyToShipCdek = async (orderId: string) => {
   const totalWeight = order.items.reduce((sum, item) => sum + (item.product.weightGrossG ?? 0) * item.quantity, 0);
   const firstProduct = order.items[0]?.product;
   const internalRequestId = randomUUID();
-
   const now = new Date();
 
   try {
@@ -95,6 +189,7 @@ export const markReadyToShipCdek = async (orderId: string) => {
 
     const created = await cdekService.createOrderFromMarketplaceOrder({
       orderId: order.id,
+      clientNumber: detectClientNumber(order),
       fromPvzCode,
       toPvzCode,
       recipientName,
@@ -107,18 +202,16 @@ export const markReadyToShipCdek = async (orderId: string) => {
       heightCm: firstProduct?.dzCm ?? undefined
     });
 
-    if (!created.cdekOrderId) {
-      throw makeError('CDEK_CREATE_ORDER_NO_UUID');
-    }
+    if (!created.cdekOrderId) throw makeError('CDEK_CREATE_ORDER_NO_UUID');
+
+    const statusRaw = {
+      cdek_order_uuid: created.cdekOrderId,
+      cdek_request_uuid: created.cdekRequestUuid ?? '',
+      cdek_state: created.state ?? '',
+      trackingNumber: created.trackingNumber ?? ''
+    };
 
     const shipment = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      const statusRaw = {
-        cdek_order_uuid: created.cdekOrderId,
-        cdek_request_uuid: created.cdekRequestUuid ?? '',
-        cdek_state: created.state ?? '',
-        trackingNumber: created.trackingNumber ?? ''
-      };
-
       const nextShipment = await tx.orderShipment.upsert({
         where: { orderId: order.id },
         create: {
@@ -157,88 +250,47 @@ export const markReadyToShipCdek = async (orderId: string) => {
       });
 
       await tx.orderShipmentStatusHistory.create({
-        data: {
-          shipmentId: nextShipment.id,
-          status: 'READY_TO_SHIP',
-          payloadRaw: statusRaw
-        }
+        data: { shipmentId: nextShipment.id, status: 'READY_TO_SHIP', payloadRaw: statusRaw }
       });
 
       return nextShipment;
     });
 
+    let synced: Awaited<ReturnType<typeof syncShipmentByOrder>> | null = null;
+    try {
+      synced = await syncShipmentByOrder(order.id);
+    } catch (syncError) {
+      console.warn('[CDEK][markReadyToShipCdek] immediate sync failed', { orderId: order.id, syncError });
+    }
+
     return {
-      shipment,
+      shipment: synced?.shipment ?? shipment,
       cdek: {
         cdekOrderId: created.cdekOrderId,
-        trackingNumber: created.trackingNumber,
+        trackingNumber: synced?.snapshot.trackingNumber || created.trackingNumber,
         cdekRequestUuid: created.cdekRequestUuid,
-        state: created.state
+        state: synced?.snapshot.status || created.state
       }
     };
   } catch (error) {
-    const shipment = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      const errorPayload = {
-        error: {
-          code: (error as Error & { code?: string })?.code ?? 'CDEK_CREATE_ORDER_FAILED',
-          message: (error as Error)?.message ?? 'CDEK create order failed'
-        }
-      };
-
-      const failedShipment = await tx.orderShipment.upsert({
-        where: { orderId: order.id },
-        create: {
-          orderId: order.id,
-          provider: 'CDEK',
-          deliveryMethod: 'PICKUP_POINT',
-          sourceStationId: fromPvzCode,
-          destinationStationId: toPvzCode,
-          requestId: internalRequestId,
-          status: 'FAILED',
-          statusRaw: errorPayload,
-          lastSyncAt: now
-        },
-        update: {
-          provider: 'CDEK',
-          deliveryMethod: 'PICKUP_POINT',
-          sourceStationId: fromPvzCode,
-          destinationStationId: toPvzCode,
-          requestId: internalRequestId,
-          status: 'FAILED',
-          statusRaw: errorPayload,
-          lastSyncAt: now
-        }
-      });
-
-      await tx.orderShipmentStatusHistory.create({
-        data: {
-          shipmentId: failedShipment.id,
-          status: 'FAILED',
-          payloadRaw: errorPayload
-        }
-      });
-
-      return failedShipment;
-    });
-
     console.error('[CDEK][markReadyToShipCdek] failed', { orderId: order.id, error });
-    void shipment;
     throw error;
   }
 };
 
 export const shipmentService = {
   ensure: ensureShipmentTables,
+  normalizePvzProvider,
   isFinalStatus: (status: ShipmentInternalStatus) => FINAL_STATUSES.includes(status),
 
   getByOrderIds: async (orderIds: string[]): Promise<Map<string, OrderShipment>> => {
     await ensureShipmentTables();
     if (!orderIds.length) return new Map<string, OrderShipment>();
 
-    const shipments = await prisma.orderShipment.findMany({
-      where: { orderId: { in: orderIds } }
-    });
+    const orders = await prisma.order.findMany({ where: { id: { in: orderIds } }, select: { id: true, carrier: true, buyerPickupPvzId: true, buyerPickupPvzMeta: true } });
+    await Promise.all(orders.map((order) => normalizePvzProvider(order as any)));
 
+    const shipments = await prisma.orderShipment.findMany({ where: { orderId: { in: orderIds } } });
     return new Map(shipments.map((shipment) => [shipment.orderId, shipment]));
   },
 
@@ -252,97 +304,28 @@ export const shipmentService = {
     return prisma.orderShipment.findUnique({ where: { id: shipmentId } });
   },
 
-  upsertForOrder: async (payload: {
-    orderId: string;
-    deliveryMethod: 'COURIER' | 'PICKUP_POINT';
-    sourceStationId: string;
-    sourceStationSnapshot?: Record<string, unknown>;
-    destinationStationId: string;
-    destinationStationSnapshot?: Record<string, unknown>;
-    offerPayload?: string | null;
-    requestId?: string | null;
-    status: ShipmentInternalStatus;
-    statusRaw?: Record<string, unknown>;
-    lastSyncAt?: Date | null;
-  }) => {
-    await ensureShipmentTables();
-
-    return prisma.orderShipment.upsert({
-      where: { orderId: payload.orderId },
-      create: {
-        orderId: payload.orderId,
-        provider: 'CDEK',
-        deliveryMethod: payload.deliveryMethod,
-        sourceStationId: payload.sourceStationId,
-        sourceStationSnapshot: toJson(payload.sourceStationSnapshot),
-        destinationStationId: payload.destinationStationId,
-        destinationStationSnapshot: toJson(payload.destinationStationSnapshot),
-        offerPayload: payload.offerPayload ?? null,
-        requestId: payload.requestId ?? null,
-        status: payload.status,
-        statusRaw: toJson(payload.statusRaw),
-        lastSyncAt: payload.lastSyncAt ?? null
-      },
-      update: {
-        provider: 'CDEK',
-        deliveryMethod: payload.deliveryMethod,
-        sourceStationId: payload.sourceStationId,
-        sourceStationSnapshot: toJson(payload.sourceStationSnapshot),
-        destinationStationId: payload.destinationStationId,
-        destinationStationSnapshot: toJson(payload.destinationStationSnapshot),
-        offerPayload: payload.offerPayload ?? undefined,
-        requestId: payload.requestId ?? undefined,
-        status: payload.status,
-        statusRaw: toJson(payload.statusRaw),
-        lastSyncAt: payload.lastSyncAt ?? null
-      }
-    });
-  },
-
-  pushHistory: async (shipmentId: string, status: ShipmentInternalStatus, payloadRaw: Record<string, unknown>) => {
-    await ensureShipmentTables();
-    await prisma.orderShipmentStatusHistory.create({
-      data: {
-        shipmentId,
-        status,
-        payloadRaw: payloadRaw as Prisma.InputJsonObject
-      }
-    });
-  },
-
-  listForSync: async () => {
-    await ensureShipmentTables();
-    return prisma.orderShipment.findMany({
-      where: {
-        requestId: { not: null },
-        status: { notIn: FINAL_STATUSES }
-      },
-      orderBy: { updatedAt: 'asc' },
-      take: 100
-    });
-  },
-
   readyToShipCdek: async (params: { orderId: string; sellerId: string }) => {
     void params.sellerId;
     return markReadyToShipCdek(params.orderId);
   },
 
-  getCdekShippingLabelPdf: async (params: { orderId: string; sellerId: string }): Promise<Buffer> => {
-    const order = await prisma.order.findFirst({
-      where: {
-        id: params.orderId,
-        items: { some: { product: { sellerId: params.sellerId } } }
-      }
-    });
+  syncByShipmentId: async (shipmentId: string) => {
+    const shipment = await prisma.orderShipment.findUnique({ where: { id: shipmentId } });
+    if (!shipment) throw makeError('SHIPMENT_NOT_FOUND');
+    return syncShipmentByOrder(shipment.orderId);
+  },
 
-    if (!order) throw makeError('ORDER_NOT_FOUND');
-    if (order.status !== 'PAID' || !order.paidAt) throw makeError('ORDER_NOT_PAID');
+  syncByOrderId: async (orderId: string) => syncShipmentByOrder(orderId),
 
-    const shipment = await prisma.orderShipment.findUnique({ where: { orderId: order.id } });
-    const raw = (shipment?.statusRaw ?? {}) as Record<string, unknown>;
-    const orderUuid = String(order.cdekOrderId ?? raw.cdek_order_uuid ?? '').trim();
-    if (!orderUuid) throw makeError('CDEK_ORDER_UUID_MISSING');
+  getPrintableForms: async (orderId: string) => {
+    const shipment = await prisma.orderShipment.findUnique({ where: { orderId } });
+    if (!shipment) throw makeError('SHIPMENT_NOT_FOUND');
 
-    return cdekService.getWaybillPdfByOrderUuid(orderUuid);
+    const statusRaw = safeRecord(shipment.statusRaw);
+    const printRaw = safeRecord(statusRaw.print);
+    const waybillUrl = String(printRaw.waybillUrl ?? '').trim() || null;
+    const barcodeUrls = Array.isArray(printRaw.barcodeUrls) ? printRaw.barcodeUrls.map((entry) => String(entry ?? '').trim()).filter(Boolean) : [];
+
+    return { waybillUrl, barcodeUrls, shipment };
   }
 };

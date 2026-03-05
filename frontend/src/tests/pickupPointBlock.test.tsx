@@ -6,7 +6,7 @@ describe('PickupPointBlock', () => {
     render(
       <PickupPointBlock
         point={{
-          provider: 'YANDEX_NDD',
+          provider: 'CDEK',
           pvzId: 'pvz-1',
           addressFull: 'Москва, ул. Тверская, 1'
         }}

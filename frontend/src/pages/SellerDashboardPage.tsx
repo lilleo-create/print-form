@@ -681,11 +681,21 @@ export const SellerDashboardPage = () => {
     }
   };
 
-  const handleDownloadLabel = async (orderId: string) => {
+  const handleSyncShipment = async (shipmentId: string) => {
+    setOrderUpdateError(null);
+    try {
+      await ordersApi.syncShipment(shipmentId);
+      await loadOrders();
+    } catch {
+      setOrderUpdateError('Не удалось синхронизировать отправление CDEK.');
+    }
+  };
+
+  const handleDownloadLabel = async (shipmentId: string, orderId: string) => {
     setOrderUpdateError(null);
 
     try {
-      const result = await ordersApi.downloadShippingLabel(orderId);
+      const result = await ordersApi.downloadShippingLabel(shipmentId);
 
       if (result.type === 'pdf') {
         const url = URL.createObjectURL(result.blob);
@@ -704,26 +714,6 @@ export const SellerDashboardPage = () => {
       }
     } catch {
       setOrderUpdateError('Не удалось скачать ярлык.');
-    }
-  };
-
-  const handleDownloadHandoverAct = async () => {
-    setOrderUpdateError(null);
-
-    try {
-      const result = await ordersApi.downloadYandexHandoverAct({
-        mode: 'new_requests',
-        editable_format: false
-      });
-
-      const url = URL.createObjectURL(result.blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `handover_act_${Date.now()}.pdf`;
-      link.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      setOrderUpdateError('Не удалось скачать акт приёма-передачи.');
     }
   };
 
@@ -1266,11 +1256,6 @@ export const SellerDashboardPage = () => {
                       {ordersView.map((order) => {
                         const currentIndex = statusFlow.indexOf(order.status);
                         const nextStatus = statusFlow[currentIndex + 1];
-                        const draft = trackingDrafts[order.id] ?? {
-                          trackingNumber: '',
-                          carrier: ''
-                        };
-
                         const total = order.items.reduce(
                           (sum, item) => sum + item.lineTotal,
                           0
@@ -1331,16 +1316,14 @@ export const SellerDashboardPage = () => {
 
                             <div className={styles.deliveryInputs}>
                               <p className={styles.muted}>
-                                Метод: {order.delivery?.deliveryMethod ?? '—'}
+                                Метод: PICKUP_POINT
                               </p>
                               <p className={styles.muted}>
-                                ПВЗ:{' '}
-                                {order.delivery?.pickupPoint?.fullAddress ??
-                                  '—'}
+                                ПВЗ: {order.buyerPickupPvzId ?? '—'} · {order.buyerPickupPvzMeta?.addressFull ?? '—'}
                               </p>
                               <p className={styles.muted}>
                                 source_dropoff_pvz:{' '}
-                                {dropoffPvzId || 'не задана'}
+                                {order.sellerDropoffPvzId || dropoffPvzId || 'не задана'}
                               </p>
                               <p className={styles.muted}>
                                 Выплата: {payoutLabel(order.payoutStatus)}
@@ -1355,35 +1338,9 @@ export const SellerDashboardPage = () => {
                                   : ''}
                               </p>
 
-                              <input
-                                className={styles.input}
-                                placeholder="Трек-номер"
-                                value={draft.trackingNumber}
-                                onChange={(event) =>
-                                  setTrackingDrafts((prev) => ({
-                                    ...prev,
-                                    [order.id]: {
-                                      trackingNumber: event.target.value,
-                                      carrier: prev[order.id]?.carrier ?? ''
-                                    }
-                                  }))
-                                }
-                              />
-                              <input
-                                className={styles.input}
-                                placeholder="Служба доставки"
-                                value={draft.carrier}
-                                onChange={(event) =>
-                                  setTrackingDrafts((prev) => ({
-                                    ...prev,
-                                    [order.id]: {
-                                      trackingNumber:
-                                        prev[order.id]?.trackingNumber ?? '',
-                                      carrier: event.target.value
-                                    }
-                                  }))
-                                }
-                              />
+                              <p className={styles.muted}>
+                                Трек-номер: {order.trackingNumber ?? 'создаётся (синхронизация)'}
+                              </p>
 
                               <Button
                                 type="button"
@@ -1395,6 +1352,14 @@ export const SellerDashboardPage = () => {
                                 }
                               >
                                 Готов к отгрузке
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={() => order.shipment?.id && handleSyncShipment(order.shipment.id)}
+                                disabled={!order.shipment?.id}
+                              >
+                                Синхронизировать CDEK
                               </Button>
                               {readyToShipDisabledReason(order) &&
                                 !order.shipment?.requestId && (
@@ -1482,16 +1447,14 @@ export const SellerDashboardPage = () => {
                               <Button
                                 type="button"
                                 variant="ghost"
-                                onClick={() => handleDownloadLabel(order.id)}
-                                disabled={!order.shipment?.requestId}
+                                onClick={() => order.shipment?.id && handleDownloadLabel(order.shipment.id, order.id)}
+                                disabled={!order.shipment?.id || !((order.shipment?.statusRaw as any)?.print?.waybillUrl)}
                               >
                                 Скачать ярлык
                               </Button>
 
-                              {!order.shipment?.requestId && (
-                                <p className={styles.muted}>
-                                  Сначала нажмите «Готов к отгрузке».
-                                </p>
+                              {!((order.shipment?.statusRaw as any)?.print?.waybillUrl) && (
+                                <p className={styles.muted}>ещё формируется</p>
                               )}
                             </div>
                           </div>
@@ -1740,8 +1703,7 @@ export const SellerDashboardPage = () => {
                   </div>
 
                   <p className={styles.muted}>
-                    Используется для создания заявок NDD «Доставка в другой
-                    день».
+                    Используется для создания заявок CDEK для отгрузки в ПВЗ.
                   </p>
 
                   <Button
@@ -1752,13 +1714,6 @@ export const SellerDashboardPage = () => {
                     Сохранить пункт приёма
                   </Button>
 
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={handleDownloadHandoverAct}
-                  >
-                    Скачать акт приёма-передачи
-                  </Button>
 
                   {deliverySettingsMessage && (
                     <p className={styles.muted}>{deliverySettingsMessage}</p>

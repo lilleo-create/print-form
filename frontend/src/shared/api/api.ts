@@ -438,57 +438,43 @@ export const api = {
     });
   },
 
-  async downloadShippingLabel(orderId: string) {
-    const response = await fetch(
-      `${baseUrl}/seller/orders/${orderId}/yandex/labels`,
-      {
-        method: 'POST',
-        headers: {
-          ...(authHeaders() ?? {})
-        }
-      }
-    );
+  async syncShipment(shipmentId: string) {
+    return apiClient.request<{ shipment: { id: string } }>(`/seller/shipments/${shipmentId}/sync`, {
+      method: 'POST'
+    });
+  },
+
+  async downloadShippingLabel(shipmentId: string) {
+    const response = await fetch(`${baseUrl}/seller/shipments/${shipmentId}/label`, {
+      headers: {
+        ...(authHeaders() ?? {})
+      },
+      redirect: 'manual'
+    });
+
+    if (response.status === 302 || response.status === 301) {
+      return {
+        type: 'url' as const,
+        url: response.headers.get('location')
+      };
+    }
+
     if (!response.ok) {
       throw new Error(`LABEL_DOWNLOAD_FAILED_${response.status}`);
     }
-    const contentType = response.headers.get('content-type') ?? '';
-    if (contentType.includes('application/pdf')) {
-      return {
-        type: 'pdf' as const,
-        blob: await response.blob()
-      };
-    }
-    const json = (await response.json()) as { data?: { url?: string | null } };
+
     return {
-      type: 'url' as const,
-      url: json.data?.url ?? null
+      type: 'pdf' as const,
+      blob: await response.blob()
     };
   },
 
-  async downloadYandexHandoverAct(payload: {
-    mode?: 'new_requests' | 'by_request_ids' | 'by_date_range';
-    request_ids?: string[];
-    editable_format?: boolean;
-    created_since?: number;
-    created_until?: number;
-    created_since_utc?: string;
-    created_until_utc?: string;
-  }) {
-    const response = await fetch(`${baseUrl}/seller/yandex/handover-act`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(authHeaders() ?? {})
-      },
-      body: JSON.stringify(payload)
-    });
-    if (!response.ok) {
-      throw new Error(`HANDOVER_ACT_DOWNLOAD_FAILED_${response.status}`);
-    }
-    return {
-      blob: await response.blob(),
-      contentType: response.headers.get('content-type') ?? 'application/pdf'
-    };
+  async downloadShipmentBarcodes(shipmentId: string) {
+    return apiClient.request<{ urls: string[] }>(`/seller/shipments/${shipmentId}/barcodes`);
+  },
+
+  async downloadShipmentAct(shipmentId: string) {
+    return apiClient.request(`/seller/shipments/${shipmentId}/act`);
   },
 
   async downloadSellerOrderDocument(

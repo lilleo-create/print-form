@@ -148,19 +148,17 @@ export const ordersApi = {
     const result = await api.readyToShip(orderId);
     return result.data;
   },
-  downloadShippingLabel: async (orderId: string) => {
-    return api.downloadShippingLabel(orderId);
+  syncShipment: async (shipmentId: string) => {
+    return api.syncShipment(shipmentId);
   },
-  downloadYandexHandoverAct: async (payload: {
-    mode?: 'new_requests' | 'by_request_ids' | 'by_date_range';
-    request_ids?: string[];
-    editable_format?: boolean;
-    created_since?: number;
-    created_until?: number;
-    created_since_utc?: string;
-    created_until_utc?: string;
-  }) => {
-    return api.downloadYandexHandoverAct(payload);
+  downloadShippingLabel: async (shipmentId: string) => {
+    return api.downloadShippingLabel(shipmentId);
+  },
+  downloadShipmentBarcodes: async (shipmentId: string) => {
+    return api.downloadShipmentBarcodes(shipmentId);
+  },
+  downloadShipmentAct: async (shipmentId: string) => {
+    return api.downloadShipmentAct(shipmentId);
   },
   downloadSellerDocument: async (orderId: string, type: 'packing-slip' | 'labels' | 'handover-act') => {
     return api.downloadSellerOrderDocument(orderId, type);

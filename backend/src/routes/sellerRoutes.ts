@@ -784,19 +784,68 @@ sellerRoutes.post('/orders/:orderId/ready-to-ship', writeLimiter, async (req: Au
   }
 });
 
-sellerRoutes.get('/orders/:orderId/shipping-label', async (req: AuthRequest, res, next) => {
+sellerRoutes.post('/shipments/:id/sync', writeLimiter, async (req: AuthRequest, res, next) => {
   try {
-    const pdf = await shipmentService.getCdekShippingLabelPdf({
-      orderId: req.params.orderId,
-      sellerId: req.user!.userId
+    const shipment = await prisma.orderShipment.findUnique({
+      where: { id: req.params.id },
+      include: { order: { include: { items: { include: { product: true } } } } }
     });
 
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="cdek-label-${req.params.orderId}.pdf"`);
-    return res.status(200).send(pdf);
+    if (!shipment) return res.status(404).json({ error: { code: 'SHIPMENT_NOT_FOUND' } });
+    const hasAccess = shipment.order.items.some((item) => item.product.sellerId === req.user!.userId);
+    if (!hasAccess) return res.status(404).json({ error: { code: 'SHIPMENT_NOT_FOUND' } });
+
+    const result = await shipmentService.syncByShipmentId(req.params.id);
+    return res.json({ data: result });
   } catch (e) {
     next(e);
   }
+});
+
+sellerRoutes.get('/shipments/:id/label', async (req: AuthRequest, res, next) => {
+  try {
+    const shipment = await prisma.orderShipment.findUnique({
+      where: { id: req.params.id },
+      include: { order: { include: { items: { include: { product: true } } } } }
+    });
+    if (!shipment) return res.status(404).json({ error: { code: 'SHIPMENT_NOT_FOUND' } });
+    const hasAccess = shipment.order.items.some((item) => item.product.sellerId === req.user!.userId);
+    if (!hasAccess) return res.status(404).json({ error: { code: 'SHIPMENT_NOT_FOUND' } });
+
+    const forms = await shipmentService.getPrintableForms(shipment.orderId);
+    if (!forms.waybillUrl) {
+      return res.status(409).json({ error: { code: 'FORMS_NOT_READY', message: 'Label is not ready yet. Retry after sync.' } });
+    }
+
+    return res.redirect(forms.waybillUrl);
+  } catch (e) {
+    next(e);
+  }
+});
+
+sellerRoutes.get('/shipments/:id/barcodes', async (req: AuthRequest, res, next) => {
+  try {
+    const shipment = await prisma.orderShipment.findUnique({
+      where: { id: req.params.id },
+      include: { order: { include: { items: { include: { product: true } } } } }
+    });
+    if (!shipment) return res.status(404).json({ error: { code: 'SHIPMENT_NOT_FOUND' } });
+    const hasAccess = shipment.order.items.some((item) => item.product.sellerId === req.user!.userId);
+    if (!hasAccess) return res.status(404).json({ error: { code: 'SHIPMENT_NOT_FOUND' } });
+
+    const forms = await shipmentService.getPrintableForms(shipment.orderId);
+    if (!forms.barcodeUrls.length) {
+      return res.status(409).json({ error: { code: 'FORMS_NOT_READY', message: 'Barcode is not ready yet. Retry after sync.' } });
+    }
+
+    return res.json({ data: { urls: forms.barcodeUrls } });
+  } catch (e) {
+    next(e);
+  }
+});
+
+sellerRoutes.get('/shipments/:id/act', async (_req: AuthRequest, res) => {
+  return res.status(501).json({ error: { code: 'NOT_SUPPORTED_YET', message: 'CDEK act endpoint is not integrated yet.' } });
 });
 
 const loadSellerOrderForDocuments = async (sellerId: string, orderId: string) =>

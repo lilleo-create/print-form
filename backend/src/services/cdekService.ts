@@ -39,6 +39,7 @@ type CreateOrderItem = {
 
 type CreateOrderParams = {
   orderId: string;
+  clientNumber: string;
   fromPvzCode: string;
   toPvzCode: string;
   comment?: string;
@@ -78,9 +79,21 @@ type CdekOrderEntity = {
 type CdekOrderResponse = {
   entity?: CdekOrderEntity;
   requests?: CdekApiRequestInfo[];
-  related_entities?: any[];
+  related_entities?: Array<{ type?: string; url?: string }>;
   cdek_number?: string;
   statuses?: Array<{ code?: string }>;
+};
+
+export type CdekOrderSnapshot = {
+  cdekOrderId: string;
+  status: string;
+  trackingNumber: string;
+  requestUuid: string;
+  relatedEntities: {
+    waybillUrl: string | null;
+    barcodeUrls: string[];
+  };
+  raw: CdekOrderResponse;
 };
 
 type CdekPrintTaskResponse = {
@@ -300,6 +313,7 @@ class CdekService {
     if (!params.recipientName) throw new Error("CDEK_RECIPIENT_NAME_MISSING");
     if (!params.recipientPhone) throw new Error("CDEK_RECIPIENT_PHONE_MISSING");
     if (!params.orderId) throw new Error("CDEK_ORDER_ID_MISSING");
+    if (!params.clientNumber) throw new Error('CDEK_CLIENT_NUMBER_MISSING');
     if (!Array.isArray(params.items) || params.items.length === 0)
       throw new Error("CDEK_ITEMS_MISSING");
 
@@ -317,6 +331,7 @@ class CdekService {
       url: `${baseUrl}/v2/orders`,
       headers: { Authorization: `Bearer ${token}` },
       data: {
+        number: params.clientNumber,
         tariff_code: 136,
         shipment_point: params.fromPvzCode,
         delivery_point: params.toPvzCode,
@@ -381,22 +396,50 @@ class CdekService {
   }
 
   async getOrderInfo(cdekOrderId: string) {
-    const id = String(cdekOrderId ?? "").trim();
-    if (!id) throw new Error("CDEK_ORDER_ID_REQUIRED");
+    return this.getOrderByUuid(cdekOrderId);
+  }
+
+  async getOrderByUuid(cdekOrderId: string): Promise<CdekOrderSnapshot> {
+    const id = String(cdekOrderId ?? '').trim();
+    if (!id) throw new Error('CDEK_ORDER_ID_REQUIRED');
 
     const token = await this.getToken();
     const { baseUrl } = getCdekConfig();
 
-    const response = await this.request<CdekOrderResponse>("getOrderInfo", {
-      method: "GET",
+    const response = await this.request<CdekOrderResponse>('getOrderInfo', {
+      method: 'GET',
       url: `${baseUrl}/v2/orders/${id}`,
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}` }
     });
+
+    const requestUuid = String(response?.requests?.[0]?.request_uuid ?? '').trim();
+    const relatedEntities = this.extractPrintForms(response);
 
     return {
       cdekOrderId: this.extractOrderUuid(response),
       status: this.extractLastStatusCode(response),
       trackingNumber: this.extractCdekNumber(response),
+      requestUuid,
+      relatedEntities,
+      raw: response
+    };
+  }
+
+  getPrintForms(snapshot: CdekOrderSnapshot) {
+    return snapshot.relatedEntities;
+  }
+
+  private extractPrintForms(resp: CdekOrderResponse) {
+    const entities = Array.isArray(resp.related_entities) ? resp.related_entities : [];
+    const waybillEntity = entities.find((entry) => String(entry?.type ?? '').toLowerCase() === 'waybill');
+    const barcodeUrls = entities
+      .filter((entry) => String(entry?.type ?? '').toLowerCase() === 'barcode')
+      .map((entry) => String(entry?.url ?? '').trim())
+      .filter(Boolean);
+
+    return {
+      waybillUrl: String(waybillEntity?.url ?? '').trim() || null,
+      barcodeUrls
     };
   }
 
@@ -406,6 +449,7 @@ class CdekService {
    */
   async createOrderFromMarketplaceOrder(payload: {
     orderId: string;
+    clientNumber: string;
     fromPvzCode: string;
     toPvzCode: string;
     recipientName: string;
@@ -421,6 +465,7 @@ class CdekService {
   }) {
     return this.createOrder({
       orderId: payload.orderId,
+      clientNumber: payload.clientNumber,
       fromPvzCode: payload.fromPvzCode,
       toPvzCode: payload.toPvzCode,
       recipientName: payload.recipientName,

@@ -40,14 +40,14 @@ describe('useCheckoutStore.placeOrder payload', () => {
     });
   });
 
-  it('sends provider=YANDEX_NDD and selected pvzId', async () => {
+  it('sends provider=CDEK and selected pvzId', async () => {
     vi.mocked(checkoutApi.startPayment).mockResolvedValue({ orderId: 'order-1', paymentId: 'pay-1', paymentUrl: 'https://pay' });
 
     useCheckoutStore.setState({
       data: {
         ...baseData,
         selectedPickupPoint: {
-          provider: 'YANDEX_NDD',
+          provider: 'CDEK',
           pvzId: 'pvz-123',
           addressFull: 'Москва, ПВЗ 123'
         }
@@ -66,7 +66,7 @@ describe('useCheckoutStore.placeOrder payload', () => {
         },
         packagesCount: 1,
         buyerPickupPvz: expect.objectContaining({
-          provider: 'YANDEX_NDD',
+          provider: 'CDEK',
           pvzId: 'pvz-123'
         })
       })
@@ -88,7 +88,7 @@ describe('useCheckoutStore.placeOrder payload', () => {
       data: {
         ...baseData,
         selectedPickupPoint: {
-          provider: 'YANDEX_NDD',
+          provider: 'CDEK',
           pvzId: 'pvz-123',
           addressFull: 'Москва, ПВЗ 123'
         }
@@ -119,7 +119,7 @@ describe('useCheckoutStore.placeOrder payload', () => {
       data: {
         ...baseData,
         selectedPickupPoint: {
-          provider: 'YANDEX_NDD',
+          provider: 'CDEK',
           pvzId: 'pvz-123',
           addressFull: 'Москва, ПВЗ 123'
         }
@@ -137,7 +137,7 @@ describe('useCheckoutStore.placeOrder payload', () => {
       data: {
         ...baseData,
         selectedPickupPoint: {
-          provider: 'YANDEX_NDD',
+          provider: 'CDEK',
           pvzId: '   ',
           addressFull: 'Москва, ПВЗ'
         }

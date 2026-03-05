@@ -218,7 +218,9 @@ export interface Order {
   recipientPhone?: string | null;
   recipientEmail?: string | null;
   packagesCount?: number;
+  buyerPickupPvzId?: string | null;
   buyerPickupPvzMeta?: { addressFull?: string } | null;
+  sellerDropoffPvzId?: string | null;
   sellerDropoffPvzMeta?: { addressFull?: string } | null;
   orderLabels?: Array<{ packageNo: number; code: string }>;
   createdAt: string;
@@ -251,7 +253,7 @@ export interface SellerDeliveryProfile {
 
   // payload/profile shape for dropoff PVZ
   dropoffPvz?: {
-    provider: 'CDEK' | 'YANDEX_NDD';
+    provider: 'CDEK';
     pvzId: string;
     raw: Record<string, unknown> | null;
     addressFull?: string;
