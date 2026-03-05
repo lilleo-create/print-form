@@ -59,12 +59,6 @@ const statusLabels: Partial<Record<OrderStatus, string>> = {
   EXPIRED: 'Просрочен'
 };
 
-const sellerPreparationSteps = [
-  { key: 'isPacked', label: 'Упаковка' },
-  { key: 'isLabelPrinted', label: 'Ярлык распечатан' },
-  { key: 'isActPrinted', label: 'Акт распечатан' }
-] as const;
-
 const formatCurrency = (value: number) => value.toLocaleString('ru-RU');
 const formatDate = (value: string) =>
   new Date(value).toLocaleDateString('ru-RU', {
@@ -109,6 +103,7 @@ export const SellerDashboardPage = () => {
 
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'ALL'>('ALL');
   const [orderUpdateError, setOrderUpdateError] = useState<string | null>(null);
+  const [documentErrors, setDocumentErrors] = useState<Record<string, { label?: string; act?: string }>>({});
   const [trackingSearch, setTrackingSearch] = useState('');
   const [trackingResult, setTrackingResult] = useState<TrackingResult | null>(null);
 
@@ -600,6 +595,26 @@ export const SellerDashboardPage = () => {
     }
   };
 
+  const handleCreateShipment = async (orderId: string) => {
+    setOrderUpdateError(null);
+
+    try {
+      await ordersApi.createShipment(orderId);
+      await loadOrders();
+    } catch (error) {
+      const normalized = normalizeApiError(error);
+      if (normalized.code === 'PAYMENT_REQUIRED') {
+        setOrderUpdateError('Заказ не оплачен.');
+        return;
+      }
+      if (normalized.code === 'FULFILLMENT_STEPS_INCOMPLETE') {
+        setOrderUpdateError('Сначала завершите упаковку заказа.');
+        return;
+      }
+      setOrderUpdateError('Не удалось создать отправление. Проверьте данные доставки и ПВЗ.');
+    }
+  };
+
 
   const triggerDownload = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
@@ -610,19 +625,18 @@ export const SellerDashboardPage = () => {
     URL.revokeObjectURL(url);
   };
 
-
-
-  const handlePreparationToggle = async (order: Order, step: (typeof sellerPreparationSteps)[number]['key'], done: boolean) => {
+  const handlePackingToggle = async (order: Order, isPacked: boolean) => {
     try {
-      await ordersApi.updateSellerFulfillmentSteps(order.id, { [step]: done });
+      await ordersApi.updateSellerFulfillmentSteps(order.id, { isPacked });
       await loadOrders();
     } catch (error) {
-      setOrderUpdateError(normalizeApiError(error).message || 'Не удалось обновить чеклист.');
+      setOrderUpdateError(normalizeApiError(error).message || 'Не удалось обновить упаковку.');
     }
   };
 
   const handleDownloadLabel = async (order: Order) => {
     setOrderUpdateError(null);
+    setDocumentErrors((prev) => ({ ...prev, [order.id]: { ...prev[order.id], label: undefined } }));
 
     try {
       const blob = order.shipment?.id
@@ -631,12 +645,13 @@ export const SellerDashboardPage = () => {
       triggerDownload(blob, `cdek-label-${order.id}.pdf`);
       await loadOrders();
     } catch {
-      setOrderUpdateError('Не удалось скачать ярлык.');
+      setDocumentErrors((prev) => ({ ...prev, [order.id]: { ...prev[order.id], label: 'Ошибка документа' } }));
     }
   };
 
   const handleDownloadAct = async (order: Order) => {
     setOrderUpdateError(null);
+    setDocumentErrors((prev) => ({ ...prev, [order.id]: { ...prev[order.id], act: undefined } }));
     try {
       const blob = order.shipment?.id
         ? await ordersApi.downloadShipmentAct(order.shipment.id)
@@ -644,7 +659,7 @@ export const SellerDashboardPage = () => {
       triggerDownload(blob, `cdek-act-${order.id}.pdf`);
       await loadOrders();
     } catch {
-      setOrderUpdateError('Не удалось скачать акт.');
+      setDocumentErrors((prev) => ({ ...prev, [order.id]: { ...prev[order.id], act: 'Ошибка документа' } }));
     }
   };
 
@@ -671,9 +686,26 @@ export const SellerDashboardPage = () => {
   };
 
   const hasShipment = (order: Order) => Boolean(order.shipment?.id || order.cdekOrderId);
-  const canDownloadLabel = (order: Order) => hasShipment(order);
-  const canDownloadAct = (order: Order) => hasShipment(order);
-  const canReadyToShip = (order: Order) => order.status === 'PAID' && Boolean(order.isPacked) && hasShipment(order);
+  const canCreateShipment = (order: Order) => {
+    const isPaid = order.status === 'PAID';
+    const isNotCancelled = order.status !== 'CANCELLED';
+    return isPaid && Boolean(order.isPacked) && !hasShipment(order) && isNotCancelled;
+  };
+  const canDownloadLabel = (order: Order) => {
+    const isPaid = order.status === 'PAID';
+    const isNotCancelled = order.status !== 'CANCELLED';
+    return isPaid && hasShipment(order) && isNotCancelled;
+  };
+  const canDownloadAct = (order: Order) => {
+    const isPaid = order.status === 'PAID';
+    const isNotCancelled = order.status !== 'CANCELLED';
+    return isPaid && hasShipment(order) && isNotCancelled;
+  };
+  const canReadyToShip = (order: Order) => {
+    const isPaid = order.status === 'PAID';
+    const isNotCancelled = order.status !== 'CANCELLED';
+    return isPaid && Boolean(order.isPacked) && hasShipment(order) && isNotCancelled;
+  };
 
   const readyToShipDisabledReason = (order: Order) => {
     if (order.status === 'CANCELLED') return 'Отменённый заказ нельзя передать в отгрузку';
@@ -1169,23 +1201,17 @@ export const SellerDashboardPage = () => {
                             </div>
 
                             <div className={styles.deliveryInputs}>
-
-                              <div>
-                                {sellerPreparationSteps.map((step) => {
-                                  const checked = Boolean(order[step.key]);
-                                  return (
-                                    <label key={step.key} className={styles.muted} style={{ display: 'flex', gap: 8 }}>
-                                      <input
-                                        type="checkbox"
-                                        checked={checked}
-                                        disabled={order.status === 'CANCELLED'}
-                                        onChange={(event) => void handlePreparationToggle(order, step.key, event.target.checked)}
-                                      />
-                                      {step.label}
-                                    </label>
-                                  );
-                                })}
-                              </div>
+                              <p className={styles.muted}>
+                                Упаковка: {order.isPacked ? 'выполнено' : 'не выполнено'}
+                              </p>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={() => void handlePackingToggle(order, !Boolean(order.isPacked))}
+                                disabled={order.status === 'CANCELLED' || order.status !== 'PAID'}
+                              >
+                                {order.isPacked ? 'Снять отметку упаковки' : 'Отметить упаковку'}
+                              </Button>
                               <p className={styles.muted}>
                                 Способ доставки: ПВЗ (CDEK)
                               </p>
@@ -1211,6 +1237,17 @@ export const SellerDashboardPage = () => {
                               <p className={styles.muted}>
                                 Трек-номер: {order.trackingNumber ?? '—'}
                               </p>
+
+                              {!hasShipment(order) && (
+                                <Button
+                                  type="button"
+                                  variant="secondary"
+                                  onClick={() => void handleCreateShipment(order.id)}
+                                  disabled={!canCreateShipment(order)}
+                                >
+                                  Создать отправление
+                                </Button>
+                              )}
 
                               <Button
                                 type="button"
@@ -1265,22 +1302,24 @@ export const SellerDashboardPage = () => {
                               <Button
                                 type="button"
                                 variant="ghost"
+                                className={order.isLabelPrinted ? styles.documentPrintedButton : undefined}
                                 onClick={() => void handleDownloadLabel(order)}
                                 disabled={!canDownloadLabel(order)}
                               >
                                 Скачать ярлык
                               </Button>
-                              {order.isLabelPrinted && <p className={styles.doneState}>✅ Выполнено</p>}
+                              {documentErrors[order.id]?.label && <p className={styles.error}>{documentErrors[order.id]?.label}</p>}
 
                               <Button
                                 type="button"
                                 variant="ghost"
+                                className={order.isActPrinted ? styles.documentPrintedButton : undefined}
                                 onClick={() => void handleDownloadAct(order)}
                                 disabled={!canDownloadAct(order)}
                               >
                                 Скачать акт
                               </Button>
-                              {order.isActPrinted && <p className={styles.doneState}>✅ Выполнено</p>}
+                              {documentErrors[order.id]?.act && <p className={styles.error}>{documentErrors[order.id]?.act}</p>}
 
                             </div>
                           </div>

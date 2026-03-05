@@ -861,6 +861,24 @@ sellerRoutes.post('/orders/:orderId/ready-to-ship', writeLimiter, async (req: Au
   }
 });
 
+sellerRoutes.post('/orders/:orderId/shipment', writeLimiter, async (req: AuthRequest, res, next) => {
+  try {
+    const result = await shipmentService.createShipmentCdek({
+      orderId: req.params.orderId,
+      sellerId: req.user!.userId
+    });
+
+    const order = await prisma.order.findFirst({
+      where: { id: req.params.orderId, items: { some: { product: { sellerId: req.user!.userId } } } },
+      include: { shipment: true }
+    });
+
+    return res.json({ data: { order, shipment: toShipmentView(result.shipment), cdek: result.cdek } });
+  } catch (e) {
+    next(e);
+  }
+});
+
 sellerRoutes.post('/shipments/:id/sync', writeLimiter, async (req: AuthRequest, res, next) => {
   try {
     const shipment = await prisma.orderShipment.findUnique({
@@ -894,7 +912,12 @@ sellerRoutes.get('/shipments/:id/label', async (req: AuthRequest, res, next) => 
       return res.status(409).json({ error: { code: 'FORMS_NOT_READY', message: 'Label is not ready yet. Retry after sync.' } });
     }
 
-    const response = await axios.get(forms.waybillUrl, { responseType: 'arraybuffer' });
+    let response;
+    try {
+      response = await axios.get(forms.waybillUrl, { responseType: 'arraybuffer' });
+    } catch {
+      return res.status(502).json({ error: { code: 'DOCUMENT_DOWNLOAD_FAILED', message: 'Ошибка документа' } });
+    }
     const buffer = Buffer.from(response.data);
 
     await prisma.$transaction(async (tx) => {
@@ -947,7 +970,12 @@ sellerRoutes.get('/shipments/:id/act', async (req: AuthRequest, res, next) => {
     const hasAccess = shipment.order.items.some((item) => item.product.sellerId === req.user!.userId);
     if (!hasAccess) return res.status(409).json({ error: { code: 'SHIPMENT_NOT_FOUND', message: 'Сначала оформите отгрузку' } });
 
-    const pdf = await sellerOrderDocumentsService.buildHandoverAct(shipment.order as any);
+    let pdf;
+    try {
+      pdf = await sellerOrderDocumentsService.buildHandoverAct(shipment.order as any);
+    } catch {
+      return res.status(502).json({ error: { code: 'DOCUMENT_DOWNLOAD_FAILED', message: 'Ошибка документа' } });
+    }
     const buffer = Buffer.from(pdf);
 
     await prisma.$transaction(async (tx) => {
