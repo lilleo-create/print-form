@@ -15,7 +15,13 @@
   box-shadow: var(--shadow-card);
   border: 1px solid var(--border);
   display: grid;
-  gap: 12px;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.orderCard:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 .orderHeader {
@@ -45,6 +51,54 @@
 .itemInfo {
   display: grid;
   gap: 4px;
+}
+
+.productCard {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.productImage,
+.imagePlaceholder {
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.productImage {
+  object-fit: cover;
+}
+
+.imagePlaceholder {
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+}
+
+.caption {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.status {
+  margin: 0;
+  font-weight: 500;
+}
+
+.returnLink {
+  width: fit-content;
+  border: none;
+  background: transparent;
+  color: var(--primary);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.returnLink:hover {
+  text-decoration: underline;
 }
 
 .empty {

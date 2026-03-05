@@ -19,6 +19,7 @@ interface ReturnCandidatesListProps {
   items?: ReturnCandidate[];
   returnsByOrderItemId: Map<string, ReturnRequest>;
   onCreate: (item: ReturnCandidate) => void;
+  highlightedOrderId?: string | null;
 }
 
 const statusLabels: Record<ReturnRequest['status'], string> = {
@@ -32,7 +33,8 @@ const statusLabels: Record<ReturnRequest['status'], string> = {
 export const ReturnCandidatesList = ({
   items,
   returnsByOrderItemId,
-  onCreate
+  onCreate,
+  highlightedOrderId = null
 }: ReturnCandidatesListProps) => {
   const navigate = useNavigate();
   const safeItems = useMemo(() => items ?? [], [items]);
@@ -48,7 +50,10 @@ export const ReturnCandidatesList = ({
         const threadId = returnRequest?.chatThread?.id ?? null;
         const imageSrc = resolveImageUrl(item.image);
         return (
-          <article key={item.orderItemId} className={styles.card}>
+          <article
+            key={item.orderItemId}
+            className={`${styles.card} ${highlightedOrderId === item.orderId ? styles.cardHighlighted : ''}`.trim()}
+          >
             <div className={styles.row}>
               {imageSrc ? (
                 <img src={imageSrc} alt={item.title} />

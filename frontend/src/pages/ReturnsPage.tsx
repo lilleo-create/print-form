@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../app/store/authStore';
 import { useOrdersStore } from '../app/store/ordersStore';
 import { api } from '../shared/api';
@@ -22,6 +23,7 @@ const filterReturnCandidates = (
   });
 
 export const ReturnsPage = () => {
+  const [searchParams] = useSearchParams();
   const user = useAuthStore((state) => state.user);
   const orders = useOrdersStore((state) => state.orders);
   const loadBuyerOrders = useOrdersStore((state) => state.loadBuyerOrders);
@@ -33,6 +35,7 @@ export const ReturnsPage = () => {
   const [selectedCandidate, setSelectedCandidate] = useState<ReturnCandidate | null>(null);
   const [isCreateFlowOpen, setIsCreateFlowOpen] = useState(false);
   const [createStep, setCreateStep] = useState<ReturnCreateStep>('select');
+  const highlightedOrderId = searchParams.get('orderId');
 
   const loadReturns = () => {
     if (!user) return Promise.resolve();
@@ -182,6 +185,7 @@ export const ReturnsPage = () => {
                 items={filteredCandidates}
                 returnsByOrderItemId={returnsByOrderItemId}
                 onCreate={(item) => openCreateFlow(item)}
+                highlightedOrderId={highlightedOrderId}
               />
             </div>
 
