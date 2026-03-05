@@ -241,6 +241,16 @@ cdekRoutes.post('/calculate-for-order', authenticate, async (req: AuthRequest, r
       heightCm: packageDz
     });
 
+    await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        deliveryDaysMin: quote.deliveryDaysMin,
+        deliveryDaysMax: quote.deliveryDaysMax,
+        deliveryTariffCode: quote.tariffCode,
+        deliveryCalculatedAt: new Date()
+      }
+    });
+
     return res.json({
       ...quote,
       weightGrams: totalWeightGrams,

@@ -341,6 +341,17 @@ export const api = {
     });
   },
 
+  async updateSellerPreparationChecklist(
+    id: string,
+    payload: { step: 'packedDone' | 'labelPrintedDone' | 'actPrintedDone' | 'readyForDropoffDone'; done: boolean }
+  ) {
+    return apiClient.request<{ id: string; status: string }>(`/seller/orders/${id}/preparation`, {
+      method: 'PATCH',
+      body: payload
+    });
+  },
+
+
   async getSellerDeliveryProfile() {
     return apiClient.request<SellerDeliveryProfile | null>('/seller/settings');
   },

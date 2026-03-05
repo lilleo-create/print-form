@@ -213,6 +213,10 @@ model Order {
   cdekOrderId          String?
   cdekStatus           String?
   payoutStatus         String               @default("HOLD")
+  deliveryDaysMin      Int?
+  deliveryDaysMax      Int?
+  deliveryTariffCode   Int?
+  deliveryCalculatedAt DateTime?
   readyForShipmentAt   DateTime?
   dropoffDeadlineAt    DateTime?
   paymentAttemptKey    String?

@@ -40,6 +40,10 @@ type ApiOrder = {
   shippingAddress?: Order['shippingAddress'];
   delivery?: Order['delivery'] | null;
   shipment?: Order['shipment'] | null;
+  deliveryDaysMin?: number | null;
+  deliveryDaysMax?: number | null;
+  deliveryTariffCode?: number | null;
+  deliveryCalculatedAt?: string | null;
   items?: ApiOrderItem[];
 };
 
@@ -79,6 +83,10 @@ const mapOrder = (order: ApiOrder): Order => ({
   orderLabels: order.orderLabels ?? [],
   createdAt: order.createdAt,
   payoutStatus: order.payoutStatus ?? null,
+  deliveryDaysMin: order.deliveryDaysMin ?? null,
+  deliveryDaysMax: order.deliveryDaysMax ?? null,
+  deliveryTariffCode: order.deliveryTariffCode ?? null,
+  deliveryCalculatedAt: order.deliveryCalculatedAt ?? null,
   trackingNumber: order.trackingNumber ?? null,
   cdekOrderId: order.cdekOrderId ?? null,
   carrier: order.carrier ?? null,
