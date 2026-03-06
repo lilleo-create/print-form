@@ -216,16 +216,17 @@
 .ordersList {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 16px;
+  gap: 20px;
 }
 
 .orderCard {
-  background: #0f1b2d;
-  border-radius: 12px;
-  border: 1px solid #24324a;
-  padding: 20px;
+  background: #111f34;
+  border-radius: 14px;
+  border: 1px solid #324564;
+  padding: 22px;
   display: grid;
   gap: 16px;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.28);
 }
 
 .orderCardTop {

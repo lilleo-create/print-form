@@ -13,6 +13,7 @@ export interface ReturnCandidate {
   image?: string;
   orderDate: string;
   orderId: string;
+  actionType?: 'RETURN' | 'CANCEL';
 }
 
 interface ReturnCandidatesListProps {
@@ -82,7 +83,7 @@ export const ReturnCandidatesList = ({
                 </Button>
               ) : (
                 <Button type="button" onClick={() => onCreate(item)}>
-                  Создать
+                  {item.actionType === 'CANCEL' ? 'Отменить заказ' : 'Оформить возврат'}
                 </Button>
               )}
             </div>

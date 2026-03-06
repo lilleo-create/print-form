@@ -444,6 +444,18 @@ export const api = {
     });
   },
 
+  async syncCdekOrder(orderId: string) {
+    return apiClient.request(`/cdek/orders/${orderId}/sync`, {
+      method: 'POST'
+    });
+  },
+
+  async cancelMyOrder(orderId: string) {
+    return apiClient.request<Order>(`/me/orders/${orderId}/cancel`, {
+      method: 'PATCH'
+    });
+  },
+
   async downloadShippingLabel(shipmentId: string) {
     const response = await fetch(`${baseUrl}/seller/shipments/${shipmentId}/label`, {
       headers: {
