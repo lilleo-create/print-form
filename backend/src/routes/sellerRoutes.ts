@@ -975,13 +975,18 @@ sellerRoutes.get('/shipments/:id/act', async (req: AuthRequest, res, next) => {
     const hasAccess = shipment.order.items.some((item) => item.product.sellerId === req.user!.userId);
     if (!hasAccess) return res.status(409).json({ error: { code: 'SHIPMENT_NOT_FOUND', message: 'Сначала оформите отгрузку' } });
 
-    let pdf;
-    try {
-      pdf = await sellerOrderDocumentsService.buildHandoverAct(shipment.order as any);
-    } catch {
-      return res.status(502).json({ error: { code: 'DOCUMENT_DOWNLOAD_FAILED', message: 'Ошибка документа' } });
-    }
-    const buffer = normalizePdfBuffer(pdf);
+    const result = await resolveOrderPrintPdf({
+      shipmentId: shipment.id,
+      cdekOrderId: shipment.order.cdekOrderId,
+      printRequestUuid: shipment.actPrintRequestUuid,
+      type: 'tpl_russia',
+      kind: 'act'
+    }).catch(() => ({ status: 'invalid' as const }));
+
+    if (result.status === 'need_ready_to_ship') return res.status(409).json({ error: NEED_READY_TO_SHIP_ERROR });
+    if (result.status === 'processing') return res.status(409).json({ error: FORMS_NOT_READY_ERROR });
+    if (result.status === 'expired') return res.status(409).json({ error: FORMS_EXPIRED_ERROR });
+    if (result.status !== 'ready') return res.status(502).json({ error: DOCUMENT_DOWNLOAD_FAILED_ERROR });
 
     await prisma.$transaction(async (tx) => {
       await tx.order.update({
@@ -994,9 +999,9 @@ sellerRoutes.get('/shipments/:id/act', async (req: AuthRequest, res, next) => {
     });
 
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="cdek-act-${shipment.id}.pdf"`);
-    res.setHeader('Content-Length', buffer.length);
-    return res.status(200).send(buffer);
+    res.setHeader('Content-Disposition', withUtf8PdfDisposition(`cdek-act-${shipment.id}.pdf`));
+    res.setHeader('Content-Length', result.pdf.length);
+    return res.status(200).send(result.pdf);
   } catch (error) {
     next(error);
   }
@@ -1019,6 +1024,52 @@ const FORMS_NOT_READY_ERROR = {
   retryAfterSec: 10
 };
 
+const FORMS_EXPIRED_ERROR = {
+  code: 'FORMS_EXPIRED',
+  message: 'Срок действия сформированного документа истёк. Запросите форму повторно.'
+};
+
+const DOCUMENT_DOWNLOAD_FAILED_ERROR = {
+  code: 'DOCUMENT_DOWNLOAD_FAILED',
+  message: 'Ошибка документа'
+};
+
+const withUtf8PdfDisposition = (filename: string) => {
+  const safeAscii = filename.replace(/[^\x20-\x7E]/g, '_').replace(/"/g, '');
+  return `attachment; filename="${safeAscii}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
+};
+
+const resolveOrderPrintPdf = async (params: {
+  shipmentId: string;
+  cdekOrderId: string | null | undefined;
+  printRequestUuid: string | null | undefined;
+  type?: string;
+  kind: 'act' | 'label';
+}) => {
+  const cdekOrderId = String(params.cdekOrderId ?? '').trim();
+  if (!cdekOrderId) return { status: 'need_ready_to_ship' as const };
+
+  let printUuid = String(params.printRequestUuid ?? '').trim();
+  if (!printUuid) {
+    printUuid = await cdekService.createOrderPrint([cdekOrderId], params.type ?? 'tpl_russia', 2);
+    await prisma.orderShipment.update({ where: { id: params.shipmentId }, data: params.kind === 'label' ? { labelPrintRequestUuid: printUuid } : { actPrintRequestUuid: printUuid } });
+  }
+
+  const snapshot = await cdekService.getOrderPrintStatus(printUuid);
+  if (snapshot.status === 'READY') {
+    const pdf = await cdekService.downloadOrderPrintPdf(printUuid);
+    return { status: 'ready' as const, pdf };
+  }
+  if (snapshot.status === 'ACCEPTED' || snapshot.status === 'PROCESSING') {
+    return { status: 'processing' as const };
+  }
+  if (snapshot.status === 'REMOVED') {
+    await prisma.orderShipment.update({ where: { id: params.shipmentId }, data: params.kind === 'label' ? { labelPrintRequestUuid: null } : { actPrintRequestUuid: null } });
+    return { status: 'expired' as const };
+  }
+  return { status: 'invalid' as const };
+};
+
 const hasSuccessfulPayment = async (orderId: string) => {
   const payment = await prisma.payment.findFirst({
     where: { orderId },
@@ -1028,18 +1079,6 @@ const hasSuccessfulPayment = async (orderId: string) => {
   return payment?.status === 'SUCCEEDED';
 };
 
-
-const normalizePdfBuffer = (pdf: unknown) => {
-  if (Buffer.isBuffer(pdf)) return pdf;
-  if (pdf instanceof Uint8Array) return Buffer.from(pdf);
-  if (typeof pdf === 'string') {
-    const normalized = pdf.trim();
-    if (!normalized) return Buffer.alloc(0);
-    const looksLikeBase64 = normalized.startsWith('JVBERi0') || /^[A-Za-z0-9+/=\s]+$/.test(normalized);
-    return Buffer.from(normalized, looksLikeBase64 ? 'base64' : 'utf8');
-  }
-  return Buffer.from(String(pdf ?? ''), 'utf8');
-};
 
 const isOrderPaid = async (order: { id: string; paidAt: Date | null }) =>
   Boolean(order.paidAt) || (await hasSuccessfulPayment(order.id));
@@ -1051,7 +1090,7 @@ sellerRoutes.get('/orders/:orderId/documents/packing-slip.pdf', async (req: Auth
 
     const pdf = await sellerOrderDocumentsService.buildPackingSlip(order);
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="packing-slip-${order.id}.pdf"`);
+    res.setHeader('Content-Disposition', withUtf8PdfDisposition(`packing-slip-${order.id}.pdf`));
     return res.status(200).send(pdf);
   } catch (error) {
     return next(error);
@@ -1071,35 +1110,29 @@ sellerRoutes.get('/orders/:orderId/documents/label.pdf', async (req: AuthRequest
       return res.status(409).json({ error: NEED_READY_TO_SHIP_ERROR });
     }
 
-    const forms = await shipmentService.getPrintableForms(order.id).catch(() => null);
-
-    let pdf: Buffer | null = null;
-    if (forms?.waybillUrl) {
-      try {
-        const response = await axios.get(forms.waybillUrl, { responseType: 'arraybuffer' });
-        pdf = Buffer.from(response.data);
-      } catch {
-        pdf = null;
-      }
+    const shipmentId = order.shipment?.id;
+    if (!shipmentId) {
+      return res.status(409).json({ error: NEED_READY_TO_SHIP_ERROR });
     }
 
-    if (!pdf) {
-      const cdekOrderId = String(order.cdekOrderId ?? '').trim();
-      if (!cdekOrderId) {
-        return res.status(409).json({ error: FORMS_NOT_READY_ERROR });
-      }
-      try {
-        pdf = await cdekService.getWaybillPdfByOrderUuid(cdekOrderId);
-      } catch {
-        return res.status(409).json({ error: FORMS_NOT_READY_ERROR });
-      }
-    }
+    const result = await resolveOrderPrintPdf({
+      shipmentId,
+      cdekOrderId: order.cdekOrderId,
+      printRequestUuid: order.shipment?.labelPrintRequestUuid,
+      type: 'tpl_russia',
+      kind: 'label'
+    }).catch(() => ({ status: 'invalid' as const }));
+
+    if (result.status === 'need_ready_to_ship') return res.status(409).json({ error: NEED_READY_TO_SHIP_ERROR });
+    if (result.status === 'processing') return res.status(409).json({ error: FORMS_NOT_READY_ERROR });
+    if (result.status === 'expired') return res.status(409).json({ error: FORMS_EXPIRED_ERROR });
+    if (result.status !== 'ready') return res.status(502).json({ error: DOCUMENT_DOWNLOAD_FAILED_ERROR });
 
     await prisma.order.update({ where: { id: order.id }, data: { isLabelPrinted: true, fulfillmentUpdatedAt: new Date() } as any });
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="cdek-label-${order.id}.pdf"`);
-    res.setHeader('Content-Length', pdf.length);
-    return res.status(200).send(pdf);
+    res.setHeader('Content-Disposition', withUtf8PdfDisposition(`cdek-label-${order.id}.pdf`));
+    res.setHeader('Content-Length', result.pdf.length);
+    return res.status(200).send(result.pdf);
   } catch (error) {
     return next(error);
   }
@@ -1118,20 +1151,29 @@ sellerRoutes.get('/orders/:orderId/documents/handover-act.pdf', async (req: Auth
       return res.status(409).json({ error: NEED_READY_TO_SHIP_ERROR });
     }
 
-    const pdf = await sellerOrderDocumentsService.buildHandoverAct(order);
-    const buffer = normalizePdfBuffer(pdf);
-    console.debug('[seller/documents] handover-act payload', {
-      orderId: order.id,
-      isBuffer: Buffer.isBuffer(pdf),
-      type: typeof pdf,
-      length: buffer.length
-    });
+    const shipmentId = order.shipment?.id;
+    if (!shipmentId) {
+      return res.status(409).json({ error: NEED_READY_TO_SHIP_ERROR });
+    }
+
+    const result = await resolveOrderPrintPdf({
+      shipmentId,
+      cdekOrderId: order.cdekOrderId,
+      printRequestUuid: order.shipment?.actPrintRequestUuid,
+      type: 'tpl_russia',
+      kind: 'act'
+    }).catch(() => ({ status: 'invalid' as const }));
+
+    if (result.status === 'need_ready_to_ship') return res.status(409).json({ error: NEED_READY_TO_SHIP_ERROR });
+    if (result.status === 'processing') return res.status(409).json({ error: FORMS_NOT_READY_ERROR });
+    if (result.status === 'expired') return res.status(409).json({ error: FORMS_EXPIRED_ERROR });
+    if (result.status !== 'ready') return res.status(502).json({ error: DOCUMENT_DOWNLOAD_FAILED_ERROR });
 
     await prisma.order.update({ where: { id: order.id }, data: { isActPrinted: true, fulfillmentUpdatedAt: new Date() } as any });
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="handover-act-${order.id}.pdf"`);
-    res.setHeader('Content-Length', buffer.length);
-    return res.status(200).send(buffer);
+    res.setHeader('Content-Disposition', withUtf8PdfDisposition(`handover-act-${order.id}.pdf`));
+    res.setHeader('Content-Length', result.pdf.length);
+    return res.status(200).send(result.pdf);
   } catch (error) {
     return next(error);
   }

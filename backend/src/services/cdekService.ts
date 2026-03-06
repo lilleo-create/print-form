@@ -532,6 +532,76 @@ class CdekService {
     });
   }
 
+
+  async createOrderPrint(orderUuids: string[], type = 'tpl_russia', copyCount = 2) {
+    const normalizedOrderUuids = Array.from(new Set(orderUuids.map((value) => String(value ?? '').trim()).filter(Boolean)));
+    if (!normalizedOrderUuids.length) throw new Error('CDEK_ORDER_UUID_REQUIRED');
+
+    const token = await this.getToken();
+    const { baseUrl } = getCdekConfig();
+
+    const response = await this.request<CdekPrintTaskResponse>('createOrderPrint', {
+      method: 'POST',
+      url: `${baseUrl}/v2/print/orders`,
+      headers: { Authorization: `Bearer ${token}` },
+      data: {
+        orders: normalizedOrderUuids.map((orderUuid) => ({ order_uuid: orderUuid })),
+        copy_count: copyCount,
+        type: String(type ?? 'tpl_russia')
+      }
+    });
+
+    const printUuid = String(response.entity?.uuid ?? '').trim();
+    if (!printUuid) {
+      const { state, errors } = this.extractErrors(response);
+      throw new Error(`CDEK_ORDER_PRINT_TASK_UUID_MISSING: ${JSON.stringify({ state, errors }, null, 2)}`);
+    }
+
+    return printUuid;
+  }
+
+  async getOrderPrintStatus(printUuid: string): Promise<CdekPrintTaskSnapshot> {
+    return this.getReceiptPrintTask(printUuid);
+  }
+
+  async downloadOrderPrintPdf(printUuid: string): Promise<Buffer> {
+    return this.getReceiptPdfByPrintTaskUuid(printUuid);
+  }
+
+  async createBarcodePrint(orderUuids: string[], copyCount = 1, format: CdekBarcodePrintFormat = 'A4', lang: CdekPrintLang = 'RUS') {
+    const normalizedOrderUuids = Array.from(new Set(orderUuids.map((value) => String(value ?? '').trim()).filter(Boolean)));
+    if (!normalizedOrderUuids.length) throw new Error('CDEK_ORDER_UUID_REQUIRED');
+
+    const token = await this.getToken();
+    const { baseUrl } = getCdekConfig();
+    const response = await this.request<CdekPrintTaskResponse>('createBarcodePrint', {
+      method: 'POST',
+      url: `${baseUrl}/v2/print/barcodes`,
+      headers: { Authorization: `Bearer ${token}` },
+      data: {
+        orders: normalizedOrderUuids.map((orderUuid) => ({ order_uuid: orderUuid })),
+        copy_count: copyCount,
+        format,
+        lang
+      }
+    });
+
+    const printUuid = String(response.entity?.uuid ?? '').trim();
+    if (!printUuid) {
+      const { state, errors } = this.extractErrors(response);
+      throw new Error(`CDEK_BARCODE_PRINT_TASK_UUID_MISSING: ${JSON.stringify({ state, errors }, null, 2)}`);
+    }
+
+    return printUuid;
+  }
+
+  async getBarcodePrintStatus(printUuid: string): Promise<CdekPrintTaskSnapshot> {
+    return this.getBarcodePrintTask(printUuid);
+  }
+
+  async downloadBarcodePrintPdf(printUuid: string): Promise<Buffer> {
+    return this.getBarcodePdfByPrintTaskUuid(printUuid);
+  }
   async createWaybillPrintTask(orderUuid: string) {
     const uuid = String(orderUuid ?? "").trim();
     if (!uuid) throw new Error("CDEK_ORDER_UUID_REQUIRED");
@@ -569,28 +639,7 @@ class CdekService {
     type?: string;
   }) {
     const orderUuid = String(params.orderUuid ?? '').trim();
-    if (!orderUuid) throw new Error('CDEK_ORDER_UUID_REQUIRED');
-
-    const token = await this.getToken();
-    const { baseUrl } = getCdekConfig();
-    const response = await this.request<CdekPrintTaskResponse>('createReceiptPrintTask', {
-      method: 'POST',
-      url: `${baseUrl}/v2/print/orders`,
-      headers: { Authorization: `Bearer ${token}` },
-      data: {
-        orders: [{ order_uuid: orderUuid }],
-        copy_count: params.copyCount ?? 2,
-        type: String(params.type ?? 'tpl_russia')
-      }
-    });
-
-    const printUuid = String(response.entity?.uuid ?? '').trim();
-    if (!printUuid) {
-      const { state, errors } = this.extractErrors(response);
-      throw new Error(`CDEK_RECEIPT_PRINT_TASK_UUID_MISSING: ${JSON.stringify({ state, errors }, null, 2)}`);
-    }
-
-    return printUuid;
+    return this.createOrderPrint([orderUuid], params.type ?? 'tpl_russia', params.copyCount ?? 2);
   }
 
   async createBarcodePrintTask(params: {
@@ -600,29 +649,7 @@ class CdekService {
     lang?: CdekPrintLang;
   }) {
     const orderUuid = String(params.orderUuid ?? '').trim();
-    if (!orderUuid) throw new Error('CDEK_ORDER_UUID_REQUIRED');
-
-    const token = await this.getToken();
-    const { baseUrl } = getCdekConfig();
-    const response = await this.request<CdekPrintTaskResponse>('createBarcodePrintTask', {
-      method: 'POST',
-      url: `${baseUrl}/v2/print/barcodes`,
-      headers: { Authorization: `Bearer ${token}` },
-      data: {
-        orders: [{ order_uuid: orderUuid }],
-        copy_count: params.copyCount ?? 1,
-        format: params.format ?? 'A4',
-        lang: params.lang ?? 'RUS'
-      }
-    });
-
-    const printUuid = String(response.entity?.uuid ?? '').trim();
-    if (!printUuid) {
-      const { state, errors } = this.extractErrors(response);
-      throw new Error(`CDEK_BARCODE_PRINT_TASK_UUID_MISSING: ${JSON.stringify({ state, errors }, null, 2)}`);
-    }
-
-    return printUuid;
+    return this.createBarcodePrint([orderUuid], params.copyCount ?? 1, params.format ?? 'A4', params.lang ?? 'RUS');
   }
 
   private normalizePrintTaskStatus(response: CdekPrintTaskResponse): CdekPrintTaskSnapshot {
