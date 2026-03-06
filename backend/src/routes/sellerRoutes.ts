@@ -1072,17 +1072,28 @@ sellerRoutes.get('/orders/:orderId/documents/label.pdf', async (req: AuthRequest
     }
 
     const forms = await shipmentService.getPrintableForms(order.id).catch(() => null);
-    if (!forms?.waybillUrl) {
-      return res.status(409).json({ error: FORMS_NOT_READY_ERROR });
+
+    let pdf: Buffer | null = null;
+    if (forms?.waybillUrl) {
+      try {
+        const response = await axios.get(forms.waybillUrl, { responseType: 'arraybuffer' });
+        pdf = Buffer.from(response.data);
+      } catch {
+        pdf = null;
+      }
     }
 
-    let response;
-    try {
-      response = await axios.get(forms.waybillUrl, { responseType: 'arraybuffer' });
-    } catch {
-      return res.status(409).json({ error: FORMS_NOT_READY_ERROR });
+    if (!pdf) {
+      const cdekOrderId = String(order.cdekOrderId ?? '').trim();
+      if (!cdekOrderId) {
+        return res.status(409).json({ error: FORMS_NOT_READY_ERROR });
+      }
+      try {
+        pdf = await cdekService.getWaybillPdfByOrderUuid(cdekOrderId);
+      } catch {
+        return res.status(409).json({ error: FORMS_NOT_READY_ERROR });
+      }
     }
-    const pdf = Buffer.from(response.data);
 
     await prisma.order.update({ where: { id: order.id }, data: { isLabelPrinted: true, fulfillmentUpdatedAt: new Date() } as any });
     res.setHeader('Content-Type', 'application/pdf');

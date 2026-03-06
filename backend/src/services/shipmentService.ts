@@ -71,7 +71,7 @@ const buildStatusRaw = (snapshot: CdekOrderSnapshot, fallbackUuid: string, order
   cdek_order_uuid: snapshot.cdekOrderId || fallbackUuid,
   cdek_request_uuid: snapshot.requestUuid || '',
   cdek_state: snapshot.status || '',
-  trackingNumber: snapshot.trackingNumber || '',
+  trackingNumber: String(snapshot.trackingNumber ?? '').trim(),
   print: {
     waybillUrl: snapshot.relatedEntities.waybillUrl,
     barcodeUrls: snapshot.relatedEntities.barcodeUrls
@@ -110,6 +110,7 @@ const syncShipmentByOrder = async (orderId: string) => {
   if (!cdekOrderUuid) throw makeError('CDEK_ORDER_UUID_MISSING');
 
   const snapshot = await cdekService.getOrderByUuid(cdekOrderUuid);
+  const normalizedTrackingNumber = String(snapshot.trackingNumber ?? '').trim();
   const nextStatus = mapExternalStatusToInternal(snapshot.status);
   const statusRaw = buildStatusRaw(snapshot, cdekOrderUuid, order.id);
   console.debug('[shipmentService.syncShipment] snapshot', {
@@ -147,7 +148,7 @@ const syncShipmentByOrder = async (orderId: string) => {
       data: {
         cdekStatus: snapshot.status || undefined,
         cdekOrderId: snapshot.cdekOrderId || cdekOrderUuid,
-        trackingNumber: snapshot.trackingNumber || undefined
+        trackingNumber: normalizedTrackingNumber || null
       }
     });
 

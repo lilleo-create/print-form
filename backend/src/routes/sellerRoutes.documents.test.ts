@@ -9,6 +9,7 @@ import { prisma } from '../lib/prisma';
 import { env } from '../config/env';
 import { shipmentService } from '../services/shipmentService';
 import { sellerOrderDocumentsService } from '../services/sellerOrderDocumentsService';
+import { cdekService } from '../services/cdekService';
 
 const buildApp = () => {
   const app = express();
@@ -127,4 +128,46 @@ test('handover act does not require waybill forms and normalizes pdf payload', a
   assert.equal(act.status, 200);
   assert.match(act.headers['content-type'] ?? '', /application\/pdf/);
   assert.equal(Number(act.headers['content-length']), Buffer.from('%PDF-1.4 mock%').length);
+});
+
+
+test('seller label route falls back to CDEK print task API when waybillUrl is missing', async () => {
+  mockAuth();
+  (shipmentService.getPrintableForms as any) = async () => ({ waybillUrl: null, barcodeUrls: [] });
+  (cdekService.getWaybillPdfByOrderUuid as any) = async (uuid: string) => {
+    assert.equal(uuid, 'cdek-uuid');
+    return Buffer.from('%PDF-fallback-label%');
+  };
+  (prisma.order.findFirst as any) = async ({ where }: any) => {
+    if (where.id === 'order-own') return mockOrder('order-own');
+    return null;
+  };
+
+  const app = buildApp();
+  const auth = `Bearer ${tokenFor('seller-1')}`;
+
+  const label = await request(app).get('/seller/orders/order-own/documents/label.pdf').set('Authorization', auth);
+
+  assert.equal(label.status, 200);
+  assert.match(label.headers['content-type'] ?? '', /application\/pdf/);
+});
+
+test('seller label route returns FORMS_NOT_READY when print task pdf is not ready', async () => {
+  mockAuth();
+  (shipmentService.getPrintableForms as any) = async () => ({ waybillUrl: null, barcodeUrls: [] });
+  (cdekService.getWaybillPdfByOrderUuid as any) = async () => {
+    throw new Error('print task is processing');
+  };
+  (prisma.order.findFirst as any) = async ({ where }: any) => {
+    if (where.id === 'order-own') return mockOrder('order-own');
+    return null;
+  };
+
+  const app = buildApp();
+  const auth = `Bearer ${tokenFor('seller-1')}`;
+
+  const label = await request(app).get('/seller/orders/order-own/documents/label.pdf').set('Authorization', auth);
+
+  assert.equal(label.status, 409);
+  assert.equal(label.body?.error?.code, 'FORMS_NOT_READY');
 });
