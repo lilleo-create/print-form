@@ -79,6 +79,29 @@ const buildStatusRaw = (snapshot: CdekOrderSnapshot, fallbackUuid: string, order
   related_entities: snapshot.raw.related_entities ?? []
 });
 
+const parseRelatedEntityUrls = (value: unknown) => {
+  const entries = Array.isArray(value) ? value : [];
+  const findType = (entry: unknown) => String(safeRecord(entry).type ?? '').trim().toLowerCase();
+  const findUrl = (entry: unknown) => String(safeRecord(entry).url ?? '').trim();
+  const waybillAliases = new Set(['waybill', 'waybill_url', 'waybillurl']);
+  const barcodeAliases = new Set(['barcode', 'barcode_url', 'barcodeurl']);
+
+  const resolvedWaybill =
+    entries
+      .map((entry) => ({ type: findType(entry), url: findUrl(entry) }))
+      .find((entry) => waybillAliases.has(entry.type) && entry.url)?.url ?? null;
+
+  const barcodeUrls = entries
+    .map((entry) => ({ type: findType(entry), url: findUrl(entry) }))
+    .filter((entry) => barcodeAliases.has(entry.type) && entry.url)
+    .map((entry) => entry.url);
+
+  return {
+    waybillUrl: resolvedWaybill,
+    barcodeUrls
+  };
+};
+
 const syncShipmentByOrder = async (orderId: string) => {
   const order = await prisma.order.findUnique({ where: { id: orderId }, include: { shipment: true } });
   if (!order) throw makeError('ORDER_NOT_FOUND');
@@ -89,6 +112,13 @@ const syncShipmentByOrder = async (orderId: string) => {
   const snapshot = await cdekService.getOrderByUuid(cdekOrderUuid);
   const nextStatus = mapExternalStatusToInternal(snapshot.status);
   const statusRaw = buildStatusRaw(snapshot, cdekOrderUuid, order.id);
+  console.debug('[shipmentService.syncShipment] snapshot', {
+    orderId,
+    shipmentStatusRaw: snapshot.status,
+    waybillUrl: snapshot.relatedEntities.waybillUrl,
+    relatedEntities: snapshot.relatedEntities,
+    rawRelatedEntities: snapshot.raw.related_entities ?? []
+  });
 
   const updated = await prisma.$transaction(async (tx) => {
     const shipment = await tx.orderShipment.upsert({
@@ -439,8 +469,19 @@ export const shipmentService = {
 
     const statusRaw = safeRecord(shipment.statusRaw);
     const printRaw = safeRecord(statusRaw.print);
-    const waybillUrl = String(printRaw.waybillUrl ?? '').trim() || null;
-    const barcodeUrls = Array.isArray(printRaw.barcodeUrls) ? printRaw.barcodeUrls.map((entry) => String(entry ?? '').trim()).filter(Boolean) : [];
+    const relatedEntities = parseRelatedEntityUrls(statusRaw.related_entities);
+    const waybillUrl = String(printRaw.waybillUrl ?? '').trim() || relatedEntities.waybillUrl;
+    const barcodeUrlsFromPrint = Array.isArray(printRaw.barcodeUrls) ? printRaw.barcodeUrls.map((entry) => String(entry ?? '').trim()).filter(Boolean) : [];
+    const barcodeUrls = barcodeUrlsFromPrint.length ? barcodeUrlsFromPrint : relatedEntities.barcodeUrls;
+
+    console.debug('[shipmentService.getPrintableForms] parsed', {
+      orderId,
+      waybillUrl,
+      printWaybillUrl: printRaw.waybillUrl ?? null,
+      rawRelatedEntities: statusRaw.related_entities ?? [],
+      parsedRelatedEntities: relatedEntities,
+      shipmentStatusRaw: shipment.statusRaw
+    });
 
     return { waybillUrl, barcodeUrls, shipment };
   }
