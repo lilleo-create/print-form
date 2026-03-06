@@ -3,12 +3,9 @@ import assert from 'node:assert/strict';
 import express from 'express';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
-import axios from 'axios';
 import { sellerRoutes } from './sellerRoutes';
 import { prisma } from '../lib/prisma';
 import { env } from '../config/env';
-import { shipmentService } from '../services/shipmentService';
-import { sellerOrderDocumentsService } from '../services/sellerOrderDocumentsService';
 import { cdekService } from '../services/cdekService';
 
 const buildApp = () => {
@@ -24,6 +21,7 @@ const mockAuth = () => {
   (prisma.user.findUnique as any) = async () => ({ role: 'SELLER' });
   (prisma.sellerProfile.findUnique as any) = async () => ({ id: 'sp-1' });
   (prisma.order.update as any) = async ({ where }: any) => ({ id: where?.id ?? 'order-own' });
+  (prisma.orderShipment.update as any) = async ({ where, data }: any) => ({ id: where?.id ?? 'shipment-1', ...data });
   (prisma.payment.findFirst as any) = async () => ({ status: 'SUCCEEDED' });
 };
 
@@ -47,8 +45,8 @@ const mockOrder = (orderId: string) => ({
 
 test('seller documents endpoints return application/pdf and 200 for own order', async () => {
   mockAuth();
-  (shipmentService.getPrintableForms as any) = async () => ({ waybillUrl: 'https://example.test/waybill.pdf', barcodeUrls: [] });
-  (axios.get as any) = async () => ({ data: Buffer.from('%PDF-label%') });
+  (cdekService.getOrderPrintStatus as any) = async () => ({ status: 'READY' });
+  (cdekService.downloadOrderPrintPdf as any) = async () => Buffer.from('%PDF-ready%');
   (prisma.order.findFirst as any) = async ({ where }: any) => {
     if (where.id === 'order-own') return mockOrder('order-own');
     return null;
@@ -108,13 +106,10 @@ test('seller label/act return NEED_READY_TO_SHIP when CDEK shipment is missing',
 });
 
 
-test('handover act does not require waybill forms and normalizes pdf payload', async () => {
+test('handover act is downloaded from CDEK order print API', async () => {
   mockAuth();
-  (shipmentService.getPrintableForms as any) = async () => {
-    throw new Error('should not be called for handover act');
-  };
-  const encodedPdf = Buffer.from('%PDF-1.4 mock%').toString('base64');
-  (sellerOrderDocumentsService.buildHandoverAct as any) = async () => encodedPdf;
+  (cdekService.getOrderPrintStatus as any) = async () => ({ status: 'READY' });
+  (cdekService.downloadOrderPrintPdf as any) = async () => Buffer.from('%PDF-1.4 mock-from-cdek%');
   (prisma.order.findFirst as any) = async ({ where }: any) => {
     if (where.id === 'order-own') return mockOrder('order-own');
     return null;
@@ -127,17 +122,14 @@ test('handover act does not require waybill forms and normalizes pdf payload', a
 
   assert.equal(act.status, 200);
   assert.match(act.headers['content-type'] ?? '', /application\/pdf/);
-  assert.equal(Number(act.headers['content-length']), Buffer.from('%PDF-1.4 mock%').length);
+  assert.equal(Number(act.headers['content-length']), Buffer.from('%PDF-1.4 mock-from-cdek%').length);
 });
 
 
-test('seller label route falls back to CDEK print task API when waybillUrl is missing', async () => {
+test('seller label route uses CDEK order print API when print task is ready', async () => {
   mockAuth();
-  (shipmentService.getPrintableForms as any) = async () => ({ waybillUrl: null, barcodeUrls: [] });
-  (cdekService.getWaybillPdfByOrderUuid as any) = async (uuid: string) => {
-    assert.equal(uuid, 'cdek-uuid');
-    return Buffer.from('%PDF-fallback-label%');
-  };
+  (cdekService.getOrderPrintStatus as any) = async () => ({ status: 'READY' });
+  (cdekService.downloadOrderPrintPdf as any) = async () => Buffer.from('%PDF-fallback-label%');
   (prisma.order.findFirst as any) = async ({ where }: any) => {
     if (where.id === 'order-own') return mockOrder('order-own');
     return null;
@@ -152,12 +144,9 @@ test('seller label route falls back to CDEK print task API when waybillUrl is mi
   assert.match(label.headers['content-type'] ?? '', /application\/pdf/);
 });
 
-test('seller label route returns FORMS_NOT_READY when print task pdf is not ready', async () => {
+test('seller label route returns FORMS_NOT_READY when print task is processing', async () => {
   mockAuth();
-  (shipmentService.getPrintableForms as any) = async () => ({ waybillUrl: null, barcodeUrls: [] });
-  (cdekService.getWaybillPdfByOrderUuid as any) = async () => {
-    throw new Error('print task is processing');
-  };
+  (cdekService.getOrderPrintStatus as any) = async () => ({ status: 'PROCESSING' });
   (prisma.order.findFirst as any) = async ({ where }: any) => {
     if (where.id === 'order-own') return mockOrder('order-own');
     return null;

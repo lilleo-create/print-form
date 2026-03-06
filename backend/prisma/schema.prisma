@@ -320,6 +320,9 @@ model OrderShipment {
   destinationStationSnapshot Json?
   offerPayload               String?
   requestId                  String?
+  actPrintRequestUuid        String?
+  labelPrintRequestUuid      String?
+  barcodePrintRequestUuid    String?
   status                     String
   statusRaw                  Json?
   lastSyncAt                 DateTime?
