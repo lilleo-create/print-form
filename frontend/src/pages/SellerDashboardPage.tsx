@@ -104,6 +104,10 @@ export const SellerDashboardPage = () => {
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'ALL'>('ALL');
   const [orderUpdateError, setOrderUpdateError] = useState<string | null>(null);
   const [documentErrors, setDocumentErrors] = useState<Record<string, { label?: string; act?: string }>>({});
+  const [readyLoadingByOrder, setReadyLoadingByOrder] = useState<Record<string, boolean>>({});
+  const [refreshLoadingByOrder, setRefreshLoadingByOrder] = useState<Record<string, boolean>>({});
+  const [labelLoadingByOrder, setLabelLoadingByOrder] = useState<Record<string, boolean>>({});
+  const [actLoadingByOrder, setActLoadingByOrder] = useState<Record<string, boolean>>({});
   const [trackingSearch, setTrackingSearch] = useState('');
   const [trackingResult, setTrackingResult] = useState<TrackingResult | null>(null);
 
@@ -570,7 +574,9 @@ export const SellerDashboardPage = () => {
   };
 
   const handleReadyToShip = async (orderId: string) => {
+    if (readyLoadingByOrder[orderId]) return;
     setOrderUpdateError(null);
+    setReadyLoadingByOrder((prev) => ({ ...prev, [orderId]: true }));
 
     try {
       await ordersApi.readyToShip(orderId);
@@ -592,6 +598,26 @@ export const SellerDashboardPage = () => {
       setOrderUpdateError(
         'Не удалось создать заявку доставки. Проверьте точку отгрузки и данные ПВЗ.'
       );
+    } finally {
+      setReadyLoadingByOrder((prev) => ({ ...prev, [orderId]: false }));
+    }
+  };
+
+  const handleManualSync = async (order: Order) => {
+    const shipmentId = order.shipment?.id;
+    if (!shipmentId || refreshLoadingByOrder[order.id]) return;
+
+    setOrderUpdateError(null);
+    setRefreshLoadingByOrder((prev) => ({ ...prev, [order.id]: true }));
+    setDocumentErrors((prev) => ({ ...prev, [order.id]: { ...prev[order.id], label: undefined, act: undefined } }));
+
+    try {
+      await ordersApi.syncShipment(shipmentId);
+      await loadOrders();
+    } catch (error) {
+      setOrderUpdateError(normalizeApiError(error).message || 'Не удалось обновить данные доставки.');
+    } finally {
+      setRefreshLoadingByOrder((prev) => ({ ...prev, [order.id]: false }));
     }
   };
 
@@ -614,39 +640,43 @@ export const SellerDashboardPage = () => {
   };
 
   const handleDownloadLabel = async (order: Order) => {
+    if (labelLoadingByOrder[order.id]) return;
     setOrderUpdateError(null);
+    setLabelLoadingByOrder((prev) => ({ ...prev, [order.id]: true }));
     setDocumentErrors((prev) => ({ ...prev, [order.id]: { ...prev[order.id], label: undefined } }));
 
     try {
       const blob = await ordersApi.downloadSellerDocument(order.id, 'label');
       triggerDownload(blob, `cdek-label-${order.id}.pdf`);
-      await loadOrders();
     } catch (error) {
       const normalized = normalizeApiError(error);
       if (normalized.code === 'FORMS_NOT_READY') {
-        setDocumentErrors((prev) => ({ ...prev, [order.id]: { ...prev[order.id], label: 'Документы формируются…' } }));
-        setTimeout(() => void handleDownloadLabel(order), 2000);
+        setDocumentErrors((prev) => ({ ...prev, [order.id]: { ...prev[order.id], label: 'Документы ещё формируются. Нажмите «Обновить» позже.' } }));
         return;
       }
       setDocumentErrors((prev) => ({ ...prev, [order.id]: { ...prev[order.id], label: 'Ошибка документа' } }));
+    } finally {
+      setLabelLoadingByOrder((prev) => ({ ...prev, [order.id]: false }));
     }
   };
 
   const handleDownloadAct = async (order: Order) => {
+    if (actLoadingByOrder[order.id]) return;
     setOrderUpdateError(null);
+    setActLoadingByOrder((prev) => ({ ...prev, [order.id]: true }));
     setDocumentErrors((prev) => ({ ...prev, [order.id]: { ...prev[order.id], act: undefined } }));
     try {
       const blob = await ordersApi.downloadSellerDocument(order.id, 'handover-act');
       triggerDownload(blob, `cdek-act-${order.id}.pdf`);
-      await loadOrders();
     } catch (error) {
       const normalized = normalizeApiError(error);
       if (normalized.code === 'FORMS_NOT_READY') {
-        setDocumentErrors((prev) => ({ ...prev, [order.id]: { ...prev[order.id], act: 'Документы формируются…' } }));
-        setTimeout(() => void handleDownloadAct(order), 2000);
+        setDocumentErrors((prev) => ({ ...prev, [order.id]: { ...prev[order.id], act: 'Документы ещё формируются. Нажмите «Обновить» позже.' } }));
         return;
       }
       setDocumentErrors((prev) => ({ ...prev, [order.id]: { ...prev[order.id], act: 'Ошибка документа' } }));
+    } finally {
+      setActLoadingByOrder((prev) => ({ ...prev, [order.id]: false }));
     }
   };
 
@@ -689,10 +719,12 @@ export const SellerDashboardPage = () => {
   const hasShipment = (order: Order) => Boolean(order.cdekOrderId || order.shipment?.id);
 
   const canDownloadLabel = (order: Order) => {
-    return isOrderPaid(order) && hasShipment(order) && order.status !== 'CANCELLED';
+    const needsManualRefresh = hasPendingManualRefresh(order);
+    return isOrderPaid(order) && hasShipment(order) && order.status !== 'CANCELLED' && !needsManualRefresh && getFormsStatus(order) === 'READY';
   };
   const canDownloadAct = (order: Order) => {
-    return isOrderPaid(order) && hasShipment(order) && order.status !== 'CANCELLED';
+    const needsManualRefresh = hasPendingManualRefresh(order);
+    return isOrderPaid(order) && hasShipment(order) && order.status !== 'CANCELLED' && !needsManualRefresh && getFormsStatus(order) === 'READY';
   };
   const canReadyToShip = (order: Order) => {
     const isNotTerminal = order.status !== 'CANCELLED' && order.status !== 'DELIVERED';
@@ -706,6 +738,26 @@ export const SellerDashboardPage = () => {
     if (!isOrderPaid(order)) return 'Ожидает оплаты';
     if (!order.isPacked) return 'Отметьте шаг «Упаковка»';
     return null;
+  };
+
+  const getFormsStatus = (order: Order): 'NOT_REQUESTED' | 'FORMING' | 'READY' => {
+    if (!hasShipment(order)) return 'NOT_REQUESTED';
+    return order.shipment?.formsStatus ?? 'FORMING';
+  };
+
+  const hasPendingManualRefresh = (order: Order) => {
+    const readyAt = order.readyForShipmentAt;
+    const manualSyncAt = order.shipment?.lastManualSyncAt;
+    if (!readyAt) return false;
+    if (!manualSyncAt) return true;
+    return new Date(manualSyncAt).getTime() < new Date(readyAt).getTime();
+  };
+
+  const documentsStatusText = (order: Order) => {
+    if (!hasShipment(order)) return 'Документы: не запрошены';
+    if (hasPendingManualRefresh(order)) return 'Документы: формируются';
+    if (getFormsStatus(order) === 'READY') return 'Документы: готовы';
+    return 'Документы: формируются';
   };
 
   const getOrderDeliveryLabel = (order: Order) => {
@@ -1239,21 +1291,37 @@ export const SellerDashboardPage = () => {
                                 Трек-номер: {order.trackingNumber ?? '—'}
                               </p>
 
+                              <p className={styles.muted}>{documentsStatusText(order)}</p>
+                              {hasPendingManualRefresh(order) && (
+                                <p className={styles.muted}>Документы ещё формируются. Нажмите «Обновить» позже.</p>
+                              )}
+
                               <Button
                                 type="button"
                                 variant="secondary"
-                                onClick={() => handleReadyToShip(order.id)}
+                                onClick={() => void handleReadyToShip(order.id)}
                                 disabled={
-                                  !canReadyToShip(order)
+                                  !canReadyToShip(order) || Boolean(readyLoadingByOrder[order.id])
                                 }
                               >
-                                Готов к отгрузке
+                                {readyLoadingByOrder[order.id] ? 'Отправка…' : 'Готов к отгрузке'}
                               </Button>
                               {readyToShipDisabledReason(order) && (
                                   <p className={styles.muted}>
                                     {readyToShipDisabledReason(order)}
                                   </p>
                                 )}
+
+                              {hasShipment(order) && (
+                                <Button
+                                  type="button"
+                                  variant="secondary"
+                                  onClick={() => void handleManualSync(order)}
+                                  disabled={Boolean(refreshLoadingByOrder[order.id])}
+                                >
+                                  {refreshLoadingByOrder[order.id] ? 'Обновляем…' : 'Обновить'}
+                                </Button>
+                              )}
 
                               <details>
                                 <summary>Данные для доставки</summary>
@@ -1294,9 +1362,9 @@ export const SellerDashboardPage = () => {
                                 variant="ghost"
                                 className={order.isLabelPrinted ? styles.documentPrintedButton : undefined}
                                 onClick={() => void handleDownloadLabel(order)}
-                                disabled={!canDownloadLabel(order)}
+                                disabled={!canDownloadLabel(order) || Boolean(labelLoadingByOrder[order.id])}
                               >
-                                Скачать ярлык
+                                {labelLoadingByOrder[order.id] ? 'Скачивание…' : 'Скачать ярлык'}
                               </Button>
                               {documentErrors[order.id]?.label && <p className={styles.error}>{documentErrors[order.id]?.label}</p>}
 
@@ -1305,9 +1373,9 @@ export const SellerDashboardPage = () => {
                                 variant="ghost"
                                 className={order.isActPrinted ? styles.documentPrintedButton : undefined}
                                 onClick={() => void handleDownloadAct(order)}
-                                disabled={!canDownloadAct(order)}
+                                disabled={!canDownloadAct(order) || Boolean(actLoadingByOrder[order.id])}
                               >
-                                Скачать акт
+                                {actLoadingByOrder[order.id] ? 'Скачивание…' : 'Скачать акт'}
                               </Button>
                               {documentErrors[order.id]?.act && <p className={styles.error}>{documentErrors[order.id]?.act}</p>}
 
