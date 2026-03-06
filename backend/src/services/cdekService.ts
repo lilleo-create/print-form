@@ -90,6 +90,36 @@ type CdekOrdersListResponse = {
   requests?: CdekApiRequestInfo[];
 };
 
+type CdekTariffAndServiceResponse = {
+  tariff_codes?: Array<{ tariff_code?: number }>;
+  errors?: CdekApiError[];
+  warnings?: CdekApiError[];
+};
+
+type CdekNormalizedPackage = {
+  weight: number;
+  length: number;
+  width: number;
+  height: number;
+};
+
+type CdekAvailableTariffsResult = {
+  tariffCodes: number[];
+  errors: CdekApiError[];
+  warnings: CdekApiError[];
+};
+
+type CdekResolvedTariff = {
+  selectedTariffCode: number | null;
+  fromCityCode: number;
+  toCityCode: number;
+  routeType: NonNullable<CreateOrderParams['routeType']>;
+  packageData: CdekNormalizedPackage;
+  availableTariffs: number[];
+  errors: CdekApiError[];
+  warnings: CdekApiError[];
+};
+
 export type CdekOrderSnapshot = {
   cdekOrderId: string;
   status: string;
@@ -130,6 +160,23 @@ class CdekService {
     return Number.isFinite(raw) && raw > 0 ? Math.trunc(raw) : 136;
   }
 
+  private normalizeDimension(value?: number) {
+    const normalized = Math.trunc(Number(value ?? NaN));
+    if (!Number.isFinite(normalized) || normalized <= 0) return 10;
+    if (normalized > 100) return 10;
+    return normalized;
+  }
+
+  private normalizePackageData(params: CreateOrderParams): CdekNormalizedPackage {
+    const weight = Math.max(1, Math.trunc(Number(params.weightGrams ?? 500)));
+    return {
+      weight,
+      length: this.normalizeDimension(params.lengthCm),
+      width: this.normalizeDimension(params.widthCm),
+      height: this.normalizeDimension(params.heightCm)
+    };
+  }
+
   private getTariffCandidates(routeType: CreateOrderParams['routeType']) {
     const defaultTariff = this.resolveDefaultTariffCode();
     const routeTariffs: Record<NonNullable<CreateOrderParams['routeType']>, number[]> = {
@@ -143,65 +190,90 @@ class CdekService {
     return [...new Set([...candidates, defaultTariff])];
   }
 
-  private extractApiError(error: unknown) {
-    const candidate = error as {
-      message?: string;
-      response?: { data?: { code?: string; message?: string } };
-    };
-    const code = String(candidate?.response?.data?.code ?? '').trim();
-    const message = String(candidate?.response?.data?.message ?? candidate?.message ?? '').trim();
+  private normalizeRouteType(routeType?: CreateOrderParams['routeType']): NonNullable<CreateOrderParams['routeType']> {
+    return routeType ?? 'PVZ_TO_PVZ';
+  }
+
+  async getAvailableTariffs(params: {
+    fromCityCode: number;
+    toCityCode: number;
+    packageData: CdekNormalizedPackage;
+  }): Promise<CdekAvailableTariffsResult> {
+    const token = await this.getToken();
+    const { baseUrl } = getCdekConfig();
+
+    const response = await this.request<CdekTariffAndServiceResponse>('getAvailableTariffs', {
+      method: 'POST',
+      url: `${baseUrl}/v2/calculator/tariffAndService`,
+      headers: { Authorization: `Bearer ${token}` },
+      data: {
+        from_location: { code: params.fromCityCode },
+        to_location: { code: params.toCityCode },
+        packages: [params.packageData]
+      }
+    });
+
+    const tariffCodes = Array.from(new Set((response.tariff_codes ?? [])
+      .map((entry) => Number(entry?.tariff_code ?? 0))
+      .filter((code) => Number.isFinite(code) && code > 0)
+      .map((code) => Math.trunc(code))));
+
     return {
-      code: code || 'CDEK_TARIFF_UNAVAILABLE',
-      message: message || 'Тариф CDEK недоступен для выбранного направления.'
+      tariffCodes,
+      errors: Array.isArray(response.errors) ? response.errors : [],
+      warnings: Array.isArray(response.warnings) ? response.warnings : []
     };
   }
 
-  private async resolveTariffViaCalculator(params: CreateOrderParams, tariffCandidates: number[]) {
+  async resolveAvailableTariff(params: CreateOrderParams): Promise<CdekResolvedTariff> {
+    const routeType = this.normalizeRouteType(params.routeType);
+    const packageData = this.normalizePackageData(params);
+
     const fromPoint = await this.getPickupPointByCode(params.fromPvzCode);
     const toPoint = await this.getPickupPointByCode(params.toPvzCode);
     const fromCityCode = Number(fromPoint?.location?.city_code ?? 0);
     const toCityCode = Number(toPoint?.location?.city_code ?? 0);
 
     if (!Number.isFinite(fromCityCode) || fromCityCode <= 0) {
-      throw new Error(`CDEK_FROM_CITY_CODE_MISSING: ${params.fromPvzCode}`);
+      throw new Error(`CDEK_CITY_CODE_RESOLVE_FAILED: from=${params.fromPvzCode}`);
     }
     if (!Number.isFinite(toCityCode) || toCityCode <= 0) {
-      throw new Error(`CDEK_TO_CITY_CODE_MISSING: ${params.toPvzCode}`);
+      throw new Error(`CDEK_CITY_CODE_RESOLVE_FAILED: to=${params.toPvzCode}`);
     }
 
-    const failedCandidates: CdekApiError[] = [];
+    console.info('[CDEK][resolveAvailableTariff][input]', {
+      orderId: params.orderId,
+      routeType,
+      fromCityCode,
+      toCityCode,
+      packageData
+    });
 
-    for (const tariffCode of tariffCandidates) {
-      try {
-        await this.calculateDelivery({
-          fromCityCode,
-          toCityCode,
-          weightGrams: params.weightGrams ?? 500,
-          lengthCm: params.lengthCm ?? 10,
-          widthCm: params.widthCm ?? 10,
-          heightCm: params.heightCm ?? 10,
-          tariffCode
-        });
+    const available = await this.getAvailableTariffs({ fromCityCode, toCityCode, packageData });
+    console.info('[CDEK][resolveAvailableTariff][tariffAndService]', {
+      orderId: params.orderId,
+      routeType,
+      availableTariffs: available.tariffCodes,
+      errors: available.errors,
+      warnings: available.warnings
+    });
 
-        return {
-          tariffCode,
-          requestErrors: failedCandidates
-        };
-      } catch (error) {
-        const parsedError = this.extractApiError(error);
-        failedCandidates.push(parsedError);
-        console.info('[CDEK][createOrder][calculator][tariff-unavailable]', {
-          orderId: params.orderId,
-          tariffCode,
-          code: parsedError.code,
-          message: parsedError.message
-        });
-      }
-    }
+    const preferredTariff = this.resolveDefaultTariffCode();
+    const routeCandidates = this.getTariffCandidates(routeType);
+
+    const selectedTariffCode = available.tariffCodes.includes(preferredTariff)
+      ? preferredTariff
+      : routeCandidates.find((candidate) => available.tariffCodes.includes(candidate)) ?? available.tariffCodes[0] ?? null;
 
     return {
-      tariffCode: null,
-      requestErrors: failedCandidates
+      selectedTariffCode,
+      fromCityCode,
+      toCityCode,
+      routeType,
+      packageData,
+      availableTariffs: available.tariffCodes,
+      errors: available.errors,
+      warnings: available.warnings
     };
   }
 
@@ -421,6 +493,7 @@ class CdekService {
   }
 
   private buildCreateOrderPayload(params: CreateOrderParams, tariffCode: number) {
+    const packageData = this.normalizePackageData(params);
     return {
       number: params.orderId,
       tariff_code: tariffCode,
@@ -443,10 +516,10 @@ class CdekService {
       packages: [
         {
           number: params.orderId,
-          weight: params.weightGrams ?? 500,
-          length: params.lengthCm ?? 10,
-          width: params.widthCm ?? 10,
-          height: params.heightCm ?? 10,
+          weight: packageData.weight,
+          length: packageData.length,
+          width: packageData.width,
+          height: packageData.height,
           comment: params.comment ?? '',
           items: params.items.map((item) => ({
             name: item.name,
@@ -504,14 +577,13 @@ class CdekService {
       orderId: params.orderId,
     });
 
-    const tariffCandidates = this.getTariffCandidates(params.routeType);
-    const tariffSelection = await this.resolveTariffViaCalculator(params, tariffCandidates);
-    const selectedTariffCode = tariffSelection.tariffCode;
+    const tariffSelection = await this.resolveAvailableTariff(params);
+    const selectedTariffCode = tariffSelection.selectedTariffCode;
 
     if (!selectedTariffCode) {
-      const firstError = tariffSelection.requestErrors[0] ?? {
-        code: 'CDEK_TARIFF_UNAVAILABLE',
-        message: 'Тариф CDEK недоступен для выбранного направления.'
+      const firstError = tariffSelection.errors[0] ?? {
+        code: 'CDEK_NO_TARIFFS_FOR_ROUTE',
+        message: 'Для выбранного направления и параметров отправления нет доступных тарифов CDEK.'
       };
 
       return {
@@ -526,6 +598,13 @@ class CdekService {
         raw: { requests: [{ state: 'INVALID', errors: [firstError] }] }
       };
     }
+
+    console.info('[CDEK][createOrder][selectedTariff]', {
+      orderId: params.orderId,
+      routeType: tariffSelection.routeType,
+      selectedTariffCode,
+      availableTariffs: tariffSelection.availableTariffs
+    });
 
     const response = await this.createOrderWithTariff(params, selectedTariffCode);
 
@@ -550,7 +629,7 @@ class CdekService {
       errors: validation.requestErrors,
       selectedTariffCode,
       routeType: params.routeType ?? 'PVZ_TO_PVZ',
-      tariffCandidates,
+      availableTariffs: tariffSelection.availableTariffs,
     });
 
     return {

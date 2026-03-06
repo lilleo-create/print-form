@@ -88,7 +88,11 @@ export const errorHandler = (
       normalizedCode === 'SHIPPING_ADDRESS_REQUIRED' ||
       normalizedCode === 'DELIVERY_DESTINATION_REQUIRED' ||
       normalizedCode === 'DELIVERY_METHOD_NOT_SUPPORTED' ||
-      normalizedCode === 'CDEK_TARIFF_UNAVAILABLE'
+      normalizedCode === 'CDEK_TARIFF_UNAVAILABLE' ||
+      normalizedCode === 'CDEK_NO_TARIFFS_FOR_ROUTE' ||
+      normalizedCode === 'CDEK_CITY_CODE_RESOLVE_FAILED' ||
+      normalizedCode === 'CDEK_INVALID_PVZ' ||
+      normalizedCode === 'CDEK_DIMENSIONS_EXCEEDED'
     ? 400
     : normalizedCode === 'ORDER_NOT_PAID' || normalizedCode === 'PICKUP_POINT_REQUIRED'
     ? 409

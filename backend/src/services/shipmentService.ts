@@ -63,8 +63,17 @@ const ensureShipmentTables = async () => undefined;
 const toJson = (value: Record<string, unknown> | undefined): Prisma.InputJsonObject | undefined =>
   value ? (value as Prisma.InputJsonObject) : undefined;
 
+const CDEK_BUSINESS_ERROR_MESSAGES: Record<string, string> = {
+  CDEK_TARIFF_UNAVAILABLE: 'Тариф CDEK недоступен для выбранного направления или параметров отправления.',
+  CDEK_NO_TARIFFS_FOR_ROUTE: 'Для выбранного направления и параметров отправления нет доступных тарифов CDEK.',
+  CDEK_CITY_CODE_RESOLVE_FAILED: 'Не удалось определить код города CDEK для выбранного маршрута.',
+  CDEK_INVALID_PVZ: 'Выбранный ПВЗ CDEK недействителен или недоступен.',
+  CDEK_DIMENSIONS_EXCEEDED: 'Габариты отправления превышают допустимые ограничения CDEK.'
+};
+
 const makeError = (code: string, message?: string) => {
-  const error = new Error(message ?? code) as Error & { code: string };
+  const mappedMessage = CDEK_BUSINESS_ERROR_MESSAGES[code] ?? code;
+  const error = new Error(message ?? mappedMessage) as Error & { code: string };
   error.code = code;
   return error;
 };
@@ -104,6 +113,29 @@ const hasTariffUnavailableError = (errors: Array<{ code?: string; message?: stri
   const code = String(first?.code ?? '').trim().toLowerCase();
   const message = String(first?.message ?? '').trim().toLowerCase();
   return code === 'err_result_service_empty' || message.includes('err_result_service_empty');
+};
+
+const mapCdekErrorToBusinessError = (errors: Array<{ code?: string; message?: string }> | undefined) => {
+  const first = errors?.[0];
+  const rawCode = String(first?.code ?? '').trim().toLowerCase();
+
+  if (rawCode === 'err_result_service_empty' || rawCode === 'cdek_tariff_unavailable') {
+    return { code: 'CDEK_TARIFF_UNAVAILABLE', message: CDEK_BUSINESS_ERROR_MESSAGES.CDEK_TARIFF_UNAVAILABLE };
+  }
+  if (rawCode === 'cdek_no_tariffs_for_route') {
+    return { code: 'CDEK_NO_TARIFFS_FOR_ROUTE', message: CDEK_BUSINESS_ERROR_MESSAGES.CDEK_NO_TARIFFS_FOR_ROUTE };
+  }
+  if (rawCode.includes('city_code_resolve_failed')) {
+    return { code: 'CDEK_CITY_CODE_RESOLVE_FAILED', message: CDEK_BUSINESS_ERROR_MESSAGES.CDEK_CITY_CODE_RESOLVE_FAILED };
+  }
+  if (rawCode.includes('pvz')) {
+    return { code: 'CDEK_INVALID_PVZ', message: CDEK_BUSINESS_ERROR_MESSAGES.CDEK_INVALID_PVZ };
+  }
+
+  return {
+    code: 'CDEK_TARIFF_UNAVAILABLE',
+    message: first?.message?.trim() || CDEK_BUSINESS_ERROR_MESSAGES.CDEK_TARIFF_UNAVAILABLE
+  };
 };
 export const normalizePvzProvider = async <T extends Pick<Order, 'id' | 'carrier' | 'buyerPickupPvzId' | 'buyerPickupPvzMeta'>>(order: T) => {
   const carrier = String(order.carrier ?? '').toUpperCase();
@@ -390,7 +422,8 @@ export const createShipmentCdek = async (orderId: string, sellerId?: string) => 
     };
 
     if (!isValid && hasTariffUnavailableError(created.requestErrors as Array<{ code?: string; message?: string }>)) {
-      throw makeError('CDEK_TARIFF_UNAVAILABLE', created.requestErrors?.[0]?.message ?? 'Тариф CDEK недоступен для выбранного направления.');
+      const mappedError = mapCdekErrorToBusinessError(created.requestErrors as Array<{ code?: string; message?: string }>);
+      throw makeError(mappedError.code, mappedError.message);
     }
 
     const shipment = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
@@ -446,7 +479,7 @@ export const createShipmentCdek = async (orderId: string, sellerId?: string) => 
           cdekRequestUuid: created.cdekRequestUuid,
           state: created.state,
           errorCode: created.requestErrors?.[0]?.code ?? 'CDEK_TARIFF_UNAVAILABLE',
-          errorMessage: created.requestErrors?.[0]?.message ?? 'Ошибка оформления доставки в CDEK'
+          errorMessage: mapCdekErrorToBusinessError(created.requestErrors as Array<{ code?: string; message?: string }>).message
         }
       };
     }
@@ -488,11 +521,8 @@ export const markReadyToShipCdek = async (orderId: string, sellerId?: string) =>
 
   if (shipmentForOrder.status === 'FAILED') {
     const statusRaw = safeRecord(shipmentForOrder.statusRaw);
-    const errorCode = String(statusRaw.errorCode ?? '').trim().toLowerCase();
-    if (errorCode === 'err_result_service_empty' || errorCode === 'cdek_tariff_unavailable') {
-      throw makeError('CDEK_TARIFF_UNAVAILABLE');
-    }
-    throw makeError('CDEK_SHIPMENT_INVALID', 'Ошибка оформления доставки. Тариф CDEK недоступен для выбранного направления.');
+    const mappedError = mapCdekErrorToBusinessError([{ code: String(statusRaw.errorCode ?? ''), message: String(statusRaw.errorMessage ?? '') }]);
+    throw makeError(mappedError.code, mappedError.message);
   }
 
   const now = new Date();
