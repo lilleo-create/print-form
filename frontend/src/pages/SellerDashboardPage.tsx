@@ -107,6 +107,8 @@ export const SellerDashboardPage = () => {
   const [trackingDrafts, setTrackingDrafts] = useState<
     Record<string, { trackingNumber: string; carrier: string }>
   >({});
+  const [labelDownloaded, setLabelDownloaded] = useState<Record<string, boolean>>({});
+  const [actDownloaded, setActDownloaded] = useState<Record<string, boolean>>({});
 
   const [kycSubmission, setKycSubmission] =
     useState<SellerKycSubmission | null>(null);
@@ -705,6 +707,7 @@ export const SellerDashboardPage = () => {
       link.download = `shipping-label-${orderId}.pdf`;
       link.click();
       URL.revokeObjectURL(url);
+      setLabelDownloaded((prev) => ({ ...prev, [orderId]: true }));
     } catch {
       setOrderUpdateError('Не удалось скачать ярлык.');
     }
@@ -720,6 +723,7 @@ export const SellerDashboardPage = () => {
       link.download = `cdek-act-${orderId}.pdf`;
       link.click();
       URL.revokeObjectURL(url);
+      setActDownloaded((prev) => ({ ...prev, [orderId]: true }));
     } catch {
       setOrderUpdateError('Не удалось скачать акт.');
     }
@@ -1243,15 +1247,7 @@ export const SellerDashboardPage = () => {
                   ) : ordersView.length === 0 ? (
                     <p className={styles.muted}>Заказов пока нет.</p>
                   ) : (
-                    <div className={styles.ordersTable}>
-                      <div className={styles.ordersHeader}>
-                        <span>Заказ</span>
-                        <span>Покупатель</span>
-                        <span>Сумма</span>
-                        <span>Статус</span>
-                        <span>Доставка</span>
-                      </div>
-
+                    <div className={styles.ordersList}>
                       {ordersView.map((order) => {
                         const currentIndex = statusFlow.indexOf(order.status);
                         const nextStatus = statusFlow[currentIndex + 1];
@@ -1261,30 +1257,35 @@ export const SellerDashboardPage = () => {
                         );
 
                         return (
-                          <div key={order.id} className={styles.ordersRow}>
-                            <div className={styles.cellTruncate}>
-                              <strong>№{order.id}</strong>
-                              <p className={styles.muted}>
-                                {formatDate(order.createdAt)}
-                              </p>
-                            </div>
+                          <div key={order.id} className={styles.orderCard}>
+                            <div className={styles.orderCardTop}>
+                              <div className={styles.orderCardLeft}>
+                                <div className={styles.cellTruncate}>
+                                  <strong>№{order.id}</strong>
+                                  <p className={styles.muted}>
+                                    {formatDate(order.createdAt)}
+                                  </p>
+                                </div>
 
-                            <div className={styles.cellTruncate}>
-                              <p>
-                                {order.contact?.name ??
-                                  order.buyer?.name ??
-                                  '—'}
-                              </p>
-                              <p className={styles.muted}>
-                                {order.contact?.phone ??
-                                  order.buyer?.email ??
-                                  ''}
-                              </p>
-                            </div>
+                                <div className={styles.cellTruncate}>
+                                  <p>
+                                    {order.contact?.name ??
+                                      order.buyer?.name ??
+                                      '—'}
+                                  </p>
+                                  <p className={styles.muted}>
+                                    {order.contact?.phone ??
+                                      order.buyer?.email ??
+                                      ''}
+                                  </p>
+                                </div>
+                              </div>
 
-                            <div>{formatCurrency(total)} ₽</div>
+                              <div className={styles.orderCardRight}>
+                                <p className={styles.orderAmount}>
+                                  {formatCurrency(total)} ₽
+                                </p>
 
-                            <div>
                               <select
                                 className={styles.select}
                                 value={order.status}
@@ -1311,6 +1312,7 @@ export const SellerDashboardPage = () => {
                               {orderUpdateId === order.id && (
                                 <p className={styles.muted}>Обновляем...</p>
                               )}
+                              </div>
                             </div>
 
                             <div className={styles.deliveryInputs}>
@@ -1403,6 +1405,7 @@ export const SellerDashboardPage = () => {
                               <Button
                                 type="button"
                                 variant="ghost"
+                                className={labelDownloaded[order.id] ? styles.downloadedButton : ''}
                                 onClick={() => order.shipment?.id && handleDownloadLabel(order.shipment.id, order.id)}
                                 disabled={!order.shipment?.id || !order.trackingNumber}
                               >
@@ -1414,6 +1417,7 @@ export const SellerDashboardPage = () => {
                               <Button
                                 type="button"
                                 variant="ghost"
+                                className={actDownloaded[order.id] ? styles.downloadedButton : ''}
                                 onClick={() => order.shipment?.id && handleDownloadAct(order.shipment.id, order.id)}
                                 disabled={!order.shipment?.id}
                               >
