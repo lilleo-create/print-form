@@ -12,6 +12,8 @@ export type ShipmentInternalStatus =
   | 'CANCELLED'
   | 'FAILED';
 
+type ShipmentFormsStatus = 'NOT_REQUESTED' | 'FORMING' | 'READY';
+
 const FINAL_STATUSES: ShipmentInternalStatus[] = ['DELIVERED', 'CANCELLED', 'FAILED'];
 const CDEK_PVZ_CODE_REGEX = /^[A-Z]{3}\d{2,6}$/;
 
@@ -25,6 +27,35 @@ export const mapExternalStatusToInternal = (status?: string | null): ShipmentInt
     return 'IN_TRANSIT';
   }
   return 'CREATED';
+};
+
+const hasRealDocuments = (statusRaw: Record<string, unknown>) => {
+  const print = safeRecord(statusRaw.print);
+  const waybillUrl = String(print.waybillUrl ?? '').trim();
+  const barcodeUrls = Array.isArray(print.barcodeUrls)
+    ? print.barcodeUrls.map((item) => String(item ?? '').trim()).filter(Boolean)
+    : [];
+  const relatedEntities = Array.isArray(statusRaw.related_entities) ? statusRaw.related_entities : [];
+  return Boolean(waybillUrl || barcodeUrls.length || relatedEntities.length);
+};
+
+const evaluateSnapshotValidity = (snapshot: CdekOrderSnapshot) => {
+  const requestState = String(snapshot.requestState ?? '').trim().toUpperCase();
+  const requestErrors = Array.isArray(snapshot.requestErrors) ? snapshot.requestErrors : [];
+  const hasRequestErrors = requestErrors.length > 0;
+  const hasTracking = Boolean(String(snapshot.trackingNumber ?? '').trim());
+  const hasDocs = Boolean(snapshot.relatedEntities.waybillUrl) || snapshot.relatedEntities.barcodeUrls.length > 0;
+  const isInvalid = snapshot.isRequestInvalid || requestState === 'INVALID' || hasRequestErrors;
+
+  return {
+    isValid: !isInvalid,
+    requestState,
+    requestErrors,
+    hasTracking,
+    hasDocs,
+    errorCode: requestErrors[0]?.code ?? (isInvalid ? 'CDEK_CREATE_INVALID' : ''),
+    errorMessage: requestErrors[0]?.message ?? (isInvalid ? 'Ошибка оформления доставки в CDEK' : '')
+  };
 };
 
 const ensureShipmentTables = async () => undefined;
@@ -71,6 +102,9 @@ const buildStatusRaw = (snapshot: CdekOrderSnapshot, fallbackUuid: string, order
   cdek_order_uuid: snapshot.cdekOrderId || fallbackUuid,
   cdek_request_uuid: snapshot.requestUuid || '',
   cdek_state: snapshot.status || '',
+  requestState: snapshot.requestState || '',
+  requestErrors: snapshot.requestErrors ?? [],
+  isValid: !snapshot.isRequestInvalid,
   trackingNumber: snapshot.trackingNumber || '',
   print: {
     waybillUrl: snapshot.relatedEntities.waybillUrl,
@@ -81,6 +115,7 @@ const buildStatusRaw = (snapshot: CdekOrderSnapshot, fallbackUuid: string, order
 
 const getFormsStatusFromRaw = (statusRaw: Record<string, unknown> | null | undefined): 'NOT_REQUESTED' | 'FORMING' | 'READY' => {
   const raw = statusRaw ?? {};
+  if (raw.isValid === false) return 'NOT_REQUESTED';
   const explicit = String(raw.formsStatus ?? '').toUpperCase();
   if (explicit === 'READY' || explicit === 'FORMING' || explicit === 'NOT_REQUESTED') {
     return explicit as 'NOT_REQUESTED' | 'FORMING' | 'READY';
@@ -88,6 +123,7 @@ const getFormsStatusFromRaw = (statusRaw: Record<string, unknown> | null | undef
 
   const printRaw = safeRecord(raw.print);
   const waybillUrl = String(printRaw.waybillUrl ?? '').trim();
+  if (!waybillUrl && !hasRealDocuments(raw)) return 'NOT_REQUESTED';
   return waybillUrl ? 'READY' : 'FORMING';
 };
 
@@ -99,13 +135,17 @@ const syncShipmentByOrder = async (orderId: string) => {
   if (!cdekOrderUuid) throw makeError('CDEK_ORDER_UUID_MISSING');
 
   const snapshot = await cdekService.getOrderByUuid(cdekOrderUuid);
-  const nextStatus = mapExternalStatusToInternal(snapshot.status);
+  const validity = evaluateSnapshotValidity(snapshot);
+  const nextStatus = validity.isValid ? mapExternalStatusToInternal(snapshot.status) : 'FAILED';
   const statusRaw = buildStatusRaw(snapshot, cdekOrderUuid, order.id);
   const previousRaw = safeRecord(order.shipment?.statusRaw);
   const previousManualSyncAt = previousRaw.lastManualSyncAt;
-  const formsStatus = getFormsStatusFromRaw(statusRaw);
+  const formsStatus: ShipmentFormsStatus = validity.isValid ? getFormsStatusFromRaw(statusRaw) : 'NOT_REQUESTED';
   const nextStatusRaw = {
     ...statusRaw,
+    isValid: validity.isValid,
+    errorCode: validity.errorCode,
+    errorMessage: validity.errorMessage,
     formsStatus,
     ...(formsStatus === 'READY' ? { documentsReadyAt: new Date().toISOString() } : {}),
     ...(previousManualSyncAt ? { lastManualSyncAt: previousManualSyncAt } : {})
@@ -138,7 +178,8 @@ const syncShipmentByOrder = async (orderId: string) => {
       data: {
         cdekStatus: snapshot.status || undefined,
         cdekOrderId: snapshot.cdekOrderId || cdekOrderUuid,
-        trackingNumber: snapshot.trackingNumber || undefined
+        trackingNumber: validity.isValid ? (snapshot.trackingNumber || undefined) : null,
+        ...(validity.isValid ? {} : { status: 'READY_FOR_SHIPMENT' as any })
       }
     });
 
@@ -268,15 +309,23 @@ export const createShipmentCdek = async (orderId: string, sellerId?: string) => 
       heightCm: firstProduct?.dzCm ?? undefined
     });
 
-    if (!created.cdekOrderId) throw makeError('CDEK_CREATE_ORDER_NO_UUID');
+    const isValid = !created.isRequestInvalid;
+
+    if (!created.cdekOrderId && isValid) throw makeError('CDEK_CREATE_ORDER_NO_UUID');
 
     const statusRaw = {
       cdek_order_number: order.id,
-      cdek_order_uuid: created.cdekOrderId,
+      cdek_order_uuid: created.cdekOrderId ?? '',
       cdek_request_uuid: created.cdekRequestUuid ?? '',
       cdek_state: created.state ?? '',
+      requestState: created.requestState ?? '',
+      requestErrors: created.requestErrors ?? [],
+      isValid,
+      errorCode: created.requestErrors?.[0]?.code ?? '',
+      errorMessage: created.requestErrors?.[0]?.message ?? '',
       trackingNumber: created.trackingNumber ?? '',
-      formsStatus: 'FORMING'
+      formsStatus: isValid ? 'FORMING' : 'NOT_REQUESTED',
+      tariffCode: created.tariffCode ?? null
     };
 
     const shipment = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
@@ -289,7 +338,7 @@ export const createShipmentCdek = async (orderId: string, sellerId?: string) => 
           sourceStationId: fromPvzCode,
           destinationStationId: toPvzCode,
           requestId: internalRequestId,
-          status: 'READY_TO_SHIP',
+          status: isValid ? 'READY_TO_SHIP' : 'FAILED',
           statusRaw,
           lastSyncAt: now
         },
@@ -299,7 +348,7 @@ export const createShipmentCdek = async (orderId: string, sellerId?: string) => 
           sourceStationId: fromPvzCode,
           destinationStationId: toPvzCode,
           requestId: internalRequestId,
-          status: 'READY_TO_SHIP',
+          status: isValid ? 'READY_TO_SHIP' : 'FAILED',
           statusRaw,
           lastSyncAt: now
         }
@@ -309,18 +358,31 @@ export const createShipmentCdek = async (orderId: string, sellerId?: string) => 
         where: { id: order.id },
         data: {
           carrier: 'CDEK',
-          cdekOrderId: created.cdekOrderId,
-          cdekStatus: created.state || 'ACCEPTED',
-          trackingNumber: created.trackingNumber || null
+          cdekOrderId: created.cdekOrderId || null,
+          cdekStatus: created.state || null,
+          trackingNumber: isValid ? (created.trackingNumber || null) : null
         }
       });
 
       await tx.orderShipmentStatusHistory.create({
-        data: { shipmentId: nextShipment.id, status: 'READY_TO_SHIP', payloadRaw: statusRaw }
+        data: { shipmentId: nextShipment.id, status: isValid ? 'READY_TO_SHIP' : 'FAILED', payloadRaw: statusRaw }
       });
 
       return nextShipment;
     });
+
+    if (!isValid) {
+      return {
+        shipment,
+        cdek: {
+          cdekOrderId: created.cdekOrderId,
+          trackingNumber: null,
+          cdekRequestUuid: created.cdekRequestUuid,
+          state: created.state,
+          errorMessage: created.requestErrors?.[0]?.message ?? 'Ошибка оформления доставки в CDEK'
+        }
+      };
+    }
 
     return {
       shipment,
@@ -355,6 +417,10 @@ export const markReadyToShipCdek = async (orderId: string, sellerId?: string) =>
   const shipmentForOrder = await prisma.orderShipment.findUnique({ where: { orderId: order.id } });
   if (!shipmentForOrder || !cdekOrderId) {
     throw makeError('SHIPMENT_NOT_FOUND', 'Сначала нажмите «Готов к отгрузке».');
+  }
+
+  if (shipmentForOrder.status === 'FAILED') {
+    throw makeError('CDEK_SHIPMENT_INVALID', 'Ошибка оформления доставки. Тариф CDEK недоступен для выбранного направления.');
   }
 
   const now = new Date();
