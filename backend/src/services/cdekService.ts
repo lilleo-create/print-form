@@ -42,6 +42,7 @@ type CreateOrderParams = {
   orderId: string;
   fromPvzCode: string;
   toPvzCode: string;
+  routeType?: 'PVZ_TO_PVZ' | 'DOOR_TO_DOOR' | 'DOOR_TO_PVZ' | 'PVZ_TO_DOOR';
   comment?: string;
   recipientName: string;
   recipientPhone: string;
@@ -123,6 +124,24 @@ type CdekPrintLang = 'RUS' | 'ENG';
 class CdekService {
   private readonly pickupPointTariffCandidates = [136, 138, 234];
   private tokenCache: { token: string; expiresAtMs: number } | null = null;
+
+  private resolveDefaultTariffCode() {
+    const raw = Number(process.env.CDEK_TARIFF_CODE ?? 136);
+    return Number.isFinite(raw) && raw > 0 ? Math.trunc(raw) : 136;
+  }
+
+  private getTariffCandidates(routeType: CreateOrderParams['routeType']) {
+    const defaultTariff = this.resolveDefaultTariffCode();
+    const routeTariffs: Record<NonNullable<CreateOrderParams['routeType']>, number[]> = {
+      PVZ_TO_PVZ: this.pickupPointTariffCandidates,
+      DOOR_TO_DOOR: [137, 139, 233],
+      DOOR_TO_PVZ: [368, 137, 136],
+      PVZ_TO_DOOR: [139, 138, 136]
+    };
+
+    const candidates = routeType ? routeTariffs[routeType] : this.pickupPointTariffCandidates;
+    return [...new Set([...candidates, defaultTariff])];
+  }
 
   private async request<T>(
     methodName: string,
@@ -339,52 +358,64 @@ class CdekService {
     return { isInvalid, requestState, requestErrors };
   }
 
+  private buildCreateOrderPayload(params: CreateOrderParams, tariffCode: number) {
+    return {
+      number: params.orderId,
+      tariff_code: tariffCode,
+      shipment_point: params.fromPvzCode,
+      delivery_point: params.toPvzCode,
+      comment: params.comment ?? '',
+
+      recipient: {
+        name: params.recipientName,
+        phones: [{ number: params.recipientPhone }],
+      },
+
+      sender: {
+        name: params.senderName ?? 'Маркетплейс PrintForm',
+        phones: [{ number: params.senderPhone ?? '+70000000000' }],
+      },
+
+      services: [],
+
+      packages: [
+        {
+          number: params.orderId,
+          weight: params.weightGrams ?? 500,
+          length: params.lengthCm ?? 10,
+          width: params.widthCm ?? 10,
+          height: params.heightCm ?? 10,
+          comment: params.comment ?? '',
+          items: params.items.map((item) => ({
+            name: item.name,
+            ware_key: item.article ?? item.id,
+            payment: { value: 0 },
+            cost: item.price,
+            weight: 50,
+            amount: item.quantity,
+          })),
+        },
+      ],
+    };
+  }
+
   private async createOrderWithTariff(params: CreateOrderParams, tariffCode: number): Promise<CdekOrderResponse> {
     const token = await this.getToken();
     const { baseUrl } = getCdekConfig();
+    const payload = this.buildCreateOrderPayload(params, tariffCode);
+
+    console.info('[CDEK][createOrder][payload]', JSON.stringify({
+      orderId: params.orderId,
+      routeType: params.routeType ?? 'PVZ_TO_PVZ',
+      tariffCode,
+      payload
+    }, null, 2));
 
     return this.request<CdekOrderResponse>('createOrder', {
       method: 'POST',
       url: `${baseUrl}/v2/orders`,
       headers: { Authorization: `Bearer ${token}` },
-      data: {
-        number: params.orderId,
-        tariff_code: tariffCode,
-        shipment_point: params.fromPvzCode,
-        delivery_point: params.toPvzCode,
-        comment: params.comment ?? '',
-
-        recipient: {
-          name: params.recipientName,
-          phones: [{ number: params.recipientPhone }],
-        },
-
-        sender: {
-          name: params.senderName ?? 'Маркетплейс PrintForm',
-          phones: [{ number: params.senderPhone ?? '+70000000000' }],
-        },
-
-        services: [],
-
-        packages: [
-          {
-            number: params.orderId,
-            weight: params.weightGrams ?? 500,
-            length: params.lengthCm ?? 10,
-            width: params.widthCm ?? 10,
-            height: params.heightCm ?? 10,
-            comment: params.comment ?? '',
-            items: params.items.map((item) => ({
-              name: item.name,
-              ware_key: item.article ?? item.id,
-              payment: { value: 0 },
-              cost: item.price,
-              weight: 50,
-              amount: item.quantity,
-            })),
-          },
-        ],
-      },
+      data: payload,
     });
   }
 
@@ -413,7 +444,8 @@ class CdekService {
 
     let response: CdekOrderResponse | null = null;
     let selectedTariffCode: number | null = null;
-    for (const tariffCode of this.pickupPointTariffCandidates) {
+    const tariffCandidates = this.getTariffCandidates(params.routeType);
+    for (const tariffCode of tariffCandidates) {
       const candidateResponse = await this.createOrderWithTariff(params, tariffCode);
       const candidateValidation = this.isCreateRequestInvalid(candidateResponse);
       response = candidateResponse;
@@ -441,6 +473,8 @@ class CdekService {
       state,
       errors: validation.requestErrors,
       selectedTariffCode,
+      routeType: params.routeType ?? 'PVZ_TO_PVZ',
+      tariffCandidates,
     });
 
     return {
@@ -541,6 +575,7 @@ class CdekService {
     orderId: string;
     fromPvzCode: string;
     toPvzCode: string;
+    routeType?: 'PVZ_TO_PVZ' | 'DOOR_TO_DOOR' | 'DOOR_TO_PVZ' | 'PVZ_TO_DOOR';
     recipientName: string;
     recipientPhone: string;
     items: CreateOrderItem[];
@@ -556,6 +591,7 @@ class CdekService {
       orderId: payload.orderId,
       fromPvzCode: payload.fromPvzCode,
       toPvzCode: payload.toPvzCode,
+      routeType: payload.routeType,
       recipientName: payload.recipientName,
       recipientPhone: payload.recipientPhone,
       items: payload.items,
