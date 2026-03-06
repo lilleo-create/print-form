@@ -213,6 +213,38 @@
   gap: 12px;
 }
 
+.ordersList {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+.orderCard {
+  background: #0f1b2d;
+  border-radius: 12px;
+  border: 1px solid #24324a;
+  padding: 20px;
+  display: grid;
+  gap: 16px;
+}
+
+.orderCardTop {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr);
+  gap: 16px;
+}
+
+.orderCardLeft,
+.orderCardRight {
+  display: grid;
+  gap: 8px;
+}
+
+.orderAmount {
+  font-size: 20px;
+  font-weight: 700;
+}
+
 .ordersHeader,
 .ordersRow {
   display: grid;
@@ -261,6 +293,11 @@
 .deliveryInputs {
   display: grid;
   gap: 6px;
+}
+
+.downloadedButton {
+  border-color: #22c55e;
+  color: #4ade80;
 }
 
 .input {
@@ -443,6 +480,10 @@
   .ordersRow,
   .reportHeader,
   .reportRow {
+    grid-template-columns: 1fr;
+  }
+
+  .orderCardTop {
     grid-template-columns: 1fr;
   }
 }
