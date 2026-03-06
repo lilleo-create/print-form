@@ -1,6 +1,7 @@
 import PDFDocument from 'pdfkit';
 import bwipjs from 'bwip-js';
 import type PDFKit from 'pdfkit';
+import { existsSync } from 'node:fs';
 
 type SellerOrderForDocuments = {
   id: string;
@@ -36,9 +37,26 @@ const toLabels = (order: SellerOrderForDocuments) => {
   return order.orderLabels.filter(Boolean) as { packageNo: number; code: string }[];
 };
 
+const CYRILLIC_FONT_CANDIDATES = [
+  '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+  '/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf',
+  '/usr/share/fonts/truetype/freefont/FreeSans.ttf'
+];
+
+const applyCyrillicFont = (doc: PDFKit.PDFDocument) => {
+  const fontPath = CYRILLIC_FONT_CANDIDATES.find((candidate) => existsSync(candidate));
+  if (fontPath) {
+    doc.font(fontPath);
+    return;
+  }
+
+  console.warn('[sellerOrderDocumentsService] Cyrillic-capable font is missing, fallback to default font');
+};
+
 export const sellerOrderDocumentsService = {
   async buildPackingSlip(order: SellerOrderForDocuments) {
     const doc = new PDFDocument({ size: 'A4', margin: 40 });
+    applyCyrillicFont(doc);
 
     doc.fontSize(18).text('Упаковочный лист');
     doc.moveDown(0.5);
@@ -81,6 +99,7 @@ export const sellerOrderDocumentsService = {
 
     for (const label of pages) {
       doc.addPage({ size: 'A6', margin: 24 });
+      applyCyrillicFont(doc);
       doc.fontSize(16).text('Внутренний ярлык PF');
       doc.moveDown(0.5);
       doc.fontSize(11).text(`Заказ: №${order.id}`);
@@ -106,6 +125,7 @@ export const sellerOrderDocumentsService = {
 
   async buildHandoverAct(order: SellerOrderForDocuments) {
     const doc = new PDFDocument({ size: 'A4', margin: 40 });
+    applyCyrillicFont(doc);
 
     doc.fontSize(18).text('Акт приема-передачи');
     doc.moveDown();

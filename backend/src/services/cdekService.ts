@@ -451,6 +451,12 @@ class CdekService {
 
     const requestUuid = String(response?.requests?.[0]?.request_uuid ?? '').trim();
     const relatedEntities = this.extractPrintForms(response);
+    console.debug('[CDEK][getOrderInfo] forms snapshot', {
+      cdekOrderId: id,
+      waybillUrl: relatedEntities.waybillUrl,
+      relatedEntities,
+      rawRelatedEntities: response?.related_entities ?? []
+    });
 
     return {
       cdekOrderId: this.extractOrderUuid(response),
@@ -468,10 +474,20 @@ class CdekService {
 
   private extractPrintForms(resp: CdekOrderResponse) {
     const entities = Array.isArray(resp.related_entities) ? resp.related_entities : [];
-    const waybillEntity = entities.find((entry) => String(entry?.type ?? '').toLowerCase() === 'waybill');
+    const normalized = entities.map((entry) => ({
+      type: String(entry?.type ?? '').trim().toLowerCase(),
+      url: String(entry?.url ?? '').trim()
+    }));
+    const waybillAliases = new Set(['waybill', 'waybill_url', 'waybillurl']);
+    const barcodeAliases = new Set(['barcode', 'barcode_url', 'barcodeurl']);
+    const waybillEntity = normalized.find((entry) => waybillAliases.has(entry.type) && entry.url);
     const barcodeUrls = entities
-      .filter((entry) => String(entry?.type ?? '').toLowerCase() === 'barcode')
-      .map((entry) => String(entry?.url ?? '').trim())
+      .map((entry) => ({
+        type: String(entry?.type ?? '').trim().toLowerCase(),
+        url: String(entry?.url ?? '').trim()
+      }))
+      .filter((entry) => barcodeAliases.has(entry.type))
+      .map((entry) => entry.url)
       .filter(Boolean);
 
     return {
