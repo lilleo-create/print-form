@@ -717,13 +717,16 @@ export const SellerDashboardPage = () => {
     Boolean(order.paidAt) || latestPaymentsByOrder.get(order.id)?.status === 'SUCCEEDED';
 
   const hasShipment = (order: Order) => Boolean(order.cdekOrderId || order.shipment?.id);
+  const isShipmentInvalid = (order: Order) => order.shipment?.isValid === false || order.shipment?.status === 'FAILED';
 
   const canDownloadLabel = (order: Order) => {
     const needsManualRefresh = hasPendingManualRefresh(order);
+    if (isShipmentInvalid(order)) return false;
     return isOrderPaid(order) && hasShipment(order) && order.status !== 'CANCELLED' && !needsManualRefresh && getFormsStatus(order) === 'READY';
   };
   const canDownloadAct = (order: Order) => {
     const needsManualRefresh = hasPendingManualRefresh(order);
+    if (isShipmentInvalid(order)) return false;
     return isOrderPaid(order) && hasShipment(order) && order.status !== 'CANCELLED' && !needsManualRefresh && getFormsStatus(order) === 'READY';
   };
   const canReadyToShip = (order: Order) => {
@@ -742,10 +745,12 @@ export const SellerDashboardPage = () => {
 
   const getFormsStatus = (order: Order): 'NOT_REQUESTED' | 'FORMING' | 'READY' => {
     if (!hasShipment(order)) return 'NOT_REQUESTED';
+    if (isShipmentInvalid(order)) return 'NOT_REQUESTED';
     return order.shipment?.formsStatus ?? 'FORMING';
   };
 
   const hasPendingManualRefresh = (order: Order) => {
+    if (isShipmentInvalid(order)) return false;
     const readyAt = order.readyForShipmentAt;
     const manualSyncAt = order.shipment?.lastManualSyncAt;
     if (!readyAt) return false;
@@ -755,6 +760,7 @@ export const SellerDashboardPage = () => {
 
   const documentsStatusText = (order: Order) => {
     if (!hasShipment(order)) return 'Документы: не запрошены';
+    if (isShipmentInvalid(order)) return 'Ошибка оформления доставки';
     if (hasPendingManualRefresh(order)) return 'Документы: формируются';
     if (getFormsStatus(order) === 'READY') return 'Документы: готовы';
     return 'Документы: формируются';
@@ -1292,6 +1298,11 @@ export const SellerDashboardPage = () => {
                               </p>
 
                               <p className={styles.muted}>{documentsStatusText(order)}</p>
+                              {isShipmentInvalid(order) && (
+                                <p className={styles.error}>
+                                  {order.shipment?.errorMessage || 'Тариф CDEK недоступен для выбранного направления'}
+                                </p>
+                              )}
                               {hasPendingManualRefresh(order) && (
                                 <p className={styles.muted}>Документы ещё формируются. Нажмите «Обновить» позже.</p>
                               )}

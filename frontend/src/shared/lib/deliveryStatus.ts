@@ -18,6 +18,8 @@ export const hasHandoverStarted = (order: DeliveryStatusSource) => Boolean(order
 
 export const getDeliveryStage = (order: DeliveryStatusSource): DeliveryStage => {
   const shipmentStatus = normalizeStatus(order.shipment?.status);
+  const shipmentInvalid = order.shipment?.isValid === false || shipmentStatus === 'FAILED';
+  if (shipmentInvalid) return 'CREATING';
   if (DELIVERED_STATUSES.has(shipmentStatus)) return 'READY_FOR_PICKUP';
   if (READY_FOR_PICKUP_STATUSES.has(shipmentStatus) && isPaid(order)) return 'READY_FOR_PICKUP';
   if (IN_TRANSIT_STATUSES.has(shipmentStatus)) return 'IN_TRANSIT';
@@ -37,6 +39,9 @@ const DELIVERY_STAGE_LABELS: Record<DeliveryStage, string> = {
 
 export const getDeliveryStatusLabel = (order: DeliveryStatusSource): string => {
   const shipmentStatus = normalizeStatus(order.shipment?.status);
+  if (order.shipment?.isValid === false || shipmentStatus === 'FAILED') {
+    return 'Ошибка оформления доставки';
+  }
   if (shipmentStatus === 'READY_TO_SHIP' && !order.trackingNumber) return 'Передается в ПВЗ';
   if (DELIVERED_STATUSES.has(shipmentStatus)) return 'Выдан';
   if (PVZ_DROPOFF_STATUSES.has(shipmentStatus)) return 'Передается в ПВЗ';

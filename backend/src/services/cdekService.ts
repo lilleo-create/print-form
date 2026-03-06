@@ -24,6 +24,7 @@ type CalculateDeliveryParams = {
   fromCityCode: number;
   toCityCode: number;
   weightGrams: number;
+  tariffCode?: number;
   lengthCm?: number;
   widthCm?: number;
   heightCm?: number;
@@ -93,6 +94,9 @@ export type CdekOrderSnapshot = {
   status: string;
   trackingNumber: string;
   requestUuid: string;
+  requestState: string;
+  requestErrors: CdekApiError[];
+  isRequestInvalid: boolean;
   relatedEntities: {
     waybillUrl: string | null;
     barcodeUrls: string[];
@@ -117,6 +121,7 @@ type CdekBarcodePrintFormat = 'A4' | 'A5' | 'A6' | 'A7';
 type CdekPrintLang = 'RUS' | 'ENG';
 
 class CdekService {
+  private readonly pickupPointTariffCandidates = [136, 138, 234];
   private tokenCache: { token: string; expiresAtMs: number } | null = null;
 
   private async request<T>(
@@ -292,7 +297,7 @@ class CdekService {
       url: `${baseUrl}/v2/calculator/tariff`,
       headers: { Authorization: `Bearer ${token}` },
       data: {
-        tariff_code: 136,
+        tariff_code: params.tariffCode ?? 136,
         from_location: { code: params.fromCityCode },
         to_location: { code: params.toCityCode },
         packages: [
@@ -310,8 +315,77 @@ class CdekService {
       totalSum: Number(response.total_sum ?? 0),
       deliveryDaysMin: Number(response.period_min ?? 0),
       deliveryDaysMax: Number(response.period_max ?? 0),
-      tariffCode: 136 as const,
+      tariffCode: params.tariffCode ?? 136,
     };
+  }
+
+  private hasRequestErrors(resp: CdekOrderResponse): boolean {
+    const requests = Array.isArray(resp?.requests) ? resp.requests : [];
+    return requests.some((request) => Array.isArray(request?.errors) && request.errors.length > 0);
+  }
+
+  private isInvalidRequestState(state?: string | null): boolean {
+    return String(state ?? '').trim().toUpperCase() === 'INVALID';
+  }
+
+  private isCreateRequestInvalid(resp: CdekOrderResponse) {
+    const requests = Array.isArray(resp?.requests) ? resp.requests : [];
+    const createRequest = requests.find((request) => String(request?.type ?? '').toUpperCase() === 'CREATE') ?? requests[0];
+    const requestState = String(createRequest?.state ?? '').trim().toUpperCase();
+    const requestErrors = requests.flatMap((request) => request?.errors ?? []);
+    const hasErrors = requestErrors.length > 0;
+    const isInvalid = this.isInvalidRequestState(requestState) || hasErrors;
+
+    return { isInvalid, requestState, requestErrors };
+  }
+
+  private async createOrderWithTariff(params: CreateOrderParams, tariffCode: number): Promise<CdekOrderResponse> {
+    const token = await this.getToken();
+    const { baseUrl } = getCdekConfig();
+
+    return this.request<CdekOrderResponse>('createOrder', {
+      method: 'POST',
+      url: `${baseUrl}/v2/orders`,
+      headers: { Authorization: `Bearer ${token}` },
+      data: {
+        number: params.orderId,
+        tariff_code: tariffCode,
+        shipment_point: params.fromPvzCode,
+        delivery_point: params.toPvzCode,
+        comment: params.comment ?? '',
+
+        recipient: {
+          name: params.recipientName,
+          phones: [{ number: params.recipientPhone }],
+        },
+
+        sender: {
+          name: params.senderName ?? 'Маркетплейс PrintForm',
+          phones: [{ number: params.senderPhone ?? '+70000000000' }],
+        },
+
+        services: [],
+
+        packages: [
+          {
+            number: params.orderId,
+            weight: params.weightGrams ?? 500,
+            length: params.lengthCm ?? 10,
+            width: params.widthCm ?? 10,
+            height: params.heightCm ?? 10,
+            comment: params.comment ?? '',
+            items: params.items.map((item) => ({
+              name: item.name,
+              ware_key: item.article ?? item.id,
+              payment: { value: 0 },
+              cost: item.price,
+              weight: 50,
+              amount: item.quantity,
+            })),
+          },
+        ],
+      },
+    });
   }
 
   async createOrder(params: CreateOrderParams) {
@@ -331,64 +405,33 @@ class CdekService {
     if (!Array.isArray(params.items) || params.items.length === 0)
       throw new Error("CDEK_ITEMS_MISSING");
 
-    const token = await this.getToken();
-    const { baseUrl } = getCdekConfig();
-
     console.info("[CDEK][createOrder] pvz", {
       from: params.fromPvzCode,
       to: params.toPvzCode,
       orderId: params.orderId,
     });
 
-    const response = await this.request<CdekOrderResponse>("createOrder", {
-      method: "POST",
-      url: `${baseUrl}/v2/orders`,
-      headers: { Authorization: `Bearer ${token}` },
-      data: {
-        number: params.orderId,
-        tariff_code: 136,
-        shipment_point: params.fromPvzCode,
-        delivery_point: params.toPvzCode,
-        comment: params.comment ?? "",
+    let response: CdekOrderResponse | null = null;
+    let selectedTariffCode: number | null = null;
+    for (const tariffCode of this.pickupPointTariffCandidates) {
+      const candidateResponse = await this.createOrderWithTariff(params, tariffCode);
+      const candidateValidation = this.isCreateRequestInvalid(candidateResponse);
+      response = candidateResponse;
+      selectedTariffCode = tariffCode;
+      if (!candidateValidation.isInvalid) break;
+    }
 
-        recipient: {
-          name: params.recipientName,
-          phones: [{ number: params.recipientPhone }],
-        },
+    if (!response || !selectedTariffCode) {
+      throw new Error('CDEK_CREATE_ORDER_EMPTY_RESPONSE');
+    }
 
-        sender: {
-          name: params.senderName ?? "Маркетплейс PrintForm",
-          phones: [{ number: params.senderPhone ?? "+70000000000" }],
-        },
-
-        services: [],
-
-        packages: [
-          {
-            number: params.orderId,
-            weight: params.weightGrams ?? 500,
-            length: params.lengthCm ?? 10,
-            width: params.widthCm ?? 10,
-            height: params.heightCm ?? 10,
-            comment: params.comment ?? "",
-            items: params.items.map((item) => ({
-              name: item.name,
-              ware_key: item.article ?? item.id,
-              payment: { value: 0 },
-              cost: item.price,
-              weight: 50,
-              amount: item.quantity,
-            })),
-          },
-        ],
-      },
-    });
     console.info("[CDEK][createOrder][raw]", JSON.stringify(response, null, 2));
 
     const cdekOrderUuid = this.extractOrderUuid(response);
     const cdekRequestUuid = String(response?.requests?.[0]?.request_uuid ?? '').trim();
-    const state = String(response?.requests?.[0]?.state ?? '').trim();
+    const state = String(response?.requests?.[0]?.state ?? '').trim().toUpperCase();
     const trackingNumber = this.extractCdekNumber(response);
+    const validation = this.isCreateRequestInvalid(response);
 
     // лог на один раз (потом уберешь)
     console.info("[CDEK][createOrder][parsed]", {
@@ -396,17 +439,21 @@ class CdekService {
       cdekRequestUuid,
       trackingNumber,
       state,
-      errors: response?.requests?.flatMap((r) => r?.errors ?? []) ?? [],
+      errors: validation.requestErrors,
+      selectedTariffCode,
     });
 
-    if (!cdekOrderUuid) {
-      const errors = response?.requests?.flatMap((r) => r?.errors ?? []) ?? [];
-      throw new Error(
-        `CDEK_CREATE_ORDER_NO_UUID: ${JSON.stringify({ state, errors, response }, null, 2)}`,
-      );
-    }
-
-    return { cdekOrderId: cdekOrderUuid, trackingNumber, cdekRequestUuid, state };
+    return {
+      cdekOrderId: cdekOrderUuid,
+      trackingNumber,
+      cdekRequestUuid,
+      state,
+      requestState: validation.requestState,
+      requestErrors: validation.requestErrors,
+      isRequestInvalid: validation.isInvalid,
+      tariffCode: selectedTariffCode,
+      raw: response,
+    };
   }
 
   async getOrderInfo(cdekOrderId: string) {
@@ -451,12 +498,18 @@ class CdekService {
 
     const requestUuid = String(response?.requests?.[0]?.request_uuid ?? '').trim();
     const relatedEntities = this.extractPrintForms(response);
+    const requestState = String(response?.requests?.[0]?.state ?? '').trim().toUpperCase();
+    const requestErrors = (response?.requests ?? []).flatMap((request) => request?.errors ?? []);
+    const isRequestInvalid = this.isInvalidRequestState(requestState) || this.hasRequestErrors(response);
 
     return {
       cdekOrderId: this.extractOrderUuid(response),
       status: this.extractLastStatusCode(response),
       trackingNumber: this.extractCdekNumber(response),
       requestUuid,
+      requestState,
+      requestErrors,
+      isRequestInvalid,
       relatedEntities,
       raw: response
     };

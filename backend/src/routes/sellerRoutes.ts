@@ -78,6 +78,9 @@ const toShipmentView = (shipment: any) => {
     ? statusRaw.print as Record<string, unknown>
     : {};
   const waybillUrl = String(printRaw.waybillUrl ?? '').trim();
+  const isValid = statusRaw.isValid !== false;
+  const errorCode = typeof statusRaw.errorCode === 'string' ? statusRaw.errorCode : null;
+  const errorMessage = typeof statusRaw.errorMessage === 'string' ? statusRaw.errorMessage : null;
   const formsStatus = explicitFormsStatus === 'READY' || explicitFormsStatus === 'FORMING' || explicitFormsStatus === 'NOT_REQUESTED'
     ? explicitFormsStatus
     : (waybillUrl ? 'READY' : 'FORMING');
@@ -90,6 +93,9 @@ const toShipmentView = (shipment: any) => {
     destinationStationId: shipment.destinationStationId,
     lastSyncAt: shipment.lastSyncAt,
     updatedAt: shipment.updatedAt,
+    isValid,
+    errorCode,
+    errorMessage,
     formsStatus,
     documentsReadyAt: typeof statusRaw.documentsReadyAt === 'string' ? statusRaw.documentsReadyAt : null,
     lastManualSyncAt: typeof statusRaw.lastManualSyncAt === 'string' ? statusRaw.lastManualSyncAt : null,
