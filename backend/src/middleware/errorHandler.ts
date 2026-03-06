@@ -85,7 +85,8 @@ export const errorHandler = (
       error.message === 'VALIDATION_ERROR' ||
       error.message === 'SHIPPING_ADDRESS_REQUIRED' ||
       error.message === 'DELIVERY_DESTINATION_REQUIRED' ||
-      error.message === 'DELIVERY_METHOD_NOT_SUPPORTED'
+      error.message === 'DELIVERY_METHOD_NOT_SUPPORTED' ||
+      error.message === 'CDEK_TARIFF_UNAVAILABLE'
     ? 400
     : error.message === 'ORDER_NOT_PAID' || error.message === 'PICKUP_POINT_REQUIRED'
     ? 409

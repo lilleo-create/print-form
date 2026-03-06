@@ -74,6 +74,37 @@ const safeRecord = (value: unknown): Record<string, unknown> =>
 
 const parsePvzProvider = (meta: unknown) => String(safeRecord(meta).provider ?? '').trim().toUpperCase();
 
+const normalizeDimensionCm = (value: number | null | undefined) => {
+  if (!Number.isFinite(value ?? NaN)) return undefined;
+  const rounded = Math.trunc(Number(value));
+  if (rounded <= 0) return undefined;
+  if (rounded > 100) {
+    console.warn('[CDEK][createShipmentCdek] oversized dimension, fallback to default 10cm', { value: rounded });
+    return 10;
+  }
+  return rounded;
+};
+
+const resolveRouteType = (order: Pick<Order, 'shippingAddressId' | 'buyerPickupPvzId' | 'sellerDropoffPvzId'>): 'PVZ_TO_PVZ' | 'DOOR_TO_DOOR' | 'DOOR_TO_PVZ' | 'PVZ_TO_DOOR' => {
+  const hasSellerPvz = Boolean(String(order.sellerDropoffPvzId ?? '').trim());
+  const hasBuyerPvz = Boolean(String(order.buyerPickupPvzId ?? '').trim());
+  const hasBuyerDoor = Boolean(String(order.shippingAddressId ?? '').trim());
+
+  if (hasSellerPvz && hasBuyerPvz) return 'PVZ_TO_PVZ';
+  if (!hasSellerPvz && hasBuyerDoor) return 'DOOR_TO_DOOR';
+  if (!hasSellerPvz && hasBuyerPvz) return 'DOOR_TO_PVZ';
+  if (hasSellerPvz && hasBuyerDoor) return 'PVZ_TO_DOOR';
+  return 'PVZ_TO_PVZ';
+};
+
+
+
+const hasTariffUnavailableError = (errors: Array<{ code?: string; message?: string }> | undefined) => {
+  const first = errors?.[0];
+  const code = String(first?.code ?? '').trim().toLowerCase();
+  const message = String(first?.message ?? '').trim().toLowerCase();
+  return code === 'err_result_service_empty' || message.includes('err_result_service_empty');
+};
 export const normalizePvzProvider = async <T extends Pick<Order, 'id' | 'carrier' | 'buyerPickupPvzId' | 'buyerPickupPvzMeta'>>(order: T) => {
   const carrier = String(order.carrier ?? '').toUpperCase();
   const pvzId = String(order.buyerPickupPvzId ?? '').trim().toUpperCase();
@@ -250,6 +281,10 @@ const loadOrderForCdekShipment = async (orderId: string, sellerId?: string) => {
 
   const totalWeight = order.items.reduce((sum, item) => sum + (item.product.weightGrossG ?? 0) * item.quantity, 0);
   const firstProduct = order.items[0]?.product;
+  const routeType = resolveRouteType(order);
+  const lengthCm = normalizeDimensionCm(firstProduct?.dxCm);
+  const widthCm = normalizeDimensionCm(firstProduct?.dyCm);
+  const heightCm = normalizeDimensionCm(firstProduct?.dzCm);
 
   return {
     order,
@@ -259,7 +294,11 @@ const loadOrderForCdekShipment = async (orderId: string, sellerId?: string) => {
     recipientPhone,
     items,
     totalWeight,
-    firstProduct
+    firstProduct,
+    routeType,
+    lengthCm,
+    widthCm,
+    heightCm
   };
 };
 
@@ -272,7 +311,11 @@ export const createShipmentCdek = async (orderId: string, sellerId?: string) => 
     recipientPhone,
     items,
     totalWeight,
-    firstProduct
+    firstProduct,
+    routeType,
+    lengthCm,
+    widthCm,
+    heightCm
   } = await loadOrderForCdekShipment(orderId, sellerId);
 
   const existingShipment = await prisma.orderShipment.findUnique({ where: { orderId: order.id } });
@@ -295,18 +338,35 @@ export const createShipmentCdek = async (orderId: string, sellerId?: string) => 
     if (!CDEK_PVZ_CODE_REGEX.test(fromPvzCode)) throw makeError('CDEK_DROPOFF_PVZ_INVALID_FORMAT');
     if (!CDEK_PVZ_CODE_REGEX.test(toPvzCode)) throw makeError('CDEK_DESTINATION_PVZ_INVALID_FORMAT');
 
+    console.info('[CDEK][createShipmentCdek][input]', {
+      orderId: order.id,
+      routeType,
+      fromPvzCode,
+      toPvzCode,
+      weightGrams: totalWeight > 0 ? totalWeight : 500,
+      dimensionsCm: {
+        length: lengthCm ?? 10,
+        width: widthCm ?? 10,
+        height: heightCm ?? 10,
+        rawLength: firstProduct?.dxCm,
+        rawWidth: firstProduct?.dyCm,
+        rawHeight: firstProduct?.dzCm
+      }
+    });
+
     const created = await cdekService.createOrderFromMarketplaceOrder({
       orderId: order.id,
       fromPvzCode,
       toPvzCode,
+      routeType,
       recipientName,
       recipientPhone,
       items,
       comment: `Order ${order.id}`,
       weightGrams: totalWeight > 0 ? totalWeight : undefined,
-      lengthCm: firstProduct?.dxCm ?? undefined,
-      widthCm: firstProduct?.dyCm ?? undefined,
-      heightCm: firstProduct?.dzCm ?? undefined
+      lengthCm,
+      widthCm,
+      heightCm
     });
 
     const isValid = !created.isRequestInvalid;
@@ -321,10 +381,11 @@ export const createShipmentCdek = async (orderId: string, sellerId?: string) => 
       requestState: created.requestState ?? '',
       requestErrors: created.requestErrors ?? [],
       isValid,
-      errorCode: created.requestErrors?.[0]?.code ?? '',
+      errorCode: created.requestErrors?.[0]?.code ?? (created.requestState === 'INVALID' ? 'CDEK_TARIFF_UNAVAILABLE' : ''),
       errorMessage: created.requestErrors?.[0]?.message ?? '',
       trackingNumber: created.trackingNumber ?? '',
       formsStatus: isValid ? 'FORMING' : 'NOT_REQUESTED',
+      routeType,
       tariffCode: created.tariffCode ?? null
     };
 
@@ -360,7 +421,8 @@ export const createShipmentCdek = async (orderId: string, sellerId?: string) => 
           carrier: 'CDEK',
           cdekOrderId: created.cdekOrderId || null,
           cdekStatus: created.state || null,
-          trackingNumber: isValid ? (created.trackingNumber || null) : null
+          trackingNumber: isValid ? (created.trackingNumber || null) : null,
+          ...(isValid ? {} : { status: 'READY_FOR_SHIPMENT' as any })
         }
       });
 
@@ -372,6 +434,10 @@ export const createShipmentCdek = async (orderId: string, sellerId?: string) => 
     });
 
     if (!isValid) {
+      if (hasTariffUnavailableError(created.requestErrors as Array<{ code?: string; message?: string }>)) {
+        throw makeError('CDEK_TARIFF_UNAVAILABLE');
+      }
+
       return {
         shipment,
         cdek: {
@@ -379,6 +445,7 @@ export const createShipmentCdek = async (orderId: string, sellerId?: string) => 
           trackingNumber: null,
           cdekRequestUuid: created.cdekRequestUuid,
           state: created.state,
+          errorCode: created.requestErrors?.[0]?.code ?? 'CDEK_TARIFF_UNAVAILABLE',
           errorMessage: created.requestErrors?.[0]?.message ?? 'Ошибка оформления доставки в CDEK'
         }
       };
@@ -420,6 +487,11 @@ export const markReadyToShipCdek = async (orderId: string, sellerId?: string) =>
   }
 
   if (shipmentForOrder.status === 'FAILED') {
+    const statusRaw = safeRecord(shipmentForOrder.statusRaw);
+    const errorCode = String(statusRaw.errorCode ?? '').trim().toLowerCase();
+    if (errorCode === 'err_result_service_empty' || errorCode === 'cdek_tariff_unavailable') {
+      throw makeError('CDEK_TARIFF_UNAVAILABLE');
+    }
     throw makeError('CDEK_SHIPMENT_INVALID', 'Ошибка оформления доставки. Тариф CDEK недоступен для выбранного направления.');
   }
 
