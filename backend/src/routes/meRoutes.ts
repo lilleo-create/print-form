@@ -256,6 +256,36 @@ meRoutes.get('/orders', requireAuth, async (req: AuthRequest, res, next) => {
   }
 });
 
+
+meRoutes.patch('/orders/:id/cancel', requireAuth, writeLimiter, async (req: AuthRequest, res, next) => {
+  try {
+    const order = await prisma.order.findFirst({
+      where: { id: req.params.id, buyerId: req.user!.userId },
+      include: { shipment: true }
+    });
+
+    if (!order) {
+      return res.status(404).json({ error: { code: 'ORDER_NOT_FOUND' } });
+    }
+
+    const shipmentStatus = String(order.shipment?.status ?? '').toUpperCase();
+    const isSentToDelivery = ['HANDED_TO_DELIVERY', 'IN_TRANSIT', 'DELIVERED'].includes(order.status) || ['IN_TRANSIT', 'DELIVERED'].includes(shipmentStatus);
+
+    if (isSentToDelivery) {
+      return res.status(409).json({ error: { code: 'ORDER_ALREADY_SHIPPED', message: 'Заказ уже отправлен в доставку. Доступен только возврат.' } });
+    }
+
+    const cancelled = await prisma.order.update({
+      where: { id: order.id },
+      data: { status: 'CANCELLED', statusUpdatedAt: new Date() }
+    });
+
+    return res.json({ data: cancelled });
+  } catch (error) {
+    next(error);
+  }
+});
+
 const reviewVisibilitySchema = z.object({
   isPublic: z.boolean()
 });

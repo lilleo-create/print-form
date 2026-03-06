@@ -33,6 +33,7 @@ type ApiOrder = {
   createdAt: string;
   payoutStatus?: string | null;
   trackingNumber?: string | null;
+  cdekOrderId?: string | null;
   carrier?: string | null;
   contact?: Order['contact'];
   shippingAddress?: Order['shippingAddress'];
@@ -44,15 +45,16 @@ type ApiOrder = {
 const mapStatus = (status?: string): OrderStatus => {
   switch (status) {
     case 'CREATED':
-      return 'CREATED';
+    case 'PAID':
+    case 'READY_FOR_SHIPMENT':
     case 'PRINTING':
-      return 'PRINTING';
     case 'HANDED_TO_DELIVERY':
-      return 'HANDED_TO_DELIVERY';
     case 'IN_TRANSIT':
-      return 'IN_TRANSIT';
     case 'DELIVERED':
-      return 'DELIVERED';
+    case 'CANCELLED':
+    case 'RETURNED':
+    case 'EXPIRED':
+      return status;
     default:
       return 'CREATED';
   }
@@ -78,6 +80,7 @@ const mapOrder = (order: ApiOrder): Order => ({
   createdAt: order.createdAt,
   payoutStatus: order.payoutStatus ?? null,
   trackingNumber: order.trackingNumber ?? null,
+  cdekOrderId: order.cdekOrderId ?? null,
   carrier: order.carrier ?? null,
   contact: order.contact ?? null,
   shippingAddress: order.shippingAddress ?? null,
@@ -150,6 +153,13 @@ export const ordersApi = {
   },
   syncShipment: async (shipmentId: string) => {
     return api.syncShipment(shipmentId);
+  },
+  syncCdekOrder: async (orderId: string) => {
+    return api.syncCdekOrder(orderId);
+  },
+  cancelMyOrder: async (orderId: string) => {
+    const result = await api.cancelMyOrder(orderId);
+    return mapOrder(result.data as unknown as ApiOrder);
   },
   downloadShippingLabel: async (shipmentId: string) => {
     return api.downloadShippingLabel(shipmentId);

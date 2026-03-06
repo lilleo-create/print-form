@@ -685,10 +685,22 @@ export const SellerDashboardPage = () => {
     }
   };
 
-  const handleSyncShipment = async (shipmentId: string) => {
+  const handleSyncShipment = async (order: Order) => {
     setOrderUpdateError(null);
+    const shipmentId = order.shipment?.id;
+    const cdekOrderId = String(order.cdekOrderId ?? '').trim();
+
+    if (!shipmentId && !cdekOrderId) {
+      setOrderUpdateError('Синхронизация доступна после создания shipment.');
+      return;
+    }
+
     try {
-      await ordersApi.syncShipment(shipmentId);
+      if (shipmentId) {
+        await ordersApi.syncShipment(shipmentId);
+      } else {
+        await ordersApi.syncCdekOrder(order.id);
+      }
       await loadOrders();
     } catch {
       setOrderUpdateError('Не удалось синхронизировать отправление CDEK.');
@@ -753,6 +765,7 @@ export const SellerDashboardPage = () => {
 
   const readyToShipDisabledReason = (order: Order) => {
     if (!order.paidAt && order.status !== 'PAID') return 'Ожидает оплаты';
+    if (order.status === 'CREATED') return 'Заказ не упакован';
     if (!order.sellerDropoffPvzMeta && !dropoffPvzId)
       return 'Не выбран ПВЗ сдачи';
     if (
@@ -760,6 +773,12 @@ export const SellerDashboardPage = () => {
       !order.shippingAddressId
     )
       return 'Не указан адрес доставки';
+    if (order.shipment?.id) return 'Заявка уже создана';
+    if (order.status === 'HANDED_TO_DELIVERY')
+      return 'Уже передан в доставку';
+    if (order.shipment?.status && ['DELIVERED', 'CANCELLED', 'FAILED'].includes(order.shipment.status)) {
+      return 'Доставка завершена';
+    }
     return null;
   };
   const summary = useMemo(() => {
@@ -1342,31 +1361,32 @@ export const SellerDashboardPage = () => {
                                 Трек-номер: {order.trackingNumber ?? '—'}
                               </p>
 
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                onClick={() => handleReadyToShip(order.id)}
-                                disabled={
-                                  Boolean(order.shipment?.id) ||
-                                  Boolean(readyToShipDisabledReason(order))
-                                }
-                              >
-                                Готов к отгрузке
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                onClick={() => order.shipment?.id && handleSyncShipment(order.shipment.id)}
-                                disabled={!order.shipment?.id}
-                              >
-                                Синхронизировать CDEK
-                              </Button>
-                              {readyToShipDisabledReason(order) &&
-                                !order.shipment?.id && (
-                                  <p className={styles.muted}>
-                                    {readyToShipDisabledReason(order)}
-                                  </p>
-                                )}
+                              {!order.shipment?.id ? (
+                                <>
+                                  <Button
+                                    type="button"
+                                    variant="secondary"
+                                    onClick={() => handleReadyToShip(order.id)}
+                                    disabled={Boolean(readyToShipDisabledReason(order))}
+                                  >
+                                    Готов к отгрузке
+                                  </Button>
+                                  {readyToShipDisabledReason(order) && (
+                                    <p className={styles.muted}>
+                                      {readyToShipDisabledReason(order)}
+                                    </p>
+                                  )}
+                                </>
+                              ) : (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  onClick={() => handleSyncShipment(order)}
+                                  disabled={!order.shipment?.id && !order.cdekOrderId}
+                                >
+                                  Синхронизировать CDEK
+                                </Button>
+                              )}
 
                               <details>
                                 <summary>Данные для доставки</summary>
@@ -1419,7 +1439,7 @@ export const SellerDashboardPage = () => {
                                 variant="ghost"
                                 className={actDownloaded[order.id] ? styles.downloadedButton : ''}
                                 onClick={() => order.shipment?.id && handleDownloadAct(order.shipment.id, order.id)}
-                                disabled={!order.shipment?.id}
+                                disabled={!order.shipment?.id && !order.cdekOrderId}
                               >
                                 Скачать акт
                               </Button>
