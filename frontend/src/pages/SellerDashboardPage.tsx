@@ -82,6 +82,24 @@ const isHandoverToDelivery = (order: Order) => {
   );
 };
 
+
+const getSellerOrderDisplayStatus = (order: Order) => {
+  const isPaid =
+    Boolean(order.paidAt) ||
+    ['PAID', 'READY_FOR_SHIPMENT', 'PRINTING', 'HANDED_TO_DELIVERY', 'IN_TRANSIT', 'DELIVERED'].includes(order.status);
+
+  if (!isPaid) return 'Ожидает оплаты';
+
+  const handoverStarted = isHandoverToDelivery(order);
+  if (handoverStarted) {
+    return getExternalDeliveryStatusLabel(order.cdekStatus ?? order.shipment?.status ?? null);
+  }
+
+  if (!order.isPacked) return 'Требуется упаковка';
+
+  return 'Готов к отгрузке';
+};
+
 const isAccessError = (error: unknown) => {
   const message = getErrorMessage(error).toLowerCase();
   return (
@@ -111,15 +129,10 @@ export const SellerDashboardPage = () => {
   const [ordersLoading, setOrdersLoading] = useState(true);
   const [ordersError, setOrdersError] = useState<string | null>(null);
 
-  const [statusFilter, setStatusFilter] = useState<OrderStatus | 'ALL'>('ALL');
-  const [orderUpdateId, setOrderUpdateId] = useState<string | null>(null);
   const [orderUpdateError, setOrderUpdateError] = useState<string | null>(null);
   const [trackingSearch, setTrackingSearch] = useState('');
   const [trackingResult, setTrackingResult] = useState<any | null>(null);
 
-  const [trackingDrafts, setTrackingDrafts] = useState<
-    Record<string, { trackingNumber: string; carrier: string }>
-  >({});
   const [labelDownloaded, setLabelDownloaded] = useState<Record<string, boolean>>({});
   const [actDownloaded, setActDownloaded] = useState<Record<string, boolean>>({});
 
@@ -264,18 +277,6 @@ export const SellerDashboardPage = () => {
 
       setOrdersView(data);
 
-      setTrackingDrafts((prev) => {
-        const next = { ...prev };
-        data.forEach((order) => {
-          next[order.id] = {
-            trackingNumber:
-              order.trackingNumber ?? next[order.id]?.trackingNumber ?? '',
-            carrier: order.carrier ?? next[order.id]?.carrier ?? ''
-          };
-        });
-        return next;
-      });
-
       const profileResponse = await api.getSellerDeliveryProfile();
       const dropoffPvz = profileResponse.data?.dropoffPvz;
       const dropoffMeta = profileResponse.data?.defaultDropoffPvzMeta;
@@ -295,51 +296,6 @@ export const SellerDashboardPage = () => {
       setOrdersLoading(false);
     }
   }, [isSellerReady, userId]);
-
-  const loadOrdersByStatus = useCallback(
-    async (status: OrderStatus | 'ALL') => {
-      if (status === 'ALL') {
-        setOrdersView(orders);
-        return;
-      }
-
-      setOrdersLoading(true);
-      setOrdersError(null);
-
-      try {
-        if (!userId || !isSellerReady) {
-          setOrdersView([]);
-          return;
-        }
-
-        const data = await ordersApi.listBySeller(userId, status);
-        setOrdersView(data);
-
-        setTrackingDrafts((prev) => {
-          const next = { ...prev };
-          data.forEach((order) => {
-            next[order.id] = {
-              trackingNumber:
-                order.trackingNumber ?? next[order.id]?.trackingNumber ?? '',
-              carrier: order.carrier ?? next[order.id]?.carrier ?? ''
-            };
-          });
-          return next;
-        });
-      } catch (error) {
-        setOrdersView([]);
-        if (isAccessError(error) && isSellerReady) {
-          setOrdersError('Сессия истекла, войдите снова.');
-        } else if (isSellerReady) {
-          setOrdersError('Не удалось загрузить заказы.');
-        }
-      } finally {
-        setOrdersLoading(false);
-      }
-    },
-    [isSellerReady, orders, userId]
-  );
-
   const loadKyc = useCallback(async () => {
     setKycLoading(true);
     setKycError(null);
@@ -416,20 +372,6 @@ export const SellerDashboardPage = () => {
     void loadPayments();
     if (userId) void loadOrders();
   }, [isSellerReady, loadKyc, loadOrders, loadPayments, loadProducts, userId]);
-
-  useEffect(() => {
-    if (!isSellerReady) {
-      setOrdersView([]);
-      return;
-    }
-
-    if (statusFilter === 'ALL') {
-      setOrdersView(orders);
-      return;
-    }
-
-    void loadOrdersByStatus(statusFilter);
-  }, [isSellerReady, loadOrdersByStatus, orders, statusFilter]);
 
   const handleKycSubmit = async () => {
     if (!isSellerReady) {
@@ -535,65 +477,6 @@ export const SellerDashboardPage = () => {
       }
     }
   };
-
-  const handleStatusChange = async (order: Order, status: OrderStatus) => {
-    setOrderUpdateError(null);
-
-    if (isHandoverToDelivery(order)) {
-      return;
-    }
-
-    const draft = trackingDrafts[order.id] ?? {
-      trackingNumber: '',
-      carrier: ''
-    };
-
-    const trackingNumber = draft.trackingNumber || order.trackingNumber || '';
-    const carrier = draft.carrier || order.carrier || '';
-
-    if (['HANDED_TO_DELIVERY', 'IN_TRANSIT', 'DELIVERED'].includes(status)) {
-      if (!trackingNumber || !carrier) {
-        setOrderUpdateError(
-          'Для доставки укажите номер отправления и службу доставки.'
-        );
-        return;
-      }
-    }
-
-    setOrderUpdateId(order.id);
-
-    try {
-      const response = await api.updateSellerOrderStatus(order.id, {
-        status,
-        trackingNumber: trackingNumber || undefined,
-        carrier: carrier || undefined
-      });
-
-      const updated = response.data;
-
-      setOrders((prev) =>
-        prev.map((item) => (item.id === updated.id ? updated : item))
-      );
-
-      setOrdersView((prev) =>
-        prev.map((item) => (item.id === updated.id ? updated : item))
-      );
-
-      setTrackingDrafts((prev) => ({
-        ...prev,
-        [updated.id]: {
-          trackingNumber:
-            updated.trackingNumber ?? prev[updated.id]?.trackingNumber ?? '',
-          carrier: updated.carrier ?? prev[updated.id]?.carrier ?? ''
-        }
-      }));
-    } catch {
-      setOrderUpdateError('Не удалось обновить статус заказа.');
-    } finally {
-      setOrderUpdateId(null);
-    }
-  };
-
 
   const handleSaveDropoffSchedule = async () => {
     setDeliverySettingsMessage(null);
@@ -782,7 +665,7 @@ export const SellerDashboardPage = () => {
 
   const readyToShipDisabledReason = (order: Order) => {
     if (!order.paidAt && order.status !== 'PAID') return 'Ожидает оплаты';
-    if (order.status === 'CREATED') return 'Заказ не упакован';
+    if (!order.isPacked) return 'Заказ не упакован';
     if (!order.sellerDropoffPvzMeta && !dropoffPvzId)
       return 'Не выбран ПВЗ сдачи';
     if (
@@ -1250,29 +1133,7 @@ export const SellerDashboardPage = () => {
                   <div className={styles.sectionHeader}>
                     <div>
                       <h2>Заказы</h2>
-                      <p>Управляйте статусами и отслеживайте выполнение.</p>
-                    </div>
-
-                    <div className={styles.filterRow}>
-                      <label>
-                        Статус:
-                        <select
-                          className={styles.select}
-                          value={statusFilter}
-                          onChange={(event) =>
-                            setStatusFilter(
-                              event.target.value as OrderStatus | 'ALL'
-                            )
-                          }
-                        >
-                          <option value="ALL">Все</option>
-                          {statusFlow.map((status) => (
-                            <option key={status} value={status}>
-                              {statusLabels[status]}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                      <p>Отслеживайте выполнение и документы доставки.</p>
                     </div>
                   </div>
 
@@ -1285,10 +1146,7 @@ export const SellerDashboardPage = () => {
                   ) : (
                     <div className={styles.ordersList}>
                       {ordersView.map((order) => {
-                        const currentIndex = statusFlow.indexOf(order.status);
-                        const nextStatus = statusFlow[currentIndex + 1];
-                        const isExternalDeliveryState = isHandoverToDelivery(order);
-                        const externalStatusLabel = getExternalDeliveryStatusLabel((order as any).cdekStatus ?? order.shipment?.status ?? null);
+                        const displayStatus = getSellerOrderDisplayStatus(order);
                         const total = order.items.reduce(
                           (sum, item) => sum + item.lineTotal,
                           0
@@ -1323,39 +1181,7 @@ export const SellerDashboardPage = () => {
                                 <p className={styles.orderAmount}>
                                   {formatCurrency(total)} ₽
                                 </p>
-
-                              {isExternalDeliveryState ? (
-                                <p className={styles.muted}>Статус доставки (CDEK): {externalStatusLabel}</p>
-                              ) : (
-                                <>
-                                  <select
-                                    className={styles.select}
-                                    value={order.status}
-                                    disabled={
-                                      !nextStatus || orderUpdateId === order.id
-                                    }
-                                    onChange={(event) =>
-                                      handleStatusChange(
-                                        order,
-                                        event.target.value as OrderStatus
-                                      )
-                                    }
-                                  >
-                                    <option value={order.status}>
-                                      {statusLabels[order.status]}
-                                    </option>
-                                    {nextStatus && (
-                                      <option value={nextStatus}>
-                                        {statusLabels[nextStatus]}
-                                      </option>
-                                    )}
-                                  </select>
-
-                                  {orderUpdateId === order.id && (
-                                    <p className={styles.muted}>Обновляем...</p>
-                                  )}
-                                </>
-                              )}
+                                <p className={styles.muted}>Статус: {displayStatus}</p>
                               </div>
                             </div>
 
@@ -1374,7 +1200,7 @@ export const SellerDashboardPage = () => {
                               </p>
                               <p className={styles.muted}>
                                 Статус доставки:{' '}
-                                {isExternalDeliveryState ? externalStatusLabel : (statusLabels[order.status] ?? order.status)}
+                                {displayStatus}
                                 {order.shipment?.lastSyncAt
                                   ? ` · обновлено ${new Date(
                                     order.shipment.lastSyncAt

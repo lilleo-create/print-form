@@ -22,6 +22,7 @@ type ApiOrder = {
   status?: string;
   statusUpdatedAt?: string;
   paidAt?: string | null;
+  isPacked?: boolean | null;
   total: number;
   recipientName?: string | null;
   recipientPhone?: string | null;
@@ -34,6 +35,7 @@ type ApiOrder = {
   payoutStatus?: string | null;
   trackingNumber?: string | null;
   cdekOrderId?: string | null;
+  cdekStatus?: string | null;
   carrier?: string | null;
   contact?: Order['contact'];
   shippingAddress?: Order['shippingAddress'];
@@ -69,6 +71,7 @@ const mapOrder = (order: ApiOrder): Order => ({
   status: mapStatus(order.status),
   statusUpdatedAt: order.statusUpdatedAt,
   paidAt: order.paidAt ?? null,
+  isPacked: order.isPacked ?? null,
   total: order.total,
   recipientName: order.recipientName ?? null,
   recipientPhone: order.recipientPhone ?? null,
@@ -81,6 +84,7 @@ const mapOrder = (order: ApiOrder): Order => ({
   payoutStatus: order.payoutStatus ?? null,
   trackingNumber: order.trackingNumber ?? null,
   cdekOrderId: order.cdekOrderId ?? null,
+  cdekStatus: order.cdekStatus ?? null,
   carrier: order.carrier ?? null,
   contact: order.contact ?? null,
   shippingAddress: order.shippingAddress ?? null,
