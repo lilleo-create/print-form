@@ -143,6 +143,68 @@ class CdekService {
     return [...new Set([...candidates, defaultTariff])];
   }
 
+  private extractApiError(error: unknown) {
+    const candidate = error as {
+      message?: string;
+      response?: { data?: { code?: string; message?: string } };
+    };
+    const code = String(candidate?.response?.data?.code ?? '').trim();
+    const message = String(candidate?.response?.data?.message ?? candidate?.message ?? '').trim();
+    return {
+      code: code || 'CDEK_TARIFF_UNAVAILABLE',
+      message: message || 'Тариф CDEK недоступен для выбранного направления.'
+    };
+  }
+
+  private async resolveTariffViaCalculator(params: CreateOrderParams, tariffCandidates: number[]) {
+    const fromPoint = await this.getPickupPointByCode(params.fromPvzCode);
+    const toPoint = await this.getPickupPointByCode(params.toPvzCode);
+    const fromCityCode = Number(fromPoint?.location?.city_code ?? 0);
+    const toCityCode = Number(toPoint?.location?.city_code ?? 0);
+
+    if (!Number.isFinite(fromCityCode) || fromCityCode <= 0) {
+      throw new Error(`CDEK_FROM_CITY_CODE_MISSING: ${params.fromPvzCode}`);
+    }
+    if (!Number.isFinite(toCityCode) || toCityCode <= 0) {
+      throw new Error(`CDEK_TO_CITY_CODE_MISSING: ${params.toPvzCode}`);
+    }
+
+    const failedCandidates: CdekApiError[] = [];
+
+    for (const tariffCode of tariffCandidates) {
+      try {
+        await this.calculateDelivery({
+          fromCityCode,
+          toCityCode,
+          weightGrams: params.weightGrams ?? 500,
+          lengthCm: params.lengthCm ?? 10,
+          widthCm: params.widthCm ?? 10,
+          heightCm: params.heightCm ?? 10,
+          tariffCode
+        });
+
+        return {
+          tariffCode,
+          requestErrors: failedCandidates
+        };
+      } catch (error) {
+        const parsedError = this.extractApiError(error);
+        failedCandidates.push(parsedError);
+        console.info('[CDEK][createOrder][calculator][tariff-unavailable]', {
+          orderId: params.orderId,
+          tariffCode,
+          code: parsedError.code,
+          message: parsedError.message
+        });
+      }
+    }
+
+    return {
+      tariffCode: null,
+      requestErrors: failedCandidates
+    };
+  }
+
   private async request<T>(
     methodName: string,
     config: AxiosRequestConfig,
@@ -442,18 +504,32 @@ class CdekService {
       orderId: params.orderId,
     });
 
-    let response: CdekOrderResponse | null = null;
-    let selectedTariffCode: number | null = null;
     const tariffCandidates = this.getTariffCandidates(params.routeType);
-    for (const tariffCode of tariffCandidates) {
-      const candidateResponse = await this.createOrderWithTariff(params, tariffCode);
-      const candidateValidation = this.isCreateRequestInvalid(candidateResponse);
-      response = candidateResponse;
-      selectedTariffCode = tariffCode;
-      if (!candidateValidation.isInvalid) break;
+    const tariffSelection = await this.resolveTariffViaCalculator(params, tariffCandidates);
+    const selectedTariffCode = tariffSelection.tariffCode;
+
+    if (!selectedTariffCode) {
+      const firstError = tariffSelection.requestErrors[0] ?? {
+        code: 'CDEK_TARIFF_UNAVAILABLE',
+        message: 'Тариф CDEK недоступен для выбранного направления.'
+      };
+
+      return {
+        cdekOrderId: '',
+        trackingNumber: '',
+        cdekRequestUuid: '',
+        state: 'INVALID',
+        requestState: 'INVALID',
+        requestErrors: [firstError],
+        isRequestInvalid: true,
+        tariffCode: null,
+        raw: { requests: [{ state: 'INVALID', errors: [firstError] }] }
+      };
     }
 
-    if (!response || !selectedTariffCode) {
+    const response = await this.createOrderWithTariff(params, selectedTariffCode);
+
+    if (!response) {
       throw new Error('CDEK_CREATE_ORDER_EMPTY_RESPONSE');
     }
 

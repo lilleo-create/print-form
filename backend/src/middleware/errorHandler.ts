@@ -56,39 +56,41 @@ export const errorHandler = (
     });
   }
 
-  const status = error.message === 'INVALID_CREDENTIALS' || error.message === 'UNAUTHORIZED'
+  const normalizedCode = String(extError.code ?? error.message ?? '').trim();
+
+  const status = normalizedCode === 'INVALID_CREDENTIALS' || normalizedCode === 'UNAUTHORIZED'
     ? 401
-    : error.message === 'OTP_TOKEN_REQUIRED'
+    : normalizedCode === 'OTP_TOKEN_REQUIRED'
     ? 401
-    : error.message === 'FORBIDDEN' || error.message === 'PHONE_NOT_VERIFIED'
+    : normalizedCode === 'FORBIDDEN' || normalizedCode === 'PHONE_NOT_VERIFIED'
     ? 403
-    : error.message === 'USER_EXISTS' || error.message === 'EMAIL_EXISTS' || error.message === 'PHONE_EXISTS'
+    : normalizedCode === 'USER_EXISTS' || normalizedCode === 'EMAIL_EXISTS' || normalizedCode === 'PHONE_EXISTS'
     ? 409
-    : error.message === 'ORDER_NOT_FOUND'
+    : normalizedCode === 'ORDER_NOT_FOUND'
     ? 404
-    : error.message === 'OTP_INVALID' ||
-      error.message === 'OTP_EXPIRED' ||
-      error.message === 'OTP_TOO_MANY' ||
-      error.message === 'INVALID_PHONE' ||
-      error.message === 'CORS_NOT_ALLOWED' ||
-      error.message === 'PHONE_MISMATCH' ||
-      error.message === 'KYC_FILE_TYPE_INVALID' ||
-      error.message === 'AMOUNT_MISMATCH' ||
-      error.message === 'PAYMENT_REQUIRED' ||
-      error.message === 'SELLER_DROPOFF_REQUIRED' ||
-      error.message === 'SELLER_DROPOFF_PVZ_REQUIRED' ||
-      error.message === 'BUYER_PICKUP_REQUIRED' ||
-      error.message === 'BUYER_PVZ_REQUIRED' ||
-      error.message === 'SELLER_STATION_ID_REQUIRED' ||
-      error.message === 'BUYER_STATION_ID_REQUIRED' ||
-      error.message === 'ORDER_DELIVERY_OFFER_FAILED' ||
-      error.message === 'VALIDATION_ERROR' ||
-      error.message === 'SHIPPING_ADDRESS_REQUIRED' ||
-      error.message === 'DELIVERY_DESTINATION_REQUIRED' ||
-      error.message === 'DELIVERY_METHOD_NOT_SUPPORTED' ||
-      error.message === 'CDEK_TARIFF_UNAVAILABLE'
+    : normalizedCode === 'OTP_INVALID' ||
+      normalizedCode === 'OTP_EXPIRED' ||
+      normalizedCode === 'OTP_TOO_MANY' ||
+      normalizedCode === 'INVALID_PHONE' ||
+      normalizedCode === 'CORS_NOT_ALLOWED' ||
+      normalizedCode === 'PHONE_MISMATCH' ||
+      normalizedCode === 'KYC_FILE_TYPE_INVALID' ||
+      normalizedCode === 'AMOUNT_MISMATCH' ||
+      normalizedCode === 'PAYMENT_REQUIRED' ||
+      normalizedCode === 'SELLER_DROPOFF_REQUIRED' ||
+      normalizedCode === 'SELLER_DROPOFF_PVZ_REQUIRED' ||
+      normalizedCode === 'BUYER_PICKUP_REQUIRED' ||
+      normalizedCode === 'BUYER_PVZ_REQUIRED' ||
+      normalizedCode === 'SELLER_STATION_ID_REQUIRED' ||
+      normalizedCode === 'BUYER_STATION_ID_REQUIRED' ||
+      normalizedCode === 'ORDER_DELIVERY_OFFER_FAILED' ||
+      normalizedCode === 'VALIDATION_ERROR' ||
+      normalizedCode === 'SHIPPING_ADDRESS_REQUIRED' ||
+      normalizedCode === 'DELIVERY_DESTINATION_REQUIRED' ||
+      normalizedCode === 'DELIVERY_METHOD_NOT_SUPPORTED' ||
+      normalizedCode === 'CDEK_TARIFF_UNAVAILABLE'
     ? 400
-    : error.message === 'ORDER_NOT_PAID' || error.message === 'PICKUP_POINT_REQUIRED'
+    : normalizedCode === 'ORDER_NOT_PAID' || normalizedCode === 'PICKUP_POINT_REQUIRED'
     ? 409
     : 500;
 
@@ -99,5 +101,10 @@ export const errorHandler = (
     });
   }
 
-  res.status(status).json({ error: { code: error.message || 'SERVER_ERROR' } });
+  res.status(status).json({
+    error: {
+      code: extError.code || error.message || 'SERVER_ERROR',
+      message: error.message || 'Unexpected server error'
+    }
+  });
 };
