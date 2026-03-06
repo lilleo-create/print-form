@@ -8,6 +8,7 @@ import { sellerRoutes } from './sellerRoutes';
 import { prisma } from '../lib/prisma';
 import { env } from '../config/env';
 import { shipmentService } from '../services/shipmentService';
+import { sellerOrderDocumentsService } from '../services/sellerOrderDocumentsService';
 
 const buildApp = () => {
   const app = express();
@@ -21,6 +22,8 @@ const tokenFor = (userId: string) => jwt.sign({ userId, role: 'SELLER', scope: '
 const mockAuth = () => {
   (prisma.user.findUnique as any) = async () => ({ role: 'SELLER' });
   (prisma.sellerProfile.findUnique as any) = async () => ({ id: 'sp-1' });
+  (prisma.order.update as any) = async ({ where }: any) => ({ id: where?.id ?? 'order-own' });
+  (prisma.payment.findFirst as any) = async () => ({ status: 'SUCCEEDED' });
 };
 
 const mockOrder = (orderId: string) => ({
@@ -35,6 +38,7 @@ const mockOrder = (orderId: string) => ({
   orderLabels: [{ packageNo: 1, code: 'PF-ABC-1' }],
   buyerPickupPvzMeta: { addressFull: 'ПВЗ покупателя' },
   sellerDropoffPvzMeta: { addressFull: 'ПВЗ продавца' },
+  paidAt: new Date('2026-01-01T09:00:00.000Z'),
   cdekOrderId: 'cdek-uuid',
   shipment: { id: 'shipment-1' },
   items: [{ quantity: 1, priceAtPurchase: 1500, product: { title: 'Товар' } }]
@@ -100,4 +104,27 @@ test('seller label/act return NEED_READY_TO_SHIP when CDEK shipment is missing',
   assert.equal(act.status, 409);
   assert.equal(label.body?.error?.code, 'NEED_READY_TO_SHIP');
   assert.equal(act.body?.error?.code, 'NEED_READY_TO_SHIP');
+});
+
+
+test('handover act does not require waybill forms and normalizes pdf payload', async () => {
+  mockAuth();
+  (shipmentService.getPrintableForms as any) = async () => {
+    throw new Error('should not be called for handover act');
+  };
+  const encodedPdf = Buffer.from('%PDF-1.4 mock%').toString('base64');
+  (sellerOrderDocumentsService.buildHandoverAct as any) = async () => encodedPdf;
+  (prisma.order.findFirst as any) = async ({ where }: any) => {
+    if (where.id === 'order-own') return mockOrder('order-own');
+    return null;
+  };
+
+  const app = buildApp();
+  const auth = `Bearer ${tokenFor('seller-1')}`;
+
+  const act = await request(app).get('/seller/orders/order-own/documents/handover-act.pdf').set('Authorization', auth);
+
+  assert.equal(act.status, 200);
+  assert.match(act.headers['content-type'] ?? '', /application\/pdf/);
+  assert.equal(Number(act.headers['content-length']), Buffer.from('%PDF-1.4 mock%').length);
 });

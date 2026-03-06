@@ -18,6 +18,7 @@ import { SellerErrorState } from '../components/seller/SellerErrorState';
 import { SellerHeader } from '../components/seller/SellerHeader';
 import { SellerStatsCard } from '../components/seller/SellerStatsCard';
 import { CdekPvzPickerModal } from '../components/checkout/CdekPvzPickerModal';
+import { getExternalDeliveryStatusLabel } from '../shared/lib/deliveryStatus';
 import {
   SellerProductModal,
   SellerProductPayload
@@ -68,6 +69,18 @@ const formatDate = (value: string) =>
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
+
+
+const HANDOFF_STATUSES = new Set<OrderStatus>(['HANDED_TO_DELIVERY', 'IN_TRANSIT', 'DELIVERED']);
+
+const isHandoverToDelivery = (order: Order) => {
+  const orderStatus = String(order.status ?? '').toUpperCase();
+  const shipmentStatus = String(order.shipment?.status ?? '').toUpperCase();
+  return (
+    HANDOFF_STATUSES.has(orderStatus as OrderStatus) ||
+    ['IN_TRANSIT', 'DELIVERED', 'RETURNED'].includes(shipmentStatus)
+  );
+};
 
 const isAccessError = (error: unknown) => {
   const message = getErrorMessage(error).toLowerCase();
@@ -525,6 +538,10 @@ export const SellerDashboardPage = () => {
 
   const handleStatusChange = async (order: Order, status: OrderStatus) => {
     setOrderUpdateError(null);
+
+    if (isHandoverToDelivery(order)) {
+      return;
+    }
 
     const draft = trackingDrafts[order.id] ?? {
       trackingNumber: '',
@@ -1270,6 +1287,8 @@ export const SellerDashboardPage = () => {
                       {ordersView.map((order) => {
                         const currentIndex = statusFlow.indexOf(order.status);
                         const nextStatus = statusFlow[currentIndex + 1];
+                        const isExternalDeliveryState = isHandoverToDelivery(order);
+                        const externalStatusLabel = getExternalDeliveryStatusLabel((order as any).cdekStatus ?? order.shipment?.status ?? null);
                         const total = order.items.reduce(
                           (sum, item) => sum + item.lineTotal,
                           0
@@ -1305,31 +1324,37 @@ export const SellerDashboardPage = () => {
                                   {formatCurrency(total)} ₽
                                 </p>
 
-                              <select
-                                className={styles.select}
-                                value={order.status}
-                                disabled={
-                                  !nextStatus || orderUpdateId === order.id
-                                }
-                                onChange={(event) =>
-                                  handleStatusChange(
-                                    order,
-                                    event.target.value as OrderStatus
-                                  )
-                                }
-                              >
-                                <option value={order.status}>
-                                  {statusLabels[order.status]}
-                                </option>
-                                {nextStatus && (
-                                  <option value={nextStatus}>
-                                    {statusLabels[nextStatus]}
-                                  </option>
-                                )}
-                              </select>
+                              {isExternalDeliveryState ? (
+                                <p className={styles.muted}>Статус доставки (CDEK): {externalStatusLabel}</p>
+                              ) : (
+                                <>
+                                  <select
+                                    className={styles.select}
+                                    value={order.status}
+                                    disabled={
+                                      !nextStatus || orderUpdateId === order.id
+                                    }
+                                    onChange={(event) =>
+                                      handleStatusChange(
+                                        order,
+                                        event.target.value as OrderStatus
+                                      )
+                                    }
+                                  >
+                                    <option value={order.status}>
+                                      {statusLabels[order.status]}
+                                    </option>
+                                    {nextStatus && (
+                                      <option value={nextStatus}>
+                                        {statusLabels[nextStatus]}
+                                      </option>
+                                    )}
+                                  </select>
 
-                              {orderUpdateId === order.id && (
-                                <p className={styles.muted}>Обновляем...</p>
+                                  {orderUpdateId === order.id && (
+                                    <p className={styles.muted}>Обновляем...</p>
+                                  )}
+                                </>
                               )}
                               </div>
                             </div>
@@ -1349,7 +1374,7 @@ export const SellerDashboardPage = () => {
                               </p>
                               <p className={styles.muted}>
                                 Статус доставки:{' '}
-                                {order.shipment?.status ?? 'не создана'}
+                                {isExternalDeliveryState ? externalStatusLabel : (statusLabels[order.status] ?? order.status)}
                                 {order.shipment?.lastSyncAt
                                   ? ` · обновлено ${new Date(
                                     order.shipment.lastSyncAt
