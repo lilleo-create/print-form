@@ -95,7 +95,7 @@ const getSellerOrderDisplayStatus = (order: Order) => {
     return getExternalDeliveryStatusLabel(order.cdekStatus ?? order.shipment?.status ?? null);
   }
 
-  if (!order.isPacked) return 'Требуется упаковка';
+  if (!order.isPacked) return 'Ожидает упаковки';
 
   return 'Готов к отгрузке';
 };
@@ -559,6 +559,25 @@ export const SellerDashboardPage = () => {
     }
   };
 
+
+  const handleTogglePacked = async (order: Order) => {
+    setOrderUpdateError(null);
+
+    try {
+      await api.updateOrderFulfillmentSteps(order.id, {
+        isPacked: !order.isPacked
+      });
+      await loadOrders();
+    } catch (error) {
+      const normalized = normalizeApiError(error);
+      if (normalized.code === 'PAYMENT_REQUIRED') {
+        setOrderUpdateError('Заказ не оплачен.');
+        return;
+      }
+      setOrderUpdateError('Не удалось обновить отметку упаковки.');
+    }
+  };
+
   const handleReadyToShip = async (orderId: string) => {
     setOrderUpdateError(null);
 
@@ -665,7 +684,7 @@ export const SellerDashboardPage = () => {
 
   const readyToShipDisabledReason = (order: Order) => {
     if (!order.paidAt && order.status !== 'PAID') return 'Ожидает оплаты';
-    if (!order.isPacked) return 'Заказ не упакован';
+    if (!order.isPacked) return 'Сначала отметьте упаковку';
     if (!order.sellerDropoffPvzMeta && !dropoffPvzId)
       return 'Не выбран ПВЗ сдачи';
     if (
@@ -1211,6 +1230,15 @@ export const SellerDashboardPage = () => {
                               <p className={styles.muted}>
                                 Трек-номер: {order.trackingNumber ?? '—'}
                               </p>
+
+                              <Button
+                                type="button"
+                                variant={order.isPacked ? 'ghost' : 'secondary'}
+                                onClick={() => handleTogglePacked(order)}
+                                disabled={!order.paidAt && order.status !== 'PAID'}
+                              >
+                                {order.isPacked ? 'Снять отметку упаковки' : 'Отметить упаковку'}
+                              </Button>
 
                               {!order.shipment?.id ? (
                                 <>

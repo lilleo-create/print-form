@@ -438,6 +438,24 @@ export const api = {
     });
   },
 
+  async updateOrderFulfillmentSteps(
+    orderId: string,
+    payload: {
+      isPacked?: boolean;
+      isLabelPrinted?: boolean;
+      isActPrinted?: boolean;
+    }
+  ) {
+    return apiClient.request<{
+      isPacked?: boolean;
+      isLabelPrinted?: boolean;
+      isActPrinted?: boolean;
+    }>(`/seller/orders/${orderId}/fulfillment-steps`, {
+      method: 'PATCH',
+      body: payload
+    });
+  },
+
   async syncShipment(shipmentId: string) {
     return apiClient.request<{ shipment: { id: string } }>(`/seller/shipments/${shipmentId}/sync`, {
       method: 'POST'
