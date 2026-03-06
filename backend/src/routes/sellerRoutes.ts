@@ -981,7 +981,7 @@ sellerRoutes.get('/shipments/:id/act', async (req: AuthRequest, res, next) => {
     } catch {
       return res.status(502).json({ error: { code: 'DOCUMENT_DOWNLOAD_FAILED', message: 'Ошибка документа' } });
     }
-    const buffer = Buffer.from(pdf);
+    const buffer = normalizePdfBuffer(pdf);
 
     await prisma.$transaction(async (tx) => {
       await tx.order.update({
@@ -1026,6 +1026,19 @@ const hasSuccessfulPayment = async (orderId: string) => {
     select: { status: true }
   });
   return payment?.status === 'SUCCEEDED';
+};
+
+
+const normalizePdfBuffer = (pdf: unknown) => {
+  if (Buffer.isBuffer(pdf)) return pdf;
+  if (pdf instanceof Uint8Array) return Buffer.from(pdf);
+  if (typeof pdf === 'string') {
+    const normalized = pdf.trim();
+    if (!normalized) return Buffer.alloc(0);
+    const looksLikeBase64 = normalized.startsWith('JVBERi0') || /^[A-Za-z0-9+/=\s]+$/.test(normalized);
+    return Buffer.from(normalized, looksLikeBase64 ? 'base64' : 'utf8');
+  }
+  return Buffer.from(String(pdf ?? ''), 'utf8');
 };
 
 const isOrderPaid = async (order: { id: string; paidAt: Date | null }) =>
@@ -1094,17 +1107,20 @@ sellerRoutes.get('/orders/:orderId/documents/handover-act.pdf', async (req: Auth
       return res.status(409).json({ error: NEED_READY_TO_SHIP_ERROR });
     }
 
-    const forms = await shipmentService.getPrintableForms(order.id).catch(() => null);
-    if (!forms?.waybillUrl) {
-      return res.status(409).json({ error: FORMS_NOT_READY_ERROR });
-    }
-
     const pdf = await sellerOrderDocumentsService.buildHandoverAct(order);
+    const buffer = normalizePdfBuffer(pdf);
+    console.debug('[seller/documents] handover-act payload', {
+      orderId: order.id,
+      isBuffer: Buffer.isBuffer(pdf),
+      type: typeof pdf,
+      length: buffer.length
+    });
+
     await prisma.order.update({ where: { id: order.id }, data: { isActPrinted: true, fulfillmentUpdatedAt: new Date() } as any });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="handover-act-${order.id}.pdf"`);
-    res.setHeader('Content-Length', Buffer.byteLength(pdf));
-    return res.status(200).send(pdf);
+    res.setHeader('Content-Length', buffer.length);
+    return res.status(200).send(buffer);
   } catch (error) {
     return next(error);
   }
