@@ -256,6 +256,9 @@ export interface Order {
     destinationStationId?: string;
     lastSyncAt?: string | null;
     updatedAt?: string | null;
+    formsStatus?: 'NOT_REQUESTED' | 'FORMING' | 'READY';
+    documentsReadyAt?: string | null;
+    lastManualSyncAt?: string | null;
     preparationChecklist?: {
       packedDone?: boolean;
       packedAt?: string | null;

@@ -79,6 +79,18 @@ const buildStatusRaw = (snapshot: CdekOrderSnapshot, fallbackUuid: string, order
   related_entities: snapshot.raw.related_entities ?? []
 });
 
+const getFormsStatusFromRaw = (statusRaw: Record<string, unknown> | null | undefined): 'NOT_REQUESTED' | 'FORMING' | 'READY' => {
+  const raw = statusRaw ?? {};
+  const explicit = String(raw.formsStatus ?? '').toUpperCase();
+  if (explicit === 'READY' || explicit === 'FORMING' || explicit === 'NOT_REQUESTED') {
+    return explicit as 'NOT_REQUESTED' | 'FORMING' | 'READY';
+  }
+
+  const printRaw = safeRecord(raw.print);
+  const waybillUrl = String(printRaw.waybillUrl ?? '').trim();
+  return waybillUrl ? 'READY' : 'FORMING';
+};
+
 const syncShipmentByOrder = async (orderId: string) => {
   const order = await prisma.order.findUnique({ where: { id: orderId }, include: { shipment: true } });
   if (!order) throw makeError('ORDER_NOT_FOUND');
@@ -89,6 +101,15 @@ const syncShipmentByOrder = async (orderId: string) => {
   const snapshot = await cdekService.getOrderByUuid(cdekOrderUuid);
   const nextStatus = mapExternalStatusToInternal(snapshot.status);
   const statusRaw = buildStatusRaw(snapshot, cdekOrderUuid, order.id);
+  const previousRaw = safeRecord(order.shipment?.statusRaw);
+  const previousManualSyncAt = previousRaw.lastManualSyncAt;
+  const formsStatus = getFormsStatusFromRaw(statusRaw);
+  const nextStatusRaw = {
+    ...statusRaw,
+    formsStatus,
+    ...(formsStatus === 'READY' ? { documentsReadyAt: new Date().toISOString() } : {}),
+    ...(previousManualSyncAt ? { lastManualSyncAt: previousManualSyncAt } : {})
+  };
 
   const updated = await prisma.$transaction(async (tx) => {
     const shipment = await tx.orderShipment.upsert({
@@ -101,13 +122,13 @@ const syncShipmentByOrder = async (orderId: string) => {
         destinationStationId: String(order.buyerPickupPvzId ?? ''),
         requestId: snapshot.requestUuid || null,
         status: nextStatus,
-        statusRaw,
+        statusRaw: nextStatusRaw,
         lastSyncAt: new Date()
       },
       update: {
         requestId: snapshot.requestUuid || undefined,
         status: nextStatus,
-        statusRaw,
+        statusRaw: nextStatusRaw,
         lastSyncAt: new Date()
       }
     });
@@ -125,7 +146,7 @@ const syncShipmentByOrder = async (orderId: string) => {
       data: {
         shipmentId: shipment.id,
         status: nextStatus,
-        payloadRaw: statusRaw
+        payloadRaw: nextStatusRaw
       }
     });
 
@@ -254,7 +275,8 @@ export const createShipmentCdek = async (orderId: string, sellerId?: string) => 
       cdek_order_uuid: created.cdekOrderId,
       cdek_request_uuid: created.cdekRequestUuid ?? '',
       cdek_state: created.state ?? '',
-      trackingNumber: created.trackingNumber ?? ''
+      trackingNumber: created.trackingNumber ?? '',
+      formsStatus: 'FORMING'
     };
 
     const shipment = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
@@ -300,20 +322,13 @@ export const createShipmentCdek = async (orderId: string, sellerId?: string) => 
       return nextShipment;
     });
 
-    let synced: Awaited<ReturnType<typeof syncShipmentByOrder>> | null = null;
-    try {
-      synced = await syncShipmentByOrder(order.id);
-    } catch (syncError) {
-      console.warn('[CDEK][createShipmentCdek] immediate sync failed', { orderId: order.id, syncError });
-    }
-
     return {
-      shipment: synced?.shipment ?? shipment,
+      shipment,
       cdek: {
         cdekOrderId: created.cdekOrderId,
-        trackingNumber: synced?.snapshot.trackingNumber || created.trackingNumber,
+        trackingNumber: created.trackingNumber,
         cdekRequestUuid: created.cdekRequestUuid,
-        state: synced?.snapshot.status || created.state
+        state: created.state
       }
     };
   } catch (error) {
@@ -345,10 +360,17 @@ export const markReadyToShipCdek = async (orderId: string, sellerId?: string) =>
   const now = new Date();
 
   const shipment = await prisma.$transaction(async (tx) => {
+    const currentStatusRaw = safeRecord(shipmentForOrder.statusRaw);
     const nextShipment = await tx.orderShipment.update({
       where: { id: shipmentForOrder.id },
       data: {
         status: 'READY_TO_SHIP',
+        statusRaw: {
+          ...currentStatusRaw,
+          formsStatus: 'FORMING',
+          documentsReadyAt: null,
+          lastManualSyncAt: null
+        },
         lastSyncAt: now
       }
     });
@@ -372,20 +394,13 @@ export const markReadyToShipCdek = async (orderId: string, sellerId?: string) =>
     return nextShipment;
   });
 
-  let synced: Awaited<ReturnType<typeof syncShipmentByOrder>> | null = null;
-  try {
-    synced = await syncShipmentByOrder(order.id);
-  } catch (syncError) {
-    console.warn('[CDEK][markReadyToShipCdek] immediate sync failed', { orderId: order.id, syncError });
-  }
-
   return {
-    shipment: synced?.shipment ?? shipment,
+    shipment,
     cdek: {
       cdekOrderId,
-      trackingNumber: synced?.snapshot.trackingNumber || trackingNumber,
+      trackingNumber,
       cdekRequestUuid: null,
-      state: synced?.snapshot.status || cdekState
+      state: cdekState
     }
   };
 };
@@ -428,7 +443,22 @@ export const shipmentService = {
   syncByShipmentId: async (shipmentId: string) => {
     const shipment = await prisma.orderShipment.findUnique({ where: { id: shipmentId } });
     if (!shipment) throw makeError('SHIPMENT_NOT_FOUND');
-    return syncShipmentByOrder(shipment.orderId);
+    const synced = await syncShipmentByOrder(shipment.orderId);
+    const statusRaw = safeRecord(synced.shipment.statusRaw);
+    const nextStatusRaw = {
+      ...statusRaw,
+      lastManualSyncAt: new Date().toISOString()
+    };
+
+    const updatedShipment = await prisma.orderShipment.update({
+      where: { id: synced.shipment.id },
+      data: { statusRaw: nextStatusRaw }
+    });
+
+    return {
+      ...synced,
+      shipment: updatedShipment
+    };
   },
 
   syncByOrderId: async (orderId: string) => syncShipmentByOrder(orderId),

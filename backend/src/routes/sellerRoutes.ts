@@ -70,6 +70,18 @@ const kycUpload = multer({
 
 const toShipmentView = (shipment: any) => {
   if (!shipment) return null;
+  const statusRaw = shipment.statusRaw && typeof shipment.statusRaw === 'object'
+    ? shipment.statusRaw as Record<string, unknown>
+    : {};
+  const explicitFormsStatus = String(statusRaw.formsStatus ?? '').toUpperCase();
+  const printRaw = statusRaw.print && typeof statusRaw.print === 'object'
+    ? statusRaw.print as Record<string, unknown>
+    : {};
+  const waybillUrl = String(printRaw.waybillUrl ?? '').trim();
+  const formsStatus = explicitFormsStatus === 'READY' || explicitFormsStatus === 'FORMING' || explicitFormsStatus === 'NOT_REQUESTED'
+    ? explicitFormsStatus
+    : (waybillUrl ? 'READY' : 'FORMING');
+
   return {
     id: shipment.id,
     provider: shipment.provider,
@@ -78,6 +90,9 @@ const toShipmentView = (shipment: any) => {
     destinationStationId: shipment.destinationStationId,
     lastSyncAt: shipment.lastSyncAt,
     updatedAt: shipment.updatedAt,
+    formsStatus,
+    documentsReadyAt: typeof statusRaw.documentsReadyAt === 'string' ? statusRaw.documentsReadyAt : null,
+    lastManualSyncAt: typeof statusRaw.lastManualSyncAt === 'string' ? statusRaw.lastManualSyncAt : null,
     preparationChecklist: readPreparationChecklist(shipment.statusRaw)
   };
 };
@@ -925,16 +940,6 @@ sellerRoutes.get('/shipments/:id/label', async (req: AuthRequest, res, next) => 
     }
     const buffer = Buffer.from(response.data);
 
-    await prisma.$transaction(async (tx) => {
-      await tx.order.update({
-        where: { id: shipment.orderId },
-        data: {
-          isLabelPrinted: true,
-          fulfillmentUpdatedAt: new Date()
-        } as any
-      });
-    });
-
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="cdek-label-${shipment.id}.pdf"`);
     res.setHeader('Content-Length', buffer.length);
@@ -975,6 +980,11 @@ sellerRoutes.get('/shipments/:id/act', async (req: AuthRequest, res, next) => {
     const hasAccess = shipment.order.items.some((item) => item.product.sellerId === req.user!.userId);
     if (!hasAccess) return res.status(409).json({ error: { code: 'SHIPMENT_NOT_FOUND', message: 'Сначала оформите отгрузку' } });
 
+    const forms = await shipmentService.getPrintableForms(shipment.orderId);
+    if (!forms.waybillUrl) {
+      return res.status(409).json({ error: { code: 'FORMS_NOT_READY', message: 'Документы ещё формируются. Повторите после синхронизации.', retryAfterSec: 10 } });
+    }
+
     let pdf;
     try {
       pdf = await sellerOrderDocumentsService.buildHandoverAct(shipment.order as any);
@@ -982,16 +992,6 @@ sellerRoutes.get('/shipments/:id/act', async (req: AuthRequest, res, next) => {
       return res.status(502).json({ error: { code: 'DOCUMENT_DOWNLOAD_FAILED', message: 'Ошибка документа' } });
     }
     const buffer = Buffer.from(pdf);
-
-    await prisma.$transaction(async (tx) => {
-      await tx.order.update({
-        where: { id: shipment.orderId },
-        data: {
-          isActPrinted: true,
-          fulfillmentUpdatedAt: new Date()
-        } as any
-      });
-    });
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="cdek-act-${shipment.id}.pdf"`);
@@ -1071,7 +1071,6 @@ sellerRoutes.get('/orders/:orderId/documents/label.pdf', async (req: AuthRequest
     }
     const pdf = Buffer.from(response.data);
 
-    await prisma.order.update({ where: { id: order.id }, data: { isLabelPrinted: true, fulfillmentUpdatedAt: new Date() } as any });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="cdek-label-${order.id}.pdf"`);
     res.setHeader('Content-Length', pdf.length);
@@ -1100,7 +1099,6 @@ sellerRoutes.get('/orders/:orderId/documents/handover-act.pdf', async (req: Auth
     }
 
     const pdf = await sellerOrderDocumentsService.buildHandoverAct(order);
-    await prisma.order.update({ where: { id: order.id }, data: { isActPrinted: true, fulfillmentUpdatedAt: new Date() } as any });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="handover-act-${order.id}.pdf"`);
     res.setHeader('Content-Length', Buffer.byteLength(pdf));
