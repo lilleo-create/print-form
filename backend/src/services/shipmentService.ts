@@ -389,6 +389,10 @@ export const createShipmentCdek = async (orderId: string, sellerId?: string) => 
       tariffCode: created.tariffCode ?? null
     };
 
+    if (!isValid && hasTariffUnavailableError(created.requestErrors as Array<{ code?: string; message?: string }>)) {
+      throw makeError('CDEK_TARIFF_UNAVAILABLE', created.requestErrors?.[0]?.message ?? 'Тариф CDEK недоступен для выбранного направления.');
+    }
+
     const shipment = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const nextShipment = await tx.orderShipment.upsert({
         where: { orderId: order.id },
@@ -434,10 +438,6 @@ export const createShipmentCdek = async (orderId: string, sellerId?: string) => 
     });
 
     if (!isValid) {
-      if (hasTariffUnavailableError(created.requestErrors as Array<{ code?: string; message?: string }>)) {
-        throw makeError('CDEK_TARIFF_UNAVAILABLE');
-      }
-
       return {
         shipment,
         cdek: {
