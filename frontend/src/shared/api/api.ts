@@ -331,45 +331,6 @@ export const api = {
     });
   },
 
-  async updateSellerShipmentStage(
-    id: string,
-    payload: { stage: 'CREATING' | 'PRINTING' | 'READY_FOR_DROP' | 'IN_TRANSIT' | 'READY_FOR_PICKUP' }
-  ) {
-    return apiClient.request<{ id: string; status: string }>(`/seller/orders/${id}/shipment-stage`, {
-      method: 'PATCH',
-      body: payload
-    });
-  },
-
-  async updateSellerPreparationChecklist(
-    id: string,
-    payload: { step: 'packedDone' | 'labelPrintedDone' | 'actPrintedDone' | 'readyForDropoffDone'; done: boolean }
-  ) {
-    return apiClient.request<{ id: string; status: string }>(`/seller/orders/${id}/preparation`, {
-      method: 'PATCH',
-      body: payload
-    });
-  },
-
-
-
-  async updateSellerFulfillmentSteps(
-    id: string,
-    payload: { isPacked?: boolean; isLabelPrinted?: boolean; isActPrinted?: boolean }
-  ) {
-    return apiClient.request<{ isPacked: boolean; isLabelPrinted: boolean; isActPrinted: boolean }>(`/seller/orders/${id}/fulfillment-steps`, {
-      method: 'PATCH',
-      body: payload
-    });
-  },
-
-  async cancelOrder(id: string, payload?: { reason?: string; comment?: string }) {
-    return apiClient.request<Order>(`/orders/${id}/cancel`, {
-      method: 'POST',
-      body: payload ?? {}
-    });
-  },
-
   async getSellerDeliveryProfile() {
     return apiClient.request<SellerDeliveryProfile | null>('/seller/settings');
   },
@@ -477,111 +438,60 @@ export const api = {
     });
   },
 
-  async createShipment(orderId: string) {
-    return apiClient.request<{
-      id: string;
-      requestId?: string | null;
-      status: string;
-    }>(`/seller/orders/${orderId}/shipment`, {
-      method: 'POST'
-    });
-  },
-
   async syncShipment(shipmentId: string) {
     return apiClient.request<{ shipment: { id: string } }>(`/seller/shipments/${shipmentId}/sync`, {
       method: 'POST'
     });
   },
 
-  async createCdekReceiptPrintTask(payload: {
-    cdekOrderUuid: string;
-    copyCount?: number;
-    type?: string;
-  }) {
-    const response = await fetch(`${baseUrl}/cdek/print/receipt`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(authHeaders() ?? {})
-      },
-      body: JSON.stringify(payload)
+  async syncCdekOrder(orderId: string) {
+    return apiClient.request(`/cdek/orders/${orderId}/sync`, {
+      method: 'POST'
     });
-
-    if (response.ok && response.headers.get('content-type')?.includes('application/pdf')) {
-      return { type: 'pdf' as const, blob: await response.blob() };
-    }
-
-    const json = await response.json();
-    if (!response.ok) throw new Error(json?.error?.message ?? `RECEIPT_PRINT_FAILED_${response.status}`);
-    return { type: 'processing' as const, ...(json as { status: 'PROCESSING'; printUuid: string }) };
   },
 
-  async downloadCdekReceiptPdf(printUuid: string) {
-    const response = await fetch(`${baseUrl}/cdek/print/receipt/${printUuid}.pdf`, {
-      headers: { ...(authHeaders() ?? {}) }
+  async cancelMyOrder(orderId: string) {
+    return apiClient.request<Order>(`/me/orders/${orderId}/cancel`, {
+      method: 'PATCH'
     });
-    if (!response.ok) throw new Error(`RECEIPT_DOWNLOAD_FAILED_${response.status}`);
-    return await response.blob();
   },
 
-  async createCdekBarcodePrintTask(payload: {
-    cdekOrderUuid: string;
-    copyCount?: number;
-    format?: 'A4' | 'A5' | 'A6' | 'A7';
-    lang?: 'RUS' | 'ENG';
-  }) {
-    const response = await fetch(`${baseUrl}/cdek/print/barcode`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(authHeaders() ?? {})
-      },
-      body: JSON.stringify(payload)
-    });
-
-    if (response.ok && response.headers.get('content-type')?.includes('application/pdf')) {
-      return { type: 'pdf' as const, blob: await response.blob() };
-    }
-
-    const json = await response.json();
-    if (!response.ok) throw new Error(json?.error?.message ?? `BARCODE_PRINT_FAILED_${response.status}`);
-    return { type: 'processing' as const, ...(json as { status: 'PROCESSING'; printUuid: string }) };
-  },
-
-  async downloadCdekBarcodePdf(printUuid: string) {
-    const response = await fetch(`${baseUrl}/cdek/print/barcode/${printUuid}.pdf`, {
-      headers: { ...(authHeaders() ?? {}) }
-    });
-    if (!response.ok) throw new Error(`BARCODE_DOWNLOAD_FAILED_${response.status}`);
-    return await response.blob();
-  },
-
-
-  async downloadShipmentLabel(shipmentId: string) {
+  async downloadShippingLabel(shipmentId: string) {
     const response = await fetch(`${baseUrl}/seller/shipments/${shipmentId}/label`, {
-      headers: { ...(authHeaders() ?? {}) }
+      headers: {
+        ...(authHeaders() ?? {})
+      }
     });
+
     if (!response.ok) {
-      const payload = await response.json().catch(() => null);
-      throw new Error(payload?.error?.message ?? `SHIPMENT_LABEL_DOWNLOAD_FAILED_${response.status}`);
+      throw new Error(`LABEL_DOWNLOAD_FAILED_${response.status}`);
     }
-    return await response.blob();
+
+    return {
+      type: 'pdf' as const,
+      blob: await response.blob()
+    };
+  },
+
+  async downloadShipmentBarcodes(shipmentId: string) {
+    return apiClient.request<{ urls: string[] }>(`/seller/shipments/${shipmentId}/barcodes`);
   },
 
   async downloadShipmentAct(shipmentId: string) {
     const response = await fetch(`${baseUrl}/seller/shipments/${shipmentId}/act`, {
-      headers: { ...(authHeaders() ?? {}) }
+      headers: {
+        ...(authHeaders() ?? {})
+      }
     });
     if (!response.ok) {
-      const payload = await response.json().catch(() => null);
-      throw new Error(payload?.error?.message ?? `SHIPMENT_ACT_DOWNLOAD_FAILED_${response.status}`);
+      throw new Error(`ACT_DOWNLOAD_FAILED_${response.status}`);
     }
     return await response.blob();
   },
 
   async downloadSellerOrderDocument(
     orderId: string,
-    type: 'packing-slip' | 'label' | 'handover-act'
+    type: 'packing-slip' | 'labels' | 'handover-act'
   ) {
     const response = await fetch(
       `${baseUrl}/seller/orders/${orderId}/documents/${type}.pdf`,
@@ -592,25 +502,22 @@ export const api = {
       }
     );
     if (!response.ok) {
-      const payload = await response.json().catch(() => null);
-      const error = new Error(payload?.error?.message ?? `ORDER_DOCUMENT_DOWNLOAD_FAILED_${response.status}`) as Error & {
-        status?: number;
-        payload?: unknown;
-      };
-      error.status = response.status;
-      error.payload = payload;
-      throw error;
+      throw new Error(`ORDER_DOCUMENT_DOWNLOAD_FAILED_${response.status}`);
     }
-    const buffer = await response.arrayBuffer();
-    return new Blob([buffer], { type: 'application/pdf' });
+    return await response.blob();
   },
 
   async findShipmentByTracking(trackingNumber: string) {
     return apiClient.request<{
-      trackingNumber: string;
-      state: string;
-      events: Array<{ code: string; dateTime: string | null }>;
-    }>(`/cdek/track/${encodeURIComponent(trackingNumber)}`);
+      id?: string;
+      orderId?: string;
+      trackingNumber?: string | null;
+      carrier?: string | null;
+      status: string;
+      pvz?: string | null;
+      dropoffPvz?: string | null;
+      updatedAt: string;
+    }>(`/shipments/track/${encodeURIComponent(trackingNumber)}`);
   },
 
   async getSellerPayments() {
@@ -872,20 +779,20 @@ export const api = {
   async submitSellerKyc(payload: {
     merchantData: {
       contactName: string;
+      contactEmail: string;
       contactPhone: string;
       representativeName?: string;
-      legalAddressFull?: string;
-      legalName: string;
+      legalAddressFull: string;
+      siteUrl: string;
+      shipmentType?: 'import' | 'withdraw';
+      legalName?: string;
       inn: string;
       ogrn?: string;
+      kpp?: string;
     };
     dropoffPvzId: string;
     dropoffPvzMeta?: Record<string, unknown>;
     files: File[] | FileList;
-    acceptedRules: boolean;
-    acceptedPersonalData: boolean;
-    acceptedRulesSlug?: string;
-    acceptedPersonalDataSlug?: string;
   }) {
     const formData = new FormData();
     formData.append(
@@ -893,11 +800,7 @@ export const api = {
       JSON.stringify({
         merchantData: payload.merchantData,
         dropoffPvzId: payload.dropoffPvzId,
-        dropoffPvzMeta: payload.dropoffPvzMeta ?? null,
-        acceptedRules: payload.acceptedRules,
-        acceptedPersonalData: payload.acceptedPersonalData,
-        acceptedRulesSlug: payload.acceptedRulesSlug,
-        acceptedPersonalDataSlug: payload.acceptedPersonalDataSlug
+        dropoffPvzMeta: payload.dropoffPvzMeta ?? null
       })
     );
     Array.from(payload.files).forEach((file) => formData.append('files', file));

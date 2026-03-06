@@ -1,6 +1,5 @@
 import { Order, OrderItem, OrderStatus } from '../types';
 import { api } from './index';
-import { DeliveryStage } from '../lib/deliveryStatus';
 
 type ApiOrderItem = {
   id: string;
@@ -22,7 +21,6 @@ type ApiOrder = {
   shippingAddressId?: string | null;
   status?: string;
   statusUpdatedAt?: string;
-  readyForShipmentAt?: string | null;
   paidAt?: string | null;
   total: number;
   recipientName?: string | null;
@@ -36,42 +34,27 @@ type ApiOrder = {
   payoutStatus?: string | null;
   trackingNumber?: string | null;
   cdekOrderId?: string | null;
-  cdekStatus?: string | null;
   carrier?: string | null;
   contact?: Order['contact'];
   shippingAddress?: Order['shippingAddress'];
   delivery?: Order['delivery'] | null;
   shipment?: Order['shipment'] | null;
-  deliveryDaysMin?: number | null;
-  deliveryDaysMax?: number | null;
-  deliveryTariffCode?: number | null;
-  deliveryCalculatedAt?: string | null;
-  deliveryEtaText?: string | null;
-  estimatedDeliveryDateMin?: string | null;
-  estimatedDeliveryDateMax?: string | null;
-  isPacked?: boolean;
-  isLabelPrinted?: boolean;
-  isActPrinted?: boolean;
-  fulfillmentUpdatedAt?: string | null;
   items?: ApiOrderItem[];
 };
 
 const mapStatus = (status?: string): OrderStatus => {
   switch (status) {
     case 'CREATED':
-      return 'CREATED';
     case 'PAID':
-      return 'PAID';
     case 'READY_FOR_SHIPMENT':
-      return 'READY_FOR_SHIPMENT';
     case 'PRINTING':
-      return 'PRINTING';
     case 'HANDED_TO_DELIVERY':
-      return 'HANDED_TO_DELIVERY';
     case 'IN_TRANSIT':
-      return 'IN_TRANSIT';
     case 'DELIVERED':
-      return 'DELIVERED';
+    case 'CANCELLED':
+    case 'RETURNED':
+    case 'EXPIRED':
+      return status;
     default:
       return 'CREATED';
   }
@@ -85,7 +68,6 @@ const mapOrder = (order: ApiOrder): Order => ({
   shippingAddressId: order.shippingAddressId ?? '',
   status: mapStatus(order.status),
   statusUpdatedAt: order.statusUpdatedAt,
-  readyForShipmentAt: order.readyForShipmentAt ?? null,
   paidAt: order.paidAt ?? null,
   total: order.total,
   recipientName: order.recipientName ?? null,
@@ -97,20 +79,8 @@ const mapOrder = (order: ApiOrder): Order => ({
   orderLabels: order.orderLabels ?? [],
   createdAt: order.createdAt,
   payoutStatus: order.payoutStatus ?? null,
-  deliveryDaysMin: order.deliveryDaysMin ?? null,
-  deliveryDaysMax: order.deliveryDaysMax ?? null,
-  deliveryTariffCode: order.deliveryTariffCode ?? null,
-  deliveryCalculatedAt: order.deliveryCalculatedAt ?? null,
-  deliveryEtaText: order.deliveryEtaText ?? null,
-  estimatedDeliveryDateMin: order.estimatedDeliveryDateMin ?? null,
-  estimatedDeliveryDateMax: order.estimatedDeliveryDateMax ?? null,
-  isPacked: order.isPacked ?? false,
-  isLabelPrinted: order.isLabelPrinted ?? false,
-  isActPrinted: order.isActPrinted ?? false,
-  fulfillmentUpdatedAt: order.fulfillmentUpdatedAt ?? null,
   trackingNumber: order.trackingNumber ?? null,
   cdekOrderId: order.cdekOrderId ?? null,
-  cdekStatus: order.cdekStatus ?? null,
   carrier: order.carrier ?? null,
   contact: order.contact ?? null,
   shippingAddress: order.shippingAddress ?? null,
@@ -181,29 +151,26 @@ export const ordersApi = {
     const result = await api.readyToShip(orderId);
     return result.data;
   },
-  createShipment: async (orderId: string) => {
-    const result = await api.createShipment(orderId);
-    return result.data;
-  },
   syncShipment: async (shipmentId: string) => {
     return api.syncShipment(shipmentId);
   },
-  downloadShipmentLabel: async (shipmentId: string) => {
-    return api.downloadShipmentLabel(shipmentId);
+  syncCdekOrder: async (orderId: string) => {
+    return api.syncCdekOrder(orderId);
+  },
+  cancelMyOrder: async (orderId: string) => {
+    const result = await api.cancelMyOrder(orderId);
+    return mapOrder(result.data as unknown as ApiOrder);
+  },
+  downloadShippingLabel: async (shipmentId: string) => {
+    return api.downloadShippingLabel(shipmentId);
+  },
+  downloadShipmentBarcodes: async (shipmentId: string) => {
+    return api.downloadShipmentBarcodes(shipmentId);
   },
   downloadShipmentAct: async (shipmentId: string) => {
     return api.downloadShipmentAct(shipmentId);
   },
-  downloadSellerDocument: async (orderId: string, type: 'packing-slip' | 'label' | 'handover-act') => {
+  downloadSellerDocument: async (orderId: string, type: 'packing-slip' | 'labels' | 'handover-act') => {
     return api.downloadSellerOrderDocument(orderId, type);
-  },
-  updateSellerShipmentStage: async (orderId: string, stage: DeliveryStage) => {
-    return api.updateSellerShipmentStage(orderId, { stage });
-  },
-  updateSellerFulfillmentSteps: async (orderId: string, payload: { isPacked?: boolean; isLabelPrinted?: boolean; isActPrinted?: boolean }) => {
-    return api.updateSellerFulfillmentSteps(orderId, payload);
-  },
-  cancelOrder: async (orderId: string, payload?: { reason?: string; comment?: string }) => {
-    return api.cancelOrder(orderId, payload);
   }
 };

@@ -23,7 +23,6 @@ import {
   SellerProductPayload
 } from '../widgets/seller/SellerProductModal';
 import styles from './SellerAccountPage.module.css';
-import { getExternalDeliveryStatusLabel } from '../shared/lib/deliveryStatus';
 
 const menuItems = [
   'Подключение',
@@ -80,6 +79,7 @@ const isAccessError = (error: unknown) => {
   );
 };
 
+
 export const SellerDashboardPage = () => {
   const navigate = useNavigate();
 
@@ -99,19 +99,16 @@ export const SellerDashboardPage = () => {
   const [ordersError, setOrdersError] = useState<string | null>(null);
 
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'ALL'>('ALL');
+  const [orderUpdateId, setOrderUpdateId] = useState<string | null>(null);
   const [orderUpdateError, setOrderUpdateError] = useState<string | null>(null);
-  const [documentErrors, setDocumentErrors] = useState<
-    Record<string, { label?: string; act?: string }>
-  >({});
   const [trackingSearch, setTrackingSearch] = useState('');
   const [trackingResult, setTrackingResult] = useState<any | null>(null);
 
-  const [labelDownloaded, setLabelDownloaded] = useState<
-    Record<string, boolean>
+  const [trackingDrafts, setTrackingDrafts] = useState<
+    Record<string, { trackingNumber: string; carrier: string }>
   >({});
-  const [actDownloaded, setActDownloaded] = useState<
-    Record<string, boolean>
-  >({});
+  const [labelDownloaded, setLabelDownloaded] = useState<Record<string, boolean>>({});
+  const [actDownloaded, setActDownloaded] = useState<Record<string, boolean>>({});
 
   const [kycSubmission, setKycSubmission] =
     useState<SellerKycSubmission | null>(null);
@@ -119,28 +116,30 @@ export const SellerDashboardPage = () => {
   const [isKycSubmitting, setIsKycSubmitting] = useState(false);
   const [kycMessage, setKycMessage] = useState<string | null>(null);
   const [kycError, setKycError] = useState<string | null>(null);
-  const [acceptRules, setAcceptRules] = useState(false);
-  const [acceptPersonalData, setAcceptPersonalData] = useState(false);
-  const [consentsTouched, setConsentsTouched] = useState(false);
+  const [selectedKycFiles, setSelectedKycFiles] = useState<File[]>([]);
 
   const [merchantForm, setMerchantForm] = useState({
     contactName: '',
+    contactEmail: '',
     contactPhone: '',
     representativeName: '',
     legalName: '',
     inn: '',
     ogrn: '',
-    legalAddressFull: ''
+    kpp: '',
+    legalAddressFull: '',
+    siteUrl: '',
+    shipmentType: 'import' as 'import' | 'withdraw'
   });
 
   const [payments, setPayments] = useState<Payment[]>([]);
   const [paymentsLoading, setPaymentsLoading] = useState(true);
   const [paymentsError, setPaymentsError] = useState<string | null>(null);
 
+  // === Delivery profile ===
   const [dropoffPvzId, setDropoffPvzId] = useState('');
   const [dropoffPvzAddress, setDropoffPvzAddress] = useState('');
-  const [dropoffSchedule, setDropoffSchedule] =
-    useState<'DAILY' | 'WEEKDAYS'>('WEEKDAYS');
+  const [dropoffSchedule, setDropoffSchedule] = useState<'DAILY' | 'WEEKDAYS'>('WEEKDAYS');
   const [isDropoffModalOpen, setDropoffModalOpen] = useState(false);
 
   const [deliverySettingsMessage, setDeliverySettingsMessage] = useState<
@@ -169,37 +168,36 @@ export const SellerDashboardPage = () => {
     Boolean(sellerProfile);
 
   const isAuthLoading = authStatus === 'loading' || contextStatus === 'loading';
+
   const hasDropoffPvz = Boolean(dropoffPvzId.trim());
 
   const requiredMerchantFieldsByStatus: Record<string, string[]> = {
-    ООО: ['contactName', 'contactPhone', 'legalName', 'inn', 'ogrn'],
-    ИП: ['contactName', 'contactPhone', 'legalName', 'inn', 'ogrn'],
-    Самозанятый: ['contactName', 'contactPhone', 'legalName', 'inn']
+    ООО: ['contactName', 'contactEmail', 'contactPhone', 'representativeName', 'legalName', 'inn', 'ogrn', 'kpp', 'legalAddressFull', 'siteUrl'],
+    ИП: ['contactName', 'contactEmail', 'contactPhone', 'inn', 'ogrn', 'legalAddressFull', 'siteUrl'],
+    Самозанятый: ['contactName', 'contactEmail', 'contactPhone', 'inn', 'legalAddressFull', 'siteUrl']
   };
-
   const hasMerchantData = (() => {
     if (!sellerProfile) return false;
-    const required =
-      requiredMerchantFieldsByStatus[sellerProfile.status] ??
-      requiredMerchantFieldsByStatus['ИП'];
-
+    const required = requiredMerchantFieldsByStatus[sellerProfile.status] ?? requiredMerchantFieldsByStatus['ИП'];
     return required.every((field) => {
-      const value = (merchantForm as unknown as Record<string, unknown>)[field];
-      return value !== undefined && value !== null && String(value).trim() !== '';
+      const v = (merchantForm as unknown as Record<string, unknown>)[field];
+      return v !== undefined && v !== null && String(v).trim() !== '';
     });
   })();
 
+  const minKycDocs = sellerProfile?.status === 'ООО' ? 2 : 1;
+  const totalDocs = (kycSubmission?.documents?.length ?? 0) + selectedKycFiles.length;
+  const hasEnoughDocs = totalDocs >= minKycDocs;
   const isKycPending = kycSubmission?.status === 'PENDING';
-  const areConsentsAccepted = acceptRules && acceptPersonalData;
 
   const kycSubmitDisabledReason = isKycPending
     ? 'Заявка уже находится на проверке.'
-    : !hasDropoffPvz
-      ? 'Выберите точку отгрузки (обязательно).'
-      : !hasMerchantData
-        ? 'Заполните обязательные поля продавца.'
-        : !areConsentsAccepted
-          ? 'Примите обязательные согласия.'
+    : !hasEnoughDocs
+      ? (sellerProfile?.status === 'ООО' ? 'Загрузите минимум 2 документа.' : 'Загрузите минимум 1 документ.')
+      : !hasDropoffPvz
+        ? 'Выберите точку отгрузки (обязательно).'
+        : !hasMerchantData
+          ? 'Заполните обязательные поля продавца.'
           : null;
 
   useEffect(() => {
@@ -224,7 +222,6 @@ export const SellerDashboardPage = () => {
   const loadProducts = useCallback(async () => {
     setIsProductsLoading(true);
     setProductsError(null);
-
     try {
       const productsResponse = await api.getSellerProducts();
       setProducts(productsResponse.data);
@@ -251,23 +248,28 @@ export const SellerDashboardPage = () => {
 
       const data = await ordersApi.listBySeller(userId);
       setOrders(data);
+
       setOrdersView(data);
+
+      setTrackingDrafts((prev) => {
+        const next = { ...prev };
+        data.forEach((order) => {
+          next[order.id] = {
+            trackingNumber:
+              order.trackingNumber ?? next[order.id]?.trackingNumber ?? '',
+            carrier: order.carrier ?? next[order.id]?.carrier ?? ''
+          };
+        });
+        return next;
+      });
 
       const profileResponse = await api.getSellerDeliveryProfile();
       const dropoffPvz = profileResponse.data?.dropoffPvz;
       const dropoffMeta = profileResponse.data?.defaultDropoffPvzMeta;
-      const selectedPvzId =
-        dropoffPvz?.pvzId ?? profileResponse.data?.defaultDropoffPvzId ?? '';
-
+      const selectedPvzId = dropoffPvz?.pvzId ?? profileResponse.data?.defaultDropoffPvzId ?? '';
       setDropoffPvzId(selectedPvzId);
-      setDropoffPvzAddress(
-        dropoffPvz?.addressFull ?? dropoffMeta?.addressFull ?? ''
-      );
-      setDropoffSchedule(
-        profileResponse.data?.dropoffSchedule === 'DAILY'
-          ? 'DAILY'
-          : 'WEEKDAYS'
-      );
+      setDropoffPvzAddress(dropoffPvz?.addressFull ?? dropoffMeta?.addressFull ?? '');
+      setDropoffSchedule(profileResponse.data?.dropoffSchedule === 'DAILY' ? 'DAILY' : 'WEEKDAYS');
     } catch (error) {
       setOrders([]);
       setOrdersView([]);
@@ -299,6 +301,18 @@ export const SellerDashboardPage = () => {
 
         const data = await ordersApi.listBySeller(userId, status);
         setOrdersView(data);
+
+        setTrackingDrafts((prev) => {
+          const next = { ...prev };
+          data.forEach((order) => {
+            next[order.id] = {
+              trackingNumber:
+                order.trackingNumber ?? next[order.id]?.trackingNumber ?? '',
+              carrier: order.carrier ?? next[order.id]?.carrier ?? ''
+            };
+          });
+          return next;
+        });
       } catch (error) {
         setOrdersView([]);
         if (isAccessError(error) && isSellerReady) {
@@ -316,7 +330,6 @@ export const SellerDashboardPage = () => {
   const loadKyc = useCallback(async () => {
     setKycLoading(true);
     setKycError(null);
-
     try {
       const response = await api.getSellerKyc();
       setKycSubmission(response.data);
@@ -333,7 +346,6 @@ export const SellerDashboardPage = () => {
   const loadPayments = useCallback(async () => {
     setPaymentsLoading(true);
     setPaymentsError(null);
-
     try {
       const response = await api.getSellerPayments();
       setPayments(response.data ?? []);
@@ -352,20 +364,19 @@ export const SellerDashboardPage = () => {
       setMerchantForm((prev) => ({
         ...prev,
         contactName: sellerProfile.contactName ?? prev.contactName ?? '',
-        contactPhone:
-          sellerProfile.contactPhone ?? sellerProfile.phone ?? prev.contactPhone ?? '',
-        representativeName:
-          sellerProfile.representativeName ?? prev.representativeName ?? '',
+        contactEmail: sellerProfile.contactEmail ?? prev.contactEmail ?? '',
+        contactPhone: sellerProfile.contactPhone ?? sellerProfile.phone ?? prev.contactPhone ?? '',
+        representativeName: sellerProfile.representativeName ?? prev.representativeName ?? '',
         legalName: sellerProfile.legalName ?? prev.legalName ?? '',
         inn: sellerProfile.inn ?? prev.inn ?? '',
         ogrn: sellerProfile.ogrn ?? prev.ogrn ?? '',
-        legalAddressFull:
-          sellerProfile.legalAddressFull ?? prev.legalAddressFull ?? ''
+        kpp: sellerProfile.kpp ?? prev.kpp ?? '',
+        legalAddressFull: sellerProfile.legalAddressFull ?? prev.legalAddressFull ?? '',
+        siteUrl: sellerProfile.siteUrl ?? prev.siteUrl ?? '',
+        shipmentType: (sellerProfile.shipmentType === 'withdraw' ? 'withdraw' : 'import') as 'import' | 'withdraw'
       }));
-      setAcceptRules(Boolean(sellerProfile.acceptedRulesAt));
-      setAcceptPersonalData(Boolean(sellerProfile.acceptedPersonalDataAt));
     }
-  }, [sellerProfile]);
+  }, [sellerProfile?.id, sellerProfile?.contactName, sellerProfile?.contactEmail, sellerProfile?.contactPhone, sellerProfile?.representativeName, sellerProfile?.legalName, sellerProfile?.inn, sellerProfile?.ogrn, sellerProfile?.kpp, sellerProfile?.legalAddressFull, sellerProfile?.siteUrl, sellerProfile?.shipmentType, sellerProfile?.phone]);
 
   useEffect(() => {
     if (!isSellerReady) {
@@ -412,84 +423,75 @@ export const SellerDashboardPage = () => {
       setKycMessage('Подключите профиль продавца, чтобы отправить документы.');
       return;
     }
-
     if (!hasDropoffPvz) {
       setKycError('Выберите точку отгрузки перед отправкой.');
       return;
     }
 
-    if (!areConsentsAccepted) {
-      setConsentsTouched(true);
-      setKycError('Примите обязательные согласия перед отправкой.');
-      return;
-    }
-
     setKycMessage(null);
     setKycError(null);
-    setConsentsTouched(true);
     setIsKycSubmitting(true);
 
     try {
       const status = sellerProfile?.status ?? 'ИП';
       const merchantPayload: Record<string, string> = {
         contactName: merchantForm.contactName.trim(),
+        contactEmail: merchantForm.contactEmail.trim(),
         contactPhone: merchantForm.contactPhone.trim(),
-        representativeName:
-          merchantForm.representativeName.trim() ||
-          merchantForm.contactName.trim(),
-        legalName: merchantForm.legalName.trim(),
         legalAddressFull: merchantForm.legalAddressFull.trim(),
-        inn: merchantForm.inn.trim()
+        siteUrl: merchantForm.siteUrl.trim(),
+        inn: merchantForm.inn.trim(),
+        shipmentType: merchantForm.shipmentType
       };
 
-      if (status === 'ООО' || status === 'ИП') {
+      if (merchantForm.representativeName.trim()) merchantPayload.representativeName = merchantForm.representativeName.trim();
+      if (merchantForm.legalName.trim()) merchantPayload.legalName = merchantForm.legalName.trim();
+      if (status === 'ООО') {
+        merchantPayload.representativeName = merchantForm.representativeName.trim() || merchantForm.contactName.trim();
+        merchantPayload.legalName = merchantForm.legalName.trim();
         merchantPayload.ogrn = merchantForm.ogrn.trim();
+        merchantPayload.kpp = merchantForm.kpp.trim();
       }
+      if (status === 'ИП') merchantPayload.ogrn = merchantForm.ogrn.trim();
 
       const response = await api.submitSellerKyc({
         merchantData: merchantPayload as {
           contactName: string;
+          contactEmail: string;
           contactPhone: string;
           representativeName?: string;
-          legalAddressFull?: string;
-          legalName: string;
+          legalAddressFull: string;
+          siteUrl: string;
+          shipmentType?: 'import' | 'withdraw';
+          legalName?: string;
           inn: string;
           ogrn?: string;
+          kpp?: string;
         },
         dropoffPvzId: dropoffPvzId.trim(),
         dropoffPvzMeta: {
           addressFull: dropoffPvzAddress.trim() || dropoffPvzId.trim(),
           provider: 'CDEK'
         },
-        files: [],
-        acceptedRules: acceptRules,
-        acceptedPersonalData: acceptPersonalData
+        files: selectedKycFiles
       });
 
       setKycSubmission(response.data);
       setKycMessage('Заявка отправлена на проверку.');
+      setSelectedKycFiles([]);
       await reload();
     } catch (error) {
       const normalized = normalizeApiError(error);
-      const payload = (
-        error as { payload?: { error?: { code?: string; message?: string } } }
-      )?.payload;
+      const payload = (error as { payload?: { error?: { code?: string; message?: string } } })?.payload;
       const code = payload?.error?.code ?? normalized.code;
-
       if (isAccessError(error)) {
         setKycError('Сессия истекла, войдите снова.');
       } else if (code === 'DROP_OFF_PVZ_REQUIRED') {
         setKycError('Выберите точку отгрузки (обязательно).');
-      } else if (code === 'CONSENT_REQUIRED') {
-        setKycError(
-          payload?.error?.message ?? 'Необходимо принять обязательные согласия.'
-        );
       } else if (code === 'MERCHANT_DATA_VALIDATION_ERROR') {
         setKycError(payload?.error?.message ?? 'Проверьте данные продавца.');
       } else if (code === 'KYC_DOCS_REQUIRED') {
-        setKycError(
-          payload?.error?.message ?? 'Загрузите достаточно документов.'
-        );
+        setKycError(payload?.error?.message ?? 'Загрузите достаточно документов.');
       } else {
         setKycError(normalized.message ?? 'Не удалось отправить на проверку.');
       }
@@ -521,6 +523,61 @@ export const SellerDashboardPage = () => {
     }
   };
 
+  const handleStatusChange = async (order: Order, status: OrderStatus) => {
+    setOrderUpdateError(null);
+
+    const draft = trackingDrafts[order.id] ?? {
+      trackingNumber: '',
+      carrier: ''
+    };
+
+    const trackingNumber = draft.trackingNumber || order.trackingNumber || '';
+    const carrier = draft.carrier || order.carrier || '';
+
+    if (['HANDED_TO_DELIVERY', 'IN_TRANSIT', 'DELIVERED'].includes(status)) {
+      if (!trackingNumber || !carrier) {
+        setOrderUpdateError(
+          'Для доставки укажите номер отправления и службу доставки.'
+        );
+        return;
+      }
+    }
+
+    setOrderUpdateId(order.id);
+
+    try {
+      const response = await api.updateSellerOrderStatus(order.id, {
+        status,
+        trackingNumber: trackingNumber || undefined,
+        carrier: carrier || undefined
+      });
+
+      const updated = response.data;
+
+      setOrders((prev) =>
+        prev.map((item) => (item.id === updated.id ? updated : item))
+      );
+
+      setOrdersView((prev) =>
+        prev.map((item) => (item.id === updated.id ? updated : item))
+      );
+
+      setTrackingDrafts((prev) => ({
+        ...prev,
+        [updated.id]: {
+          trackingNumber:
+            updated.trackingNumber ?? prev[updated.id]?.trackingNumber ?? '',
+          carrier: updated.carrier ?? prev[updated.id]?.carrier ?? ''
+        }
+      }));
+    } catch {
+      setOrderUpdateError('Не удалось обновить статус заказа.');
+    } finally {
+      setOrderUpdateId(null);
+    }
+  };
+
+
   const handleSaveDropoffSchedule = async () => {
     setDeliverySettingsMessage(null);
     setDeliverySettingsError(null);
@@ -530,9 +587,7 @@ export const SellerDashboardPage = () => {
       setDeliverySettingsMessage('График сдачи сохранён.');
     } catch (error) {
       const normalized = normalizeApiError(error);
-      setDeliverySettingsError(
-        normalized.message ?? 'Не удалось сохранить график сдачи.'
-      );
+      setDeliverySettingsError(normalized.message ?? 'Не удалось сохранить график сдачи.');
     }
   };
 
@@ -555,10 +610,7 @@ export const SellerDashboardPage = () => {
       });
 
       const profileResponse = await api.getSellerDeliveryProfile();
-      const syncedPvzId =
-        profileResponse.data?.dropoffPvz?.pvzId ??
-        profileResponse.data?.defaultDropoffPvzId ??
-        selectedPvzId;
+      const syncedPvzId = profileResponse.data?.dropoffPvz?.pvzId ?? profileResponse.data?.defaultDropoffPvzId ?? selectedPvzId;
       const dropoffMeta = profileResponse.data?.defaultDropoffPvzMeta;
       const metaAddress =
         dropoffMeta && typeof dropoffMeta === 'object'
@@ -567,34 +619,23 @@ export const SellerDashboardPage = () => {
 
       setDropoffPvzId(syncedPvzId);
       setDropoffPvzAddress(metaAddress || dropoffPvzAddress);
+
       setDeliverySettingsMessage('Пункт приёма сохранён.');
     } catch (error) {
       const normalized = normalizeApiError(error);
-      setDeliverySettingsError(
-        normalized.message ?? 'Не удалось сохранить пункт приёма.'
-      );
+      setDeliverySettingsError(normalized.message ?? 'Не удалось сохранить пункт приёма.');
     }
   };
 
-  const handleDropoffSelect = async (selection: {
-    pvzId?: string | null;
-    id?: string | null;
-    addressFull?: string;
-    provider?: string;
-    raw?: unknown;
-    [key: string]: unknown;
-  }) => {
+  const handleDropoffSelect = async (selection: { pvzId?: string | null; id?: string | null; addressFull?: string; provider?: string; raw?: unknown;[key: string]: unknown }) => {
     setDeliverySettingsMessage(null);
     setDeliverySettingsError(null);
 
     const selectedId = selection.pvzId ?? selection.id ?? null;
-    const canContinue =
-      typeof selectedId === 'string' && selectedId.trim().length > 0;
+    const canContinue = typeof selectedId === 'string' && selectedId.trim().length > 0;
 
     if (!canContinue) {
-      setDeliverySettingsError(
-        'Не удалось определить pvzId выбранной точки. Выберите другой пункт.'
-      );
+      setDeliverySettingsError('Не удалось определить pvzId выбранной точки. Выберите другой пункт.');
       return;
     }
 
@@ -614,9 +655,7 @@ export const SellerDashboardPage = () => {
       setDropoffModalOpen(false);
     } catch (error) {
       const normalized = normalizeApiError(error);
-      setDeliverySettingsError(
-        normalized.message ?? 'Не удалось сохранить пункт приёма.'
-      );
+      setDeliverySettingsError(normalized.message ?? 'Не удалось сохранить пункт приёма.');
     }
   };
 
@@ -628,120 +667,82 @@ export const SellerDashboardPage = () => {
       await loadOrders();
     } catch (error) {
       const normalized = normalizeApiError(error);
-
       if (normalized.code === 'PAYMENT_REQUIRED') {
         setOrderUpdateError('Заказ не оплачен.');
         return;
       }
-
       if (normalized.code === 'SELLER_DROPOFF_REQUIRED') {
         setOrderUpdateError('Не выбран ПВЗ сдачи продавца.');
         return;
       }
-
       if (normalized.code === 'BUYER_PICKUP_REQUIRED') {
         setOrderUpdateError('Не выбран ПВЗ покупателя.');
         return;
       }
-
       setOrderUpdateError(
         'Не удалось создать заявку доставки. Проверьте точку отгрузки и данные ПВЗ.'
       );
     }
   };
 
-  const triggerDownload = (blob: Blob, filename: string) => {
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
+  const handleSyncShipment = async (order: Order) => {
+    setOrderUpdateError(null);
+    const shipmentId = order.shipment?.id;
+    const cdekOrderId = String(order.cdekOrderId ?? '').trim();
 
-  const handlePackingToggle = async (order: Order, isPacked: boolean) => {
+    if (!shipmentId && !cdekOrderId) {
+      setOrderUpdateError('Синхронизация доступна после создания shipment.');
+      return;
+    }
+
     try {
-      await ordersApi.updateSellerFulfillmentSteps(order.id, { isPacked });
+      if (shipmentId) {
+        await ordersApi.syncShipment(shipmentId);
+      } else {
+        await ordersApi.syncCdekOrder(order.id);
+      }
       await loadOrders();
-    } catch (error) {
-      setOrderUpdateError(
-        normalizeApiError(error).message || 'Не удалось обновить упаковку.'
-      );
+    } catch {
+      setOrderUpdateError('Не удалось синхронизировать отправление CDEK.');
     }
   };
 
-  const handleDownloadLabel = async (order: Order) => {
+  const handleDownloadLabel = async (shipmentId: string, orderId: string) => {
     setOrderUpdateError(null);
-    setDocumentErrors((prev) => ({
-      ...prev,
-      [order.id]: { ...prev[order.id], label: undefined }
-    }));
 
     try {
-      const blob = await ordersApi.downloadSellerDocument(order.id, 'label');
-      triggerDownload(blob, `cdek-label-${order.id}.pdf`);
-      setLabelDownloaded((prev) => ({ ...prev, [order.id]: true }));
-      await loadOrders();
-    } catch (error) {
-      const normalized = normalizeApiError(error);
+      const result = await ordersApi.downloadShippingLabel(shipmentId);
 
-      if (normalized.code === 'FORMS_NOT_READY') {
-        setDocumentErrors((prev) => ({
-          ...prev,
-          [order.id]: {
-            ...prev[order.id],
-            label: 'Документы формируются… Нажмите позже.'
-          }
-        }));
-        return;
-      }
-
-      setDocumentErrors((prev) => ({
-        ...prev,
-        [order.id]: { ...prev[order.id], label: 'Ошибка документа' }
-      }));
+      const url = URL.createObjectURL(result.blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `shipping-label-${orderId}.pdf`;
+      link.click();
+      URL.revokeObjectURL(url);
+      setLabelDownloaded((prev) => ({ ...prev, [orderId]: true }));
+    } catch {
+      setOrderUpdateError('Не удалось скачать ярлык.');
     }
   };
 
-  const handleDownloadAct = async (order: Order) => {
+  const handleDownloadAct = async (shipmentId: string, orderId: string) => {
     setOrderUpdateError(null);
-    setDocumentErrors((prev) => ({
-      ...prev,
-      [order.id]: { ...prev[order.id], act: undefined }
-    }));
-
     try {
-      const blob = await ordersApi.downloadSellerDocument(
-        order.id,
-        'handover-act'
-      );
-      triggerDownload(blob, `cdek-act-${order.id}.pdf`);
-      setActDownloaded((prev) => ({ ...prev, [order.id]: true }));
-      await loadOrders();
-    } catch (error) {
-      const normalized = normalizeApiError(error);
-
-      if (normalized.code === 'FORMS_NOT_READY') {
-        setDocumentErrors((prev) => ({
-          ...prev,
-          [order.id]: {
-            ...prev[order.id],
-            act: 'Документы формируются… Нажмите позже.'
-          }
-        }));
-        return;
-      }
-
-      setDocumentErrors((prev) => ({
-        ...prev,
-        [order.id]: { ...prev[order.id], act: 'Ошибка документа' }
-      }));
+      const blob = await api.downloadShipmentAct(shipmentId) as unknown as Blob;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `cdek-act-${orderId}.pdf`;
+      link.click();
+      URL.revokeObjectURL(url);
+      setActDownloaded((prev) => ({ ...prev, [orderId]: true }));
+    } catch {
+      setOrderUpdateError('Не удалось скачать акт.');
     }
   };
 
   const handleTrackingSearch = async () => {
     if (!trackingSearch.trim()) return;
-
     try {
       const response = await api.findShipmentByTracking(trackingSearch.trim());
       setTrackingResult(response.data);
@@ -757,85 +758,29 @@ export const SellerDashboardPage = () => {
       value === 'RELEASED' ||
       value === 'READY_TO_PAYOUT' ||
       value === 'READY'
-    ) {
+    )
       return 'READY';
-    }
     return 'HOLD до получения';
   };
 
-  const latestPaymentsByOrder = useMemo(() => {
-    const byOrder = new Map<string, Payment>();
-
-    for (const payment of payments) {
-      const existing = byOrder.get(payment.orderId);
-      if (
-        !existing ||
-        new Date(payment.createdAt).getTime() >
-          new Date(existing.createdAt).getTime()
-      ) {
-        byOrder.set(payment.orderId, payment);
-      }
-    }
-
-    return byOrder;
-  }, [payments]);
-
-  const isOrderPaid = (order: Order) =>
-    Boolean(order.paidAt) ||
-    latestPaymentsByOrder.get(order.id)?.status === 'SUCCEEDED';
-
-  const hasShipment = (order: Order) =>
-    Boolean(order.cdekOrderId || order.shipment?.id);
-
-  const canDownloadLabel = (order: Order) =>
-    isOrderPaid(order) && hasShipment(order) && order.status !== 'CANCELLED';
-
-  const canDownloadAct = (order: Order) =>
-    isOrderPaid(order) && hasShipment(order) && order.status !== 'CANCELLED';
-
-  const canReadyToShip = (order: Order) => {
-    const isNotTerminal =
-      order.status !== 'CANCELLED' && order.status !== 'DELIVERED';
-
-    return (
-      isOrderPaid(order) &&
-      Boolean(order.isPacked) &&
-      isNotTerminal &&
-      order.status !== 'HANDED_TO_DELIVERY'
-    );
-  };
-
   const readyToShipDisabledReason = (order: Order) => {
-    if (order.status === 'CANCELLED') {
-      return 'Отменённый заказ нельзя передать в отгрузку';
-    }
-    if (order.status === 'DELIVERED') {
-      return 'Доставленный заказ нельзя передать в отгрузку';
-    }
-    if (order.status === 'HANDED_TO_DELIVERY') {
-      return 'Уже передано в доставку';
-    }
-    if (!isOrderPaid(order)) {
-      return 'Ожидает оплаты';
-    }
-    if (!order.isPacked) {
-      return 'Отметьте шаг «Упаковка»';
+    if (!order.paidAt && order.status !== 'PAID') return 'Ожидает оплаты';
+    if (order.status === 'CREATED') return 'Заказ не упакован';
+    if (!order.sellerDropoffPvzMeta && !dropoffPvzId)
+      return 'Не выбран ПВЗ сдачи';
+    if (
+      !order.buyerPickupPvzMeta &&
+      !order.shippingAddressId
+    )
+      return 'Не указан адрес доставки';
+    if (order.shipment?.id) return 'Заявка уже создана';
+    if (order.status === 'HANDED_TO_DELIVERY')
+      return 'Уже передан в доставку';
+    if (order.shipment?.status && ['DELIVERED', 'CANCELLED', 'FAILED'].includes(order.shipment.status)) {
+      return 'Доставка завершена';
     }
     return null;
   };
-
-  const getOrderDeliveryLabel = (order: Order) => {
-    if (!isOrderPaid(order)) return 'Ожидает оплаты';
-
-    if (order.status === 'HANDED_TO_DELIVERY') {
-      return getExternalDeliveryStatusLabel(
-        order.cdekStatus ?? order.shipment?.status ?? null
-      );
-    }
-
-    return statusLabels[order.status] ?? 'В работе';
-  };
-
   const summary = useMemo(() => {
     const totalProducts = products.length;
     const totalOrders = orders.length;
@@ -908,7 +853,8 @@ export const SellerDashboardPage = () => {
     <section className={styles.page}>
       <div className={styles.shell}>
         <aside
-          className={`${styles.sidebar} ${isMenuOpen ? styles.sidebarOpen : ''}`}
+          className={`${styles.sidebar} ${isMenuOpen ? styles.sidebarOpen : ''
+            }`}
         >
           <div className={styles.sidebarHeader}>
             <h2>Кабинет продавца</h2>
@@ -1012,7 +958,7 @@ export const SellerDashboardPage = () => {
                   <div className={styles.sectionHeader}>
                     <div>
                       <h2>Подключение продавца</h2>
-                      <p>Заполните данные продавца и выберите точку отгрузки.</p>
+                      <p>Заполните данные продавца, выберите точку отгрузки и прикрепите документы одним отправлением.</p>
                     </div>
                   </div>
 
@@ -1022,248 +968,193 @@ export const SellerDashboardPage = () => {
                     <div className={styles.kycPanel}>
                       <div className={styles.kycRow}>
                         <span className={styles.kycLabel}>Статус:</span>
-                        <strong>{kycSubmission?.status ?? 'Не отправлено'}</strong>
+                        <strong>
+                          {kycSubmission?.status ?? 'Не отправлено'}
+                        </strong>
                       </div>
 
                       {(kycSubmission?.comment ||
                         kycSubmission?.moderationNotes ||
                         kycSubmission?.notes) && (
-                        <p className={styles.kycNotes}>
-                          Комментарий:{' '}
-                          {kycSubmission.comment ??
-                            kycSubmission.moderationNotes ??
-                            kycSubmission.notes}
-                        </p>
-                      )}
+                          <p className={styles.kycNotes}>
+                            Комментарий:{' '}
+                            {kycSubmission.comment ?? kycSubmission.moderationNotes ?? kycSubmission.notes}
+                          </p>
+                        )}
 
                       <div className={styles.sectionHeader}>
                         <h3>Данные продавца</h3>
-                        <p>
-                          Укажите только обязательные данные для логистики и выплат.
-                        </p>
+                        <p>Все поля отправляются вместе с точкой отгрузки и документами.</p>
                       </div>
-
-                      <fieldset
-                        disabled={isKycPending || isKycSubmitting}
-                        style={{
-                          border: 0,
-                          padding: 0,
-                          margin: 0,
-                          display: 'grid',
-                          gap: '12px'
-                        }}
-                      >
-                        <div className={styles.settingsGrid}>
+                      <fieldset disabled={isKycPending || isKycSubmitting} style={{ border: 0, padding: 0, margin: 0, display: 'grid', gap: '12px' }}>
+                      <div className={styles.settingsGrid}>
+                        <label className={styles.labelBlock}>
+                          Контактное лицо (ФИО)
+                          <input
+                            value={merchantForm.contactName}
+                            onChange={(e) => setMerchantForm((p) => ({ ...p, contactName: e.target.value }))}
+                            placeholder="Иванов Иван Иванович"
+                          />
+                        </label>
+                        <label className={styles.labelBlock}>
+                          Email
+                          <input
+                            type="email"
+                            value={merchantForm.contactEmail}
+                            onChange={(e) => setMerchantForm((p) => ({ ...p, contactEmail: e.target.value }))}
+                            placeholder="email@example.com"
+                          />
+                        </label>
+                        <label className={styles.labelBlock}>
+                          Телефон
+                          <input
+                            value={merchantForm.contactPhone}
+                            onChange={(e) => setMerchantForm((p) => ({ ...p, contactPhone: e.target.value }))}
+                            placeholder="+7 (999) 123-45-67"
+                          />
+                        </label>
+                        <label className={styles.labelBlock}>
+                          ФИО представителя
+                          <input
+                            value={merchantForm.representativeName}
+                            onChange={(e) => setMerchantForm((p) => ({ ...p, representativeName: e.target.value }))}
+                            placeholder="Как у контактного лица или иное"
+                          />
+                        </label>
+                        {(sellerProfile?.status === 'ООО' || sellerProfile?.status === 'ИП') && (
                           <label className={styles.labelBlock}>
-                            Телефон для связи
-                            <input
-                              value={merchantForm.contactPhone}
-                              onChange={(e) =>
-                                setMerchantForm((p) => ({
-                                  ...p,
-                                  contactPhone: e.target.value
-                                }))
-                              }
-                              placeholder="+7 (999) 123-45-67"
-                            />
-                          </label>
-
-                          <label className={styles.labelBlock}>
-                            ФИО представителя
-                            <input
-                              value={merchantForm.contactName}
-                              onChange={(e) =>
-                                setMerchantForm((p) => ({
-                                  ...p,
-                                  contactName: e.target.value,
-                                  representativeName: e.target.value
-                                }))
-                              }
-                              placeholder="Иванов Иван Иванович"
-                            />
-                          </label>
-
-                          <label className={styles.labelBlock}>
-                            Официальное название продавца
+                            Официальное название
                             <input
                               value={merchantForm.legalName}
-                              onChange={(e) =>
-                                setMerchantForm((p) => ({
-                                  ...p,
-                                  legalName: e.target.value
-                                }))
-                              }
-                              placeholder={
-                                sellerProfile?.status === 'ИП'
-                                  ? 'ИП Фамилия И. О.'
-                                  : 'ООО «Название»'
-                              }
+                              onChange={(e) => setMerchantForm((p) => ({ ...p, legalName: e.target.value }))}
+                              placeholder={sellerProfile?.status === 'ИП' ? 'ИП Фамилия И. О.' : 'ООО «Название»'}
                             />
                           </label>
-
+                        )}
+                        <label className={styles.labelBlock}>
+                          ИНН
+                          <input
+                            value={merchantForm.inn}
+                            onChange={(e) => setMerchantForm((p) => ({ ...p, inn: e.target.value.replace(/\D/g, '').slice(0, sellerProfile?.status === 'ООО' ? 10 : 12) }))}
+                            placeholder={sellerProfile?.status === 'ООО' ? '10 цифр' : '12 цифр'}
+                          />
+                        </label>
+                        {(sellerProfile?.status === 'ООО' || sellerProfile?.status === 'ИП') && (
                           <label className={styles.labelBlock}>
-                            ИНН
+                            ОГРН{sellerProfile?.status === 'ИП' ? 'ИП' : ''}
                             <input
-                              value={merchantForm.inn}
-                              onChange={(e) =>
-                                setMerchantForm((p) => ({
-                                  ...p,
-                                  inn: e.target.value
-                                    .replace(/\D/g, '')
-                                    .slice(
-                                      0,
-                                      sellerProfile?.status === 'ООО' ? 10 : 12
-                                    )
-                                }))
-                              }
-                              placeholder={
-                                sellerProfile?.status === 'ООО'
-                                  ? '10 цифр'
-                                  : '12 цифр'
-                              }
+                              value={merchantForm.ogrn}
+                              onChange={(e) => setMerchantForm((p) => ({ ...p, ogrn: e.target.value.replace(/\D/g, '').slice(0, sellerProfile?.status === 'ИП' ? 15 : 13) }))}
+                              placeholder={sellerProfile?.status === 'ИП' ? '15 цифр' : '13 цифр'}
                             />
                           </label>
-
-                          {(sellerProfile?.status === 'ООО' ||
-                            sellerProfile?.status === 'ИП') && (
-                            <label className={styles.labelBlock}>
-                              ОГРН{sellerProfile?.status === 'ИП' ? 'ИП' : ''}
-                              <input
-                                value={merchantForm.ogrn}
-                                onChange={(e) =>
-                                  setMerchantForm((p) => ({
-                                    ...p,
-                                    ogrn: e.target.value
-                                      .replace(/\D/g, '')
-                                      .slice(
-                                        0,
-                                        sellerProfile?.status === 'ИП' ? 15 : 13
-                                      )
-                                  }))
-                                }
-                                placeholder={
-                                  sellerProfile?.status === 'ИП'
-                                    ? '15 цифр'
-                                    : '13 цифр'
-                                }
-                              />
-                            </label>
-                          )}
-
+                        )}
+                        {sellerProfile?.status === 'ООО' && (
                           <label className={styles.labelBlock}>
-                            Город
-                            <input value={sellerProfile?.city ?? ''} readOnly />
+                            КПП
+                            <input
+                              value={merchantForm.kpp}
+                              onChange={(e) => setMerchantForm((p) => ({ ...p, kpp: e.target.value.replace(/\D/g, '').slice(0, 9) }))}
+                              placeholder="9 цифр"
+                            />
                           </label>
-
-                          <label
-                            className={styles.labelBlock}
-                            style={{ gridColumn: '1 / -1' }}
+                        )}
+                        <label className={styles.labelBlock} style={{ gridColumn: '1 / -1' }}>
+                          Юридический адрес
+                          <input
+                            value={merchantForm.legalAddressFull}
+                            onChange={(e) => setMerchantForm((p) => ({ ...p, legalAddressFull: e.target.value }))}
+                            placeholder="Полный адрес регистрации"
+                          />
+                        </label>
+                        <label className={styles.labelBlock}>
+                          Сайт
+                          <input
+                            value={merchantForm.siteUrl}
+                            onChange={(e) => setMerchantForm((p) => ({ ...p, siteUrl: e.target.value }))}
+                            placeholder="example.ru"
+                          />
+                        </label>
+                        <label className={styles.labelBlock}>
+                          Тип отгрузки
+                          <select
+                            value={merchantForm.shipmentType}
+                            onChange={(e) => setMerchantForm((p) => ({ ...p, shipmentType: e.target.value as 'import' | 'withdraw' }))}
                           >
-                            Юридический адрес (опционально)
-                            <input
-                              value={merchantForm.legalAddressFull}
-                              onChange={(e) =>
-                                setMerchantForm((p) => ({
-                                  ...p,
-                                  legalAddressFull: e.target.value
-                                }))
-                              }
-                              placeholder="Улица, дом, офис"
-                            />
-                          </label>
-                        </div>
+                            <option value="import">Самопривоз (import)</option>
+                            <option value="withdraw">Вывоз (withdraw)</option>
+                          </select>
+                        </label>
+                      </div>
+                      <div className={styles.sectionHeader}>
+                        <h3>Точка отгрузки</h3>
+                      </div>
 
-                        <div className={styles.sectionHeader}>
-                          <h3>Точка отгрузки</h3>
-                        </div>
-
-                        <div className={styles.settingsGrid}>
-                          <div>
-                            <span className={styles.muted}>
-                              Выбранный dropoffPvzId
-                            </span>
-                            <p>{hasDropoffPvz ? dropoffPvzId : 'Не выбрана'}</p>
-                            {dropoffPvzAddress ? (
-                              <p className={styles.muted}>{dropoffPvzAddress}</p>
-                            ) : null}
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              onClick={() => setDropoffModalOpen(true)}
-                              disabled={isKycPending}
-                            >
-                              Выбрать на карте
-                            </Button>
-                          </div>
-                        </div>
-
-                        <div className={styles.consentsBlock}>
-                          <label className={styles.checkboxRow}>
-                            <input
-                              type="checkbox"
-                              checked={acceptRules}
-                              onChange={(event) =>
-                                setAcceptRules(event.target.checked)
-                              }
-                              disabled={isKycPending || isKycSubmitting}
-                            />
-                            <span>
-                              Я принимаю{' '}
-                              <Link to="/returns">
-                                правила доставки и правила магазина
-                              </Link>
-                            </span>
-                          </label>
-
-                          <label className={styles.checkboxRow}>
-                            <input
-                              type="checkbox"
-                              checked={acceptPersonalData}
-                              onChange={(event) =>
-                                setAcceptPersonalData(event.target.checked)
-                              }
-                              disabled={isKycPending || isKycSubmitting}
-                            />
-                            <span>
-                              Я согласен(на) на{' '}
-                              <Link to="/privacy-policy">
-                                обработку персональных данных
-                              </Link>
-                            </span>
-                          </label>
-
-                          {consentsTouched && !areConsentsAccepted && (
-                            <p className={styles.error}>
-                              Для отправки нужно принять оба согласия.
-                            </p>
-                          )}
-                        </div>
-
-                        <div className={styles.kycActions}>
+                      <div className={styles.settingsGrid}>
+                        <div>
+                          <span className={styles.muted}>Выбранный dropoffPvzId</span>
+                          <p>{hasDropoffPvz ? dropoffPvzId : 'Не выбрана'}</p>
+                          {dropoffPvzAddress ? <p className={styles.muted}>{dropoffPvzAddress}</p> : null}
                           <Button
                             type="button"
-                            onClick={handleKycSubmit}
-                            disabled={
-                              Boolean(kycSubmitDisabledReason) || isKycSubmitting
-                            }
+                            variant="secondary"
+                            onClick={() => setDropoffModalOpen(true)}
+                            disabled={isKycPending}
                           >
-                            Отправить на проверку
+                            Выбрать на карте
                           </Button>
-
-                          {isKycPending && (
-                            <p className={styles.kycMessage}>На проверке</p>
-                          )}
                         </div>
+                      </div>
 
-                        {kycSubmitDisabledReason && (
-                          <p className={styles.muted}>{kycSubmitDisabledReason}</p>
-                        )}
-                      </fieldset>
+                      <div className={styles.sectionHeader}>
+                        <h3>Документы</h3>
+                      </div>
 
-                      {kycError && <p className={styles.error}>{kycError}</p>}
-                      {kycMessage && (
-                        <p className={styles.kycMessage}>{kycMessage}</p>
+                      {kycSubmission?.documents?.length ? (
+                        <ul className={styles.kycDocs}>
+                          {kycSubmission.documents.map((doc) => (
+                            <li key={doc.id}>
+                              <a href={doc.url} target="_blank" rel="noreferrer">
+                                {doc.originalName}
+                              </a>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className={styles.muted}>Документы не загружены.</p>
                       )}
+
+                      {selectedKycFiles.length > 0 && (
+                        <p className={styles.muted}>Новые документы к отправке: {selectedKycFiles.map((file) => file.name).join(', ')}</p>
+                      )}
+
+                      <div className={styles.kycActions}>
+                        <label className={styles.uploadButton}>
+                          <input
+                            type="file"
+                            multiple
+                            accept=".pdf,image/png,image/jpeg"
+                            onChange={(event) => setSelectedKycFiles(Array.from(event.target.files ?? []))}
+                            disabled={isKycPending || isKycSubmitting}
+                          />
+                          {isKycSubmitting ? 'Отправка...' : 'Выбрать документы'}
+                        </label>
+
+                        <Button
+                          type="button"
+                          onClick={handleKycSubmit}
+                          disabled={Boolean(kycSubmitDisabledReason) || isKycSubmitting}
+                        >
+                          Отправить на проверку
+                        </Button>
+
+                        {isKycPending && <p className={styles.kycMessage}>На проверке</p>}
+                      </div>
+
+                      {kycSubmitDisabledReason && <p className={styles.muted}>{kycSubmitDisabledReason}</p>}
+                      </fieldset>
+                      {kycError && <p className={styles.error}>{kycError}</p>}
+                      {kycMessage && <p className={styles.kycMessage}>{kycMessage}</p>}
                     </div>
                   )}
                 </div>
@@ -1377,6 +1268,8 @@ export const SellerDashboardPage = () => {
                   ) : (
                     <div className={styles.ordersList}>
                       {ordersView.map((order) => {
+                        const currentIndex = statusFlow.indexOf(order.status);
+                        const nextStatus = statusFlow[currentIndex + 1];
                         const total = order.items.reduce(
                           (sum, item) => sum + item.lineTotal,
                           0
@@ -1394,9 +1287,15 @@ export const SellerDashboardPage = () => {
                                 </div>
 
                                 <div className={styles.cellTruncate}>
-                                  <p>{order.contact?.name ?? order.buyer?.name ?? '—'}</p>
+                                  <p>
+                                    {order.contact?.name ??
+                                      order.buyer?.name ??
+                                      '—'}
+                                  </p>
                                   <p className={styles.muted}>
-                                    {order.contact?.phone ?? order.buyer?.email ?? ''}
+                                    {order.contact?.phone ??
+                                      order.buyer?.email ??
+                                      ''}
                                   </p>
                                 </div>
                               </div>
@@ -1406,34 +1305,38 @@ export const SellerDashboardPage = () => {
                                   {formatCurrency(total)} ₽
                                 </p>
 
-                                <div>
-                                  <strong>{getOrderDeliveryLabel(order)}</strong>
-                                </div>
+                              <select
+                                className={styles.select}
+                                value={order.status}
+                                disabled={
+                                  !nextStatus || orderUpdateId === order.id
+                                }
+                                onChange={(event) =>
+                                  handleStatusChange(
+                                    order,
+                                    event.target.value as OrderStatus
+                                  )
+                                }
+                              >
+                                <option value={order.status}>
+                                  {statusLabels[order.status]}
+                                </option>
+                                {nextStatus && (
+                                  <option value={nextStatus}>
+                                    {statusLabels[nextStatus]}
+                                  </option>
+                                )}
+                              </select>
+
+                              {orderUpdateId === order.id && (
+                                <p className={styles.muted}>Обновляем...</p>
+                              )}
                               </div>
                             </div>
 
                             <div className={styles.deliveryInputs}>
                               <p className={styles.muted}>
-                                Упаковка: {order.isPacked ? 'выполнено' : 'не выполнено'}
-                              </p>
-
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                onClick={() =>
-                                  void handlePackingToggle(order, !Boolean(order.isPacked))
-                                }
-                                disabled={
-                                  order.status === 'CANCELLED' || !isOrderPaid(order)
-                                }
-                              >
-                                {order.isPacked
-                                  ? 'Снять отметку упаковки'
-                                  : 'Отметить упаковку'}
-                              </Button>
-
-                              <p className={styles.muted}>
-                                Способ доставки: ПВЗ (CDEK)
+                                Способ доставки: ПВЗ (Pickup Point)
                               </p>
                               <p className={styles.muted}>
                                 Пункт выдачи: {order.buyerPickupPvzMeta?.addressFull ?? '—'}
@@ -1445,11 +1348,12 @@ export const SellerDashboardPage = () => {
                                 Выплата: {payoutLabel(order.payoutStatus)}
                               </p>
                               <p className={styles.muted}>
-                                Статус доставки: {getOrderDeliveryLabel(order)}
+                                Статус доставки:{' '}
+                                {order.shipment?.status ?? 'не создана'}
                                 {order.shipment?.lastSyncAt
                                   ? ` · обновлено ${new Date(
-                                      order.shipment.lastSyncAt
-                                    ).toLocaleString('ru-RU')}`
+                                    order.shipment.lastSyncAt
+                                  ).toLocaleString('ru-RU')}`
                                   : ''}
                               </p>
 
@@ -1457,19 +1361,31 @@ export const SellerDashboardPage = () => {
                                 Трек-номер: {order.trackingNumber ?? '—'}
                               </p>
 
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                onClick={() => handleReadyToShip(order.id)}
-                                disabled={!canReadyToShip(order)}
-                              >
-                                Готов к отгрузке
-                              </Button>
-
-                              {readyToShipDisabledReason(order) && (
-                                <p className={styles.muted}>
-                                  {readyToShipDisabledReason(order)}
-                                </p>
+                              {!order.shipment?.id ? (
+                                <>
+                                  <Button
+                                    type="button"
+                                    variant="secondary"
+                                    onClick={() => handleReadyToShip(order.id)}
+                                    disabled={Boolean(readyToShipDisabledReason(order))}
+                                  >
+                                    Готов к отгрузке
+                                  </Button>
+                                  {readyToShipDisabledReason(order) && (
+                                    <p className={styles.muted}>
+                                      {readyToShipDisabledReason(order)}
+                                    </p>
+                                  )}
+                                </>
+                              ) : (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  onClick={() => handleSyncShipment(order)}
+                                  disabled={!order.shipment?.id && !order.cdekOrderId}
+                                >
+                                  Синхронизировать CDEK
+                                </Button>
                               )}
 
                               <details>
@@ -1489,7 +1405,8 @@ export const SellerDashboardPage = () => {
                                 </p>
                                 <p className={styles.muted}>
                                   ПВЗ сдачи:{' '}
-                                  {order.sellerDropoffPvzMeta?.addressFull ?? '—'}
+                                  {order.sellerDropoffPvzMeta?.addressFull ??
+                                    '—'}
                                 </p>
                                 <p className={styles.muted}>
                                   Грузомест: {order.packagesCount ?? 1}
@@ -1508,42 +1425,24 @@ export const SellerDashboardPage = () => {
                               <Button
                                 type="button"
                                 variant="ghost"
-                                className={
-                                  labelDownloaded[order.id] || order.isLabelPrinted
-                                    ? styles.documentPrintedButton
-                                    : undefined
-                                }
-                                onClick={() => void handleDownloadLabel(order)}
-                                disabled={!canDownloadLabel(order)}
+                                className={labelDownloaded[order.id] ? styles.downloadedButton : ''}
+                                onClick={() => order.shipment?.id && handleDownloadLabel(order.shipment.id, order.id)}
+                                disabled={!order.shipment?.id || !order.trackingNumber}
                               >
                                 Скачать ярлык
                               </Button>
 
-                              {documentErrors[order.id]?.label && (
-                                <p className={styles.error}>
-                                  {documentErrors[order.id]?.label}
-                                </p>
-                              )}
+                              {!order.trackingNumber && <p className={styles.muted}>ещё формируется</p>}
 
                               <Button
                                 type="button"
                                 variant="ghost"
-                                className={
-                                  actDownloaded[order.id] || order.isActPrinted
-                                    ? styles.documentPrintedButton
-                                    : undefined
-                                }
-                                onClick={() => void handleDownloadAct(order)}
-                                disabled={!canDownloadAct(order)}
+                                className={actDownloaded[order.id] ? styles.downloadedButton : ''}
+                                onClick={() => order.shipment?.id && handleDownloadAct(order.shipment.id, order.id)}
+                                disabled={!order.shipment?.id && !order.cdekOrderId}
                               >
                                 Скачать акт
                               </Button>
-
-                              {documentErrors[order.id]?.act && (
-                                <p className={styles.error}>
-                                  {documentErrors[order.id]?.act}
-                                </p>
-                              )}
                             </div>
                           </div>
                         );
@@ -1564,7 +1463,6 @@ export const SellerDashboardPage = () => {
                       <h2>Логистика</h2>
                       <p>Данные по доставке ваших заказов.</p>
                     </div>
-
                     <div>
                       <input
                         className={styles.input}
@@ -1572,18 +1470,12 @@ export const SellerDashboardPage = () => {
                         value={trackingSearch}
                         onChange={(e) => setTrackingSearch(e.target.value)}
                       />
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={handleTrackingSearch}
-                      >
+                      <Button type="button" variant="secondary" onClick={handleTrackingSearch}>
                         Найти
                       </Button>
-
                       {trackingResult && (
                         <p className={styles.muted}>
-                          {trackingResult.trackingNumber} ·{' '}
-                          {getExternalDeliveryStatusLabel(trackingResult.state)}
+                          {trackingResult.trackingNumber} · {trackingResult.status} · {trackingResult.dropoffPvz ?? '—'} → {trackingResult.pvz ?? '—'}
                         </p>
                       )}
                     </div>
@@ -1608,16 +1500,15 @@ export const SellerDashboardPage = () => {
                               {formatDate(order.createdAt)}
                             </p>
                           </div>
-
                           <div className={styles.cellTruncate}>
                             {order.shippingAddress?.addressText ?? '—'}
                           </div>
-
                           <div>{statusLabels[order.status]}</div>
-
                           <div className={styles.cellTruncate}>
                             <p>{order.trackingNumber ?? '—'}</p>
-                            <p className={styles.muted}>{order.carrier ?? '—'}</p>
+                            <p className={styles.muted}>
+                              {order.carrier ?? '—'}
+                            </p>
                           </div>
                         </div>
                       ))}
@@ -1636,7 +1527,6 @@ export const SellerDashboardPage = () => {
               {activeItem === 'Бухгалтерия' && (
                 <div className={styles.section}>
                   <h2>Бухгалтерия</h2>
-
                   {paymentsLoading ? (
                     <p className={styles.muted}>Загрузка платежей...</p>
                   ) : paymentsError ? (
@@ -1657,7 +1547,9 @@ export const SellerDashboardPage = () => {
                       {payments.map((payment) => (
                         <div key={payment.id} className={styles.ordersRow}>
                           <span>{formatDate(payment.createdAt)}</span>
-                          <span className={styles.cellTruncate}>№{payment.orderId}</span>
+                          <span className={styles.cellTruncate}>
+                            №{payment.orderId}
+                          </span>
                           <span>
                             {formatCurrency(payment.amount)} {payment.currency}
                           </span>
@@ -1752,29 +1644,21 @@ export const SellerDashboardPage = () => {
                     продавца.
                   </p>
 
+
                   <div className={styles.settingsGrid}>
                     <label>
                       <span className={styles.muted}>Сдаю заказы</span>
                       <select
                         className={styles.input}
                         value={dropoffSchedule}
-                        onChange={(event) =>
-                          setDropoffSchedule(
-                            event.target.value as 'DAILY' | 'WEEKDAYS'
-                          )
-                        }
+                        onChange={(event) => setDropoffSchedule(event.target.value as 'DAILY' | 'WEEKDAYS')}
                       >
                         <option value="DAILY">Ежедневно</option>
                         <option value="WEEKDAYS">По будням</option>
                       </select>
                     </label>
-
                     <div>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => void handleSaveDropoffSchedule()}
-                      >
+                      <Button type="button" variant="secondary" onClick={() => void handleSaveDropoffSchedule()}>
                         Сохранить график сдачи
                       </Button>
                     </div>
@@ -1785,7 +1669,9 @@ export const SellerDashboardPage = () => {
                       <span className={styles.muted}>
                         Пункт приёма (C2C dropoff)
                       </span>
-                      <p>{dropoffPvzId || 'Не определена'}</p>
+                      <p>
+                        {dropoffPvzId || 'Не определена'}
+                      </p>
 
                       {dropoffPvzAddress ? (
                         <p className={styles.muted}>{dropoffPvzAddress}</p>
@@ -1811,13 +1697,11 @@ export const SellerDashboardPage = () => {
                       )}
 
                       {deliverySettingsError && (
-                        <p
-                          className={styles.error}
-                          style={{ marginTop: '0.5rem' }}
-                        >
+                        <p className={styles.error} style={{ marginTop: '0.5rem' }}>
                           {deliverySettingsError}
                         </p>
                       )}
+
                     </div>
                   </div>
 
@@ -1832,6 +1716,7 @@ export const SellerDashboardPage = () => {
                   >
                     Сохранить пункт приёма
                   </Button>
+
 
                   {deliverySettingsMessage && (
                     <p className={styles.muted}>{deliverySettingsMessage}</p>

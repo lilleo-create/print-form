@@ -38,8 +38,6 @@ export interface Product {
   printTime?: string;
   productionTimeHours?: number;
   deliveryDateEstimated?: string | null;
-  deliveryDaysMin?: number | null;
-  deliveryDaysMax?: number | null;
   color: string;
   sellerId: string | null;
   createdAt?: string;
@@ -214,7 +212,6 @@ export interface Order {
   shippingAddressId: string;
   status: OrderStatus;
   statusUpdatedAt?: string;
-  readyForShipmentAt?: string | null;
   paidAt?: string | null;
   total: number;
   recipientName?: string | null;
@@ -229,7 +226,6 @@ export interface Order {
   createdAt: string;
   trackingNumber?: string | null;
   cdekOrderId?: string | null;
-  cdekStatus?: string | null;
   carrier?: string | null;
   contact?: Contact | null;
   shippingAddress?: Address | null;
@@ -237,17 +233,6 @@ export interface Order {
   items: OrderItem[];
   delivery?: OrderDelivery | null;
   payoutStatus?: string | null;
-  deliveryDaysMin?: number | null;
-  deliveryDaysMax?: number | null;
-  deliveryTariffCode?: number | null;
-  deliveryCalculatedAt?: string | null;
-  deliveryEtaText?: string | null;
-  estimatedDeliveryDateMin?: string | null;
-  estimatedDeliveryDateMax?: string | null;
-  isPacked?: boolean;
-  isLabelPrinted?: boolean;
-  isActPrinted?: boolean;
-  fulfillmentUpdatedAt?: string | null;
   shipment?: {
     id: string;
     provider: string;
@@ -256,16 +241,6 @@ export interface Order {
     destinationStationId?: string;
     lastSyncAt?: string | null;
     updatedAt?: string | null;
-    preparationChecklist?: {
-      packedDone?: boolean;
-      packedAt?: string | null;
-      labelPrintedDone?: boolean;
-      labelPrintedAt?: string | null;
-      actPrintedDone?: boolean;
-      actPrintedAt?: string | null;
-      readyForDropoffDone?: boolean;
-      readyForDropoffAt?: string | null;
-    } | null;
   } | null;
 }
 
@@ -347,10 +322,6 @@ export interface SellerProfile {
   legalAddressFull?: string | null;
   siteUrl?: string | null;
   shipmentType?: string | null;
-  acceptedRulesAt?: string | null;
-  acceptedRulesSlug?: string | null;
-  acceptedPersonalDataAt?: string | null;
-  acceptedPersonalDataSlug?: string | null;
 }
 
 export interface SellerContextResponse {

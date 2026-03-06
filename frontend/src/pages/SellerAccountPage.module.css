@@ -213,6 +213,39 @@
   gap: 12px;
 }
 
+.ordersList {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+}
+
+.orderCard {
+  background: #111f34;
+  border-radius: 14px;
+  border: 1px solid #324564;
+  padding: 22px;
+  display: grid;
+  gap: 16px;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.28);
+}
+
+.orderCardTop {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr);
+  gap: 16px;
+}
+
+.orderCardLeft,
+.orderCardRight {
+  display: grid;
+  gap: 8px;
+}
+
+.orderAmount {
+  font-size: 20px;
+  font-weight: 700;
+}
+
 .ordersHeader,
 .ordersRow {
   display: grid;
@@ -261,6 +294,11 @@
 .deliveryInputs {
   display: grid;
   gap: 6px;
+}
+
+.downloadedButton {
+  border-color: #22c55e;
+  color: #4ade80;
 }
 
 .input {
@@ -344,17 +382,6 @@
   margin-top: 4px;
 }
 
-
-.doneState {
-  color: var(--success);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.documentPrintedButton {
-  border: 1px solid green;
-}
-
 .muted {
   color: var(--muted);
 }
@@ -420,27 +447,6 @@
   color: var(--muted);
 }
 
-
-.consentsBlock {
-  display: grid;
-  gap: 8px;
-  padding: 12px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--bg-2);
-}
-
-.checkboxRow {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  color: var(--text);
-}
-
-.checkboxRow a {
-  color: var(--primary);
-}
-
 @media (max-width: 960px) {
   .shell {
     grid-template-columns: 1fr;
@@ -475,6 +481,10 @@
   .ordersRow,
   .reportHeader,
   .reportRow {
+    grid-template-columns: 1fr;
+  }
+
+  .orderCardTop {
     grid-template-columns: 1fr;
   }
 }
