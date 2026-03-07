@@ -595,6 +595,20 @@ class CdekService {
     return printUuid;
   }
 
+  async createBarcodePrintTaskForLabel(params: {
+    orderUuids: string[];
+    copyCount?: number;
+    format?: CdekBarcodePrintFormat;
+    lang?: CdekPrintLang;
+  }) {
+    return this.createBarcodePrint(
+      params.orderUuids,
+      params.copyCount ?? 1,
+      params.format ?? 'A4',
+      params.lang ?? 'RUS'
+    );
+  }
+
   async getBarcodePrintStatus(printUuid: string): Promise<CdekPrintTaskSnapshot> {
     return this.getBarcodePrintTask(printUuid);
   }
@@ -690,6 +704,10 @@ class CdekService {
     return this.normalizePrintTaskStatus(response);
   }
 
+  async getBarcodePrintTaskForLabel(printTaskUuid: string): Promise<CdekPrintTaskSnapshot> {
+    return this.getBarcodePrintTask(printTaskUuid);
+  }
+
   async getWaybillPdfByPrintTaskUuid(printTaskUuid: string): Promise<Buffer> {
     const uuid = String(printTaskUuid ?? "").trim();
     if (!uuid) throw new Error("CDEK_PRINT_TASK_UUID_REQUIRED");
@@ -740,6 +758,10 @@ class CdekService {
     });
 
     return Buffer.from(arrayBuffer);
+  }
+
+  async downloadBarcodePdf(printTaskUuid: string): Promise<Buffer> {
+    return this.getBarcodePdfByPrintTaskUuid(printTaskUuid);
   }
 
   async getWaybillPdfByOrderUuid(orderUuid: string): Promise<Buffer> {
