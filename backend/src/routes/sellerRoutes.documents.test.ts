@@ -39,7 +39,7 @@ const mockOrder = (orderId: string) => ({
   sellerDropoffPvzMeta: { addressFull: 'ПВЗ продавца' },
   paidAt: new Date('2026-01-01T09:00:00.000Z'),
   cdekOrderId: 'cdek-uuid',
-  shipment: { id: 'shipment-1' },
+  shipment: { id: 'shipment-1', labelPrintRequestUuid: 'label-print-uuid', actPrintRequestUuid: 'act-print-uuid' },
   items: [{ quantity: 1, priceAtPurchase: 1500, product: { title: 'Товар' } }]
 });
 
@@ -47,6 +47,8 @@ test('seller documents endpoints return application/pdf and 200 for own order', 
   mockAuth();
   (cdekService.getOrderPrintStatus as any) = async () => ({ status: 'READY' });
   (cdekService.downloadOrderPrintPdf as any) = async () => Buffer.from('%PDF-ready%');
+  (cdekService.getBarcodePrintTaskForLabel as any) = async () => ({ status: 'READY', statuses: [] });
+  (cdekService.downloadBarcodePdf as any) = async () => Buffer.from('%PDF-ready%');
   (prisma.order.findFirst as any) = async ({ where }: any) => {
     if (where.id === 'order-own') return mockOrder('order-own');
     return null;
@@ -128,8 +130,8 @@ test('handover act is downloaded from CDEK order print API', async () => {
 
 test('seller label route uses CDEK order print API when print task is ready', async () => {
   mockAuth();
-  (cdekService.getOrderPrintStatus as any) = async () => ({ status: 'READY' });
-  (cdekService.downloadOrderPrintPdf as any) = async () => Buffer.from('%PDF-fallback-label%');
+  (cdekService.getBarcodePrintTaskForLabel as any) = async () => ({ status: 'READY', statuses: [] });
+  (cdekService.downloadBarcodePdf as any) = async () => Buffer.from('%PDF-fallback-label%');
   (prisma.order.findFirst as any) = async ({ where }: any) => {
     if (where.id === 'order-own') return mockOrder('order-own');
     return null;
@@ -146,7 +148,7 @@ test('seller label route uses CDEK order print API when print task is ready', as
 
 test('seller label route returns FORMS_NOT_READY when print task is processing', async () => {
   mockAuth();
-  (cdekService.getOrderPrintStatus as any) = async () => ({ status: 'PROCESSING' });
+  (cdekService.getBarcodePrintTaskForLabel as any) = async () => ({ status: 'PROCESSING', statuses: [] });
   (prisma.order.findFirst as any) = async ({ where }: any) => {
     if (where.id === 'order-own') return mockOrder('order-own');
     return null;

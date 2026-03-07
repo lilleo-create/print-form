@@ -1078,17 +1078,17 @@ sellerRoutes.get('/orders/:orderId/documents/label.pdf', async (req: AuthRequest
       return res.status(409).json({ error: NEED_READY_TO_SHIP_ERROR });
     }
 
-    const result = await resolveOrderPrintPdf({
+    const result = await shipmentService.resolveLabelBarcodePdf({
       shipmentId,
-      cdekOrderId: order.cdekOrderId,
-      printRequestUuid: order.shipment?.labelPrintRequestUuid,
-      type: 'tpl_russia',
-      kind: 'label'
-    }).catch(() => ({ status: 'invalid' as const }));
+      cdekOrderId: String(order.cdekOrderId ?? ''),
+      labelPrintRequestUuid: order.shipment?.labelPrintRequestUuid
+    }).catch((error: any) => {
+      if (error?.code === 'CDEK_BARCODE_PRINT_INVALID') return { status: 'invalid' as const };
+      throw error;
+    });
 
     if (result.status === 'need_ready_to_ship') return res.status(409).json({ error: NEED_READY_TO_SHIP_ERROR });
     if (result.status === 'processing') return res.status(409).json({ error: FORMS_NOT_READY_ERROR });
-    if (result.status === 'expired') return res.status(409).json({ error: FORMS_EXPIRED_ERROR });
     if (result.status !== 'ready') return res.status(502).json({ error: DOCUMENT_DOWNLOAD_FAILED_ERROR });
 
     await prisma.order.update({ where: { id: order.id }, data: { isLabelPrinted: true, fulfillmentUpdatedAt: new Date() } as any });
