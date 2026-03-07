@@ -165,8 +165,8 @@ export const ordersApi = {
     const result = await api.cancelMyOrder(orderId);
     return mapOrder(result.data as unknown as ApiOrder);
   },
-  downloadShippingLabel: async (shipmentId: string) => {
-    return api.downloadShippingLabel(shipmentId);
+  downloadShippingLabel: async (orderId: string) => {
+    return api.downloadShippingLabel(orderId);
   },
   downloadShipmentBarcodes: async (shipmentId: string) => {
     return api.downloadShipmentBarcodes(shipmentId);
