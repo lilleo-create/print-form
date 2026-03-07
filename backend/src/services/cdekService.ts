@@ -768,6 +768,59 @@ class CdekService {
     const printTaskUuid = await this.createWaybillPrintTask(orderUuid);
     return this.getWaybillPdfByPrintTaskUuid(printTaskUuid);
   }
+
+  async downloadPdfByUrl(url: string): Promise<Buffer> {
+    const normalizedUrl = String(url ?? '').trim();
+    if (!normalizedUrl) throw new Error('CDEK_PDF_URL_REQUIRED');
+
+    const token = await this.getToken();
+    const startedAt = Date.now();
+    console.info('[CDEK][downloadPdfByUrl][start]', { url: normalizedUrl });
+
+    try {
+      const response = await axios.get<ArrayBuffer>(normalizedUrl, {
+        responseType: 'arraybuffer',
+        headers: { Authorization: `Bearer ${token}` },
+        validateStatus: () => true
+      });
+
+      const contentType = String(response.headers?.['content-type'] ?? '').toLowerCase();
+      const contentLength = Number(response.headers?.['content-length'] ?? 0) || Buffer.byteLength(Buffer.from(response.data));
+
+      console.info('[CDEK][downloadPdfByUrl][response]', {
+        url: normalizedUrl,
+        status: response.status,
+        contentType,
+        contentLength,
+        durationMs: Date.now() - startedAt
+      });
+
+      if (response.status < 200 || response.status >= 300) {
+        const error: any = new Error(`CDEK_PDF_DOWNLOAD_HTTP_${response.status}`);
+        error.status = response.status;
+        error.data = response.data;
+        throw error;
+      }
+
+      if (contentType && !contentType.includes('application/pdf') && !contentType.includes('application/octet-stream')) {
+        const error: any = new Error(`CDEK_PDF_CONTENT_TYPE_INVALID: ${contentType}`);
+        error.status = response.status;
+        error.contentType = contentType;
+        throw error;
+      }
+
+      return Buffer.from(response.data);
+    } catch (error: any) {
+      console.error('[CDEK][downloadPdfByUrl][error]', {
+        url: normalizedUrl,
+        status: Number(error?.response?.status ?? error?.status ?? 0),
+        data: error?.response?.data ?? error?.data,
+        message: String(error?.message ?? 'unknown_error'),
+        durationMs: Date.now() - startedAt
+      });
+      throw error;
+    }
+  }
 }
 
 export const cdekService = new CdekService();

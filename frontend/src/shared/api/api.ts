@@ -474,8 +474,8 @@ export const api = {
     });
   },
 
-  async downloadShippingLabel(shipmentId: string) {
-    const response = await fetch(`${baseUrl}/seller/shipments/${shipmentId}/label`, {
+  async downloadShippingLabel(orderId: string) {
+    const response = await fetch(`${baseUrl}/seller/orders/${orderId}/documents/label.pdf`, {
       headers: {
         ...(authHeaders() ?? {})
       }
@@ -492,7 +492,7 @@ export const api = {
   },
 
   async downloadShipmentBarcodes(shipmentId: string) {
-    return apiClient.request<{ urls: string[] }>(`/seller/shipments/${shipmentId}/barcodes`);
+    return apiClient.request<{ status: 'ready'; format: 'application/pdf'; size: number }>(`/seller/shipments/${shipmentId}/barcodes`);
   },
 
   async downloadShipmentAct(shipmentId: string) {

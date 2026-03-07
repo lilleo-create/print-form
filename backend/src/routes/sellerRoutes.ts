@@ -1,6 +1,5 @@
 import "dotenv/config";
 import { Response, Router } from "express";
-import axios from 'axios';
 import { z } from "zod";
 import multer from "multer";
 import path from "path";
@@ -875,18 +874,15 @@ sellerRoutes.get('/shipments/:id/label', async (req: AuthRequest, res, next) => 
     const hasAccess = shipment.order.items.some((item) => item.product.sellerId === req.user!.userId);
     if (!hasAccess) return res.status(409).json({ error: { code: 'SHIPMENT_NOT_FOUND', message: 'Сначала оформите отгрузку' } });
 
-    const forms = await shipmentService.getPrintableForms(shipment.orderId);
-    if (!forms.waybillUrl) {
-      return res.status(409).json({ error: { code: 'FORMS_NOT_READY', message: 'Label is not ready yet. Retry after sync.' } });
-    }
+    const result = await shipmentService.resolveLabelBarcodePdf({
+      shipmentId: shipment.id,
+      cdekOrderId: String(shipment.order.cdekOrderId ?? ''),
+      labelPrintRequestUuid: shipment.labelPrintRequestUuid
+    });
 
-    let response;
-    try {
-      response = await axios.get(forms.waybillUrl, { responseType: 'arraybuffer' });
-    } catch {
-      return res.status(502).json({ error: { code: 'DOCUMENT_DOWNLOAD_FAILED', message: 'Ошибка документа' } });
-    }
-    const buffer = Buffer.from(response.data);
+    if (result.status === 'need_ready_to_ship') return res.status(409).json({ error: NEED_READY_TO_SHIP_ERROR });
+    if (result.status === 'processing') return res.status(409).json({ error: FORMS_NOT_READY_ERROR });
+    if (result.status !== 'ready') return res.status(502).json({ error: DOCUMENT_DOWNLOAD_FAILED_ERROR });
 
     await prisma.$transaction(async (tx) => {
       await tx.order.update({
@@ -900,8 +896,8 @@ sellerRoutes.get('/shipments/:id/label', async (req: AuthRequest, res, next) => 
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="cdek-label-${shipment.id}.pdf"`);
-    res.setHeader('Content-Length', buffer.length);
-    return res.status(200).send(buffer);
+    res.setHeader('Content-Length', result.pdf.length);
+    return res.status(200).send(result.pdf);
   } catch (e) {
     next(e);
   }
@@ -917,12 +913,17 @@ sellerRoutes.get('/shipments/:id/barcodes', async (req: AuthRequest, res, next) 
     const hasAccess = shipment.order.items.some((item) => item.product.sellerId === req.user!.userId);
     if (!hasAccess) return res.status(409).json({ error: { code: 'SHIPMENT_NOT_FOUND', message: 'Сначала оформите отгрузку' } });
 
-    const forms = await shipmentService.getPrintableForms(shipment.orderId);
-    if (!forms.barcodeUrls.length) {
-      return res.status(409).json({ error: { code: 'FORMS_NOT_READY', message: 'Barcode is not ready yet. Retry after sync.' } });
-    }
+    const result = await shipmentService.resolveLabelBarcodePdf({
+      shipmentId: shipment.id,
+      cdekOrderId: String(shipment.order.cdekOrderId ?? ''),
+      labelPrintRequestUuid: shipment.labelPrintRequestUuid
+    });
 
-    return res.json({ data: { urls: forms.barcodeUrls } });
+    if (result.status === 'need_ready_to_ship') return res.status(409).json({ error: NEED_READY_TO_SHIP_ERROR });
+    if (result.status === 'processing') return res.status(409).json({ error: FORMS_NOT_READY_ERROR });
+    if (result.status !== 'ready') return res.status(502).json({ error: DOCUMENT_DOWNLOAD_FAILED_ERROR });
+
+    return res.json({ data: { status: 'ready', format: 'application/pdf', size: result.pdf.length } });
   } catch (e) {
     next(e);
   }
@@ -1082,9 +1083,6 @@ sellerRoutes.get('/orders/:orderId/documents/label.pdf', async (req: AuthRequest
       shipmentId,
       cdekOrderId: String(order.cdekOrderId ?? ''),
       labelPrintRequestUuid: order.shipment?.labelPrintRequestUuid
-    }).catch((error: any) => {
-      if (error?.code === 'CDEK_BARCODE_PRINT_INVALID') return { status: 'invalid' as const };
-      throw error;
     });
 
     if (result.status === 'need_ready_to_ship') return res.status(409).json({ error: NEED_READY_TO_SHIP_ERROR });

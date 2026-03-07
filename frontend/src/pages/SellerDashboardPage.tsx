@@ -606,11 +606,11 @@ export const SellerDashboardPage = () => {
     }
   };
 
-  const handleDownloadLabel = async (shipmentId: string, orderId: string) => {
+  const handleDownloadLabel = async (_shipmentId: string, orderId: string) => {
     setOrderUpdateError(null);
 
     try {
-      const result = await ordersApi.downloadShippingLabel(shipmentId);
+      const result = await ordersApi.downloadShippingLabel(orderId);
 
       const url = URL.createObjectURL(result.blob);
       const link = document.createElement('a');
