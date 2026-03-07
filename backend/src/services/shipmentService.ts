@@ -464,6 +464,113 @@ export const shipmentService = {
 
   syncByOrderId: async (orderId: string) => syncShipmentByOrder(orderId),
 
+  ensureLabelBarcodePrintTask: async (params: {
+    shipmentId: string;
+    cdekOrderId: string;
+    labelPrintRequestUuid?: string | null;
+  }) => {
+    const cdekOrderId = String(params.cdekOrderId ?? '').trim();
+    if (!cdekOrderId) throw makeError('CDEK_ORDER_UUID_MISSING');
+
+    const existingUuid = String(params.labelPrintRequestUuid ?? '').trim();
+    if (existingUuid) {
+      console.info('[shipmentService.ensureLabelBarcodePrintTask] reuse existing barcode print task', {
+        shipmentId: params.shipmentId,
+        cdekOrderId,
+        printTaskUuid: existingUuid
+      });
+      return existingUuid;
+    }
+
+    const printTaskUuid = await cdekService.createBarcodePrintTaskForLabel({
+      orderUuids: [cdekOrderId],
+      copyCount: 1,
+      format: 'A4',
+      lang: 'RUS'
+    });
+
+    console.info('[shipmentService.ensureLabelBarcodePrintTask] created barcode print task', {
+      shipmentId: params.shipmentId,
+      cdekOrderId,
+      printTaskUuid
+    });
+
+    await prisma.orderShipment.update({
+      where: { id: params.shipmentId },
+      data: { labelPrintRequestUuid: printTaskUuid }
+    });
+
+    return printTaskUuid;
+  },
+
+  resolveLabelBarcodePdf: async (params: {
+    shipmentId: string;
+    cdekOrderId: string;
+    labelPrintRequestUuid?: string | null;
+  }) => {
+    const cdekOrderId = String(params.cdekOrderId ?? '').trim();
+    if (!cdekOrderId) return { status: 'need_ready_to_ship' as const };
+
+    let printTaskUuid = await shipmentService.ensureLabelBarcodePrintTask({
+      shipmentId: params.shipmentId,
+      cdekOrderId,
+      labelPrintRequestUuid: params.labelPrintRequestUuid
+    });
+
+    let snapshot = await cdekService.getBarcodePrintTaskForLabel(printTaskUuid);
+    console.info('[shipmentService.resolveLabelBarcodePdf] barcode print task status', {
+      shipmentId: params.shipmentId,
+      cdekOrderId,
+      printTaskUuid,
+      status: snapshot.status,
+      statuses: snapshot.statuses
+    });
+
+    if (snapshot.status === 'REMOVED') {
+      console.warn('[shipmentService.resolveLabelBarcodePdf] barcode print task was removed, recreating', {
+        shipmentId: params.shipmentId,
+        cdekOrderId,
+        removedPrintTaskUuid: printTaskUuid
+      });
+
+      printTaskUuid = await cdekService.createBarcodePrintTaskForLabel({
+        orderUuids: [cdekOrderId],
+        copyCount: 1,
+        format: 'A4',
+        lang: 'RUS'
+      });
+
+      await prisma.orderShipment.update({
+        where: { id: params.shipmentId },
+        data: { labelPrintRequestUuid: printTaskUuid }
+      });
+
+      snapshot = await cdekService.getBarcodePrintTaskForLabel(printTaskUuid);
+      console.info('[shipmentService.resolveLabelBarcodePdf] recreated barcode print task status', {
+        shipmentId: params.shipmentId,
+        cdekOrderId,
+        printTaskUuid,
+        status: snapshot.status,
+        statuses: snapshot.statuses
+      });
+    }
+
+    if (snapshot.status === 'READY') {
+      const pdf = await cdekService.downloadBarcodePdf(printTaskUuid);
+      return { status: 'ready' as const, pdf };
+    }
+
+    if (snapshot.status === 'ACCEPTED' || snapshot.status === 'PROCESSING') {
+      return { status: 'processing' as const };
+    }
+
+    if (snapshot.status === 'INVALID') {
+      throw makeError('CDEK_BARCODE_PRINT_INVALID', 'CDEK barcode print task is INVALID');
+    }
+
+    return { status: 'invalid' as const };
+  },
+
   getPrintableForms: async (orderId: string) => {
     const shipment = await prisma.orderShipment.findUnique({ where: { orderId } });
     if (!shipment) throw makeError('SHIPMENT_NOT_FOUND');
