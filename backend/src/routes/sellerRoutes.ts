@@ -23,10 +23,6 @@ export const sellerRoutes = Router();
 // Uploads
 // ---------------------------------------------------------
 const uploadDir = path.join(process.cwd(), "uploads");
-const kycUploadDir = path.join(uploadDir, "kyc");
-if (!fs.existsSync(kycUploadDir)) {
-  fs.mkdirSync(kycUploadDir, { recursive: true });
-}
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, uploadDir),
@@ -50,23 +46,6 @@ const upload = multer({
   }
 });
 
-const kycStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, kycUploadDir),
-  filename: (_req, file, cb) => {
-    const unique = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
-    cb(null, `${unique}-${file.originalname}`);
-  }
-});
-
-const kycUpload = multer({
-  storage: kycStorage,
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (_req, file, cb) => {
-    const allowed = ["application/pdf", "image/jpeg", "image/png"];
-    if (!allowed.includes(file.mimetype)) return cb(new Error("KYC_FILE_TYPE_INVALID"));
-    return cb(null, true);
-  }
-});
 
 const toShipmentView = (shipment: any) => {
   if (!shipment) return null;
@@ -426,11 +405,9 @@ const kycSubmitPayloadSchema = z.object({
   acceptedPersonalDataSlug: z.string().trim().min(1).optional()
 });
 
-sellerRoutes.post('/kyc/submit', writeLimiter, kycUpload.array('files', 5), async (req: AuthRequest, res, next) => {
+sellerRoutes.post('/kyc/submit', writeLimiter, async (req: AuthRequest, res, next) => {
   try {
-    const files = (req.files as Express.Multer.File[]) ?? [];
-    const rawPayload = typeof req.body?.payload === 'string' ? JSON.parse(req.body.payload) : req.body;
-    const submitPayload = kycSubmitPayloadSchema.parse(rawPayload);
+    const submitPayload = kycSubmitPayloadSchema.parse(req.body);
 
     if (!submitPayload.acceptedRules || !submitPayload.acceptedPersonalData) {
       return res.status(400).json({
@@ -543,20 +520,6 @@ sellerRoutes.post('/kyc/submit', writeLimiter, kycUpload.array('files', 5), asyn
             submittedAt: new Date()
           }
         });
-
-      if (files.length > 0) {
-        await tx.sellerDocument.createMany({
-          data: files.map((file) => ({
-            submissionId: submission.id,
-            type: 'document',
-            url: `/uploads/kyc/${file.filename}`,
-            fileName: file.filename,
-            originalName: file.originalname,
-            mime: file.mimetype,
-            size: file.size
-          }))
-        });
-      }
 
       return tx.sellerKycSubmission.findUnique({
         where: { id: submission.id },

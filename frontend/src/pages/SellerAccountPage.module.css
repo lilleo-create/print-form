@@ -366,6 +366,13 @@
   background: var(--bg);
 }
 
+.checkboxLabel {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-weight: 500;
+}
+
 .linkButton {
   border: none;
   background: transparent;

@@ -797,36 +797,26 @@ export const api = {
   async submitSellerKyc(payload: {
     merchantData: {
       contactName: string;
-      contactEmail: string;
       contactPhone: string;
       representativeName?: string;
-      legalAddressFull: string;
-      siteUrl: string;
-      shipmentType?: 'import' | 'withdraw';
       legalName?: string;
       inn: string;
       ogrn?: string;
-      kpp?: string;
     };
     dropoffPvzId: string;
     dropoffPvzMeta?: Record<string, unknown>;
-    files: File[] | FileList;
+    acceptedRules: boolean;
+    acceptedPersonalData: boolean;
+    acceptedRulesSlug?: string;
+    acceptedPersonalDataSlug?: string;
   }) {
-    const formData = new FormData();
-    formData.append(
-      'payload',
-      JSON.stringify({
-        merchantData: payload.merchantData,
-        dropoffPvzId: payload.dropoffPvzId,
-        dropoffPvzMeta: payload.dropoffPvzMeta ?? null
-      })
-    );
-    Array.from(payload.files).forEach((file) => formData.append('files', file));
-
     const response = await fetch(`${baseUrl}/seller/kyc/submit`, {
       method: 'POST',
-      headers: authHeaders(),
-      body: formData,
+      headers: {
+        ...authHeaders(),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload),
       credentials: 'include'
     });
 

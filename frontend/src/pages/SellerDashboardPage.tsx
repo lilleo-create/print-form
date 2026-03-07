@@ -142,20 +142,16 @@ export const SellerDashboardPage = () => {
   const [isKycSubmitting, setIsKycSubmitting] = useState(false);
   const [kycMessage, setKycMessage] = useState<string | null>(null);
   const [kycError, setKycError] = useState<string | null>(null);
-  const [selectedKycFiles, setSelectedKycFiles] = useState<File[]>([]);
+  const [acceptedRules, setAcceptedRules] = useState(false);
+  const [acceptedPersonalData, setAcceptedPersonalData] = useState(false);
 
   const [merchantForm, setMerchantForm] = useState({
     contactName: '',
-    contactEmail: '',
     contactPhone: '',
     representativeName: '',
     legalName: '',
     inn: '',
-    ogrn: '',
-    kpp: '',
-    legalAddressFull: '',
-    siteUrl: '',
-    shipmentType: 'import' as 'import' | 'withdraw'
+    ogrn: ''
   });
 
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -198,9 +194,9 @@ export const SellerDashboardPage = () => {
   const hasDropoffPvz = Boolean(dropoffPvzId.trim());
 
   const requiredMerchantFieldsByStatus: Record<string, string[]> = {
-    ООО: ['contactName', 'contactEmail', 'contactPhone', 'representativeName', 'legalName', 'inn', 'ogrn', 'kpp', 'legalAddressFull', 'siteUrl'],
-    ИП: ['contactName', 'contactEmail', 'contactPhone', 'inn', 'ogrn', 'legalAddressFull', 'siteUrl'],
-    Самозанятый: ['contactName', 'contactEmail', 'contactPhone', 'inn', 'legalAddressFull', 'siteUrl']
+    ООО: ['contactName', 'contactPhone', 'legalName', 'inn', 'ogrn'],
+    ИП: ['contactName', 'contactPhone', 'inn', 'ogrn'],
+    Самозанятый: ['contactName', 'contactPhone', 'legalName', 'inn']
   };
   const hasMerchantData = (() => {
     if (!sellerProfile) return false;
@@ -211,19 +207,16 @@ export const SellerDashboardPage = () => {
     });
   })();
 
-  const minKycDocs = sellerProfile?.status === 'ООО' ? 2 : 1;
-  const totalDocs = (kycSubmission?.documents?.length ?? 0) + selectedKycFiles.length;
-  const hasEnoughDocs = totalDocs >= minKycDocs;
   const isKycPending = kycSubmission?.status === 'PENDING';
 
   const kycSubmitDisabledReason = isKycPending
     ? 'Заявка уже находится на проверке.'
-    : !hasEnoughDocs
-      ? (sellerProfile?.status === 'ООО' ? 'Загрузите минимум 2 документа.' : 'Загрузите минимум 1 документ.')
-      : !hasDropoffPvz
+    : !hasDropoffPvz
         ? 'Выберите точку отгрузки (обязательно).'
         : !hasMerchantData
           ? 'Заполните обязательные поля продавца.'
+          : !acceptedRules || !acceptedPersonalData
+            ? 'Подтвердите обязательные согласия.'
           : null;
 
   useEffect(() => {
@@ -333,19 +326,14 @@ export const SellerDashboardPage = () => {
       setMerchantForm((prev) => ({
         ...prev,
         contactName: sellerProfile.contactName ?? prev.contactName ?? '',
-        contactEmail: sellerProfile.contactEmail ?? prev.contactEmail ?? '',
         contactPhone: sellerProfile.contactPhone ?? sellerProfile.phone ?? prev.contactPhone ?? '',
         representativeName: sellerProfile.representativeName ?? prev.representativeName ?? '',
         legalName: sellerProfile.legalName ?? prev.legalName ?? '',
         inn: sellerProfile.inn ?? prev.inn ?? '',
-        ogrn: sellerProfile.ogrn ?? prev.ogrn ?? '',
-        kpp: sellerProfile.kpp ?? prev.kpp ?? '',
-        legalAddressFull: sellerProfile.legalAddressFull ?? prev.legalAddressFull ?? '',
-        siteUrl: sellerProfile.siteUrl ?? prev.siteUrl ?? '',
-        shipmentType: (sellerProfile.shipmentType === 'withdraw' ? 'withdraw' : 'import') as 'import' | 'withdraw'
+        ogrn: sellerProfile.ogrn ?? prev.ogrn ?? ''
       }));
     }
-  }, [sellerProfile?.id, sellerProfile?.contactName, sellerProfile?.contactEmail, sellerProfile?.contactPhone, sellerProfile?.representativeName, sellerProfile?.legalName, sellerProfile?.inn, sellerProfile?.ogrn, sellerProfile?.kpp, sellerProfile?.legalAddressFull, sellerProfile?.siteUrl, sellerProfile?.shipmentType, sellerProfile?.phone]);
+  }, [sellerProfile?.id, sellerProfile?.contactName, sellerProfile?.contactPhone, sellerProfile?.representativeName, sellerProfile?.legalName, sellerProfile?.inn, sellerProfile?.ogrn, sellerProfile?.phone]);
 
   useEffect(() => {
     if (!isSellerReady) {
@@ -375,7 +363,7 @@ export const SellerDashboardPage = () => {
 
   const handleKycSubmit = async () => {
     if (!isSellerReady) {
-      setKycMessage('Подключите профиль продавца, чтобы отправить документы.');
+      setKycMessage('Подключите профиль продавца, чтобы отправить заявку.');
       return;
     }
     if (!hasDropoffPvz) {
@@ -391,12 +379,8 @@ export const SellerDashboardPage = () => {
       const status = sellerProfile?.status ?? 'ИП';
       const merchantPayload: Record<string, string> = {
         contactName: merchantForm.contactName.trim(),
-        contactEmail: merchantForm.contactEmail.trim(),
         contactPhone: merchantForm.contactPhone.trim(),
-        legalAddressFull: merchantForm.legalAddressFull.trim(),
-        siteUrl: merchantForm.siteUrl.trim(),
-        inn: merchantForm.inn.trim(),
-        shipmentType: merchantForm.shipmentType
+        inn: merchantForm.inn.trim()
       };
 
       if (merchantForm.representativeName.trim()) merchantPayload.representativeName = merchantForm.representativeName.trim();
@@ -405,35 +389,31 @@ export const SellerDashboardPage = () => {
         merchantPayload.representativeName = merchantForm.representativeName.trim() || merchantForm.contactName.trim();
         merchantPayload.legalName = merchantForm.legalName.trim();
         merchantPayload.ogrn = merchantForm.ogrn.trim();
-        merchantPayload.kpp = merchantForm.kpp.trim();
       }
       if (status === 'ИП') merchantPayload.ogrn = merchantForm.ogrn.trim();
 
       const response = await api.submitSellerKyc({
         merchantData: merchantPayload as {
           contactName: string;
-          contactEmail: string;
           contactPhone: string;
           representativeName?: string;
-          legalAddressFull: string;
-          siteUrl: string;
-          shipmentType?: 'import' | 'withdraw';
           legalName?: string;
           inn: string;
           ogrn?: string;
-          kpp?: string;
         },
         dropoffPvzId: dropoffPvzId.trim(),
         dropoffPvzMeta: {
           addressFull: dropoffPvzAddress.trim() || dropoffPvzId.trim(),
           provider: 'CDEK'
         },
-        files: selectedKycFiles
+        acceptedRules,
+        acceptedPersonalData,
+        acceptedRulesSlug: 'seller-delivery-and-store-rules',
+        acceptedPersonalDataSlug: 'privacy-policy'
       });
 
       setKycSubmission(response.data);
       setKycMessage('Заявка отправлена на проверку.');
-      setSelectedKycFiles([]);
       await reload();
     } catch (error) {
       const normalized = normalizeApiError(error);
@@ -445,8 +425,8 @@ export const SellerDashboardPage = () => {
         setKycError('Выберите точку отгрузки (обязательно).');
       } else if (code === 'MERCHANT_DATA_VALIDATION_ERROR') {
         setKycError(payload?.error?.message ?? 'Проверьте данные продавца.');
-      } else if (code === 'KYC_DOCS_REQUIRED') {
-        setKycError(payload?.error?.message ?? 'Загрузите достаточно документов.');
+      } else if (code === 'CONSENT_REQUIRED') {
+        setKycError(payload?.error?.message ?? 'Подтвердите обязательные согласия.');
       } else {
         setKycError(normalized.message ?? 'Не удалось отправить на проверку.');
       }
@@ -903,7 +883,7 @@ export const SellerDashboardPage = () => {
 
                       <div className={styles.sectionHeader}>
                         <h3>Данные продавца</h3>
-                        <p>Все поля отправляются вместе с точкой отгрузки и документами.</p>
+                        <p>Укажите только обязательные данные для подключения продавца.</p>
                       </div>
                       <fieldset disabled={isKycPending || isKycSubmitting} style={{ border: 0, padding: 0, margin: 0, display: 'grid', gap: '12px' }}>
                       <div className={styles.settingsGrid}>
@@ -916,15 +896,6 @@ export const SellerDashboardPage = () => {
                           />
                         </label>
                         <label className={styles.labelBlock}>
-                          Email
-                          <input
-                            type="email"
-                            value={merchantForm.contactEmail}
-                            onChange={(e) => setMerchantForm((p) => ({ ...p, contactEmail: e.target.value }))}
-                            placeholder="email@example.com"
-                          />
-                        </label>
-                        <label className={styles.labelBlock}>
                           Телефон
                           <input
                             value={merchantForm.contactPhone}
@@ -932,21 +903,13 @@ export const SellerDashboardPage = () => {
                             placeholder="+7 (999) 123-45-67"
                           />
                         </label>
-                        <label className={styles.labelBlock}>
-                          ФИО представителя
-                          <input
-                            value={merchantForm.representativeName}
-                            onChange={(e) => setMerchantForm((p) => ({ ...p, representativeName: e.target.value }))}
-                            placeholder="Как у контактного лица или иное"
-                          />
-                        </label>
-                        {(sellerProfile?.status === 'ООО' || sellerProfile?.status === 'ИП') && (
+                        {(sellerProfile?.status === 'ООО' || sellerProfile?.status === 'Самозанятый') && (
                           <label className={styles.labelBlock}>
                             Официальное название
                             <input
                               value={merchantForm.legalName}
                               onChange={(e) => setMerchantForm((p) => ({ ...p, legalName: e.target.value }))}
-                              placeholder={sellerProfile?.status === 'ИП' ? 'ИП Фамилия И. О.' : 'ООО «Название»'}
+                              placeholder={sellerProfile?.status === 'Самозанятый' ? 'Самозанятый Иванов И. И.' : 'ООО «Название»'}
                             />
                           </label>
                         )}
@@ -968,42 +931,6 @@ export const SellerDashboardPage = () => {
                             />
                           </label>
                         )}
-                        {sellerProfile?.status === 'ООО' && (
-                          <label className={styles.labelBlock}>
-                            КПП
-                            <input
-                              value={merchantForm.kpp}
-                              onChange={(e) => setMerchantForm((p) => ({ ...p, kpp: e.target.value.replace(/\D/g, '').slice(0, 9) }))}
-                              placeholder="9 цифр"
-                            />
-                          </label>
-                        )}
-                        <label className={styles.labelBlock} style={{ gridColumn: '1 / -1' }}>
-                          Юридический адрес
-                          <input
-                            value={merchantForm.legalAddressFull}
-                            onChange={(e) => setMerchantForm((p) => ({ ...p, legalAddressFull: e.target.value }))}
-                            placeholder="Полный адрес регистрации"
-                          />
-                        </label>
-                        <label className={styles.labelBlock}>
-                          Сайт
-                          <input
-                            value={merchantForm.siteUrl}
-                            onChange={(e) => setMerchantForm((p) => ({ ...p, siteUrl: e.target.value }))}
-                            placeholder="example.ru"
-                          />
-                        </label>
-                        <label className={styles.labelBlock}>
-                          Тип отгрузки
-                          <select
-                            value={merchantForm.shipmentType}
-                            onChange={(e) => setMerchantForm((p) => ({ ...p, shipmentType: e.target.value as 'import' | 'withdraw' }))}
-                          >
-                            <option value="import">Самопривоз (import)</option>
-                            <option value="withdraw">Вывоз (withdraw)</option>
-                          </select>
-                        </label>
                       </div>
                       <div className={styles.sectionHeader}>
                         <h3>Точка отгрузки</h3>
@@ -1025,46 +952,32 @@ export const SellerDashboardPage = () => {
                         </div>
                       </div>
 
-                      <div className={styles.sectionHeader}>
-                        <h3>Документы</h3>
+                      <div className={styles.settingsGrid}>
+                        <label className={styles.checkboxLabel}>
+                          <input
+                            type="checkbox"
+                            checked={acceptedRules}
+                            onChange={(e) => setAcceptedRules(e.target.checked)}
+                          />
+                          <span>Принимаю правила продавца и отгрузки</span>
+                        </label>
+                        <label className={styles.checkboxLabel}>
+                          <input
+                            type="checkbox"
+                            checked={acceptedPersonalData}
+                            onChange={(e) => setAcceptedPersonalData(e.target.checked)}
+                          />
+                          <span>Даю согласие на обработку персональных данных</span>
+                        </label>
                       </div>
 
-                      {kycSubmission?.documents?.length ? (
-                        <ul className={styles.kycDocs}>
-                          {kycSubmission.documents.map((doc) => (
-                            <li key={doc.id}>
-                              <a href={doc.url} target="_blank" rel="noreferrer">
-                                {doc.originalName}
-                              </a>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className={styles.muted}>Документы не загружены.</p>
-                      )}
-
-                      {selectedKycFiles.length > 0 && (
-                        <p className={styles.muted}>Новые документы к отправке: {selectedKycFiles.map((file) => file.name).join(', ')}</p>
-                      )}
-
                       <div className={styles.kycActions}>
-                        <label className={styles.uploadButton}>
-                          <input
-                            type="file"
-                            multiple
-                            accept=".pdf,image/png,image/jpeg"
-                            onChange={(event) => setSelectedKycFiles(Array.from(event.target.files ?? []))}
-                            disabled={isKycPending || isKycSubmitting}
-                          />
-                          {isKycSubmitting ? 'Отправка...' : 'Выбрать документы'}
-                        </label>
-
                         <Button
                           type="button"
                           onClick={handleKycSubmit}
                           disabled={Boolean(kycSubmitDisabledReason) || isKycSubmitting}
                         >
-                          Отправить на проверку
+                          {isKycSubmitting ? 'Отправка...' : 'Отправить на проверку'}
                         </Button>
 
                         {isKycPending && <p className={styles.kycMessage}>На проверке</p>}
