@@ -7,6 +7,7 @@ import { mapExternalStatusToInternal, normalizePvzProvider, shipmentService } fr
 test('mapExternalStatusToInternal maps CDEK statuses', () => {
   assert.equal(mapExternalStatusToInternal('ACCEPTED'), 'READY_TO_SHIP');
   assert.equal(mapExternalStatusToInternal('IN_TRANSIT'), 'IN_TRANSIT');
+  assert.equal(mapExternalStatusToInternal('READY_FOR_PICKUP'), 'IN_TRANSIT');
   assert.equal(mapExternalStatusToInternal('DELIVERED'), 'DELIVERED');
   assert.equal(mapExternalStatusToInternal('INVALID'), 'CANCELLED');
 });

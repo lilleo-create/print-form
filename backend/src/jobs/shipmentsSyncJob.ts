@@ -8,19 +8,19 @@ let timer: NodeJS.Timeout | null = null;
 
 // Маппинг статусов CDEK -> внутренний статус заказа
 // https://api.cdek.ru/v2/statuses
-const mapCdekStatus = (code: string): 'IN_TRANSIT' | 'DELIVERED' | 'CANCELLED' | 'RETURNED' | null => {
+export const mapCdekStatus = (code: string): 'READY_FOR_SHIPMENT' | 'HANDED_TO_DELIVERY' | 'IN_TRANSIT' | 'DELIVERED' | 'CANCELLED' | 'RETURNED' | null => {
   if (!code) return null;
   if (code === 'DELIVERED') return 'DELIVERED';
   if (code === 'NOT_DELIVERED') return 'RETURNED';
-  if (code === 'INVALID' || code === 'REMOVED') return 'CANCELLED';
+  if (code === 'INVALID' || code === 'REMOVED' || code === 'CANCELLED') return 'CANCELLED';
+  if (code === 'CREATED') return 'READY_FOR_SHIPMENT';
+  if (code === 'ACCEPTED') return 'HANDED_TO_DELIVERY';
   if (
     code === 'RETURNED' ||
     code === 'RETURN_ORDERS_TRANSIT' ||
     code === 'RETURN_ORDERS_RECEIVED'
   ) return 'RETURNED';
   if (
-    code === 'CREATED' ||
-    code === 'ACCEPTED' ||
     code === 'RECEIVED_AT_SHIPMENT_WAREHOUSE' ||
     code === 'READY_FOR_SHIPMENT_IN_SENDER_CITY' ||
     code === 'TAKEN_BY_TRANSPORTER_FROM_SENDER' ||
