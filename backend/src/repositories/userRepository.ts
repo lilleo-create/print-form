@@ -7,6 +7,7 @@ export const userRepository = {
   create: (data: {
     name: string;
     email: string;
+    fullName?: string | null;
     passwordHash: string;
     role?: 'BUYER' | 'SELLER';
     phone?: string | null;
@@ -26,6 +27,7 @@ export const userRepository = {
       phone?: string | null;
       phoneVerifiedAt?: Date | null;
       address?: string | null;
+      fullName?: string | null;
     }
   ) =>
     prisma.user.update({

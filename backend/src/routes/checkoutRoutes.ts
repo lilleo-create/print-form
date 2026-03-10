@@ -226,7 +226,7 @@ const getCheckoutData = async (userId: string) => {
 
   return {
     recipient: {
-      name: contact?.name ?? user?.name ?? '',
+      name: contact?.name ?? user?.fullName ?? user?.name ?? '',
       phone: contact?.phone ?? user?.phone ?? '',
       email: contact?.email ?? user?.email ?? ''
     },

@@ -33,7 +33,8 @@ export const authService = {
     return createOtpToken({ userId: user.id });
   },
   async register(
-    name: string,
+    nickname: string,
+    fullName: string,
     email: string,
     password: string,
     role?: 'BUYER' | 'SELLER',
@@ -51,7 +52,8 @@ export const authService = {
     }
     const hashed = await bcrypt.hash(password, 10);
     const user = await userRepository.create({
-      name,
+      name: nickname,
+      fullName,
       email,
       passwordHash: hashed,
       role,

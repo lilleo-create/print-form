@@ -16,9 +16,18 @@ export const RecipientModal = ({ isOpen, onClose, initial, onSave }: Props) => {
     <Modal isOpen={isOpen} onClose={onClose} role="dialog" aria-modal="true" className={styles.modal}>
       <div ref={ref} className={styles.content}>
         <h3>Получатель</h3>
-        <input value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} placeholder="Имя" />
-        <input value={form.phone} onChange={(e) => setForm((prev) => ({ ...prev, phone: e.target.value }))} placeholder="Телефон" />
-        <input value={form.email} onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))} placeholder="Email" />
+        <label>
+          ФИО
+          <input value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} placeholder="ФИО" />
+        </label>
+        <label>
+          Телефон
+          <input value={form.phone} onChange={(e) => setForm((prev) => ({ ...prev, phone: e.target.value }))} placeholder="Телефон" />
+        </label>
+        <label>
+          Email
+          <input value={form.email} onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))} placeholder="Email" />
+        </label>
         <Button onClick={() => void onSave(form).then(onClose)}>Сохранить</Button>
       </div>
     </Modal>

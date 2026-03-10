@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useAuthStore } from '../../../../../app/store/authStore';
 import { Button } from '../../../../../shared/ui/Button';
+import { useBodyScrollLock } from '../../../../../shared/lib/useBodyScrollLock';
 import styles from './ProfileEditModal.module.css';
 
 interface ProfileEditModalProps {
@@ -13,6 +14,7 @@ export const ProfileEditModal = ({ isOpen, onClose, onSaved }: ProfileEditModalP
   const user = useAuthStore((state) => state.user);
   const updateProfile = useAuthStore((state) => state.updateProfile);
   const [name, setName] = useState('');
+  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -20,6 +22,7 @@ export const ProfileEditModal = ({ isOpen, onClose, onSaved }: ProfileEditModalP
   const initialValues = useMemo(
     () => ({
       name: user?.name ?? '',
+      fullName: user?.fullName ?? '',
       email: user?.email ?? '',
       phone: user?.phone ?? ''
     }),
@@ -29,23 +32,13 @@ export const ProfileEditModal = ({ isOpen, onClose, onSaved }: ProfileEditModalP
   useEffect(() => {
     if (!isOpen) return;
     setName(initialValues.name);
+    setFullName(initialValues.fullName);
     setEmail(initialValues.email);
     setPhone(initialValues.phone);
   }, [initialValues, isOpen]);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.body.style.overflow = prevOverflow;
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isOpen, onClose]);
+  useBodyScrollLock(isOpen);
+
 
   if (!isOpen) return null;
 
@@ -58,6 +51,7 @@ export const ProfileEditModal = ({ isOpen, onClose, onSaved }: ProfileEditModalP
     try {
       await updateProfile({
         name: trimmedName || undefined,
+        fullName: fullName.trim() || undefined,
         email: trimmedEmail || undefined,
         phone: trimmedPhone || undefined
       });
@@ -84,8 +78,12 @@ export const ProfileEditModal = ({ isOpen, onClose, onSaved }: ProfileEditModalP
 
         <form className={styles.form} onSubmit={handleSubmit}>
           <label className={styles.field}>
-            Имя
+            Никнейм
             <input value={name} onChange={(event) => setName(event.target.value)} />
+          </label>
+          <label className={styles.field}>
+            ФИО
+            <input value={fullName} onChange={(event) => setFullName(event.target.value)} />
           </label>
           <label className={styles.field}>
             Email

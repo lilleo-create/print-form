@@ -46,6 +46,7 @@ interface AuthState {
 
   register: (payload: {
     name: string;
+    fullName: string;
     email: string;
     password: string;
     role?: Role;
@@ -66,7 +67,7 @@ interface AuthState {
     token?: string | null
   ) => Promise<void>;
 
-  updateProfile: (payload: { name?: string; email?: string; phone?: string; address?: string }) => Promise<void>;
+  updateProfile: (payload: { name?: string; fullName?: string; email?: string; phone?: string; address?: string }) => Promise<void>;
 
   setUser: (user: User) => void;
   logout: () => Promise<void>;

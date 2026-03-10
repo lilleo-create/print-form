@@ -13,7 +13,6 @@ export const SellerHeader = ({ title, onMenuOpen }: SellerHeaderProps) => {
       </button>
       <div>
         <h1>{title}</h1>
-        <p>Раздел продавца PrintForm.</p>
       </div>
     </div>
   );

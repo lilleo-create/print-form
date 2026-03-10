@@ -43,6 +43,7 @@ meRoutes.get('/', requireAuth, async (req: AuthRequest, res, next) => {
       data: {
         id: user.id,
         name: user.name,
+        fullName: user.fullName,
         role: user.role,
         email: user.email
       }

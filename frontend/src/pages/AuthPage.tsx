@@ -52,8 +52,11 @@ const loginSchema = z.object({
   password: z.string().min(6, 'Минимум 6 символов')
 });
 
+const fioRegex = /^[A-Za-zА-Яа-яЁё\-\s]+$/;
+
 const registerSchema = loginSchema.extend({
-  name: z.string().min(2, 'Введите имя'),
+  name: z.string().trim().min(2, 'Введите никнейм'),
+  fullName: z.string().trim().min(3, 'Введите ФИО').max(120, 'Слишком длинное ФИО').refine((value) => fioRegex.test(value), 'Допустимы только буквы, пробел и дефис').refine((value) => value.split(/\s+/).filter(Boolean).length >= 2, 'Введите минимум имя и фамилию'),
   phone: z.string().min(5, 'Введите телефон'),
   confirmPassword: z.string().min(6, 'Минимум 6 символов')
 }).refine((data) => data.password === data.confirmPassword, {
@@ -199,7 +202,8 @@ export const AuthPage = () => {
 
     try {
       const result = await register({
-        name: values.name,
+        name: values.name.trim(),
+        fullName: values.fullName.trim().replace(/\s+/g, ' '),
         email: values.email,
         password: values.password,
         phone: toE164Ru(values.phone),
@@ -260,7 +264,8 @@ export const AuthPage = () => {
               />
             ) : isRegister ? (
               <form onSubmit={registerForm.handleSubmit(onRegister)} className={styles.form}>
-                <input placeholder="Имя" {...registerForm.register('name')} />
+                <input placeholder="Никнейм" {...registerForm.register('name')} />
+                <input placeholder="ФИО" {...registerForm.register('fullName')} />
 
                 <input
                   placeholder="+7 (___) ___-__-__"
