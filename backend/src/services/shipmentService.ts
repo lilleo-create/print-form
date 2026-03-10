@@ -26,8 +26,8 @@ export const mapExternalStatusToInternal = (status?: string | null): ShipmentInt
   if (['DELIVERY_DELIVERED', 'DELIVERED'].includes(normalized)) return 'DELIVERED';
   if (['CANCELLED', 'DELIVERY_CANCELLED', 'INVALID', 'REFUSED'].includes(normalized)) return 'CANCELLED';
   if (['DRAFT', 'VALIDATING'].includes(normalized)) return 'VALIDATING';
-  if (['CREATED', 'ACCEPTED', 'READY_FOR_PICKUP', 'READY_TO_SHIP'].includes(normalized)) return 'READY_TO_SHIP';
-  if (['DELIVERY_ARRIVED_PICKUP_POINT', 'DELIVERY_TRANSPORTATION', 'IN_TRANSIT', 'DELIVERY_TRANSMITTED_TO_RECIPIENT'].includes(normalized)) {
+  if (['CREATED', 'ACCEPTED', 'READY_TO_SHIP'].includes(normalized)) return 'READY_TO_SHIP';
+  if (['READY_FOR_PICKUP', 'DELIVERY_ARRIVED_PICKUP_POINT', 'DELIVERY_TRANSPORTATION', 'IN_TRANSIT', 'DELIVERY_TRANSMITTED_TO_RECIPIENT'].includes(normalized)) {
     return 'IN_TRANSIT';
   }
   return 'CREATED';

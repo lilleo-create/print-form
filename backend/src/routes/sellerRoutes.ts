@@ -244,7 +244,8 @@ const shipmentStageFlow = ['CREATING', 'PRINTING', 'READY_FOR_DROP', 'IN_TRANSIT
 const normalizeShipmentStage = (status?: string | null) => {
   const normalized = String(status ?? '').toUpperCase();
   if (normalized === 'READY_FOR_PICKUP' || normalized === 'DELIVERED') return 'READY_FOR_PICKUP';
-  if (normalized === 'IN_TRANSIT' || normalized === 'ACCEPTED' || normalized === 'TRANSPORTING') return 'IN_TRANSIT';
+  if (normalized === 'IN_TRANSIT' || normalized === 'TRANSPORTING') return 'IN_TRANSIT';
+  if (normalized === 'ACCEPTED' || normalized === 'CREATED') return 'READY_FOR_DROP';
   if (normalized === 'READY_FOR_DROP' || normalized === 'READY_TO_SHIP') return 'READY_FOR_DROP';
   if (normalized === 'PRINTING' || normalized === 'DOCS_PRINTING') return 'PRINTING';
   return 'CREATING';
