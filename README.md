@@ -95,7 +95,15 @@ GOOGLE_SHEETS_ID=your-sheet-id
 GOOGLE_SERVICE_ACCOUNT_EMAIL=service-account@project.iam.gserviceaccount.com
 GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
 FRONTEND_URL=http://localhost:5173
+BACKEND_URL=http://localhost:4000
 PORT=4000
+OTP_PROVIDER=telegram
+TELEGRAM_GATEWAY_TOKEN=your-telegram-gateway-token
+TELEGRAM_GATEWAY_BASE_URL=https://gatewayapi.telegram.org
+TELEGRAM_GATEWAY_CALLBACK_SECRET=
+OTP_TTL_MINUTES=10
+OTP_COOLDOWN_SECONDS=60
+OTP_MAX_ATTEMPTS=5
 SMS_PROVIDER=console
 YMAPS_GEOCODER_API_KEY=your-yandex-geocoder-api-key
 ```

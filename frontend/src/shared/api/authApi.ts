@@ -116,14 +116,14 @@ export const authApi = {
   },
 
   requestOtp: async (
-    payload: { phone: string; purpose?: 'login' | 'register' | 'seller_verify' },
+    payload: { phone: string; purpose?: 'buyer_register_phone' | 'buyer_change_phone' | 'buyer_sensitive_action' | 'seller_connect_phone' | 'seller_change_payout_details' | 'seller_payout_settings_verify' },
     token?: string | null
   ) => {
     return api.requestOtp(payload, token);
   },
 
   verifyOtp: async (
-    payload: { phone: string; code: string; purpose?: 'login' | 'register' | 'seller_verify' },
+    payload: { phone: string; code: string; purpose?: 'buyer_register_phone' | 'buyer_change_phone' | 'buyer_sensitive_action' | 'seller_connect_phone' | 'seller_change_payout_details' | 'seller_payout_settings_verify' },
     token?: string | null
   ) => {
     const result = await api.verifyOtp(payload, token);
@@ -150,7 +150,7 @@ export const authApi = {
         : responseData;
 
     if (!updatedUser) return null;
-    return { user: normalizeUser(updatedUser) };
+    return { user: normalizeUser(updatedUser as RawUser) };
   },
 
   logout: async () => {

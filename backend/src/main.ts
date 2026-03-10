@@ -70,7 +70,12 @@ app.use(
 // (и в rateLimiters всё равно добавь skip OPTIONS, это полезно)
 app.use(globalLimiter);
 
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({
+  limit: "1mb",
+  verify: (req, _res, buffer) => {
+    (req as express.Request & { rawBody?: string }).rawBody = buffer.toString('utf8');
+  }
+}));
 app.use(cookieParser());
 
 // ✅ uploads

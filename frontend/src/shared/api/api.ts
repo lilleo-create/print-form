@@ -628,7 +628,7 @@ export const api = {
   async requestOtp(
     payload: {
       phone: string;
-      purpose?: 'login' | 'register' | 'seller_verify';
+      purpose?: 'buyer_register_phone' | 'buyer_change_phone' | 'buyer_sensitive_action' | 'seller_connect_phone' | 'seller_change_payout_details' | 'seller_payout_settings_verify';
       turnstileToken?: string;
     },
     token?: string | null
@@ -647,7 +647,7 @@ export const api = {
     payload: {
       phone: string;
       code: string;
-      purpose?: 'login' | 'register' | 'seller_verify';
+      purpose?: 'buyer_register_phone' | 'buyer_change_phone' | 'buyer_sensitive_action' | 'seller_connect_phone' | 'seller_change_payout_details' | 'seller_payout_settings_verify';
     },
     token?: string | null
   ) {

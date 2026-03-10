@@ -33,6 +33,14 @@ if (smsProvider === 'twilio') {
   requireEnv('TWILIO_FROM');
 }
 
+const otpProvider = process.env.OTP_PROVIDER ?? 'telegram';
+const telegramGatewayBaseUrl = process.env.TELEGRAM_GATEWAY_BASE_URL ?? 'https://gatewayapi.telegram.org';
+const telegramGatewayToken = process.env.TELEGRAM_GATEWAY_TOKEN ?? '';
+const telegramGatewayCallbackSecret = process.env.TELEGRAM_GATEWAY_CALLBACK_SECRET ?? '';
+if (otpProvider === 'telegram' && !telegramGatewayToken && isProduction) {
+  throw new Error('TELEGRAM_GATEWAY_TOKEN is required when OTP_PROVIDER=telegram in production');
+}
+
 const otpTtlMinutes = Number(process.env.OTP_TTL_MINUTES ?? 10);
 const otpCooldownSeconds = Number(process.env.OTP_COOLDOWN_SECONDS ?? 60);
 const otpMaxAttempts = Number(process.env.OTP_MAX_ATTEMPTS ?? 5);
@@ -50,10 +58,12 @@ export const env = {
   isProduction,
   port,
   databaseUrl: requireEnv('DATABASE_URL'),
+  backendUrl: process.env.BACKEND_URL ?? `http://localhost:${port}`,
   jwtSecret,
   jwtRefreshSecret,
   frontendUrl: requireEnv('FRONTEND_URL'),
   otpPepper,
+  otpProvider,
   otpTtlMinutes,
   otpCooldownSeconds,
   otpMaxAttempts,
@@ -61,6 +71,9 @@ export const env = {
   twilioAccountSid: process.env.TWILIO_ACCOUNT_SID ?? '',
   twilioAuthToken: process.env.TWILIO_AUTH_TOKEN ?? '',
   twilioFrom: process.env.TWILIO_FROM ?? '',
+  telegramGatewayBaseUrl,
+  telegramGatewayToken,
+  telegramGatewayCallbackSecret,
   turnstileSecretKey: process.env.TURNSTILE_SECRET_KEY ?? '',
   googleSheetsId: process.env.GOOGLE_SHEETS_ID ?? '',
   googleServiceAccountEmail: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL ?? '',
