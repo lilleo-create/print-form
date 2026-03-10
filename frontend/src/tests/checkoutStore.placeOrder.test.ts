@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useCheckoutStore } from '../features/checkout/model/useCheckoutStore';
 import { checkoutApi } from '../features/checkout/api/checkoutApi';
+import { useCartStore } from '../app/store/cartStore';
 
 vi.mock('../features/checkout/api/checkoutApi', () => ({
   checkoutApi: {
@@ -38,6 +39,7 @@ describe('useCheckoutStore.placeOrder payload', () => {
       error: null,
       isSubmittingOrder: false
     });
+    useCartStore.setState({ items: [] });
   });
 
   it('sends provider=CDEK and selected pvzId', async () => {
@@ -53,10 +55,19 @@ describe('useCheckoutStore.placeOrder payload', () => {
         }
       }
     });
+    useCartStore.setState({
+      items: [
+        {
+          product: { id: 'p1', title: 'Товар', price: 100, image: '1.jpg' } as never,
+          quantity: 1
+        }
+      ]
+    });
 
     const result = await useCheckoutStore.getState().placeOrder();
 
     expect(result?.orderId).toBe('order-1');
+    expect(useCartStore.getState().items).toHaveLength(0);
     expect(checkoutApi.startPayment).toHaveBeenCalledWith(
       expect.objectContaining({
         recipient: {
@@ -68,7 +79,8 @@ describe('useCheckoutStore.placeOrder payload', () => {
         buyerPickupPvz: expect.objectContaining({
           provider: 'CDEK',
           pvzId: 'pvz-123'
-        })
+        }),
+        items: [{ productId: 'p1', quantity: 1 }]
       })
     );
   });
@@ -125,6 +137,14 @@ describe('useCheckoutStore.placeOrder payload', () => {
         }
       }
     });
+    useCartStore.setState({
+      items: [
+        {
+          product: { id: 'p1', title: 'Товар', price: 100, image: '1.jpg' } as never,
+          quantity: 1
+        }
+      ]
+    });
 
     const result = await useCheckoutStore.getState().placeOrder();
 
@@ -150,4 +170,26 @@ describe('useCheckoutStore.placeOrder payload', () => {
     expect(checkoutApi.startPayment).not.toHaveBeenCalled();
     expect(useCheckoutStore.getState().error).toContain('Выберите ПВЗ');
   });
+
+  it('hydrates checkout cartItems from all cart store items', async () => {
+    vi.mocked(checkoutApi.fetchCheckout).mockResolvedValue({
+      ...baseData,
+      cartItems: []
+    });
+
+    useCartStore.setState({
+      items: [
+        { product: { id: 'p1', title: 'One', price: 100, image: '1.jpg' }, quantity: 2 },
+        { product: { id: 'p2', title: 'Two', price: 50, image: '2.jpg' }, quantity: 3 }
+      ]
+    } as never);
+
+    await useCheckoutStore.getState().fetchCheckout();
+
+    expect(useCheckoutStore.getState().data?.cartItems).toEqual([
+      expect.objectContaining({ productId: 'p1', quantity: 2, price: 100 }),
+      expect.objectContaining({ productId: 'p2', quantity: 3, price: 50 })
+    ]);
+  });
+
 });

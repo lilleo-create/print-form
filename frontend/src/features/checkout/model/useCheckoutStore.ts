@@ -6,6 +6,30 @@ import {
   type PaymentMethodCode,
   type CdekPvzSelection
 } from '../api/checkoutApi';
+import { useCartStore } from '../../../app/store/cartStore';
+
+const mapCartToCheckoutItems = (): CheckoutDto['cartItems'] =>
+  useCartStore.getState().items.map((item) => ({
+    productId: item.product.id,
+    title: item.product.title,
+    price: item.product.price,
+    quantity: item.quantity,
+    image: item.product.image,
+    shortSpec: item.product.descriptionShort || item.product.sku,
+    productionTimeHours: item.product.productionTimeHours ?? 24,
+    deliveryDays: null,
+    etaMinDays: null,
+    etaMaxDays: null,
+    dimensions:
+      item.product.dxCm && item.product.dyCm && item.product.dzCm
+        ? {
+            dxCm: item.product.dxCm,
+            dyCm: item.product.dyCm,
+            dzCm: item.product.dzCm
+          }
+        : null,
+    weightGrossG: item.product.weightGrossG ?? null
+  }));
 
 type CheckoutState = {
   data: CheckoutDto | null;
@@ -58,8 +82,16 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const data = await checkoutApi.fetchCheckout(controller.signal);
+      const cartItems = mapCartToCheckoutItems();
       if (controller.signal.aborted) return;
-      set({ data, isLoading: false, error: null });
+      set({
+        data: {
+          ...data,
+          cartItems
+        },
+        isLoading: false,
+        error: null
+      });
     } catch (error) {
       if (controller.signal.aborted) return;
       set({
@@ -177,6 +209,14 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     const data = get().data;
     if (!data) return null;
 
+    if (data.cartItems.length === 0) {
+      set({
+        isSubmittingOrder: false,
+        error: 'Корзина пуста. Добавьте товары перед оформлением заказа.'
+      });
+      return null;
+    }
+
     set({ isSubmittingOrder: true, error: null });
 
     try {
@@ -232,6 +272,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         }))
       });
 
+      useCartStore.getState().clear();
       set({
         isSubmittingOrder: false,
         error:

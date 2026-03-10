@@ -96,13 +96,23 @@ export const paymentFlowService = {
     const blockingReason: null = null;
 
     if (!order) {
-      const product = await prisma.product.findFirst({
-        where: { id: input.items[0]?.productId },
-        select: { sellerId: true }
+      const productIds = input.items.map((item) => item.productId);
+      const uniqueProductIds = Array.from(new Set(productIds));
+      const products = await prisma.product.findMany({
+        where: { id: { in: uniqueProductIds } },
+        select: { id: true, sellerId: true }
       });
-      if (!product) throw new Error('PRODUCT_NOT_FOUND');
 
-      const sellerSettings = await prisma.sellerSettings.findUnique({ where: { sellerId: product.sellerId } });
+      if (products.length !== uniqueProductIds.length) {
+        throw new Error('PRODUCT_NOT_FOUND');
+      }
+
+      const sellerIds = Array.from(new Set(products.map((product) => product.sellerId)));
+      if (sellerIds.length !== 1) {
+        throw new Error('MULTI_SELLER_CHECKOUT_NOT_SUPPORTED');
+      }
+
+      const sellerSettings = await prisma.sellerSettings.findUnique({ where: { sellerId: sellerIds[0] } });
 
       try {
         const normalizedBuyerPickupPvz = normalizeBuyerPickupPvz(input.buyerPickupPvz);
