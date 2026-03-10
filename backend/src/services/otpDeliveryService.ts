@@ -20,6 +20,20 @@ const mapStatusToDb = (status: 'sent' | 'delivered' | 'read' | 'expired' | 'revo
   return 'SENT';
 };
 
+const isValidExternalHttpsCallbackUrl = (url: string): boolean => {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:') {
+      return false;
+    }
+
+    const hostname = parsed.hostname.toLowerCase();
+    return hostname !== 'localhost' && hostname !== '127.0.0.1';
+  } catch {
+    return false;
+  }
+};
+
 export const otpDeliveryService = {
   async sendOtp(payload: {
     phone: string;
@@ -37,9 +51,18 @@ export const otpDeliveryService = {
       smsProvider: env.smsProvider
     });
 
-    if (!payload.callbackUrl.startsWith('https://')) {
-      console.warn('[OTP] telegram callback_url is not https; this is acceptable for local dev but external callbacks will not be delivered', {
-        callbackUrl: payload.callbackUrl
+    const callbackUrlEnabled = isValidExternalHttpsCallbackUrl(payload.callbackUrl);
+    const callbackUrlForTelegram = callbackUrlEnabled ? payload.callbackUrl : undefined;
+
+    if (!callbackUrlEnabled) {
+      console.warn('[OTP] telegram callback_url disabled for local dev or invalid URL', {
+        callbackUrl: payload.callbackUrl,
+        callbackUrlIncludedInRequest: false
+      });
+    } else {
+      console.info('[OTP] telegram callback_url enabled', {
+        callbackUrl: payload.callbackUrl,
+        callbackUrlIncludedInRequest: true
       });
     }
 
@@ -82,7 +105,8 @@ export const otpDeliveryService = {
             internalRequestId: payload.requestId,
             telegramRequestId,
             request_id: telegramRequestId,
-            callbackUrl: payload.callbackUrl,
+            callbackUrl: callbackUrlForTelegram,
+            callbackUrlIncludedInRequest: Boolean(callbackUrlForTelegram),
             ttlSeconds: payload.ttlSeconds,
             providerPayload: payload.providerPayload
           });
@@ -91,13 +115,14 @@ export const otpDeliveryService = {
             code: payload.code,
             requestId: telegramRequestId,
             ttlSeconds: payload.ttlSeconds,
-            callbackUrl: payload.callbackUrl,
+            callbackUrl: callbackUrlForTelegram,
             providerPayload: payload.providerPayload
           });
           console.info('[OTP] telegram sendVerificationMessage:response', {
             phone: payload.phone,
             internalRequestId: payload.requestId,
             telegramRequestId,
+            callbackUrlIncludedInRequest: Boolean(callbackUrlForTelegram),
             response: sent
           });
 
@@ -123,6 +148,7 @@ export const otpDeliveryService = {
           console.error('[OTP] telegram delivery failed', {
             phone: payload.phone,
             internalRequestId: payload.requestId,
+            callbackUrlIncludedInRequest: Boolean(callbackUrlForTelegram),
             error
           });
           if (error instanceof Error && error.message.startsWith('TELEGRAM_')) {

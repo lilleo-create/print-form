@@ -72,7 +72,7 @@ export const telegramGatewayService = {
     code: string;
     requestId: string;
     ttlSeconds: number;
-    callbackUrl: string;
+    callbackUrl?: string;
     providerPayload: Record<string, unknown>;
   }) {
     type SendResponse = {
@@ -81,23 +81,30 @@ export const telegramGatewayService = {
       request_id?: string;
       payload?: unknown;
       status?: string;
-      result?: { request_id?: string; payload?: unknown; status?: string };
+      result?: { ok?: boolean; error?: string; request_id?: string; payload?: unknown; status?: string };
     };
-    const response = await request<SendResponse>('/sendVerificationMessage', {
+    const requestPayload: Record<string, unknown> = {
       phone_number: payload.phoneNumber,
       code: payload.code,
       request_id: payload.requestId,
       ttl: payload.ttlSeconds,
-      payload: payload.providerPayload,
-      callback_url: payload.callbackUrl
-    });
+      payload: payload.providerPayload
+    };
+
+    if (payload.callbackUrl) {
+      requestPayload.callback_url = payload.callbackUrl;
+    }
+
+    const response = await request<SendResponse>('/sendVerificationMessage', requestPayload);
 
     const result = response.result ?? {};
     const normalizedStatus = mapTelegramDeliveryStatus(result.status ?? response.status ?? '');
+    const error = result.error ?? response.error;
+    const isOk = result.ok ?? response.ok ?? !error;
 
     return {
-      ok: response.ok ?? true,
-      error: response.error,
+      ok: isOk,
+      error,
       providerRequestId: result.request_id ?? response.request_id ?? payload.requestId,
       providerPayload: result.payload ?? response.payload ?? payload.providerPayload,
       deliveryStatus: normalizedStatus,
