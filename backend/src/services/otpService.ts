@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { OtpDeliveryStatus, OtpPurpose as PrismaOtpPurpose, Prisma } from '@prisma/client';
+import { OtpDeliveryStatus, OtpPurpose as PrismaOtpPurpose } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { env } from '../config/env';
 import { generateOtpCode, hashOtpCode } from '../utils/otp';
@@ -95,12 +95,7 @@ export const otpService = {
     const message = `Ваш код для ${formatPurpose(payload.purpose)}: ${code}`;
     const callbackUrl = `${env.backendUrl.replace(/\/$/, '')}/auth/otp/telegram/callback`;
     const internalRequestId = `otp_${created.id}_${Date.now()}`;
-    const providerPayload = {
-      otpId: created.id,
-      correlationId: internalRequestId,
-      phone,
-      purpose: payload.purpose
-    };
+    const providerPayload = created.id;
 
     console.info('[OTP] provider env snapshot', {
       otpProvider: env.otpProvider,
@@ -124,7 +119,7 @@ export const otpService = {
         channel: delivery.channel,
         provider: delivery.provider,
         providerRequestId: delivery.providerRequestId,
-        providerPayload: delivery.providerPayload as Prisma.InputJsonValue | undefined,
+        providerPayload: delivery.providerPayload ?? undefined,
         deliveryStatus: delivery.deliveryStatus
       }
     });
@@ -191,16 +186,15 @@ export const otpService = {
 
   async updateDeliveryStatus(payload: {
     providerRequestId?: string;
-    providerPayload?: Record<string, unknown>;
+    providerPayload?: string;
     deliveryStatus: OtpDeliveryStatus;
   }) {
-    const otpIdFromPayload =
-      typeof payload.providerPayload?.otpId === 'string' ? payload.providerPayload.otpId : null;
+    const otpIdFromPayload = typeof payload.providerPayload === 'string' ? payload.providerPayload.trim() : null;
 
-    const otp = otpIdFromPayload
-      ? await prisma.phoneOtp.findUnique({ where: { id: otpIdFromPayload } })
-      : payload.providerRequestId
+    const otp = payload.providerRequestId
       ? await prisma.phoneOtp.findFirst({ where: { providerRequestId: payload.providerRequestId } })
+      : otpIdFromPayload
+      ? await prisma.phoneOtp.findUnique({ where: { id: otpIdFromPayload } })
       : null;
 
     if (!otp) {
@@ -212,7 +206,7 @@ export const otpService = {
       data: {
         deliveryStatus: payload.deliveryStatus,
         providerRequestId: payload.providerRequestId ?? otp.providerRequestId,
-        providerPayload: (payload.providerPayload ?? undefined) as Prisma.InputJsonValue | undefined
+        providerPayload: payload.providerPayload ?? undefined
       }
     });
   },

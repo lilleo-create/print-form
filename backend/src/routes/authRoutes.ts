@@ -410,9 +410,15 @@ authRoutes.post('/otp/telegram/callback', async (req, res, next) => {
 
     const body = req.body as {
       request_id?: string;
-      payload?: Record<string, unknown>;
+      payload?: string;
       status?: string;
     };
+
+    console.info('[OTP] telegram callback received', {
+      providerRequestId: body.request_id,
+      payload: body.payload,
+      status: body.status
+    });
 
     const mappedStatus = otpService.mapIncomingDeliveryStatus(body.status ?? '');
     if (!mappedStatus) {

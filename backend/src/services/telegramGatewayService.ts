@@ -73,7 +73,7 @@ export const telegramGatewayService = {
     requestId: string;
     ttlSeconds: number;
     callbackUrl?: string;
-    providerPayload: Record<string, unknown>;
+    providerPayload: string;
   }) {
     type SendResponse = {
       ok?: boolean;
@@ -100,7 +100,7 @@ export const telegramGatewayService = {
     const result = response.result ?? {};
     const normalizedStatus = mapTelegramDeliveryStatus(result.status ?? response.status ?? '');
     const error = result.error ?? response.error;
-    const isOk = result.ok ?? response.ok ?? !error;
+    const isOk = result.ok ?? response.ok ?? false;
 
     return {
       ok: isOk,

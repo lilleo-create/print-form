@@ -8,7 +8,7 @@ export type OtpDeliveryResult = {
   provider: OtpProvider;
   deliveryStatus: OtpDeliveryStatus;
   providerRequestId?: string;
-  providerPayload?: Record<string, unknown>;
+  providerPayload?: string;
   devMode?: boolean;
 };
 
@@ -34,6 +34,34 @@ const isValidExternalHttpsCallbackUrl = (url: string): boolean => {
   }
 };
 
+
+const buildTelegramPayload = (otpId: string) => {
+  const normalized = otpId.trim();
+  if (!normalized) {
+    console.error('[OTP] telegram payload invalid', {
+      reason: 'EMPTY',
+      payload: otpId,
+      payloadLengthChars: otpId.length,
+      payloadLengthBytes: Buffer.byteLength(otpId, 'utf8')
+    });
+    throw new Error('TELEGRAM_PAYLOAD_INVALID:EMPTY');
+  }
+
+  const payload = normalized;
+  const payloadBytes = Buffer.byteLength(payload, 'utf8');
+  if (payloadBytes > 128) {
+    console.error('[OTP] telegram payload invalid', {
+      reason: 'TOO_LONG',
+      payload,
+      payloadLengthChars: payload.length,
+      payloadLengthBytes: payloadBytes
+    });
+    throw new Error('TELEGRAM_PAYLOAD_INVALID:TOO_LONG');
+  }
+
+  return { payload, payloadBytes };
+};
+
 export const otpDeliveryService = {
   async sendOtp(payload: {
     phone: string;
@@ -42,7 +70,7 @@ export const otpDeliveryService = {
     message: string;
     requestId: string;
     callbackUrl: string;
-    providerPayload: Record<string, unknown>;
+    providerPayload: string;
   }): Promise<OtpDeliveryResult> {
     console.info('[OTP] delivery config', {
       otpProvider: env.otpProvider,
@@ -100,6 +128,8 @@ export const otpDeliveryService = {
             throw new Error('TELEGRAM_REQUEST_ID_MISSING');
           }
 
+          const { payload: telegramPayload, payloadBytes } = buildTelegramPayload(payload.providerPayload);
+
           console.info('[OTP] telegram sendVerificationMessage:request', {
             phone: payload.phone,
             internalRequestId: payload.requestId,
@@ -108,15 +138,23 @@ export const otpDeliveryService = {
             callbackUrl: callbackUrlForTelegram,
             callbackUrlIncludedInRequest: Boolean(callbackUrlForTelegram),
             ttlSeconds: payload.ttlSeconds,
-            providerPayload: payload.providerPayload
+            payload: telegramPayload
           });
+          console.debug('[OTP] telegram payload details', {
+            internalRequestId: payload.requestId,
+            telegramRequestId,
+            payload: telegramPayload,
+            payloadLengthChars: telegramPayload.length,
+            payloadLengthBytes: payloadBytes
+          });
+
           const sent = await telegramGatewayService.sendVerificationMessage({
             phoneNumber: payload.phone,
             code: payload.code,
             requestId: telegramRequestId,
             ttlSeconds: payload.ttlSeconds,
             callbackUrl: callbackUrlForTelegram,
-            providerPayload: payload.providerPayload
+            providerPayload: telegramPayload
           });
           console.info('[OTP] telegram sendVerificationMessage:response', {
             phone: payload.phone,
@@ -139,10 +177,7 @@ export const otpDeliveryService = {
             provider: 'TELEGRAM_GATEWAY',
             deliveryStatus: mapStatusToDb(sent.deliveryStatus),
             providerRequestId: sent.providerRequestId ?? telegramRequestId,
-            providerPayload:
-              typeof sent.providerPayload === 'object' && sent.providerPayload
-                ? (sent.providerPayload as Record<string, unknown>)
-                : payload.providerPayload
+            providerPayload: typeof sent.providerPayload === 'string' ? sent.providerPayload : payload.providerPayload
           };
         } catch (error) {
           console.error('[OTP] telegram delivery failed', {
