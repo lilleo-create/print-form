@@ -23,11 +23,13 @@ const getAvatarText = (user: User | null) => {
     .toUpperCase();
 };
 
-const resolveDisplayName = (user: User | null) => user?.name ?? user?.email ?? 'Пользователь';
+const resolveDisplayName = (user: User | null) => user?.name?.trim() || user?.email || 'Пользователь';
+const resolveFullName = (user: User | null) => user?.fullName?.trim() || 'ФИО не указано';
 
 const ProfileHeroCard = ({ user, onOpenSettings }: ProfileHeroCardProps) => {
   const avatarText = useMemo(() => getAvatarText(user), [user]);
   const displayName = useMemo(() => resolveDisplayName(user), [user]);
+  const fullName = useMemo(() => resolveFullName(user), [user]);
 
   return (
     <div className={styles.heroCard}>
@@ -44,8 +46,10 @@ const ProfileHeroCard = ({ user, onOpenSettings }: ProfileHeroCardProps) => {
       </div>
       <div className={styles.heroContent}>
         <div className={styles.avatar}>{avatarText}</div>
-        <div className={styles.name}>{displayName}</div>
-        <div className={styles.subName}>{user?.fullName?.trim() || 'Не указано'}</div>
+        <div className={styles.identityBlock}>
+          <div className={styles.name}>{displayName}</div>
+          <div className={styles.subName}>{fullName}</div>
+        </div>
       </div>
     </div>
   );
