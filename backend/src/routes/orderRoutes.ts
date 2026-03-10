@@ -68,16 +68,23 @@ orderRoutes.post('/', authenticate, writeLimiter, async (req: AuthRequest, res, 
       return res.status(400).json({ error: { code: 'CITY_CODE_MISSING', message: 'cdekPvzCityCode or cdekPvzRaw.city_code is required', details: null } });
     }
 
-    const product = await prisma.product.findFirst({
-      where: { id: payload.items[0]?.productId },
-      select: { sellerId: true }
+    const productIds = payload.items.map((item) => item.productId);
+    const uniqueProductIds = Array.from(new Set(productIds));
+    const products = await prisma.product.findMany({
+      where: { id: { in: uniqueProductIds } },
+      select: { id: true, sellerId: true }
     });
 
-    if (!product) {
+    if (products.length !== uniqueProductIds.length) {
       return res.status(404).json({ error: { code: 'PRODUCT_NOT_FOUND' } });
     }
 
-    const sellerSettings = await prisma.sellerSettings.findUnique({ where: { sellerId: product.sellerId } });
+    const sellerIds = Array.from(new Set(products.map((product) => product.sellerId)));
+    if (sellerIds.length !== 1) {
+      return res.status(400).json({ error: { code: 'MULTI_SELLER_CHECKOUT_NOT_SUPPORTED' } });
+    }
+
+    const sellerSettings = await prisma.sellerSettings.findUnique({ where: { sellerId: sellerIds[0] } });
 
     if (sellerSettings?.defaultDropoffPvzId) {
       const raw = (sellerSettings.defaultDropoffPvzMeta as Record<string, unknown> | null)?.raw;
@@ -87,7 +94,7 @@ orderRoutes.post('/', authenticate, writeLimiter, async (req: AuthRequest, res, 
           error: {
             code: 'CITY_CODE_MISSING',
             message: 'seller CDEK dropoff PVZ meta must contain raw.city_code',
-            details: { sellerId: product.sellerId }
+            details: { sellerId: sellerIds[0] }
           }
         });
       }

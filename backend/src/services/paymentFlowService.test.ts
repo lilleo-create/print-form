@@ -30,7 +30,7 @@ test('startPayment double-click with same paymentAttemptKey -> 1 order, 1 paymen
     }
     return null;
   };
-  (prisma.product.findFirst as any) = async () => ({ sellerId: 'seller-1' });
+  (prisma.product.findMany as any) = async () => ([{ id: 'product-1', sellerId: 'seller-1' }]);
   (prisma.sellerSettings.findUnique as any) = async () => ({ defaultDropoffPvzId: 'dropoff-1', defaultDropoffPvzMeta: {} });
   (prisma.sellerDeliveryProfile.findUnique as any) = async () => ({ dropoffStationId: '10022023854' });
   (orderUseCases.create as any) = async () => {
@@ -80,7 +80,7 @@ test('startPayment double-click with same paymentAttemptKey -> 1 order, 1 paymen
 test('startPayment with different paymentAttemptKey creates new order', async () => {
   let createdOrders = 0;
   (prisma.order.findFirst as any) = async () => null;
-  (prisma.product.findFirst as any) = async () => ({ sellerId: 'seller-1' });
+  (prisma.product.findMany as any) = async () => ([{ id: 'product-1', sellerId: 'seller-1' }]);
   (prisma.sellerSettings.findUnique as any) = async () => ({ defaultDropoffPvzId: 'dropoff-1', defaultDropoffPvzMeta: {} });
   (prisma.sellerDeliveryProfile.findUnique as any) = async () => ({ dropoffStationId: '10022023854' });
   (orderUseCases.create as any) = async ({ paymentAttemptKey }: any) => {
@@ -135,7 +135,7 @@ test('webhook success makes order PAID and sets paidAt', async () => {
 
 test('startPayment allows checkout when seller dropoff config is missing without blocking flags', async () => {
   (prisma.order.findFirst as any) = async () => null;
-  (prisma.product.findFirst as any) = async () => ({ sellerId: 'seller-1' });
+  (prisma.product.findMany as any) = async () => ([{ id: 'product-1', sellerId: 'seller-1' }]);
   (prisma.sellerSettings.findUnique as any) = async () => ({ defaultDropoffPvzId: null, defaultDropoffPvzMeta: null });
 
   let createdPayload: any = null;
@@ -180,4 +180,26 @@ test('startPayment allows checkout when seller dropoff config is missing without
   assert.equal(createdPayload.sellerDropoffPvz, undefined);
   assert.equal(result.deliveryConfigMissing, false);
   assert.equal(result.blockingReason, null);
+});
+
+
+test('startPayment rejects multi-seller checkout items', async () => {
+  (prisma.order.findFirst as any) = async () => null;
+  (prisma.product.findMany as any) = async () => ([
+    { id: 'product-1', sellerId: 'seller-1' },
+    { id: 'product-2', sellerId: 'seller-2' }
+  ]);
+
+  await assert.rejects(
+    () =>
+      paymentFlowService.startPayment({
+        ...inputBase,
+        paymentAttemptKey: 'attempt-multi-seller',
+        items: [
+          { productId: 'product-1', quantity: 1 },
+          { productId: 'product-2', quantity: 2 }
+        ]
+      }),
+    /MULTI_SELLER_CHECKOUT_NOT_SUPPORTED/
+  );
 });
