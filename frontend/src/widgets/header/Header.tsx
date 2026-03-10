@@ -23,6 +23,7 @@ import { HeaderActions } from './HeaderActions';
 import { ProfileMenu } from '../../shared/layout/ProfileMenu';
 import { useIsSeller } from '../../shared/lib/useIsSeller';
 import styles from '../layout/Layout.module.css';
+import { useBodyScrollLock } from '../../shared/lib/useBodyScrollLock';
 
 export const Header = () => {
   const addItem = useCartStore((state) => state.addItem);
@@ -129,10 +130,10 @@ const openProfileMenuHandler = () => {
     }
   }, [showCatalogHeader]);
 
+  useBodyScrollLock(isProfileMenuOpen);
+
   useEffect(() => {
     if (!isProfileMenuOpen) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         closeProfileMenu();
@@ -140,10 +141,9 @@ const openProfileMenuHandler = () => {
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => {
-      document.body.style.overflow = previousOverflow;
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isProfileMenuOpen]);
+  }, [closeProfileMenu, isProfileMenuOpen]);
 
   const isHome = location.pathname === '/';
   const isProductPage = /^\/product\/[^/]+$/.test(location.pathname);

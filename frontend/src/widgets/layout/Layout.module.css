@@ -484,7 +484,7 @@
 .profileMenuPage {
   position: fixed;
   top: 30px; /* ниже шапки, подгони под свою */
-  right: calc(var(--container-gutter) - 50px);
+  right: max(16px, calc(var(--container-gutter, 16px) - 50px));
   width: min(360px, 92vw);
   max-height: min(72vh, 640px);
   padding: 12px;

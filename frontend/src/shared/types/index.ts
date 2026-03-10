@@ -272,6 +272,7 @@ export interface SellerDeliveryProfile {
 export interface User {
   id: string;
   name: string;
+  fullName?: string | null;
   email: string;
   phone?: string | null;
   address?: string | null;

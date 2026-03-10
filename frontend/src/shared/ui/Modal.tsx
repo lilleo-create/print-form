@@ -1,7 +1,8 @@
-import { HTMLAttributes, useEffect } from 'react';
+import { HTMLAttributes } from 'react';
 import { createPortal } from 'react-dom';
 import clsx from 'clsx';
 import styles from './Modal.module.css';
+import { useBodyScrollLock } from '../lib/useBodyScrollLock';
 
 interface ModalProps extends HTMLAttributes<HTMLDivElement> {
   isOpen: boolean;
@@ -9,13 +10,7 @@ interface ModalProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 export const Modal = ({ isOpen, onClose, className, children, ...props }: ModalProps) => {
-  useEffect(() => {
-    if (!isOpen) return;
-    // чтобы фон не скроллился
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
-  }, [isOpen]);
+  useBodyScrollLock(isOpen);
 
   if (!isOpen) return null;
 

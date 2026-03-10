@@ -15,6 +15,7 @@ type RawUser = {
   id?: string;
   name?: string;
   email?: string;
+  fullName?: string | null;
   phone?: string | null;
   address?: string | null;
   role?: string;
@@ -40,6 +41,7 @@ const normalizeUser = (u?: RawUser): User => ({
   id: u?.id ?? '',
   name: u?.name ?? '',
   email: u?.email ?? '',
+  fullName: u?.fullName ?? null,
   phone: u?.phone ?? null,
   address: u?.address ?? null,
   role: normalizeRole(u?.role)
@@ -76,6 +78,7 @@ export const authApi = {
 
   register: async (payload: {
     name: string;
+    fullName: string;
     email: string;
     password: string;
     role?: Role;
@@ -85,6 +88,7 @@ export const authApi = {
   }): Promise<AuthResult> => {
     const result = await api.register({
       name: payload.name,
+      fullName: payload.fullName,
       email: payload.email,
       password: payload.password,
       phone: payload.phone,
@@ -137,7 +141,7 @@ export const authApi = {
     return session;
   },
 
-  updateProfile: async (payload: { name?: string; email?: string; phone?: string; address?: string }) => {
+  updateProfile: async (payload: { name?: string; fullName?: string; email?: string; phone?: string; address?: string }) => {
     const result = await api.updateProfile(payload);
     const updatedUser = result.data?.data as RawUser | undefined;
     if (!updatedUser) return null;

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ReturnCandidatesList, ReturnCandidate as ReturnCandidateItem } from '../../../../components/returns/ReturnCandidatesList';
+import { ReturnCandidate as ReturnCandidateItem } from '../../../../components/returns/ReturnCandidatesList';
 import { ReturnCreateFlow, ReturnCreateStep } from '../../../../components/returns/ReturnCreateFlow';
 import { ReturnList } from '../../../../components/returns/ReturnList';
 import { ordersApi } from '../../../../shared/api/ordersApi';
@@ -17,7 +17,6 @@ interface ReturnsTabProps {
   isLoading: boolean;
   error: string | null;
   onStepChange: (step: ReturnCreateStep) => void;
-  onOpenFromItem: (item: ReturnCandidateItem) => void;
   onCreated: () => void;
   onReturnToList: () => void;
 }
@@ -31,7 +30,6 @@ export const ReturnsTab = ({
   isLoading,
   error,
   onStepChange,
-  onOpenFromItem,
   onCreated,
   onReturnToList
 }: ReturnsTabProps) => {
@@ -71,14 +69,7 @@ export const ReturnsTab = ({
     [filteredCandidates]
   );
 
-  const handleCandidateAction = (item: ReturnCandidateItem) => {
-    if (item.actionType === 'CANCEL') {
-      setCancelCandidate(item);
-      setCancelError(null);
-      return;
-    }
-    onOpenFromItem(item);
-  };
+
 
   const handleCancelOrder = async () => {
     if (!cancelCandidate) return;
@@ -108,24 +99,12 @@ export const ReturnsTab = ({
           onReturnToList={onReturnToList}
         />
       ) : (
-        <>
-          <div className={styles.sectionBlock}>
-            <div className={styles.sectionHeader}>
-              <h2>Доступные действия по покупкам</h2>
-            </div>
-            <ReturnCandidatesList
-              items={filteredCandidates}
-              returnsByOrderItemId={returnsByOrderItemId}
-              onCreate={handleCandidateAction}
-            />
+        <div className={styles.sectionBlock}>
+          <div className={styles.sectionHeader}>
+            <h2>Мои заявки</h2>
           </div>
-          <div className={styles.sectionBlock}>
-            <div className={styles.sectionHeader}>
-              <h2>Мои заявки</h2>
-            </div>
-            <ReturnList items={returns} isLoading={isLoading} error={error} />
-          </div>
-        </>
+          <ReturnList items={returns} isLoading={isLoading} error={error} />
+        </div>
       )}
 
       <Modal isOpen={Boolean(cancelCandidate)} onClose={() => setCancelCandidate(null)} className={styles.cancelModal}>

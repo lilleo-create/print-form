@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { Button } from '../../shared/ui/Button';
 import { useModalFocus } from '../../shared/lib/useModalFocus';
+import { useBodyScrollLock } from '../../shared/lib/useBodyScrollLock';
 import styles from './FilterModal.module.css';
 
 interface FilterModalProps {
@@ -29,6 +30,7 @@ export const FilterModal = ({
 }: FilterModalProps) => {
   const modalRef = useRef<HTMLDivElement>(null);
   useModalFocus(isOpen, onClose, modalRef);
+  useBodyScrollLock(isOpen);
 
   if (!isOpen) {
     return null;

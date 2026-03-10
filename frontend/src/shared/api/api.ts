@@ -589,6 +589,7 @@ export const api = {
       tempToken?: string;
       user?: {
         name: string | null;
+        fullName?: string | null;
         role: string;
         email: string;
         id: string;
@@ -601,6 +602,7 @@ export const api = {
 
   async register(payload: {
     name: string | null;
+    fullName: string;
     email: string;
     password: string;
     phone: string;
@@ -612,6 +614,7 @@ export const api = {
       tempToken?: string;
       user?: {
         name: string | null;
+        fullName?: string | null;
         role: string;
         email: string;
         id: string;
@@ -652,6 +655,7 @@ export const api = {
       accessToken?: string;
       user?: {
         name: string | null;
+        fullName?: string | null;
         role: string;
         email: string;
         id: string;
@@ -698,6 +702,7 @@ export const api = {
     return apiClient.request<{
       id: string;
       name: string | null;
+      fullName?: string | null;
       role: string;
       email: string;
     }>('/me');
@@ -705,6 +710,7 @@ export const api = {
 
   async updateProfile(payload: {
     name?: string;
+    fullName?: string;
     email?: string;
     phone?: string;
     address?: string;

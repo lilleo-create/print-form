@@ -8,6 +8,7 @@ import { ShopCatalog } from './components/ShopCatalog/ShopCatalog';
 import { useShopPage } from './hooks/useShopPage';
 import { ProfileMenu } from '../../shared/layout/ProfileMenu';
 import styles from './ShopPage.module.css';
+import { useBodyScrollLock } from '../../shared/lib/useBodyScrollLock';
 
 export const ShopPage = () => {
   const { shopId } = useParams<{ shopId: string }>();
@@ -34,10 +35,10 @@ export const ShopPage = () => {
     openProfileMenu();
   };
 
+  useBodyScrollLock(isProfileMenuOpen);
+
   useEffect(() => {
     if (!isProfileMenuOpen) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
     const onEsc = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         closeProfileMenu();
@@ -46,7 +47,6 @@ export const ShopPage = () => {
 
     document.addEventListener('keydown', onEsc);
     return () => {
-      document.body.style.overflow = previousOverflow;
       document.removeEventListener('keydown', onEsc);
     };
   }, [closeProfileMenu, isProfileMenuOpen]);

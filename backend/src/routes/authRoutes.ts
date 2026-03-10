@@ -17,8 +17,11 @@ const loginSchema = z.object({
   password: z.string().min(6)
 });
 
+const fullNameSchema = z.string().trim().min(3).max(120).regex(/^[A-Za-zА-Яа-яЁё\-\s]+$/, 'Допустимы буквы, пробел и дефис').refine((value) => value.split(/\s+/).filter(Boolean).length >= 2, 'Введите ФИО минимум из двух слов');
+
 const registerSchema = loginSchema.extend({
-  name: z.string().min(2),
+  name: z.string().trim().min(2),
+  fullName: fullNameSchema,
   phone: z.string().min(5),
   address: z.string().min(3).optional(),
   privacyAccepted: z.boolean().optional(),
@@ -26,7 +29,8 @@ const registerSchema = loginSchema.extend({
 });
 
 const updateProfileSchema = z.object({
-  name: z.string().min(2).optional(),
+  name: z.string().trim().min(2).optional(),
+  fullName: fullNameSchema.optional(),
   email: z.string().email().optional(),
   phone: z.string().min(5).optional(),
   address: z.string().min(3).optional()
@@ -105,6 +109,7 @@ authRoutes.post('/register', authLimiter, async (req, res, next) => {
     const phone = normalizePhone(payload.phone);
     const result = await authService.register(
       payload.name,
+      payload.fullName,
       payload.email,
       payload.password,
       payload.role,
@@ -117,6 +122,7 @@ authRoutes.post('/register', authLimiter, async (req, res, next) => {
       user: {
         id: result.user.id,
         name: result.user.name,
+        fullName: result.user.fullName,
         role: result.user.role,
         email: result.user.email,
         phone: result.user.phone,
@@ -140,6 +146,7 @@ authRoutes.post('/login', authLimiter, async (req, res, next) => {
         user: {
           id: result.user.id,
           name: result.user.name,
+          fullName: result.user.fullName,
           role: result.user.role,
           email: result.user.email,
           phone: result.user.phone,
@@ -155,6 +162,7 @@ authRoutes.post('/login', authLimiter, async (req, res, next) => {
         user: {
           id: result.user.id,
           name: result.user.name,
+          fullName: result.user.fullName,
           role: result.user.role,
           email: result.user.email,
           phone: result.user.phone,
@@ -353,6 +361,7 @@ authRoutes.post('/otp/verify', otpVerifyLimiter, async (req, res, next) => {
         user: {
           id: user.id,
           name: user.name,
+          fullName: user.fullName,
           role: user.role,
           email: user.email,
           phone: user.phone,
@@ -375,6 +384,7 @@ authRoutes.get('/me', authenticate, async (req: AuthRequest, res, next) => {
       data: {
         id: user.id,
         name: user.name,
+        fullName: user.fullName,
         role: user.role,
         email: user.email
       }
@@ -416,12 +426,14 @@ authRoutes.patch('/me', authenticate, async (req: AuthRequest, res, next) => {
       email: payload.email,
       phone: phoneToUpdate ?? null,
       phoneVerifiedAt: phoneVerifiedAtToUpdate ?? null,
-      address: payload.address ?? null
+      address: payload.address ?? null,
+      fullName: payload.fullName ?? existingUser.fullName
     });
     return res.json({
       data: {
         id: updated.id,
         name: updated.name,
+        fullName: updated.fullName,
         role: updated.role,
         email: updated.email,
         phone: updated.phone,

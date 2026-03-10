@@ -4,6 +4,7 @@ import { Button } from '../../../shared/ui/Button';
 import { ReturnPhotoUploader } from '../../../components/returns/ReturnPhotoUploader';
 import { resolveImageUrl } from '../../../shared/lib/resolveImageUrl';
 import { getProductPrimaryImage } from '../../../shared/lib/getProductPrimaryImage';
+import { useBodyScrollLock } from '../../../shared/lib/useBodyScrollLock';
 import styles from './ReviewFormModal.module.css';
 
 export type ReviewFormValues = {
@@ -64,19 +65,8 @@ export const ReviewFormModal = ({
     setProductImageError(false);
   }, [initialReview, isOpen]);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.body.style.overflow = prevOverflow;
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isOpen, onClose]);
+  useBodyScrollLock(isOpen);
+
 
   const ratingLabel = useMemo(() => ratingLabels[rating - 1] ?? '', [rating]);
   const [productImageError, setProductImageError] = useState(false);

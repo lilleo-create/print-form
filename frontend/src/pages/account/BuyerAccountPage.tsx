@@ -29,7 +29,7 @@ export const BuyerAccountPage = () => {
     }
   }, [activeTab]);
 
-  const { activeOrders, purchasedItems, returnCandidates } = useBuyerOrders(user);
+  const { activeOrders, purchasedItems, returnCandidates, reloadOrders } = useBuyerOrders(user);
 
   const { returns, isLoading: returnsLoading, error: returnsError, reload: reloadReturns } =
     useMyReturns(activeTab);
@@ -81,11 +81,7 @@ export const BuyerAccountPage = () => {
     setShowReturnCreate(true);
   };
 
-  const openReturnFromItem = (itemId: string) => {
-    setSelectedCandidateId(itemId);
-    setReturnCreateStep('form');
-    setShowReturnCreate(true);
-  };
+
 
   const closeReturnCreate = () => {
     setShowReturnCreate(false);
@@ -147,12 +143,10 @@ export const BuyerAccountPage = () => {
             isLoading={returnsLoading}
             error={returnsError}
             onStepChange={setReturnCreateStep}
-            onOpenFromItem={(item) => {
-              openReturnFromItem(item.orderItemId);
-            }}
             onCreated={() => {
               closeReturnCreate();
               reloadReturns();
+              void reloadOrders();
             }}
             onReturnToList={closeReturnCreate}
           />

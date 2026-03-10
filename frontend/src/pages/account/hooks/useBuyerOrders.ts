@@ -70,5 +70,5 @@ export const useBuyerOrders = (user: User | null) => {
     [orders]
   );
 
-  return { activeOrders, purchasedItems, returnCandidates };
+  return { activeOrders, purchasedItems, returnCandidates, reloadOrders: () => user ? loadBuyerOrders(user) : Promise.resolve() };
 };

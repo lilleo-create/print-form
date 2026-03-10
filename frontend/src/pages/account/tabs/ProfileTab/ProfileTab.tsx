@@ -44,7 +44,8 @@ const ProfileHeroCard = ({ user, onOpenSettings }: ProfileHeroCardProps) => {
       </div>
       <div className={styles.heroContent}>
         <div className={styles.avatar}>{avatarText}</div>
-        <div className={styles.name}>{displayName}</div>
+        <div className={styles.name}>Никнейм: {displayName}</div>
+        <div className={styles.subName}>ФИО: {user?.fullName ?? 'Не указано'}</div>
       </div>
     </div>
   );

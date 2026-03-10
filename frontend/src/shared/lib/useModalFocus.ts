@@ -11,10 +11,6 @@ export const useModalFocus = (
     }
 
     const previousActive = document.activeElement as HTMLElement | null;
-    const body = document.body;
-    const previousOverflow = body.style.overflow;
-    body.style.overflow = 'hidden';
-
     const focusables = container.current?.querySelectorAll<HTMLElement>(
       'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
     );
@@ -44,7 +40,6 @@ export const useModalFocus = (
 
     return () => {
       document.removeEventListener('keydown', handleKey);
-      body.style.overflow = previousOverflow;
       previousActive?.focus();
     };
   }, [isOpen, onClose, container]);
