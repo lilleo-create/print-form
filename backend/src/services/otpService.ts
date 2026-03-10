@@ -101,6 +101,12 @@ export const otpService = {
       purpose: payload.purpose
     };
 
+    console.info('[OTP] provider env snapshot', {
+      otpProvider: env.otpProvider,
+      hasTelegramGatewayToken: Boolean(env.telegramGatewayToken),
+      telegramGatewayBaseUrl: env.telegramGatewayBaseUrl
+    });
+
     const delivery = await otpDeliveryService.sendOtp({
       phone,
       code,
@@ -130,7 +136,16 @@ export const otpService = {
       providerRequestId: delivery.providerRequestId
     });
 
-    return { ok: true, devOtp: env.isProduction ? undefined : code };
+    return {
+      ok: true,
+      devOtp: env.isProduction ? undefined : code,
+      delivery: {
+        channel: delivery.channel,
+        provider: delivery.provider,
+        deliveryStatus: delivery.deliveryStatus,
+        devMode: delivery.devMode ?? false
+      }
+    };
   },
 
   async verifyOtp(payload: { phone: string; code: string; purpose: OtpPurpose }) {
