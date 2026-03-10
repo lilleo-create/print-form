@@ -30,7 +30,7 @@ const registerSchema = loginSchema.extend({
 
 const updateProfileSchema = z.object({
   name: z.string().trim().min(2).optional(),
-  fullName: fullNameSchema.optional(),
+  fullName: z.string().trim().min(2).max(120).transform((value) => value.replace(/\s+/g, ' ')).optional(),
   email: z.string().email().optional(),
   phone: z.string().min(5).optional(),
   address: z.string().min(3).optional()
