@@ -856,7 +856,6 @@ export const SellerDashboardPage = () => {
                 <div className={styles.section}>
                   <div className={styles.sectionHeader}>
                     <div>
-                      <h2>Подключение продавца</h2>
                       <p>Заполните данные продавца, выберите точку отгрузки и прикрепите документы одним отправлением.</p>
                     </div>
                   </div>
@@ -996,7 +995,6 @@ export const SellerDashboardPage = () => {
                 <div className={styles.section}>
                   <div className={styles.sectionHeader}>
                     <div>
-                      <h2>Товары продавца</h2>
                       <p>
                         Создавайте и редактируйте карточки с описанием и фото.
                       </p>
@@ -1064,7 +1062,6 @@ export const SellerDashboardPage = () => {
                 <div className={styles.section}>
                   <div className={styles.sectionHeader}>
                     <div>
-                      <h2>Заказы</h2>
                       <p>Отслеживайте выполнение и документы доставки.</p>
                     </div>
                   </div>
@@ -1252,7 +1249,6 @@ export const SellerDashboardPage = () => {
                 <div className={styles.section}>
                   <div className={styles.sectionHeader}>
                     <div>
-                      <h2>Логистика</h2>
                       <p>Данные по доставке ваших заказов.</p>
                     </div>
                     <div>
@@ -1311,14 +1307,12 @@ export const SellerDashboardPage = () => {
 
               {activeItem === 'Продвижение' && (
                 <div className={styles.section}>
-                  <h2>Продвижение</h2>
                   <p className={styles.muted}>Пока нет кампаний.</p>
                 </div>
               )}
 
               {activeItem === 'Бухгалтерия' && (
                 <div className={styles.section}>
-                  <h2>Бухгалтерия</h2>
                   {paymentsLoading ? (
                     <p className={styles.muted}>Загрузка платежей...</p>
                   ) : paymentsError ? (
@@ -1357,7 +1351,6 @@ export const SellerDashboardPage = () => {
                 <div className={styles.section}>
                   <div className={styles.sectionHeader}>
                     <div>
-                      <h2>Отчеты</h2>
                       <p>Заказы за последние 14 дней.</p>
                     </div>
                   </div>
@@ -1386,7 +1379,6 @@ export const SellerDashboardPage = () => {
 
               {activeItem === 'Поддержка' && (
                 <div className={styles.section}>
-                  <h2>Поддержка</h2>
                   <p className={styles.muted}>Пока нет обращений.</p>
                 </div>
               )}
@@ -1395,7 +1387,6 @@ export const SellerDashboardPage = () => {
                 <div className={styles.section}>
                   <div className={styles.sectionHeader}>
                     <div>
-                      <h2>Настройки профиля</h2>
                       <p>Актуальные данные магазина.</p>
                     </div>
                   </div>

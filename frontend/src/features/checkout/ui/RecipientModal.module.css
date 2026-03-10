@@ -1,1 +1,19 @@
-.modal{max-width:460px}.content{display:grid;gap:10px}
+.modal {
+  max-width: 520px;
+}
+
+.content {
+  display: grid;
+  gap: 16px;
+}
+
+.field {
+  display: grid;
+  gap: 8px;
+}
+
+.input {
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 12px;
+}

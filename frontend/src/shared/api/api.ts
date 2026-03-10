@@ -719,6 +719,7 @@ export const api = {
       data: {
         id: string;
         name: string | null;
+        fullName?: string | null;
         role: string;
         email: string;
         phone?: string | null;
