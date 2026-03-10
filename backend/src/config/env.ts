@@ -33,7 +33,11 @@ if (smsProvider === 'twilio') {
   requireEnv('TWILIO_FROM');
 }
 
-const otpProvider = process.env.OTP_PROVIDER ?? 'telegram';
+const rawOtpProvider = (process.env.OTP_PROVIDER ?? 'telegram').toLowerCase();
+const otpProvider =
+  rawOtpProvider === 'telegram_gateway' || rawOtpProvider === 'telegram-gateway'
+    ? 'telegram'
+    : rawOtpProvider;
 const telegramGatewayBaseUrl = process.env.TELEGRAM_GATEWAY_BASE_URL ?? 'https://gatewayapi.telegram.org';
 const telegramGatewayToken = process.env.TELEGRAM_GATEWAY_TOKEN ?? '';
 const telegramGatewayCallbackSecret = process.env.TELEGRAM_GATEWAY_CALLBACK_SECRET ?? '';

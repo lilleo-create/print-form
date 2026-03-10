@@ -14,21 +14,30 @@ export const mapTelegramDeliveryStatus = (status: string): TelegramDeliveryStatu
 };
 
 const request = async <T>(path: string, body: Record<string, unknown>) => {
-  const response = await fetch(`${env.telegramGatewayBaseUrl}${path}`, {
+  const url = `${env.telegramGatewayBaseUrl}${path}`;
+  const requestBody = JSON.stringify(body);
+  const response = await fetch(url, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${env.telegramGatewayToken}`,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify(body)
+    body: requestBody
   });
 
+  const text = await response.text();
   if (!response.ok) {
-    const text = await response.text();
+    console.error('[OTP][TelegramGateway] API error', {
+      path,
+      status: response.status,
+      requestBody: body,
+      responseBody: text
+    });
     throw new Error(`TELEGRAM_GATEWAY_ERROR:${response.status}:${text}`);
   }
 
-  return (await response.json()) as T;
+  const parsed = text ? (JSON.parse(text) as T) : ({} as T);
+  return parsed;
 };
 
 export const telegramGatewayService = {
@@ -44,7 +53,8 @@ export const telegramGatewayService = {
 
     return {
       canSend: response.can_send ?? response.ok ?? false,
-      reason: response.reason
+      reason: response.reason,
+      raw: response
     };
   },
 
@@ -69,7 +79,8 @@ export const telegramGatewayService = {
     return {
       providerRequestId: response.request_id ?? payload.requestId,
       providerPayload: response.payload ?? payload.providerPayload,
-      deliveryStatus: mapTelegramDeliveryStatus(response.status ?? 'sent') ?? 'sent'
+      deliveryStatus: mapTelegramDeliveryStatus(response.status ?? 'sent') ?? 'sent',
+      raw: response
     };
   },
 

@@ -12,8 +12,8 @@ const createRefreshToken = (payload: { userId: string; role: string }) => {
   return jwt.sign(payload, env.jwtRefreshSecret, { expiresIn: '7d' });
 };
 
-const createOtpToken = (payload: { userId: string }) => {
-  return jwt.sign({ ...payload, scope: 'otp' }, env.jwtSecret, { expiresIn: '10m' });
+const createOtpToken = (payload: { userId?: string; registrationSessionId?: string; scope: 'otp' | 'otp_register' }) => {
+  return jwt.sign(payload, env.jwtSecret, { expiresIn: '10m' });
 };
 
 export const authService = {
@@ -30,35 +30,115 @@ export const authService = {
     return { accessToken, refreshToken };
   },
   issueOtpToken(user: { id: string }) {
-    return createOtpToken({ userId: user.id });
+    return createOtpToken({ userId: user.id, scope: 'otp' });
   },
-  async register(
+  issueRegistrationOtpToken(registrationSessionId: string) {
+    return createOtpToken({ registrationSessionId, scope: 'otp_register' });
+  },
+  async startRegistration(
     nickname: string,
     fullName: string,
     email: string,
     password: string,
     role?: 'BUYER' | 'SELLER',
     phone?: string,
+    address?: string
   ) {
     const existingEmail = await userRepository.findByEmail(email);
-    if (existingEmail) {
+    if (existingEmail?.phoneVerifiedAt) {
       throw new Error('USER_EXISTS');
     }
     if (phone) {
       const existingPhone = await userRepository.findByPhone(phone);
-      if (existingPhone) {
+      if (existingPhone?.phoneVerifiedAt) {
         throw new Error('PHONE_EXISTS');
       }
     }
+
     const hashed = await bcrypt.hash(password, 10);
-    const user = await userRepository.create({
-      name: nickname,
-      fullName,
-      email,
-      passwordHash: hashed,
-      role,
-      phone: phone ?? null,
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
+    const pending = await prisma.pendingRegistration.upsert({
+      where: { phone: phone ?? '' },
+      create: {
+        name: nickname,
+        fullName,
+        email,
+        passwordHash: hashed,
+        role: role ?? 'BUYER',
+        phone: phone ?? '',
+        address: address ?? null,
+        expiresAt
+      },
+      update: {
+        name: nickname,
+        fullName,
+        email,
+        passwordHash: hashed,
+        role: role ?? 'BUYER',
+        address: address ?? null,
+        usedAt: null,
+        expiresAt
+      }
     });
+
+    return { pending };
+  },
+
+  async completeRegistration(registrationSessionId: string, verifiedPhone: string) {
+    const pending = await prisma.pendingRegistration.findUnique({ where: { id: registrationSessionId } });
+    if (!pending || pending.usedAt || pending.expiresAt < new Date()) {
+      throw new Error('REGISTRATION_SESSION_INVALID');
+    }
+    if (pending.phone !== verifiedPhone) {
+      throw new Error('PHONE_MISMATCH');
+    }
+
+    const existingByEmail = await userRepository.findByEmail(pending.email);
+    const existingByPhone = await userRepository.findByPhone(pending.phone);
+    const existingVerified = [existingByEmail, existingByPhone].find((u) => u?.phoneVerifiedAt);
+    if (existingVerified) {
+      throw new Error(existingVerified.email === pending.email ? 'USER_EXISTS' : 'PHONE_EXISTS');
+    }
+
+    const legacyCandidate = existingByEmail ?? existingByPhone;
+
+    const user = await prisma.$transaction(async (tx) => {
+      const now = new Date();
+      const nextUser = legacyCandidate
+        ? await tx.user.update({
+            where: { id: legacyCandidate.id },
+            data: {
+              name: pending.name,
+              fullName: pending.fullName,
+              email: pending.email,
+              passwordHash: pending.passwordHash,
+              role: pending.role,
+              phone: pending.phone,
+              address: pending.address,
+              phoneVerifiedAt: now
+            }
+          })
+        : await tx.user.create({
+            data: {
+              name: pending.name,
+              fullName: pending.fullName,
+              email: pending.email,
+              passwordHash: pending.passwordHash,
+              role: pending.role,
+              phone: pending.phone,
+              address: pending.address,
+              phoneVerifiedAt: now
+            }
+          });
+
+      await tx.pendingRegistration.update({
+        where: { id: pending.id },
+        data: { usedAt: now }
+      });
+
+      return nextUser;
+    });
+
     return { user };
   },
   async login(email: string, password: string) {

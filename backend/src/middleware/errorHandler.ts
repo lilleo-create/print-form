@@ -66,6 +66,8 @@ export const errorHandler = (
     ? 409
     : error.message === 'ORDER_NOT_FOUND'
     ? 404
+    : error.message.startsWith('TELEGRAM_SEND_FAILED') || error.message.startsWith('TELEGRAM_CANNOT_SEND') || error.message.startsWith('TELEGRAM_GATEWAY_ERROR')
+    ? 502
     : error.message === 'OTP_INVALID' ||
       error.message === 'OTP_EXPIRED' ||
       error.message === 'OTP_TOO_MANY' ||
@@ -85,7 +87,8 @@ export const errorHandler = (
       error.message === 'VALIDATION_ERROR' ||
       error.message === 'SHIPPING_ADDRESS_REQUIRED' ||
       error.message === 'DELIVERY_DESTINATION_REQUIRED' ||
-      error.message === 'DELIVERY_METHOD_NOT_SUPPORTED'
+      error.message === 'DELIVERY_METHOD_NOT_SUPPORTED' ||
+      error.message === 'REGISTRATION_SESSION_INVALID'
     ? 400
     : error.message === 'ORDER_NOT_PAID' || error.message === 'PICKUP_POINT_REQUIRED'
     ? 409

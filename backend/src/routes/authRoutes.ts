@@ -9,6 +9,7 @@ import { normalizePhone } from '../utils/phone';
 import { authLimiter, otpRequestLimiter, otpVerifyLimiter } from '../middleware/rateLimiters';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import { prisma } from '../lib/prisma';
 
 export const authRoutes = Router();
 
@@ -96,7 +97,7 @@ const parseAuthToken = (req: AuthRequest) => {
 };
 
 const decodeAuthToken = (token: string) => {
-  return jwt.verify(token, env.jwtSecret) as { userId: string; role?: string; scope?: string };
+  return jwt.verify(token, env.jwtSecret) as { userId?: string; registrationSessionId?: string; role?: string; scope?: string };
 };
 
 const createPasswordResetToken = (payload: { userId: string }) => {
@@ -107,26 +108,27 @@ authRoutes.post('/register', authLimiter, async (req, res, next) => {
   try {
     const payload = registerSchema.parse(req.body);
     const phone = normalizePhone(payload.phone);
-    const result = await authService.register(
+    const result = await authService.startRegistration(
       payload.name,
       payload.fullName,
       payload.email,
       payload.password,
       payload.role,
-      phone
+      phone,
+      payload.address
     );
-    const tempToken = authService.issueOtpToken(result.user);
+    const tempToken = authService.issueRegistrationOtpToken(result.pending.id);
     res.json({
       requiresOtp: true,
       tempToken,
       user: {
-        id: result.user.id,
-        name: result.user.name,
-        fullName: result.user.fullName,
-        role: result.user.role,
-        email: result.user.email,
-        phone: result.user.phone,
-        address: result.user.address
+        id: result.pending.id,
+        name: result.pending.name,
+        fullName: result.pending.fullName,
+        role: result.pending.role,
+        email: result.pending.email,
+        phone: result.pending.phone,
+        address: result.pending.address
       }
     });
   } catch (error) {
@@ -219,7 +221,7 @@ authRoutes.post('/password-reset/request', otpRequestLimiter, async (req, res, n
       ip: req.ip,
       userAgent: req.get('user-agent')
     });
-    return res.json({ ok: true, devOtp: result.devOtp });
+    return res.json({ ok: true, devOtp: result.devOtp, delivery: result.delivery });
   } catch (error) {
     return next(error);
   }
@@ -274,7 +276,7 @@ authRoutes.post('/otp/request', otpRequestLimiter, async (req, res, next) => {
     }
     const purpose = (payload.purpose ?? 'buyer_register_phone') as OtpPurpose;
     const token = parseAuthToken(req);
-    let decoded: { userId: string; role?: string; scope?: string } | null = null;
+    let decoded: { userId?: string; registrationSessionId?: string; role?: string; scope?: string } | null = null;
     if (token) {
       try {
         decoded = decodeAuthToken(token);
@@ -283,14 +285,14 @@ authRoutes.post('/otp/request', otpRequestLimiter, async (req, res, next) => {
       }
     }
     if (purpose === 'buyer_register_phone') {
-      if (!decoded || decoded.scope !== 'otp') {
+      if (!decoded || decoded.scope !== 'otp_register' || !decoded.registrationSessionId) {
         return res.status(401).json({ error: { code: 'OTP_TOKEN_REQUIRED' } });
       }
-      const user = await userRepository.findById(decoded.userId);
-      if (!user) {
-        return res.status(401).json({ error: { code: 'UNAUTHORIZED' } });
+      const pending = await prisma.pendingRegistration.findUnique({ where: { id: decoded.registrationSessionId } });
+      if (!pending || pending.usedAt || pending.expiresAt < new Date()) {
+        return res.status(401).json({ error: { code: 'REGISTRATION_SESSION_INVALID' } });
       }
-      if (user.phone && normalizePhone(payload.phone) !== user.phone) {
+      if (normalizePhone(payload.phone) !== pending.phone) {
         return res.status(400).json({ error: { code: 'PHONE_MISMATCH' } });
       }
     } else if (!decoded || (decoded.scope && decoded.scope !== 'access')) {
@@ -302,7 +304,7 @@ authRoutes.post('/otp/request', otpRequestLimiter, async (req, res, next) => {
       ip: req.ip,
       userAgent: req.get('user-agent')
     });
-    return res.json({ ok: true, devOtp: result.devOtp });
+    return res.json({ ok: true, devOtp: result.devOtp, delivery: result.delivery });
   } catch (error) {
     return next(error);
   }
@@ -313,7 +315,7 @@ authRoutes.post('/otp/verify', otpVerifyLimiter, async (req, res, next) => {
     const payload = otpVerifySchema.parse(req.body);
     const purpose = (payload.purpose ?? 'buyer_register_phone') as OtpPurpose;
     const token = parseAuthToken(req);
-    let decoded: { userId: string; role?: string; scope?: string } | null = null;
+    let decoded: { userId?: string; registrationSessionId?: string; role?: string; scope?: string } | null = null;
     if (token) {
       try {
         decoded = decodeAuthToken(token);
@@ -322,7 +324,7 @@ authRoutes.post('/otp/verify', otpVerifyLimiter, async (req, res, next) => {
       }
     }
     const needsOtpToken = purpose === 'buyer_register_phone';
-    if (needsOtpToken && (!decoded || decoded.scope !== 'otp')) {
+    if (needsOtpToken && (!decoded || decoded.scope !== 'otp_register' || !decoded.registrationSessionId)) {
       return res.status(401).json({ error: { code: 'OTP_TOKEN_REQUIRED' } });
     }
     if (!needsOtpToken && (!decoded || (decoded.scope && decoded.scope !== 'access'))) {
@@ -333,25 +335,36 @@ authRoutes.post('/otp/verify', otpVerifyLimiter, async (req, res, next) => {
       code: payload.code,
       purpose
     });
-    const userId = decoded?.userId;
-    if (!userId) {
-      return res.status(401).json({ error: { code: 'UNAUTHORIZED' } });
-    }
-    let user = await userRepository.findById(userId);
-    if (!user) {
-      return res.status(401).json({ error: { code: 'UNAUTHORIZED' } });
-    }
-    if (user.phone && user.phone !== phone) {
-      return res.status(400).json({ error: { code: 'PHONE_MISMATCH' } });
-    }
-    if (!user.phone) {
-      const existingPhone = await userRepository.findByPhone(phone);
-      if (existingPhone && existingPhone.id !== user.id) {
-        return res.status(409).json({ error: { code: 'PHONE_EXISTS' } });
+
+    let user;
+    if (needsOtpToken) {
+      const registrationSessionId = decoded?.registrationSessionId;
+      if (!registrationSessionId) {
+        return res.status(401).json({ error: { code: 'OTP_TOKEN_REQUIRED' } });
       }
-    }
-    if (!user.phoneVerifiedAt || user.phone !== phone) {
-      user = await userRepository.updateProfile(user.id, { phone, phoneVerifiedAt: new Date() });
+      const created = await authService.completeRegistration(registrationSessionId, phone);
+      user = created.user;
+    } else {
+      const userId = decoded?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: { code: 'UNAUTHORIZED' } });
+      }
+      user = await userRepository.findById(userId);
+      if (!user) {
+        return res.status(401).json({ error: { code: 'UNAUTHORIZED' } });
+      }
+      if (user.phone && user.phone !== phone) {
+        return res.status(400).json({ error: { code: 'PHONE_MISMATCH' } });
+      }
+      if (!user.phone) {
+        const existingPhone = await userRepository.findByPhone(phone);
+        if (existingPhone && existingPhone.id !== user.id) {
+          return res.status(409).json({ error: { code: 'PHONE_EXISTS' } });
+        }
+      }
+      if (!user.phoneVerifiedAt || user.phone !== phone) {
+        user = await userRepository.updateProfile(user.id, { phone, phoneVerifiedAt: new Date() });
+      }
     }
     const tokens = await authService.issueTokens(user);
     res.cookie('refreshToken', tokens.refreshToken, cookieOptions);
