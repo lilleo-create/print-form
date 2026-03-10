@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Button } from '../shared/ui/Button';
 import styles from './AuthPage.module.css';
 
-type Purpose = 'login' | 'register' | 'seller_verify';
+type Purpose = 'buyer_register_phone' | 'buyer_change_phone' | 'buyer_sensitive_action' | 'seller_connect_phone' | 'seller_change_payout_details' | 'seller_payout_settings_verify';
 
 const RESEND_SECONDS = 30;
 
@@ -83,12 +83,12 @@ export function OtpStep(props: {
 
   const phoneDigits = useMemo(() => normalizePhone(phone), [phone]);
 
-  const phoneReadonly = purpose === 'login' && phoneDigits.replace(/^7/, '').length === 10;
+  const phoneReadonly = purpose === 'buyer_register_phone' && phoneDigits.replace(/^7/, '').length === 10;
 
   const canSubmit =
     phoneDigits.replace(/^7/, '').length >= 10 &&
     (!otpSent || Boolean(code.trim())) &&
-    (purpose !== 'register' || props.privacyAccepted);
+    (purpose !== 'buyer_register_phone' || props.privacyAccepted);
 
   const validateRuPhone = (v11: string) => {
     const ten = v11.slice(1);
@@ -109,7 +109,7 @@ export function OtpStep(props: {
 
       await props.onRequestOtp({ phone: v11, purpose }, tempToken);
       setOtpSent(true);
-      props.setMessage('Код отправлен. Проверьте SMS.');
+      props.setMessage('Код отправлен в Telegram. Если номер не привязан к Telegram, позже будет доступен fallback канал.');
     } catch {
       props.setError('Не удалось отправить код.');
     } finally {
@@ -164,14 +164,14 @@ export function OtpStep(props: {
 
       {otpSent && (
         <input
-          placeholder="Код из SMS"
+          placeholder="Код из Telegram"
           value={code}
           inputMode="numeric"
           onChange={(e) => setCode(e.target.value)}
         />
       )}
 
-      {purpose === 'register' && (
+      {purpose === 'buyer_register_phone' && (
         <label className={styles.consent}>
           <input
             type="checkbox"
@@ -188,7 +188,7 @@ export function OtpStep(props: {
       )}
 
       <Button type="submit" disabled={otpLoading || !canSubmit}>
-        {otpSent ? 'Подтвердить' : 'Отправить код'}
+        {otpSent ? 'Подтвердить' : 'Получить код в Telegram'}
       </Button>
 
       {otpSent && (

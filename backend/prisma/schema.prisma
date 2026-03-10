@@ -543,6 +543,11 @@ model PhoneOtp {
   phone       String
   codeHash    String
   purpose     OtpPurpose
+  channel     OtpChannel  @default(TELEGRAM)
+  provider    OtpProvider @default(TELEGRAM_GATEWAY)
+  providerRequestId String?
+  providerPayload   Json?
+  deliveryStatus    OtpDeliveryStatus @default(SENT)
   attempts    Int        @default(0)
   maxAttempts Int        @default(5)
   ip          String?
@@ -668,10 +673,33 @@ enum DropoffSchedule {
 }
 
 enum OtpPurpose {
-  LOGIN
-  REGISTER
-  SELLER_VERIFY
+  BUYER_REGISTER_PHONE
+  BUYER_CHANGE_PHONE
+  BUYER_SENSITIVE_ACTION
+  SELLER_CONNECT_PHONE
+  SELLER_CHANGE_PAYOUT_DETAILS
+  SELLER_PAYOUT_SETTINGS_VERIFY
   PASSWORD_RESET
+}
+
+enum OtpChannel {
+  TELEGRAM
+  SMS
+  CONSOLE
+}
+
+enum OtpProvider {
+  TELEGRAM_GATEWAY
+  TWILIO
+  CONSOLE
+}
+
+enum OtpDeliveryStatus {
+  SENT
+  DELIVERED
+  READ
+  EXPIRED
+  REVOKED
 }
 
 enum KycStatus {

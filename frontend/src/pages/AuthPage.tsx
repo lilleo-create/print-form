@@ -10,7 +10,7 @@ import styles from './AuthPage.module.css';
 import { OtpStep } from './OtpStep';
 import loginHero from '../shared/assets/login-hero.svg';
 
-type Purpose = 'login' | 'register' | 'seller_verify';
+type Purpose = 'buyer_register_phone' | 'buyer_change_phone' | 'buyer_sensitive_action' | 'seller_connect_phone' | 'seller_change_payout_details' | 'seller_payout_settings_verify';
 
 const normalizePhone = (v: string) => (v ?? '').replace(/\D/g, '');
 
@@ -101,7 +101,7 @@ export const AuthPage = () => {
   // OTP state (минимально)
   const [otpRequired, setOtpRequired] = useState(false);
   const [otpToken, setOtpToken] = useState<string | null>(null);
-  const [otpPurpose, setOtpPurpose] = useState<Purpose>(isRegister ? 'register' : 'login');
+  const [otpPurpose, setOtpPurpose] = useState<Purpose>('buyer_register_phone');
   const [otpPhone, setOtpPhone] = useState<string>('');
 
   const login = useAuthStore((s) => s.login);
@@ -148,7 +148,7 @@ export const AuthPage = () => {
     setOtpRequired(false);
     setOtpToken(null);
     setOtpPhone('');
-    setOtpPurpose(isRegister ? 'register' : 'login');
+    setOtpPurpose('buyer_register_phone');
   };
 
   const resetMessages = () => {
@@ -177,7 +177,7 @@ export const AuthPage = () => {
       const result = await login(values.email, values.password);
 
       if (result.requiresOtp) {
-        setOtpPurpose('login');
+        setOtpPurpose('buyer_register_phone');
         setOtpRequired(true);
         setOtpToken(result.tempToken ?? null);
         setOtpPhone(result.user?.phone ?? '');
@@ -211,7 +211,7 @@ export const AuthPage = () => {
       });
 
       if (result.requiresOtp) {
-        setOtpPurpose('register');
+        setOtpPurpose('buyer_register_phone');
         setOtpRequired(true);
         setOtpToken(result.tempToken ?? null);
         setOtpPhone(values.phone);

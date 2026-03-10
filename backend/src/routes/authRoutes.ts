@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Request, Router } from 'express';
 import { z } from 'zod';
 import { authService } from '../services/authService';
 import { authenticate, AuthRequest } from '../middleware/authMiddleware';
@@ -38,14 +38,14 @@ const updateProfileSchema = z.object({
 
 const otpRequestSchema = z.object({
   phone: z.string().min(5),
-  purpose: z.enum(['login', 'register', 'seller_verify']).optional(),
+  purpose: z.enum(['buyer_register_phone', 'buyer_change_phone', 'buyer_sensitive_action', 'seller_connect_phone', 'seller_change_payout_details', 'seller_payout_settings_verify']).optional(),
   turnstileToken: z.string().optional()
 });
 
 const otpVerifySchema = z.object({
   phone: z.string().min(5),
   code: z.string().min(4),
-  purpose: z.enum(['login', 'register', 'seller_verify']).optional()
+  purpose: z.enum(['buyer_register_phone', 'buyer_change_phone', 'buyer_sensitive_action', 'seller_connect_phone', 'seller_change_payout_details', 'seller_payout_settings_verify']).optional()
 });
 
 const passwordResetRequestSchema = z.object({
@@ -272,7 +272,7 @@ authRoutes.post('/otp/request', otpRequestLimiter, async (req, res, next) => {
         return res.status(400).json({ error: { code: 'TURNSTILE_FAILED' } });
       }
     }
-    const purpose = (payload.purpose ?? 'login') as OtpPurpose;
+    const purpose = (payload.purpose ?? 'buyer_register_phone') as OtpPurpose;
     const token = parseAuthToken(req);
     let decoded: { userId: string; role?: string; scope?: string } | null = null;
     if (token) {
@@ -282,7 +282,7 @@ authRoutes.post('/otp/request', otpRequestLimiter, async (req, res, next) => {
         return res.status(401).json({ error: { code: 'UNAUTHORIZED' } });
       }
     }
-    if (purpose === 'login' || purpose === 'register') {
+    if (purpose === 'buyer_register_phone') {
       if (!decoded || decoded.scope !== 'otp') {
         return res.status(401).json({ error: { code: 'OTP_TOKEN_REQUIRED' } });
       }
@@ -311,7 +311,7 @@ authRoutes.post('/otp/request', otpRequestLimiter, async (req, res, next) => {
 authRoutes.post('/otp/verify', otpVerifyLimiter, async (req, res, next) => {
   try {
     const payload = otpVerifySchema.parse(req.body);
-    const purpose = (payload.purpose ?? 'login') as OtpPurpose;
+    const purpose = (payload.purpose ?? 'buyer_register_phone') as OtpPurpose;
     const token = parseAuthToken(req);
     let decoded: { userId: string; role?: string; scope?: string } | null = null;
     if (token) {
@@ -321,7 +321,7 @@ authRoutes.post('/otp/verify', otpVerifyLimiter, async (req, res, next) => {
         return res.status(401).json({ error: { code: 'UNAUTHORIZED' } });
       }
     }
-    const needsOtpToken = purpose === 'login' || purpose === 'register';
+    const needsOtpToken = purpose === 'buyer_register_phone';
     if (needsOtpToken && (!decoded || decoded.scope !== 'otp')) {
       return res.status(401).json({ error: { code: 'OTP_TOKEN_REQUIRED' } });
     }
@@ -369,6 +369,50 @@ authRoutes.post('/otp/verify', otpVerifyLimiter, async (req, res, next) => {
         }
       }
     });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+
+authRoutes.post('/otp/telegram/callback', async (req, res, next) => {
+  try {
+    const timestamp = req.get('X-Request-Timestamp');
+    const signature = req.get('X-Request-Signature');
+    const rawBody = (req as Request & { rawBody?: string }).rawBody ?? JSON.stringify(req.body ?? {});
+
+    if (!timestamp || !signature) {
+      return res.status(400).json({ error: { code: 'INVALID_SIGNATURE_HEADERS' } });
+    }
+
+    const valid = otpService.validateTelegramCallbackSignature({
+      timestamp,
+      signature,
+      rawBody
+    });
+
+    if (!valid) {
+      return res.status(401).json({ error: { code: 'INVALID_SIGNATURE' } });
+    }
+
+    const body = req.body as {
+      request_id?: string;
+      payload?: Record<string, unknown>;
+      status?: string;
+    };
+
+    const mappedStatus = otpService.mapIncomingDeliveryStatus(body.status ?? '');
+    if (!mappedStatus) {
+      return res.status(200).json({ ok: true, ignored: true });
+    }
+
+    await otpService.updateDeliveryStatus({
+      providerRequestId: body.request_id,
+      providerPayload: body.payload,
+      deliveryStatus: mappedStatus
+    });
+
+    return res.json({ ok: true });
   } catch (error) {
     return next(error);
   }

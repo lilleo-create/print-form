@@ -4,7 +4,7 @@ import { loadFromStorage, removeFromStorage, saveToStorage, setAccessToken } fro
 import { STORAGE_KEYS } from '../../shared/constants/storageKeys';
 import { User, Role } from '../../shared/types';
 
-type Purpose = 'login' | 'register' | 'seller_verify';
+type Purpose = 'buyer_register_phone' | 'buyer_change_phone' | 'buyer_sensitive_action' | 'seller_connect_phone' | 'seller_change_payout_details' | 'seller_payout_settings_verify';
 
 type OtpRequiredResult = {
   requiresOtp: true;
@@ -139,7 +139,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
         set({
           otp: {
             required: true,
-            purpose: 'login',
+            purpose: 'buyer_register_phone',
             tempToken: result.tempToken,
             phone: result.user.phone ?? null,
             user: result.user,
@@ -167,7 +167,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
         set({
           otp: {
             required: true,
-            purpose: 'register',
+            purpose: 'buyer_register_phone',
             tempToken: result.tempToken,
             phone: payload.phone ?? result.user.phone ?? null,
             user: result.user,
@@ -183,7 +183,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
     },
 
     async requestOtp(payload, token) {
-      const purpose = (payload.purpose ?? get().otp.purpose ?? 'login') as Purpose;
+      const purpose = (payload.purpose ?? get().otp.purpose ?? 'buyer_register_phone') as Purpose;
       const finalPayload = { ...payload, purpose };
 
       await authApi.requestOtp(finalPayload, token ?? get().otp.tempToken ?? get().token);
@@ -191,7 +191,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
     async verifyOtp(payload, token) {
       const otp = get().otp;
-      const purpose = (payload.purpose ?? otp.purpose ?? 'login') as Purpose;
+      const purpose = (payload.purpose ?? otp.purpose ?? 'buyer_register_phone') as Purpose;
 
       const finalPayload = { ...payload, purpose };
       const result = await authApi.verifyOtp(finalPayload, token ?? otp.tempToken ?? get().token);
