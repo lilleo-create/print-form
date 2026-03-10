@@ -143,7 +143,12 @@ export const authApi = {
 
   updateProfile: async (payload: { name?: string; fullName?: string; email?: string; phone?: string; address?: string }) => {
     const result = await api.updateProfile(payload);
-    const updatedUser = result.data?.data as RawUser | undefined;
+    const responseData = result.data as RawUser | { data?: RawUser } | undefined;
+    const updatedUser =
+      responseData && typeof responseData === 'object' && 'data' in responseData
+        ? responseData.data
+        : responseData;
+
     if (!updatedUser) return null;
     return { user: normalizeUser(updatedUser) };
   },

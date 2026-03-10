@@ -32,6 +32,12 @@
   margin-top: -40px;
 }
 
+.identityBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .avatar {
   width: 88px;
   height: 88px;
