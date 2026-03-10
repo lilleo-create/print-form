@@ -94,9 +94,10 @@ export const otpService = {
 
     const message = `Ваш код для ${formatPurpose(payload.purpose)}: ${code}`;
     const callbackUrl = `${env.backendUrl.replace(/\/$/, '')}/auth/otp/telegram/callback`;
-    const requestId = `otp_${created.id}_${Date.now()}`;
+    const internalRequestId = `otp_${created.id}_${Date.now()}`;
     const providerPayload = {
       otpId: created.id,
+      correlationId: internalRequestId,
       phone,
       purpose: payload.purpose
     };
@@ -112,7 +113,7 @@ export const otpService = {
       code,
       ttlSeconds: env.otpTtlMinutes * 60,
       message,
-      requestId,
+      requestId: internalRequestId,
       callbackUrl,
       providerPayload
     });

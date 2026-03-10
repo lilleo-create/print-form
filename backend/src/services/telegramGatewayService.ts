@@ -46,14 +46,23 @@ export const telegramGatewayService = {
   },
 
   async checkSendAbility(phoneNumber: string) {
-    type CheckSendAbilityResponse = { ok?: boolean; can_send?: boolean; reason?: string };
+    type CheckSendAbilityResponse = {
+      ok?: boolean;
+      can_send?: boolean;
+      reason?: string;
+      request_id?: string;
+      result?: { can_send?: boolean; reason?: string; request_id?: string };
+    };
     const response = await request<CheckSendAbilityResponse>('/checkSendAbility', {
       phone_number: phoneNumber
     });
 
+    const result = response.result ?? {};
+
     return {
-      canSend: response.can_send ?? response.ok ?? false,
-      reason: response.reason,
+      canSend: result.can_send ?? response.can_send ?? response.ok ?? false,
+      reason: result.reason ?? response.reason,
+      requestId: result.request_id ?? response.request_id,
       raw: response
     };
   },
@@ -66,7 +75,14 @@ export const telegramGatewayService = {
     callbackUrl: string;
     providerPayload: Record<string, unknown>;
   }) {
-    type SendResponse = { request_id?: string; payload?: unknown; status?: string };
+    type SendResponse = {
+      ok?: boolean;
+      error?: string;
+      request_id?: string;
+      payload?: unknown;
+      status?: string;
+      result?: { request_id?: string; payload?: unknown; status?: string };
+    };
     const response = await request<SendResponse>('/sendVerificationMessage', {
       phone_number: payload.phoneNumber,
       code: payload.code,
@@ -76,10 +92,15 @@ export const telegramGatewayService = {
       callback_url: payload.callbackUrl
     });
 
+    const result = response.result ?? {};
+    const normalizedStatus = mapTelegramDeliveryStatus(result.status ?? response.status ?? '');
+
     return {
-      providerRequestId: response.request_id ?? payload.requestId,
-      providerPayload: response.payload ?? payload.providerPayload,
-      deliveryStatus: mapTelegramDeliveryStatus(response.status ?? 'sent') ?? 'sent',
+      ok: response.ok ?? true,
+      error: response.error,
+      providerRequestId: result.request_id ?? response.request_id ?? payload.requestId,
+      providerPayload: result.payload ?? response.payload ?? payload.providerPayload,
+      deliveryStatus: normalizedStatus,
       raw: response
     };
   },

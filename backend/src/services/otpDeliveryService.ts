@@ -37,6 +37,12 @@ export const otpDeliveryService = {
       smsProvider: env.smsProvider
     });
 
+    if (!payload.callbackUrl.startsWith('https://')) {
+      console.warn('[OTP] telegram callback_url is not https; this is acceptable for local dev but external callbacks will not be delivered', {
+        callbackUrl: payload.callbackUrl
+      });
+    }
+
     if (env.otpProvider === 'telegram') {
       if (!telegramGatewayService.isEnabled()) {
         console.warn('[OTP] telegram provider selected but TELEGRAM_GATEWAY_TOKEN is empty, using dev fallback');
@@ -44,12 +50,14 @@ export const otpDeliveryService = {
         try {
           console.info('[OTP] telegram checkSendAbility:request', {
             phone: payload.phone,
-            requestId: payload.requestId
+            internalRequestId: payload.requestId
           });
           const ability = await telegramGatewayService.checkSendAbility(payload.phone);
+          const telegramRequestId = ability.requestId;
           console.info('[OTP] telegram checkSendAbility:response', {
             phone: payload.phone,
-            requestId: payload.requestId,
+            internalRequestId: payload.requestId,
+            telegramRequestId,
             response: ability
           });
 
@@ -58,15 +66,22 @@ export const otpDeliveryService = {
             const error = new Error(`TELEGRAM_CANNOT_SEND:${reason}`);
             console.error('[OTP] telegram checkSendAbility rejected sending', {
               phone: payload.phone,
-              requestId: payload.requestId,
+              internalRequestId: payload.requestId,
+              telegramRequestId,
               reason
             });
             throw error;
           }
 
+          if (!telegramRequestId) {
+            throw new Error('TELEGRAM_REQUEST_ID_MISSING');
+          }
+
           console.info('[OTP] telegram sendVerificationMessage:request', {
             phone: payload.phone,
-            requestId: payload.requestId,
+            internalRequestId: payload.requestId,
+            telegramRequestId,
+            request_id: telegramRequestId,
             callbackUrl: payload.callbackUrl,
             ttlSeconds: payload.ttlSeconds,
             providerPayload: payload.providerPayload
@@ -74,22 +89,31 @@ export const otpDeliveryService = {
           const sent = await telegramGatewayService.sendVerificationMessage({
             phoneNumber: payload.phone,
             code: payload.code,
-            requestId: payload.requestId,
+            requestId: telegramRequestId,
             ttlSeconds: payload.ttlSeconds,
             callbackUrl: payload.callbackUrl,
             providerPayload: payload.providerPayload
           });
           console.info('[OTP] telegram sendVerificationMessage:response', {
             phone: payload.phone,
-            requestId: payload.requestId,
+            internalRequestId: payload.requestId,
+            telegramRequestId,
             response: sent
           });
+
+          if (!sent.ok) {
+            throw new Error(`TELEGRAM_SEND_FAILED:${sent.error ?? 'UNKNOWN_ERROR'}`);
+          }
+
+          if (!sent.deliveryStatus) {
+            throw new Error('TELEGRAM_SEND_FAILED:UNKNOWN_DELIVERY_STATUS');
+          }
 
           return {
             channel: 'TELEGRAM',
             provider: 'TELEGRAM_GATEWAY',
             deliveryStatus: mapStatusToDb(sent.deliveryStatus),
-            providerRequestId: sent.providerRequestId,
+            providerRequestId: sent.providerRequestId ?? telegramRequestId,
             providerPayload:
               typeof sent.providerPayload === 'object' && sent.providerPayload
                 ? (sent.providerPayload as Record<string, unknown>)
@@ -98,7 +122,7 @@ export const otpDeliveryService = {
         } catch (error) {
           console.error('[OTP] telegram delivery failed', {
             phone: payload.phone,
-            requestId: payload.requestId,
+            internalRequestId: payload.requestId,
             error
           });
           if (error instanceof Error && error.message.startsWith('TELEGRAM_')) {
