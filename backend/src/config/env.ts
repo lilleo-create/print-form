@@ -33,16 +33,37 @@ if (smsProvider === 'twilio') {
   requireEnv('TWILIO_FROM');
 }
 
-const rawOtpProvider = (process.env.OTP_PROVIDER ?? 'telegram').toLowerCase();
+const rawOtpProvider = (process.env.OTP_PROVIDER ?? 'plusofon').toLowerCase();
 const otpProvider =
   rawOtpProvider === 'telegram_gateway' || rawOtpProvider === 'telegram-gateway'
     ? 'telegram'
     : rawOtpProvider;
+const rawOtpFallbackProvider = (process.env.OTP_FALLBACK_PROVIDER ?? 'telegram').toLowerCase();
+const otpFallbackProvider =
+  rawOtpFallbackProvider === 'telegram_gateway' || rawOtpFallbackProvider === 'telegram-gateway'
+    ? 'telegram'
+    : rawOtpFallbackProvider;
+const otpFallbackEnabled = (process.env.OTP_FALLBACK_ENABLED ?? 'false').toLowerCase() === 'true';
 const telegramGatewayBaseUrl = process.env.TELEGRAM_GATEWAY_BASE_URL ?? 'https://gatewayapi.telegram.org';
 const telegramGatewayToken = process.env.TELEGRAM_GATEWAY_TOKEN ?? '';
 const telegramGatewayCallbackSecret = process.env.TELEGRAM_GATEWAY_CALLBACK_SECRET ?? '';
 if (otpProvider === 'telegram' && !telegramGatewayToken && isProduction) {
   throw new Error('TELEGRAM_GATEWAY_TOKEN is required when OTP_PROVIDER=telegram in production');
+}
+
+const plusofonBaseUrl = process.env.PLUSOFON_BASE_URL ?? 'https://restapi.plusofon.ru';
+const plusofonFlashAccessToken = process.env.PLUSOFON_FLASH_ACCESS_TOKEN ?? '';
+const plusofonWebhookPublicUrl = process.env.PLUSOFON_WEBHOOK_PUBLIC_URL ?? '';
+const plusofonWebhookSecret = process.env.PLUSOFON_WEBHOOK_SECRET ?? '';
+const plusofonRequestTimeoutMs = Number(process.env.PLUSOFON_REQUEST_TIMEOUT_MS ?? 10000);
+const plusofonVerificationExpiresSec = Number(process.env.PLUSOFON_VERIFICATION_EXPIRES_SEC ?? 120);
+
+if (otpProvider === 'plusofon' && !plusofonFlashAccessToken && isProduction) {
+  throw new Error('PLUSOFON_FLASH_ACCESS_TOKEN is required when OTP_PROVIDER=plusofon in production');
+}
+
+if (Number.isNaN(plusofonRequestTimeoutMs) || Number.isNaN(plusofonVerificationExpiresSec)) {
+  throw new Error('PLUSOFON_REQUEST_TIMEOUT_MS and PLUSOFON_VERIFICATION_EXPIRES_SEC must be numbers');
 }
 
 const otpTtlMinutes = Number(process.env.OTP_TTL_MINUTES ?? 10);
@@ -68,6 +89,8 @@ export const env = {
   frontendUrl: requireEnv('FRONTEND_URL'),
   otpPepper,
   otpProvider,
+  otpFallbackProvider,
+  otpFallbackEnabled,
   otpTtlMinutes,
   otpCooldownSeconds,
   otpMaxAttempts,
@@ -78,6 +101,12 @@ export const env = {
   telegramGatewayBaseUrl,
   telegramGatewayToken,
   telegramGatewayCallbackSecret,
+  plusofonBaseUrl,
+  plusofonFlashAccessToken,
+  plusofonWebhookPublicUrl,
+  plusofonWebhookSecret,
+  plusofonRequestTimeoutMs,
+  plusofonVerificationExpiresSec,
   turnstileSecretKey: process.env.TURNSTILE_SECRET_KEY ?? '',
   googleSheetsId: process.env.GOOGLE_SHEETS_ID ?? '',
   googleServiceAccountEmail: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL ?? '',

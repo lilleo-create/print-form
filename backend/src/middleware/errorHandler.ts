@@ -56,6 +56,10 @@ export const errorHandler = (
     });
   }
 
+  if (typeof extError.status === 'number' && typeof extError.code === 'string' && extError.code.startsWith('OTP_')) {
+    return res.status(extError.status).json({ error: { code: extError.code } });
+  }
+
   const status = error.message === 'INVALID_CREDENTIALS' || error.message === 'UNAUTHORIZED'
     ? 401
     : error.message === 'OTP_TOKEN_REQUIRED'
@@ -71,6 +75,11 @@ export const errorHandler = (
     : error.message === 'OTP_INVALID' ||
       error.message === 'OTP_EXPIRED' ||
       error.message === 'OTP_TOO_MANY' ||
+      error.message === 'OTP_NOT_FOUND' ||
+      error.message === 'OTP_ALREADY_VERIFIED' ||
+      error.message === 'OTP_PROVIDER_UNAVAILABLE' ||
+      error.message === 'OTP_REQUEST_FAILED' ||
+      error.message === 'OTP_RATE_LIMITED' ||
       error.message === 'INVALID_PHONE' ||
       error.message === 'CORS_NOT_ALLOWED' ||
       error.message === 'PHONE_MISMATCH' ||

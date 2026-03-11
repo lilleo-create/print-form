@@ -45,7 +45,8 @@ const otpRequestSchema = z.object({
 
 const otpVerifySchema = z.object({
   phone: z.string().min(5),
-  code: z.string().min(4),
+  code: z.string().min(4).optional(),
+  requestId: z.string().min(3).optional(),
   purpose: z.enum(['buyer_register_phone', 'buyer_change_phone', 'buyer_sensitive_action', 'seller_connect_phone', 'seller_change_payout_details', 'seller_payout_settings_verify']).optional()
 });
 
@@ -304,7 +305,7 @@ authRoutes.post('/otp/request', otpRequestLimiter, async (req, res, next) => {
       ip: req.ip,
       userAgent: req.get('user-agent')
     });
-    return res.json({ ok: true, devOtp: result.devOtp, delivery: result.delivery });
+    return res.json({ ok: true, data: result.data, devOtp: result.devOtp, delivery: result.delivery });
   } catch (error) {
     return next(error);
   }
@@ -333,6 +334,7 @@ authRoutes.post('/otp/verify', otpVerifyLimiter, async (req, res, next) => {
     const { phone } = await otpService.verifyOtp({
       phone: payload.phone,
       code: payload.code,
+      requestId: payload.requestId,
       purpose
     });
 
@@ -387,6 +389,40 @@ authRoutes.post('/otp/verify', otpVerifyLimiter, async (req, res, next) => {
   }
 });
 
+
+
+authRoutes.get('/otp/status/:requestId', async (req, res, next) => {
+  try {
+    const data = await otpService.getVerificationStatus(req.params.requestId);
+    return res.json({ ok: true, data });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+authRoutes.post('/otp/plusofon/webhook', async (req, res, next) => {
+  try {
+    const token = typeof req.query.token === 'string' ? req.query.token : req.get('x-plusofon-token');
+    if (env.plusofonWebhookSecret && token !== env.plusofonWebhookSecret) {
+      return res.status(401).json({ error: { code: 'UNAUTHORIZED' } });
+    }
+
+    const body = req.body as { phone?: string; key?: string };
+    if (!body.phone || !body.key) {
+      return res.status(400).json({ error: { code: 'VALIDATION_ERROR' } });
+    }
+
+    console.info('[OTP] plusofon webhook received', {
+      phone: body.phone.replace(/.(?=.{4})/g, '*'),
+      key: `${body.key.slice(0, 4)}***${body.key.slice(-2)}`
+    });
+
+    await otpService.markPlusofonVerified({ phone: body.phone, key: body.key });
+    return res.json({ ok: true });
+  } catch (error) {
+    return next(error);
+  }
+});
 
 authRoutes.post('/otp/telegram/callback', async (req, res, next) => {
   try {
