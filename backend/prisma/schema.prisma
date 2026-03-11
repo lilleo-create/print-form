@@ -562,8 +562,8 @@ model PhoneOtp {
   phone       String
   codeHash    String
   purpose     OtpPurpose
-  channel     OtpChannel  @default(TELEGRAM)
-  provider    OtpProvider @default(TELEGRAM_GATEWAY)
+  channel     OtpChannel  @default(CALL_TO_AUTH)
+  provider    OtpProvider @default(PLUSOFON)
   providerRequestId String?
   providerPayload   Json?
   deliveryStatus    OtpDeliveryStatus @default(SENT)
@@ -577,6 +577,33 @@ model PhoneOtp {
 
   @@index([phone, purpose, createdAt])
   @@index([expiresAt])
+}
+
+model OtpVerification {
+  id               String       @id @default(cuid())
+  phone            String
+  normalizedPhone  String
+  provider         OtpProvider
+  purpose          OtpPurpose?
+  status           OtpVerificationStatus @default(PENDING)
+  externalKey      String?
+  externalPhone    String?
+  fallbackProvider OtpProvider?
+  fallbackEnabled  Boolean      @default(false)
+  expiresAt        DateTime?
+  verifiedAt       DateTime?
+  lastError        String?
+  attemptsCount    Int          @default(0)
+  resendCount      Int          @default(0)
+  ip               String?
+  userAgent        String?
+  meta             Json?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([normalizedPhone, status])
+  @@index([externalKey])
+  @@index([createdAt])
 }
 
 model favorites {
@@ -702,12 +729,14 @@ enum OtpPurpose {
 }
 
 enum OtpChannel {
+  CALL_TO_AUTH
   TELEGRAM
   SMS
   CONSOLE
 }
 
 enum OtpProvider {
+  PLUSOFON
   TELEGRAM_GATEWAY
   TWILIO
   CONSOLE
@@ -719,6 +748,14 @@ enum OtpDeliveryStatus {
   READ
   EXPIRED
   REVOKED
+}
+
+enum OtpVerificationStatus {
+  PENDING
+  VERIFIED
+  EXPIRED
+  FAILED
+  CANCELLED
 }
 
 enum KycStatus {
