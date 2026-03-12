@@ -637,9 +637,12 @@ export const api = {
       ok: boolean;
       data?: {
         requestId: string;
+        provider?: string;
         verificationType: 'call_to_auth' | 'code';
         callToAuthNumber?: string | null;
+        phone?: string;
         status?: string;
+        expiresInSec?: number;
       };
       devOtp?: string;
     }>(

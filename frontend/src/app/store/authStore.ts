@@ -60,7 +60,7 @@ interface AuthState {
     token?: string;
   }>;
 
-  requestOtp: (payload: { phone: string; purpose?: Purpose }, token?: string | null) => Promise<{ requestId: string; verificationType: 'call_to_auth' | 'code'; callToAuthNumber?: string | null } | null>;
+  requestOtp: (payload: { phone: string; purpose?: Purpose }, token?: string | null) => Promise<{ requestId: string; provider?: string; verificationType: 'call_to_auth' | 'code'; callToAuthNumber?: string | null; phone?: string; status?: string; expiresInSec?: number } | null>;
 
   checkOtpStatus: (requestId: string, token?: string | null) => Promise<'pending' | 'verified' | 'expired' | 'failed' | 'cancelled'>;
 
