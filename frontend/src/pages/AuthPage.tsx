@@ -253,8 +253,6 @@ export const AuthPage = () => {
                 purpose={otpPurpose}
                 tempToken={otpToken}
                 initialPhone={otpPhone}
-                privacyAccepted={privacyAccepted}
-                onPrivacyAcceptedChange={setPrivacyAccepted}
                 onRequestOtp={requestOtp}
                 onCheckOtpStatus={checkOtpStatus}
                 onVerifyOtp={verifyOtp}
