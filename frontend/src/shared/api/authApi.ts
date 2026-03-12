@@ -120,12 +120,51 @@ export const authApi = {
     token?: string | null
   ) => {
     const response = await api.requestOtp(payload, token);
-    return response.data?.data ?? null;
+    const raw = response.data as
+      | {
+          ok?: boolean;
+          data?: {
+            requestId?: string;
+            provider?: string;
+            verificationType?: 'call_to_auth' | 'code';
+            callToAuthNumber?: string | null;
+            phone?: string;
+            status?: string;
+            expiresInSec?: number;
+          };
+          requestId?: string;
+          provider?: string;
+          verificationType?: 'call_to_auth' | 'code';
+          callToAuthNumber?: string | null;
+          phone?: string;
+          status?: string;
+          expiresInSec?: number;
+        }
+      | undefined;
+
+    const data = raw?.data && typeof raw.data === 'object' ? raw.data : raw;
+    if (!data?.requestId || !data?.verificationType) return null;
+
+    return {
+      requestId: data.requestId,
+      provider: data.provider,
+      verificationType: data.verificationType,
+      callToAuthNumber: data.callToAuthNumber ?? null,
+      phone: data.phone,
+      status: data.status,
+      expiresInSec: data.expiresInSec,
+    };
   },
 
   checkOtpStatus: async (requestId: string, token?: string | null) => {
     const response = await api.otpStatus(requestId, token);
-    return response.data.data.status;
+    const raw = response.data as
+      | {
+          status?: 'pending' | 'verified' | 'expired' | 'failed' | 'cancelled';
+          data?: { status?: 'pending' | 'verified' | 'expired' | 'failed' | 'cancelled' };
+        }
+      | undefined;
+    return (raw?.data?.status ?? raw?.status ?? 'pending');
   },
 
   verifyOtp: async (
