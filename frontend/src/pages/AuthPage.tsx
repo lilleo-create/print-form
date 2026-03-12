@@ -103,6 +103,7 @@ export const AuthPage = () => {
   const [otpToken, setOtpToken] = useState<string | null>(null);
   const [otpPurpose, setOtpPurpose] = useState<Purpose>('buyer_register_phone');
   const [otpPhone, setOtpPhone] = useState<string>('');
+  const [otpUiState, setOtpUiState] = useState<'idle' | 'requesting' | 'call_to_auth' | 'error'>('idle');
 
   const login = useAuthStore((s) => s.login);
   const register = useAuthStore((s) => s.register);
@@ -150,6 +151,7 @@ export const AuthPage = () => {
     setOtpToken(null);
     setOtpPhone('');
     setOtpPurpose('buyer_register_phone');
+    setOtpUiState('idle');
   };
 
   const resetMessages = () => {
@@ -240,13 +242,15 @@ export const AuthPage = () => {
       <div className={styles.layout}>
         <div className={styles.formColumn}>
           <div className={styles.card}>
-            <div className={styles.header}>
-              <p className={styles.eyebrow}>{isRegister ? 'Создайте аккаунт' : 'Добро пожаловать'}</p>
-              <h1>{isRegister ? 'Регистрация' : 'Вход'}</h1>
-              <p className={styles.subtitle}>
-                {isRegister ? 'Начните продавать и покупать 3D печать за пару минут.' : 'Войдите, чтобы продолжить работу с заказами.'}
-              </p>
-            </div>
+            {otpUiState !== 'call_to_auth' && (
+              <div className={styles.header}>
+                <p className={styles.eyebrow}>{isRegister ? 'Создайте аккаунт' : 'Добро пожаловать'}</p>
+                <h1>{isRegister ? 'Регистрация' : 'Вход'}</h1>
+                <p className={styles.subtitle}>
+                  {isRegister ? 'Начните продавать и покупать 3D печать за пару минут.' : 'Войдите, чтобы продолжить работу с заказами.'}
+                </p>
+              </div>
+            )}
 
             {otpRequired ? (
               <OtpStep
@@ -261,6 +265,7 @@ export const AuthPage = () => {
                 }}
                 setMessage={setMessage}
                 setError={setError}
+                onUiStateChange={setOtpUiState}
               />
             ) : isRegister ? (
               <form onSubmit={registerForm.handleSubmit(onRegister)} className={styles.form}>

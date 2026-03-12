@@ -330,29 +330,33 @@ export const otpService = {
     });
 
     if (!verification) {
-      console.warn('[OTP] plusofon webhook verification not found', { phone: maskPhone(phone) });
-      return { ok: true, accepted: true };
+      console.warn('[OTP] plusofon webhook verification not found', {
+        phone: maskPhone(phone),
+        externalKey: `${payload.key.slice(0, 4)}***${payload.key.slice(-2)}`
+      });
+      return { ok: true, accepted: true, found: false, phoneMatched: false, statusUpdated: false };
     }
 
     if (verification.status === 'VERIFIED') {
-      return { ok: true, accepted: true };
+      return { ok: true, accepted: true, found: true, phoneMatched: verification.normalizedPhone === phone, statusUpdated: false };
     }
 
     if (verification.status !== 'PENDING') {
-      return { ok: true, accepted: true };
+      return { ok: true, accepted: true, found: true, phoneMatched: verification.normalizedPhone === phone, statusUpdated: false };
     }
 
     if (verification.expiresAt && verification.expiresAt < now) {
       await otpVerificationDelegate.update({ where: { id: verification.id }, data: { status: 'EXPIRED' } });
-      return { ok: true, accepted: true };
+      return { ok: true, accepted: true, found: true, phoneMatched: verification.normalizedPhone === phone, statusUpdated: false };
     }
 
     if (verification.normalizedPhone !== phone) {
       console.warn('[OTP] plusofon webhook phone mismatch', {
         requestId: verification.id,
-        phone: maskPhone(phone)
+        expectedPhone: maskPhone(verification.normalizedPhone),
+        actualPhone: maskPhone(phone)
       });
-      return { ok: true, accepted: true };
+      return { ok: true, accepted: true, found: true, phoneMatched: false, statusUpdated: false };
     }
 
     await otpVerificationDelegate.update({
@@ -361,7 +365,7 @@ export const otpService = {
     });
 
     console.info('[OTP] verification marked verified', { requestId: verification.id, phone: maskPhone(phone) });
-    return { ok: true, accepted: true };
+    return { ok: true, accepted: true, found: true, phoneMatched: true, statusUpdated: true };
   },
 
   async updateDeliveryStatus(payload: {

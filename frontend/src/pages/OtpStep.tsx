@@ -63,6 +63,7 @@ export function OtpStep(props: {
   onSuccess: () => void;
   setMessage: (v: string) => void;
   setError: (v: string) => void;
+  onUiStateChange?: (state: OtpUiState) => void;
 }) {
   const { purpose, tempToken, initialPhone } = props;
 
@@ -174,6 +175,10 @@ export function OtpStep(props: {
     autoRequestedRef.current = true;
     void request();
   }, [phoneDigits, request]);
+
+  useEffect(() => {
+    props.onUiStateChange?.(otpUiState);
+  }, [otpUiState, props]);
 
   const isBusy = otpUiState === 'requesting';
   const callToAuthDisplayNumber = callToAuthNumber ? formatRuPhone(callToAuthNumber) : null;
