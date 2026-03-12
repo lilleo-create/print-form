@@ -38,6 +38,8 @@ export interface Product {
   printTime?: string;
   productionTimeHours?: number;
   deliveryDateEstimated?: string | null;
+  deliveryDaysMin?: number | null;
+  deliveryDaysMax?: number | null;
   color: string;
   sellerId: string | null;
   createdAt?: string;
@@ -213,6 +215,7 @@ export interface Order {
   status: OrderStatus;
   statusUpdatedAt?: string;
   paidAt?: string | null;
+  readyForShipmentAt?: string | null;
   isPacked?: boolean | null;
   total: number;
   recipientName?: string | null;
@@ -229,6 +232,10 @@ export interface Order {
   cdekOrderId?: string | null;
   cdekStatus?: string | null;
   carrier?: string | null;
+  deliveryDaysMin?: number | null;
+  deliveryDaysMax?: number | null;
+  estimatedDeliveryDateMin?: string | null;
+  estimatedDeliveryDateMax?: string | null;
   contact?: Contact | null;
   shippingAddress?: Address | null;
   buyer?: { id: string; name: string; email: string; phone?: string | null } | null;

@@ -69,7 +69,7 @@ useEffect(() => {
         <Rating value={product.ratingAvg} count={product.ratingCount} />
 
         <p className={styles.price}>{product.price.toLocaleString('ru-RU')} ₽</p>
-        <p className={styles.meta}>Доставка СДЭК: {formatEtaDays(product.deliveryDaysMin, product.deliveryDaysMax) ?? 'Срок уточняется'}</p>
+        <p className={styles.meta}>Доставка СДЭК: {formatEtaDays(product.deliveryDaysMin ?? null, product.deliveryDaysMax ?? null) ?? 'Срок уточняется'}</p>
 
         <div className={styles.actions}>
           <Button

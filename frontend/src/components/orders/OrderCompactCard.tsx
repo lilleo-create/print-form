@@ -37,10 +37,10 @@ export const OrderCompactCard = ({ order }: { order: Order }) => {
           СДЭК: {order.trackingNumber}
         </a>
       ) : null}
-      {formatEtaDays(order.deliveryDaysMin, order.deliveryDaysMax) ? (
+      {formatEtaDays(order.deliveryDaysMin ?? null, order.deliveryDaysMax ?? null) ? (
         <>
-          <p>{formatEtaDays(order.deliveryDaysMin, order.deliveryDaysMax)}</p>
-          <p>{formatEtaDateRangeFromDates(order.estimatedDeliveryDateMin, order.estimatedDeliveryDateMax) ?? formatEtaDateRange(order.createdAt, order.deliveryDaysMin, order.deliveryDaysMax)}</p>
+          <p>{formatEtaDays(order.deliveryDaysMin ?? null, order.deliveryDaysMax ?? null)}</p>
+          <p>{formatEtaDateRangeFromDates(order.estimatedDeliveryDateMin ?? null, order.estimatedDeliveryDateMax ?? null) ?? formatEtaDateRange(order.createdAt, order.deliveryDaysMin ?? null, order.deliveryDaysMax ?? null)}</p>
         </>
       ) : null}
       {(hasHandoverStarted(order) || isCancellableDeliveryStage(order)) ? (

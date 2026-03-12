@@ -16,7 +16,6 @@ import { useCartStore } from '../../app/store/cartStore';
 import { useAuthStore } from '../../app/store/authStore';
 import { useProductBoardStore } from '../../app/store/productBoardStore';
 import { useHeaderMenuStore } from '../../app/store/headerMenuStore';
-import { HeaderAddress } from '../../shared/ui/address/HeaderAddress';
 import { Rating } from '../../shared/ui/Rating';
 import { Button } from '../../shared/ui/Button';
 import { HeaderActions } from './HeaderActions';
@@ -261,9 +260,6 @@ const openProfileMenuHandler = () => {
       </div>
       <div className={styles.mobileHeader}>
         <div className={styles.mobileTopRow}>
-          <div className={styles.mobileAddress}>
-            <HeaderAddress variant="compact" />
-          </div>
           {user && (
             <button
               type="button"
@@ -310,9 +306,6 @@ const openProfileMenuHandler = () => {
               >
                 <div className={styles.categoriesMeta}>
                   <div className={styles.categoriesTitle}>Категории</div>
-                  <div className={styles.categoriesAddress}>
-                    <HeaderAddress variant="compact" />
-                  </div>
                 </div>
                 <div id="catalog-category-buttons" />
                 <Link to={sellLink} className={styles.sellCta}>

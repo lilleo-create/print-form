@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import styles from '../../shared/ui/address/AddressModal.module.css';
+import styles from './CdekPvzPickerModal.module.css';
 
 export type CdekPvzSelection = {
   pvzCode: string;

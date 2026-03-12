@@ -2,7 +2,9 @@ import { Order } from '../types';
 
 export type DeliveryStage = 'CREATING' | 'PRINTING' | 'READY_FOR_DROP' | 'IN_TRANSIT' | 'READY_FOR_PICKUP';
 
-type DeliveryStatusSource = Pick<Order, 'status' | 'paidAt' | 'shipment' | 'trackingNumber' | 'cdekOrderId' | 'readyForShipmentAt'>;
+type DeliveryStatusSource = Pick<Order, 'status' | 'paidAt' | 'shipment' | 'trackingNumber' | 'cdekOrderId'> & {
+  readyForShipmentAt?: string | null;
+};
 
 const IN_TRANSIT_STATUSES = new Set(['IN_TRANSIT', 'ACCEPTED_IN_TRANSIT_CITY', 'TRANSPORTING', 'ACCEPTED', 'DELIVERY_TRANSPORTATION']);
 const READY_FOR_PICKUP_STATUSES = new Set(['READY_FOR_PICKUP', 'READY_FOR_PICKUP_POINT', 'DELIVERY_AT_PICKUP_POINT']);
