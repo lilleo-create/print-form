@@ -1,5 +1,4 @@
 import type { Address } from '../../shared/types';
-import { AddressModal } from '../../shared/ui/address/AddressModal';
 
 type CheckoutAddressModalGateProps = {
   isOpen: boolean;
@@ -13,26 +12,4 @@ type CheckoutAddressModalGateProps = {
   onDelete: (addressId: string) => Promise<void>;
 };
 
-export const CheckoutAddressModalGate = ({
-  isOpen,
-  addresses,
-  selectedAddressId,
-  userId,
-  onClose,
-  onSelect,
-  onCreate,
-  onUpdate,
-  onDelete
-}: CheckoutAddressModalGateProps) => (
-  <AddressModal
-    isOpen={isOpen}
-    addresses={addresses}
-    selectedAddressId={selectedAddressId}
-    userId={userId}
-    onClose={onClose}
-    onSelect={onSelect}
-    onCreate={onCreate}
-    onUpdate={onUpdate}
-    onDelete={onDelete}
-  />
-);
+export const CheckoutAddressModalGate = (_props: CheckoutAddressModalGateProps) => null;

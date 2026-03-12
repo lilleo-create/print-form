@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { SellerDropoffMap } from '../SellerDropoffMap';
 import { api, type SellerDropoffStation } from '../../shared/api/api';
 import { normalizeApiError } from '../../shared/api/client';
 import { Button } from '../../shared/ui/Button';
@@ -26,7 +25,6 @@ export const SellerDropoffStationPicker = ({ isOpen, geoId, onClose, onSelect }:
   const [error, setError] = useState<string | null>(null);
   const [searchEmptyMessage, setSearchEmptyMessage] = useState<string | null>(null);
   const [detectedGeoId, setDetectedGeoId] = useState<number | null>(null);
-  const [mapCenter, setMapCenter] = useState<[number, number] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const stationRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -55,7 +53,6 @@ export const SellerDropoffStationPicker = ({ isOpen, geoId, onClose, onSelect }:
     try {
       const response = await api.searchSellerDropoffStations(normalizedQuery, geoId, 100, controller.signal);
       const points = response.data?.points ?? [];
-      const geocode = response.data?.debug?.geocode;
       setStations(points);
       setSelectedId((prev) => {
         if (prev && points.some((point) => getSelectableId(point) === prev)) {
@@ -65,7 +62,6 @@ export const SellerDropoffStationPicker = ({ isOpen, geoId, onClose, onSelect }:
         return firstSelectable ?? null;
       });
       setDetectedGeoId(response.data?.debug?.geoId ?? null);
-      setMapCenter(geocode ? [geocode.lon, geocode.lat] : null);
       setSearchEmptyMessage(points.length ? null : 'Пункты приёма не найдены. Уточните запрос.');
     } catch (e) {
       if (controller.signal.aborted) {
@@ -165,7 +161,7 @@ export const SellerDropoffStationPicker = ({ isOpen, geoId, onClose, onSelect }:
           </div>
 
           <div className={styles.mapContainer}>
-            <SellerDropoffMap points={stations} selectedId={selectedId} onSelect={setSelectedId} preferredCenter={mapCenter} />
+            <p className={styles.muted}>Карта недоступна. Выберите пункт из списка.</p>
           </div>
         </div>
 
