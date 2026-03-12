@@ -5,11 +5,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl openssl \
 
 WORKDIR /app
 
+# копируем только backend
 COPY backend/package.json backend/package-lock.json ./
-RUN npm ci --include=dev
-RUN ls -la node_modules/.bin && test -f node_modules/.bin/tsc
 
-COPY backend/ ./
+RUN npm ci
+
+COPY backend/ .
 
 RUN npx prisma generate
 RUN npm run build
@@ -19,4 +20,4 @@ ENV PORT=4000
 
 EXPOSE 4000
 
-CMD ["sh", "-c", "npx prisma migrate deploy && npm run start"]
+CMD ["sh","-c","npx prisma migrate deploy && node dist/main.js"]
