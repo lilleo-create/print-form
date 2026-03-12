@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '../shared/ui/Button';
+import { normalizeApiError } from '../shared/api/client';
 import styles from './AuthPage.module.css';
 
 type Purpose = 'buyer_register_phone' | 'buyer_change_phone' | 'buyer_sensitive_action' | 'seller_connect_phone' | 'seller_change_payout_details' | 'seller_payout_settings_verify';
@@ -165,8 +166,13 @@ export function OtpStep(props: {
         setCallToAuthNumber(null);
         props.setMessage('Код отправлен.');
       }
-    } catch {
-      props.setError('Не удалось отправить код.');
+    } catch (error) {
+      const normalized = normalizeApiError(error);
+      if (normalized.code === 'OTP_PROVIDER_UNAVAILABLE') {
+        props.setError('Не удалось начать подтверждение номера. Попробуйте ещё раз.');
+      } else {
+        props.setError('Не удалось отправить код.');
+      }
     } finally {
       setOtpLoading(false);
     }
@@ -229,8 +235,10 @@ export function OtpStep(props: {
 
       {otpSent && flowType === 'call_to_auth' && (
         <div className={styles.success}>
+          <strong>Подтверждение номера</strong>
           <div>Для подтверждения номера позвоните на {callToAuthNumber ?? 'указанный номер'}.</div>
           <div>Звонок абсолютно бесплатный.</div>
+          <div>После звонка подтверждение произойдёт автоматически.</div>
         </div>
       )}
 
