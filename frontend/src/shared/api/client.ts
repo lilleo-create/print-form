@@ -191,19 +191,9 @@ export function createFetchClient(baseUrl: string) {
     }
 
     if (!res.ok) {
-      let payload: unknown = null;
-
-      try {
-        payload = await res.json();
-      } catch {
-        // тело может быть пустым (401 / 204 / HTML)
-      }
-
       const message =
         typeof payload === 'object' && payload !== null && 'message' in payload
-          ? String(
-              (payload as { message?: unknown }).message ?? `HTTP ${res.status}`
-            )
+          ? String((payload as { message?: unknown }).message ?? `HTTP ${res.status}`)
           : `HTTP ${res.status}`;
 
       const error = new Error(message) as Error & {
