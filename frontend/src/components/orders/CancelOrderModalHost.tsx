@@ -27,7 +27,7 @@ export const CancelOrderModalHost = () => {
     if (!orderId) return;
     setSubmitting(true);
     try {
-      await ordersApi.cancelOrder(orderId, { reason, comment });
+      await ordersApi.cancelMyOrder(orderId);
       if (user) {
         await loadBuyerOrders(user);
       }
