@@ -1,0 +1,8 @@
+{
+  "name": "print-form-root",
+  "private": true,
+  "scripts": {
+    "build": "cd backend && npm install && npx prisma generate && npx prisma migrate deploy && npm run build",
+    "start": "cd backend && npm run start"
+  }
+}
