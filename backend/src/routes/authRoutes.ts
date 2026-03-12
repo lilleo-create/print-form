@@ -403,6 +403,17 @@ authRoutes.get('/otp/status/:requestId', async (req, res, next) => {
 authRoutes.post('/otp/plusofon/webhook', async (req, res, next) => {
   try {
     const token = typeof req.query.token === 'string' ? req.query.token : req.get('x-plusofon-token');
+
+    console.info('[OTP] plusofon webhook entry', {
+      query: req.query,
+      body: req.body
+    });
+
+    console.info('[OTP] plusofon webhook token check', {
+      expectedToken: env.plusofonWebhookSecret ? `${env.plusofonWebhookSecret.slice(0, 4)}***${env.plusofonWebhookSecret.slice(-2)}` : null,
+      actualToken: token ? `${token.slice(0, 4)}***${token.slice(-2)}` : null
+    });
+
     if (env.plusofonWebhookSecret && token !== env.plusofonWebhookSecret) {
       return res.status(401).json({ error: { code: 'UNAUTHORIZED' } });
     }
@@ -412,12 +423,23 @@ authRoutes.post('/otp/plusofon/webhook', async (req, res, next) => {
       return res.status(400).json({ error: { code: 'VALIDATION_ERROR' } });
     }
 
-    console.info('[OTP] plusofon webhook received', {
-      phone: body.phone.replace(/.(?=.{4})/g, '*'),
-      key: `${body.key.slice(0, 4)}***${body.key.slice(-2)}`
+    const maskedPhone = body.phone.replace(/.(?=.{4})/g, '*');
+    const maskedKey = `${body.key.slice(0, 4)}***${body.key.slice(-2)}`;
+
+    console.info('[OTP] plusofon webhook payload accepted', {
+      phone: maskedPhone,
+      key: maskedKey
     });
 
-    await otpService.markPlusofonVerified({ phone: body.phone, key: body.key });
+    const result = await otpService.markPlusofonVerified({ phone: body.phone, key: body.key });
+
+    console.info('[OTP] plusofon webhook processing result', {
+      key: maskedKey,
+      foundVerificationByExternalKey: result.found,
+      normalizedPhoneMatched: result.phoneMatched,
+      verificationMarkedVerified: result.statusUpdated
+    });
+
     return res.json({ ok: true });
   } catch (error) {
     return next(error);
