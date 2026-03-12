@@ -119,11 +119,17 @@ export const authApi = {
     payload: { phone: string; purpose?: 'buyer_register_phone' | 'buyer_change_phone' | 'buyer_sensitive_action' | 'seller_connect_phone' | 'seller_change_payout_details' | 'seller_payout_settings_verify' },
     token?: string | null
   ) => {
-    return api.requestOtp(payload, token);
+    const response = await api.requestOtp(payload, token);
+    return response.data?.data ?? null;
+  },
+
+  checkOtpStatus: async (requestId: string, token?: string | null) => {
+    const response = await api.otpStatus(requestId, token);
+    return response.data.data.status;
   },
 
   verifyOtp: async (
-    payload: { phone: string; code: string; purpose?: 'buyer_register_phone' | 'buyer_change_phone' | 'buyer_sensitive_action' | 'seller_connect_phone' | 'seller_change_payout_details' | 'seller_payout_settings_verify' },
+    payload: { phone: string; code?: string; requestId?: string; purpose?: 'buyer_register_phone' | 'buyer_change_phone' | 'buyer_sensitive_action' | 'seller_connect_phone' | 'seller_change_payout_details' | 'seller_payout_settings_verify' },
     token?: string | null
   ) => {
     const result = await api.verifyOtp(payload, token);

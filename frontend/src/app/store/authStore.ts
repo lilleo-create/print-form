@@ -60,10 +60,12 @@ interface AuthState {
     token?: string;
   }>;
 
-  requestOtp: (payload: { phone: string; purpose?: Purpose }, token?: string | null) => Promise<void>;
+  requestOtp: (payload: { phone: string; purpose?: Purpose }, token?: string | null) => Promise<{ requestId: string; verificationType: 'call_to_auth' | 'code'; callToAuthNumber?: string | null } | null>;
+
+  checkOtpStatus: (requestId: string, token?: string | null) => Promise<'pending' | 'verified' | 'expired' | 'failed' | 'cancelled'>;
 
   verifyOtp: (
-    payload: { phone: string; code: string; purpose?: Purpose },
+    payload: { phone: string; code?: string; requestId?: string; purpose?: Purpose },
     token?: string | null
   ) => Promise<void>;
 
@@ -186,7 +188,11 @@ export const useAuthStore = create<AuthState>((set, get) => {
       const purpose = (payload.purpose ?? get().otp.purpose ?? 'buyer_register_phone') as Purpose;
       const finalPayload = { ...payload, purpose };
 
-      await authApi.requestOtp(finalPayload, token ?? get().otp.tempToken ?? get().token);
+      return await authApi.requestOtp(finalPayload, token ?? get().otp.tempToken ?? get().token);
+    },
+
+    async checkOtpStatus(requestId, token) {
+      return await authApi.checkOtpStatus(requestId, token ?? get().otp.tempToken ?? get().token);
     },
 
     async verifyOtp(payload, token) {
