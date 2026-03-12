@@ -1,15 +1,21 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '../shared/ui/Button';
 import styles from './AuthPage.module.css';
 
 type Purpose = 'buyer_register_phone' | 'buyer_change_phone' | 'buyer_sensitive_action' | 'seller_connect_phone' | 'seller_change_payout_details' | 'seller_payout_settings_verify';
+type OtpRequestData = {
+  requestId: string;
+  verificationType: 'call_to_auth' | 'code';
+  callToAuthNumber?: string | null;
+  status?: string;
+};
 
 const RESEND_SECONDS = 30;
+const POLL_INTERVAL_MS = 3000;
 
 const normalizePhone = (v: string) => (v ?? '').replace(/\D/g, '');
 
-// Маска: +7 (___) ___-__-__
 const formatRuPhone = (value: string) => {
   const digits = normalizePhone(value);
 
@@ -34,7 +40,6 @@ const formatRuPhone = (value: string) => {
   return out;
 };
 
-// На бэк: 7XXXXXXXXXX (11)
 const toE164Ru = (value: string) => {
   const digits = normalizePhone(value);
   const last10 = digits.length >= 10 ? digits.slice(-10) : digits;
@@ -48,8 +53,9 @@ export function OtpStep(props: {
   initialPhone?: string;
   privacyAccepted: boolean;
   onPrivacyAcceptedChange: (v: boolean) => void;
-  onRequestOtp: (p: { phone: string; purpose: Purpose }, token?: string | null) => Promise<void>;
-  onVerifyOtp: (p: { phone: string; code: string; purpose: Purpose }, token?: string | null) => Promise<void>;
+  onRequestOtp: (p: { phone: string; purpose: Purpose }, token?: string | null) => Promise<OtpRequestData | null>;
+  onCheckOtpStatus: (requestId: string, token?: string | null) => Promise<'pending' | 'verified' | 'expired' | 'failed' | 'cancelled'>;
+  onVerifyOtp: (p: { phone: string; code?: string; requestId?: string; purpose: Purpose }, token?: string | null) => Promise<void>;
   onSuccess: () => void;
   setMessage: (v: string) => void;
   setError: (v: string) => void;
@@ -61,17 +67,34 @@ export function OtpStep(props: {
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
   const [resendLeft, setResendLeft] = useState(0);
+  const [flowType, setFlowType] = useState<'code' | 'call_to_auth'>('code');
+  const [requestId, setRequestId] = useState<string | null>(null);
+  const [callToAuthNumber, setCallToAuthNumber] = useState<string | null>(null);
+  const pollingRef = useRef<number | null>(null);
+
+  const stopPolling = () => {
+    if (pollingRef.current) {
+      window.clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+  };
 
   useEffect(() => {
+    stopPolling();
     setOtpSent(false);
     setOtpLoading(false);
     setCode('');
     setResendLeft(0);
+    setFlowType('code');
+    setRequestId(null);
+    setCallToAuthNumber(null);
     setPhone(initialPhone ? formatRuPhone(initialPhone) : '');
   }, [purpose, initialPhone]);
 
+  useEffect(() => () => stopPolling(), []);
+
   useEffect(() => {
-    if (!otpSent) {
+    if (!otpSent || flowType !== 'code') {
       setResendLeft(0);
       return;
     }
@@ -79,7 +102,7 @@ export function OtpStep(props: {
     setResendLeft(RESEND_SECONDS);
     const id = window.setInterval(() => setResendLeft((s) => (s <= 1 ? 0 : s - 1)), 1000);
     return () => window.clearInterval(id);
-  }, [otpSent]);
+  }, [otpSent, flowType]);
 
   const phoneDigits = useMemo(() => normalizePhone(phone), [phone]);
 
@@ -87,7 +110,7 @@ export function OtpStep(props: {
 
   const canSubmit =
     phoneDigits.replace(/^7/, '').length >= 10 &&
-    (!otpSent || Boolean(code.trim())) &&
+    (!otpSent || flowType === 'call_to_auth' || Boolean(code.trim())) &&
     (purpose !== 'buyer_register_phone' || props.privacyAccepted);
 
   const validateRuPhone = (v11: string) => {
@@ -107,9 +130,41 @@ export function OtpStep(props: {
         return;
       }
 
-      await props.onRequestOtp({ phone: v11, purpose }, tempToken);
+      const data = await props.onRequestOtp({ phone: v11, purpose }, tempToken);
       setOtpSent(true);
-      props.setMessage('Код отправлен в Telegram. Если номер не привязан к Telegram, позже будет доступен fallback канал.');
+      setRequestId(data?.requestId ?? null);
+
+      if (data?.verificationType === 'call_to_auth') {
+        setFlowType('call_to_auth');
+        setCallToAuthNumber(data.callToAuthNumber ?? null);
+        props.setMessage('Ожидаем подтверждение звонком.');
+        if (data.requestId) {
+          stopPolling();
+          pollingRef.current = window.setInterval(() => {
+            void (async () => {
+              try {
+                const status = await props.onCheckOtpStatus(data.requestId, tempToken);
+                if (status === 'verified') {
+                  stopPolling();
+                  await props.onVerifyOtp({ phone: v11, requestId: data.requestId, purpose }, tempToken);
+                  props.onSuccess();
+                }
+                if (status === 'expired' || status === 'failed' || status === 'cancelled') {
+                  stopPolling();
+                  props.setError('Время ожидания звонка истекло. Запросите подтверждение снова.');
+                }
+              } catch {
+                stopPolling();
+                props.setError('Не удалось проверить статус подтверждения.');
+              }
+            })();
+          }, POLL_INTERVAL_MS);
+        }
+      } else {
+        setFlowType('code');
+        setCallToAuthNumber(null);
+        props.setMessage('Код отправлен.');
+      }
     } catch {
       props.setError('Не удалось отправить код.');
     } finally {
@@ -142,33 +197,41 @@ export function OtpStep(props: {
       className={styles.form}
       onSubmit={(e) => {
         e.preventDefault();
-        if (otpSent) void verify();
-        else void request();
+        if (otpSent) {
+          if (flowType === 'code') void verify();
+        } else void request();
       }}
     >
       <input
         placeholder="+7 (___) ___-__-__"
         value={phone}
-        readOnly={phoneReadonly}
-        aria-readonly={phoneReadonly}
+        readOnly={phoneReadonly || flowType === 'call_to_auth'}
+        aria-readonly={phoneReadonly || flowType === 'call_to_auth'}
         className={phoneReadonly ? styles.readonly : undefined}
         inputMode="tel"
         onFocus={() => {
           if (!phone) setPhone('+7');
         }}
         onChange={(e) => {
-          if (phoneReadonly) return;
+          if (phoneReadonly || flowType === 'call_to_auth') return;
           setPhone(formatRuPhone(e.target.value));
         }}
       />
 
-      {otpSent && (
+      {otpSent && flowType === 'code' && (
         <input
-          placeholder="Код из Telegram"
+          placeholder="Код"
           value={code}
           inputMode="numeric"
           onChange={(e) => setCode(e.target.value)}
         />
+      )}
+
+      {otpSent && flowType === 'call_to_auth' && (
+        <div className={styles.success}>
+          <div>Для подтверждения номера позвоните на {callToAuthNumber ?? 'указанный номер'}.</div>
+          <div>Звонок абсолютно бесплатный.</div>
+        </div>
       )}
 
       {purpose === 'buyer_register_phone' && (
@@ -187,19 +250,27 @@ export function OtpStep(props: {
         </label>
       )}
 
-      <Button type="submit" disabled={otpLoading || !canSubmit}>
-        {otpSent ? 'Подтвердить' : 'Получить код в Telegram'}
-      </Button>
+      {flowType === 'code' ? (
+        <>
+          <Button type="submit" disabled={otpLoading || !canSubmit}>
+            {otpSent ? 'Подтвердить' : 'Получить код'}
+          </Button>
 
-      {otpSent && (
-        <button
-          type="button"
-          className={styles.resend}
-          disabled={otpLoading || resendLeft > 0}
-          onClick={() => void request()}
-        >
-          {resendLeft > 0 ? `Отправить ещё раз через ${resendLeft}с` : 'Отправить ещё раз'}
-        </button>
+          {otpSent && (
+            <button
+              type="button"
+              className={styles.resend}
+              disabled={otpLoading || resendLeft > 0}
+              onClick={() => void request()}
+            >
+              {resendLeft > 0 ? `Отправить ещё раз через ${resendLeft}с` : 'Отправить ещё раз'}
+            </button>
+          )}
+        </>
+      ) : (
+        <Button type="button" disabled={otpLoading || !requestId} onClick={() => void request()}>
+          Запросить звонок повторно
+        </Button>
       )}
     </form>
   );

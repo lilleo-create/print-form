@@ -633,7 +633,16 @@ export const api = {
     },
     token?: string | null
   ) {
-    return apiClient.request<{ ok: boolean; devOtp?: string }>(
+    return apiClient.request<{
+      ok: boolean;
+      data?: {
+        requestId: string;
+        verificationType: 'call_to_auth' | 'code';
+        callToAuthNumber?: string | null;
+        status?: string;
+      };
+      devOtp?: string;
+    }>(
       '/auth/otp/request',
       {
         method: 'POST',
@@ -646,7 +655,8 @@ export const api = {
   async verifyOtp(
     payload: {
       phone: string;
-      code: string;
+      code?: string;
+      requestId?: string;
       purpose?: 'buyer_register_phone' | 'buyer_change_phone' | 'buyer_sensitive_action' | 'seller_connect_phone' | 'seller_change_payout_details' | 'seller_payout_settings_verify';
     },
     token?: string | null
@@ -663,6 +673,13 @@ export const api = {
         address?: string | null;
       };
     }>('/auth/otp/verify', { method: 'POST', body: payload, token });
+  },
+
+  async otpStatus(requestId: string, token?: string | null) {
+    return apiClient.request<{
+      ok: boolean;
+      data: { requestId: string; status: 'pending' | 'verified' | 'expired' | 'failed' | 'cancelled'; provider: 'plusofon' | 'telegram' };
+    }>(`/auth/otp/status/${requestId}`, { token });
   },
 
   async logout() {

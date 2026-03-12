@@ -16,6 +16,13 @@ import { OtpError } from './otpErrors';
 const otpRequestWindowMs = 15 * 60 * 1000;
 const otpMaxPerPhoneWindow = 3;
 
+const otpVerificationDelegate = (prisma as any).otpVerification as typeof prisma.otpVerification | undefined;
+
+if (!otpVerificationDelegate) {
+  throw new Error('Prisma client is outdated: otpVerification delegate is missing. Run `npx prisma generate` in backend/.');
+}
+
+
 export type OtpPurpose =
   | 'buyer_register_phone'
   | 'buyer_change_phone'
@@ -113,7 +120,7 @@ const requestClassicOtp = async (payload: { phone: string; purpose: OtpPurpose; 
     }
   });
 
-  const verification = await prisma.otpVerification.create({
+  const verification = await otpVerificationDelegate.create({
     data: {
       phone,
       normalizedPhone: phone,
@@ -154,7 +161,7 @@ export const otpService = {
     const now = new Date();
     const windowStart = new Date(now.getTime() - otpRequestWindowMs);
 
-    const recentCount = await prisma.otpVerification.count({
+    const recentCount = await otpVerificationDelegate.count({
       where: { normalizedPhone: phone, createdAt: { gte: windowStart } }
     });
 
@@ -162,7 +169,7 @@ export const otpService = {
       throw new OtpError('OTP_RATE_LIMITED', 429);
     }
 
-    const existingPending = await prisma.otpVerification.findFirst({
+    const existingPending = await otpVerificationDelegate.findFirst({
       where: {
         normalizedPhone: phone,
         purpose,
@@ -196,7 +203,7 @@ export const otpService = {
           requestId: existingPending?.id ?? 'new'
         });
 
-        const verification = await prisma.otpVerification.create({
+        const verification = await otpVerificationDelegate.create({
           data: {
             phone: payload.phone,
             normalizedPhone: phone,
@@ -235,13 +242,13 @@ export const otpService = {
   },
 
   async getVerificationStatus(requestId: string) {
-    const verification = await prisma.otpVerification.findUnique({ where: { id: requestId } });
+    const verification = await otpVerificationDelegate.findUnique({ where: { id: requestId } });
     if (!verification) {
       throw new OtpError('OTP_NOT_FOUND', 404);
     }
 
     if (verification.status === 'PENDING' && verification.expiresAt && verification.expiresAt < new Date()) {
-      const expired = await prisma.otpVerification.update({
+      const expired = await otpVerificationDelegate.update({
         where: { id: verification.id },
         data: { status: 'EXPIRED' }
       });
@@ -263,7 +270,7 @@ export const otpService = {
     const phone = normalizePhone(payload.phone);
 
     if (payload.requestId) {
-      const verification = await prisma.otpVerification.findUnique({ where: { id: payload.requestId } });
+      const verification = await otpVerificationDelegate.findUnique({ where: { id: payload.requestId } });
       if (!verification) throw new OtpError('OTP_NOT_FOUND', 404);
       if (verification.normalizedPhone !== phone) throw new Error('PHONE_MISMATCH');
       if (verification.status === 'VERIFIED') return { phone };
@@ -299,12 +306,12 @@ export const otpService = {
     }
 
     await prisma.phoneOtp.update({ where: { id: otp.id }, data: { consumedAt: now } });
-    const verification = await prisma.otpVerification.findFirst({
+    const verification = await otpVerificationDelegate.findFirst({
       where: { normalizedPhone: phone, purpose, status: 'PENDING' },
       orderBy: { createdAt: 'desc' }
     });
     if (verification) {
-      await prisma.otpVerification.update({
+      await otpVerificationDelegate.update({
         where: { id: verification.id },
         data: { status: 'VERIFIED', verifiedAt: now }
       });
@@ -317,7 +324,7 @@ export const otpService = {
     const phone = normalizePhone(payload.phone);
     const now = new Date();
 
-    const verification = await prisma.otpVerification.findFirst({
+    const verification = await otpVerificationDelegate.findFirst({
       where: { externalKey: payload.key },
       orderBy: { createdAt: 'desc' }
     });
@@ -336,7 +343,7 @@ export const otpService = {
     }
 
     if (verification.expiresAt && verification.expiresAt < now) {
-      await prisma.otpVerification.update({ where: { id: verification.id }, data: { status: 'EXPIRED' } });
+      await otpVerificationDelegate.update({ where: { id: verification.id }, data: { status: 'EXPIRED' } });
       return { ok: true, accepted: true };
     }
 
@@ -348,7 +355,7 @@ export const otpService = {
       return { ok: true, accepted: true };
     }
 
-    await prisma.otpVerification.update({
+    await otpVerificationDelegate.update({
       where: { id: verification.id },
       data: { status: 'VERIFIED', verifiedAt: now }
     });

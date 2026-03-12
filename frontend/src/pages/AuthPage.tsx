@@ -108,6 +108,7 @@ export const AuthPage = () => {
   const register = useAuthStore((s) => s.register);
   const requestOtp = useAuthStore((s) => s.requestOtp);
   const verifyOtp = useAuthStore((s) => s.verifyOtp);
+  const checkOtpStatus = useAuthStore((s) => s.checkOtpStatus);
   const setUser = useAuthStore((s) => s.setUser);
 
   const redirectTo = useMemo(() => {
@@ -255,6 +256,7 @@ export const AuthPage = () => {
                 privacyAccepted={privacyAccepted}
                 onPrivacyAcceptedChange={setPrivacyAccepted}
                 onRequestOtp={requestOtp}
+                onCheckOtpStatus={checkOtpStatus}
                 onVerifyOtp={verifyOtp}
                 onSuccess={() => {
                   void handleRedirect();
