@@ -1,12 +1,13 @@
 FROM node:20-slim
 RUN echo "USING_CUSTOM_DOCKERFILE_V3"
+
 RUN apt-get update && apt-get install -y --no-install-recommends curl openssl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# копируем только backend
 COPY backend/package.json backend/package-lock.json ./
+COPY backend/prisma ./prisma
 
 RUN npm ci
 
