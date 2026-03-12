@@ -5,8 +5,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl openssl \
 
 WORKDIR /app
 
-COPY backend/package.json backend/package-lock.json* ./
-RUN npm ci
+COPY backend/package.json backend/package-lock.json ./
+
+RUN npm ci --include=dev
 
 COPY backend/ ./
 
@@ -18,4 +19,4 @@ ENV PORT=4000
 
 EXPOSE 4000
 
-CMD ["npm", "run", "start"]
+CMD ["sh", "-c", "npx prisma migrate deploy && npm run start"]
