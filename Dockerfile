@@ -6,8 +6,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl openssl \
 WORKDIR /app
 
 COPY backend/package.json backend/package-lock.json ./
-
 RUN npm ci --include=dev
+RUN ls -la node_modules/.bin && test -f node_modules/.bin/tsc
 
 COPY backend/ ./
 
