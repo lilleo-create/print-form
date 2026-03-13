@@ -1,4 +1,8 @@
-import { loadFromStorage, removeFromStorage, setAccessToken } from '../lib/storage';
+import {
+  loadFromStorage,
+  removeFromStorage,
+  setAccessToken
+} from '../lib/storage';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 
 export type ApiResponse<T> = { data: T };
@@ -25,13 +29,20 @@ export const normalizeApiError = (error: unknown): NormalizedApiError => {
     return fallback;
   }
 
-  const status = 'status' in error && typeof error.status === 'number' ? error.status : undefined;
-  const payload = 'payload' in error ? (error as { payload?: unknown }).payload : undefined;
+  const status =
+    'status' in error && typeof error.status === 'number'
+      ? error.status
+      : undefined;
+  const payload =
+    'payload' in error ? (error as { payload?: unknown }).payload : undefined;
 
   if (payload && typeof payload === 'object' && 'error' in payload) {
     const inner = (payload as { error?: unknown }).error;
     if (inner && typeof inner === 'object') {
-      const code = 'code' in inner && typeof inner.code === 'string' ? inner.code : undefined;
+      const code =
+        'code' in inner && typeof inner.code === 'string'
+          ? inner.code
+          : undefined;
       const issues =
         'issues' in inner && Array.isArray(inner.issues)
           ? (inner.issues as { path: string[]; message: string }[])
@@ -92,10 +103,15 @@ export function createFetchClient(baseUrl: string) {
     }
 
     const ct = res.headers.get('content-type') ?? '';
-    const payload = ct.includes('application/json') ? await res.json() : await res.text();
+    const payload = ct.includes('application/json')
+      ? await res.json()
+      : await res.text();
 
     if (!res.ok) {
-      const error = new Error('Refresh failed') as Error & { status?: number; payload?: unknown };
+      const error = new Error('Refresh failed') as Error & {
+        status?: number;
+        payload?: unknown;
+      };
       error.status = res.status;
       error.payload = payload;
       throw error;
@@ -138,8 +154,14 @@ export function createFetchClient(baseUrl: string) {
       STORAGE_KEYS.accessToken,
       null
     );
+
     const authToken = opts?.token ?? storedToken;
-    if (authToken) {
+    const isAuthRoute =
+      path.startsWith('/auth/register') ||
+      path.startsWith('/auth/login') ||
+      path.startsWith('/auth/refresh');
+
+    if (authToken && !isAuthRoute) {
       headers.Authorization = `Bearer ${authToken}`;
     }
 
@@ -193,7 +215,9 @@ export function createFetchClient(baseUrl: string) {
     if (!res.ok) {
       const message =
         typeof payload === 'object' && payload !== null && 'message' in payload
-          ? String((payload as { message?: unknown }).message ?? `HTTP ${res.status}`)
+          ? String(
+              (payload as { message?: unknown }).message ?? `HTTP ${res.status}`
+            )
           : `HTTP ${res.status}`;
 
       const error = new Error(message) as Error & {
