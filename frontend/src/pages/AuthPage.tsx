@@ -6,58 +6,32 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '../shared/ui/Button';
 import { useAuthStore } from '../app/store/authStore';
 import { api } from '../shared/api';
+import { formatRuPhoneInput, normalizePhone, toE164Ru } from '../shared/lib/validation';
 import styles from './AuthPage.module.css';
 import { OtpStep } from './OtpStep';
 import loginHero from '../shared/assets/login-hero.svg';
 
 type Purpose = 'buyer_register_phone' | 'buyer_change_phone' | 'buyer_sensitive_action' | 'seller_connect_phone' | 'seller_change_payout_details' | 'seller_payout_settings_verify';
 
-const normalizePhone = (v: string) => (v ?? '').replace(/\D/g, '');
-
-// Маска: +7 (___) ___-__-__
-const formatRuPhone = (value: string) => {
+const isValidLoginPhone = (value: string) => {
   const digits = normalizePhone(value);
-
-  let d = digits;
-  if (d.startsWith('7')) d = d.slice(1);
-  if (d.startsWith('8')) d = d.slice(1);
-
-  d = d.slice(0, 10);
-
-  const p1 = d.slice(0, 3);
-  const p2 = d.slice(3, 6);
-  const p3 = d.slice(6, 8);
-  const p4 = d.slice(8, 10);
-
-  let out = '+7';
-  if (d.length > 0) out += ` (${p1}`;
-  if (d.length >= 3) out += ')';
-  if (d.length > 3) out += ` ${p2}`;
-  if (d.length > 6) out += `-${p3}`;
-  if (d.length > 8) out += `-${p4}`;
-
-  return out;
-};
-
-// На бэк: 7XXXXXXXXXX (11)
-const toE164Ru = (value: string) => {
-  const digits = normalizePhone(value);
-  const last10 = digits.length >= 10 ? digits.slice(-10) : digits;
-  const ten = last10.slice(0, 10);
-  return ('7' + ten).slice(0, 11);
+  const normalized = digits.startsWith('8') ? `7${digits.slice(1)}` : digits;
+  return normalized.length === 11 && normalized.startsWith('7');
 };
 
 const loginSchema = z.object({
-  email: z.string().email('Введите email'),
+  phone: z.string().refine((value) => isValidLoginPhone(value), 'Введите телефон в формате +7 (9XX) XXX-XX-XX'),
   password: z.string().min(6, 'Минимум 6 символов')
 });
 
 const fioRegex = /^[A-Za-zА-Яа-яЁё\-\s]+$/;
 
-const registerSchema = loginSchema.extend({
+const registerSchema = z.object({
   name: z.string().trim().min(2, 'Введите никнейм'),
   fullName: z.string().trim().min(3, 'Введите ФИО').max(120, 'Слишком длинное ФИО').refine((value) => fioRegex.test(value), 'Допустимы только буквы, пробел и дефис').refine((value) => value.split(/\s+/).filter(Boolean).length >= 2, 'Введите минимум имя и фамилию'),
   phone: z.string().min(5, 'Введите телефон'),
+  email: z.string().email('Введите email'),
+  password: z.string().min(6, 'Минимум 6 символов'),
   confirmPassword: z.string().min(6, 'Минимум 6 символов')
 }).refine((data) => data.password === data.confirmPassword, {
   message: 'Пароли не совпадают',
@@ -98,7 +72,6 @@ export const AuthPage = () => {
   const [error, setError] = useState('');
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
 
-  // OTP state (минимально)
   const [otpRequired, setOtpRequired] = useState(false);
   const [otpToken, setOtpToken] = useState<string | null>(null);
   const [otpPurpose, setOtpPurpose] = useState<Purpose>('buyer_register_phone');
@@ -117,7 +90,7 @@ export const AuthPage = () => {
     return params.get('redirectTo');
   }, [location.search]);
 
-  const loginForm = useForm<LoginValues>({ resolver: zodResolver(loginSchema) });
+  const loginForm = useForm<LoginValues>({ resolver: zodResolver(loginSchema), defaultValues: { phone: '', password: '' } });
   const registerForm = useForm<RegisterValues>({ resolver: zodResolver(registerSchema) });
 
   const resolveRedirectPath = async (role?: string) => {
@@ -177,13 +150,14 @@ export const AuthPage = () => {
     resetOtp();
 
     try {
-      const result = await login(values.email, values.password);
+      const normalizedPhone = toE164Ru(values.phone);
+      const result = await login(normalizedPhone, values.password);
 
       if (result.requiresOtp) {
         setOtpPurpose('buyer_register_phone');
         setOtpRequired(true);
         setOtpToken(result.tempToken ?? null);
-        setOtpPhone(result.user?.phone ?? '');
+        setOtpPhone(result.user?.phone ?? normalizedPhone);
         setMessage('Подтвердите номер телефона для входа.');
         return;
       }
@@ -195,7 +169,7 @@ export const AuthPage = () => {
       const path = await resolveRedirectPath(nextUser?.role);
       queueMicrotask(() => navigate(path, { replace: true }));
     } catch {
-      setError('Неверный email или пароль.');
+      setError('Неверный номер телефона или пароль.');
     }
   };
 
@@ -228,7 +202,6 @@ export const AuthPage = () => {
       }
       const path = await resolveRedirectPath(nextUser?.role);
       if (import.meta.env.DEV) {
-        // eslint-disable-next-line no-console
         console.log('[auth] register ok', nextUser, 'redirect', path);
       }
       queueMicrotask(() => navigate(path, { replace: true }));
@@ -276,12 +249,13 @@ export const AuthPage = () => {
                   placeholder="+7 (___) ___-__-__"
                   value={registerForm.watch('phone') ?? ''}
                   inputMode="tel"
+                  autoComplete="tel"
                   onFocus={() => {
                     const v = registerForm.getValues('phone') ?? '';
                     if (!v) registerForm.setValue('phone', '+7', { shouldValidate: true });
                   }}
                   onChange={(e) =>
-                    registerForm.setValue('phone', formatRuPhone(e.target.value), {
+                    registerForm.setValue('phone', formatRuPhoneInput(e.target.value), {
                       shouldValidate: true,
                       shouldDirty: true
                     })
@@ -315,8 +289,20 @@ export const AuthPage = () => {
               </form>
             ) : (
               <form onSubmit={loginForm.handleSubmit(onLogin)} className={styles.form}>
-                <input placeholder="Email" {...loginForm.register('email')} />
-                <input type="password" placeholder="Пароль" {...loginForm.register('password')} />
+                <input
+                  placeholder="+7 (___) ___-__-__"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  value={loginForm.watch('phone') ?? ''}
+                  onFocus={() => {
+                    const currentValue = loginForm.getValues('phone') ?? '';
+                    if (!currentValue) loginForm.setValue('phone', '+7', { shouldValidate: true });
+                  }}
+                  onChange={(event) => loginForm.setValue('phone', formatRuPhoneInput(event.target.value), { shouldDirty: true, shouldValidate: true })}
+                />
+                {loginForm.formState.errors.phone && <span>{loginForm.formState.errors.phone.message}</span>}
+                <input type="password" placeholder="Пароль" autoComplete="current-password" {...loginForm.register('password')} />
+                {loginForm.formState.errors.password && <span>{loginForm.formState.errors.password.message}</span>}
                 <Button type="submit">Войти</Button>
 
                 <Link className={styles.forgot} to="/auth/forgot-password">

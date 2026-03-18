@@ -583,7 +583,7 @@ export const api = {
     });
   },
 
-  async login(payload: { email: string; password: string }) {
+  async login(payload: { phone: string; password: string; email?: string }) {
     return apiClient.request<{
       requiresOtp?: boolean;
       tempToken?: string;
@@ -692,7 +692,19 @@ export const api = {
   },
 
   async requestPasswordReset(payload: { phone: string }) {
-    return apiClient.request<{ ok: boolean; devOtp?: string }>(
+    return apiClient.request<{
+      ok: boolean;
+      devOtp?: string;
+      delivery?: {
+        requestId?: string;
+        provider?: string;
+        verificationType?: 'call_to_auth' | 'code';
+        callToAuthNumber?: string | null;
+        phone?: string;
+        status?: string;
+        expiresInSec?: number;
+      };
+    }>(
       '/auth/password-reset/request',
       {
         method: 'POST',
@@ -701,7 +713,7 @@ export const api = {
     );
   },
 
-  async verifyPasswordReset(payload: { phone: string; code: string }) {
+  async verifyPasswordReset(payload: { phone: string; code?: string; requestId?: string }) {
     return apiClient.request<{ ok: boolean; resetToken: string }>(
       '/auth/password-reset/verify',
       {
