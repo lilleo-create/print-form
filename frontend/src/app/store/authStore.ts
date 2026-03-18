@@ -37,7 +37,7 @@ interface AuthState {
   setOtpState: (v: Partial<AuthState['otp']>) => void;
   clearOtp: () => void;
 
-  login: (email: string, password: string) => Promise<{
+  login: (phone: string, password: string) => Promise<{
     requiresOtp: boolean;
     tempToken?: string;
     user?: User;
@@ -129,10 +129,10 @@ export const useAuthStore = create<AuthState>((set, get) => {
       set({ otp: { ...emptyOtp } });
     },
 
-    async login(email, password) {
+    async login(phone, password) {
       get().clearOtp();
 
-      const raw = await authApi.login(email, password);
+      const raw = await authApi.login(phone, password);
       if (!raw) throw new Error('Login failed: empty response');
 
       const result = raw as AuthResult;

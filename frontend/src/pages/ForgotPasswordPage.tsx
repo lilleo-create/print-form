@@ -1,71 +1,133 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../shared/ui/Button';
 import { api } from '../shared/api';
+import { normalizeApiError } from '../shared/api/client';
+import { formatRuPhoneInput, normalizePhone, toE164Ru } from '../shared/lib/validation';
 import styles from './ForgotPasswordPage.module.css';
 
-const normalizePhone = (v: string) => (v ?? '').replace(/\D/g, '');
-
-const formatRuPhone = (value: string) => {
-  const digits = normalizePhone(value);
-
-  let d = digits;
-  if (d.startsWith('7')) d = d.slice(1);
-  if (d.startsWith('8')) d = d.slice(1);
-
-  d = d.slice(0, 10);
-
-  const p1 = d.slice(0, 3);
-  const p2 = d.slice(3, 6);
-  const p3 = d.slice(6, 8);
-  const p4 = d.slice(8, 10);
-
-  let out = '+7';
-  if (d.length > 0) out += ` (${p1}`;
-  if (d.length >= 3) out += ')';
-  if (d.length > 3) out += ` ${p2}`;
-  if (d.length > 6) out += `-${p3}`;
-  if (d.length > 8) out += `-${p4}`;
-
-  return out;
+type Step = 'request' | 'verify' | 'call_to_auth' | 'reset';
+type DeliveryData = {
+  requestId?: string;
+  provider?: string;
+  verificationType?: 'call_to_auth' | 'code';
+  callToAuthNumber?: string | null;
+  phone?: string;
+  status?: string;
+  expiresInSec?: number;
 };
 
-const toE164Ru = (value: string) => {
-  const digits = normalizePhone(value);
-  const last10 = digits.length >= 10 ? digits.slice(-10) : digits;
-  const ten = last10.slice(0, 10);
-  return ('7' + ten).slice(0, 11);
-};
+const POLL_INTERVAL_MS = 3000;
 
-type Step = 'request' | 'verify' | 'reset';
+const formatCallToAuthPhone = (value: string | null | undefined) => (value ? formatRuPhoneInput(value) : 'номер недоступен');
+const toTelHref = (value: string | null | undefined) => {
+  const digits = normalizePhone(value ?? '');
+  if (!digits) return '';
+  return digits.startsWith('8') ? `tel:+7${digits.slice(1)}` : `tel:+${digits}`;
+};
 
 export const ForgotPasswordPage = () => {
   const navigate = useNavigate();
+  const pollingRef = useRef<number | null>(null);
+
   const [step, setStep] = useState<Step>('request');
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
   const [resetToken, setResetToken] = useState('');
+  const [requestId, setRequestId] = useState<string | null>(null);
+  const [callToAuthNumber, setCallToAuthNumber] = useState<string | null>(null);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const normalizedPhone = useMemo(() => toE164Ru(phone), [phone]);
+
   const resetMessages = () => {
     setError('');
     setMessage('');
   };
 
+  const stopPolling = useCallback(() => {
+    if (pollingRef.current) {
+      window.clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => () => stopPolling(), [stopPolling]);
+
+  const finishResetVerification = useCallback(async (payload: { phone: string; code?: string; requestId?: string }) => {
+    const response = await api.verifyPasswordReset(payload);
+    setResetToken(response.data.resetToken);
+    setStep('reset');
+    setMessage('Задайте новый пароль.');
+  }, []);
+
+  const startPolling = useCallback((currentRequestId: string, currentPhone: string) => {
+    stopPolling();
+    pollingRef.current = window.setInterval(() => {
+      void (async () => {
+        try {
+          const status = await api.otpStatus(currentRequestId);
+          if (status.data.data.status === 'verified') {
+            stopPolling();
+            setLoading(true);
+            try {
+              await finishResetVerification({ phone: currentPhone, requestId: currentRequestId });
+            } catch {
+              setError('Подтверждение прошло, но не удалось открыть смену пароля. Попробуйте запросить сброс снова.');
+              setStep('request');
+            } finally {
+              setLoading(false);
+            }
+            return;
+          }
+
+          if (['expired', 'failed', 'cancelled'].includes(status.data.data.status)) {
+            stopPolling();
+            setStep('request');
+            setError('Время ожидания звонка истекло. Запросите сброс ещё раз.');
+          }
+        } catch {
+          stopPolling();
+          setStep('request');
+          setError('Не удалось проверить статус подтверждения.');
+        }
+      })();
+    }, POLL_INTERVAL_MS);
+  }, [finishResetVerification, stopPolling]);
+
   const handleRequest = async () => {
     resetMessages();
     setLoading(true);
     try {
-      const v11 = toE164Ru(phone);
-      await api.requestPasswordReset({ phone: v11 });
+      const response = await api.requestPasswordReset({ phone: normalizedPhone });
+      const delivery = response.data.delivery as DeliveryData | undefined;
+
+      setRequestId(delivery?.requestId ?? null);
+      setCallToAuthNumber(delivery?.callToAuthNumber ?? null);
+      if (delivery?.phone) {
+        setPhone(formatRuPhoneInput(delivery.phone));
+      }
+
+      if (delivery?.verificationType === 'call_to_auth' && delivery.requestId) {
+        setStep('call_to_auth');
+        setMessage('Позвоните на указанный номер. После подтверждения откроется смена пароля.');
+        startPolling(delivery.requestId, delivery.phone ?? normalizedPhone);
+        return;
+      }
+
       setStep('verify');
-      setMessage('Код отправлен. Проверьте SMS.');
-    } catch {
-      setError('Не удалось отправить код.');
+      setMessage('Код отправлен. Введите код подтверждения.');
+    } catch (error) {
+      const normalized = normalizeApiError(error);
+      if (normalized.code === 'NOT_FOUND') {
+        setError('Пользователь с таким номером телефона не найден.');
+      } else {
+        setError('Не удалось начать сброс пароля.');
+      }
     } finally {
       setLoading(false);
     }
@@ -75,12 +137,9 @@ export const ForgotPasswordPage = () => {
     resetMessages();
     setLoading(true);
     try {
-      const v11 = toE164Ru(phone);
-      const response = await api.verifyPasswordReset({ phone: v11, code: code.trim() });
-      setResetToken(response.data.resetToken);
-      setStep('reset');
+      await finishResetVerification({ phone: normalizedPhone, code: code.trim(), requestId: requestId ?? undefined });
     } catch {
-      setError('Неверный код или время истекло.');
+      setError('Неверный код или время действия подтверждения истекло.');
     } finally {
       setLoading(false);
     }
@@ -88,8 +147,12 @@ export const ForgotPasswordPage = () => {
 
   const handleConfirm = async () => {
     resetMessages();
+    if (password.length < 6) {
+      setError('Пароль должен быть не короче 6 символов.');
+      return;
+    }
     if (password !== confirmPassword) {
-      setError('Пароли не совпадают');
+      setError('Пароли не совпадают.');
       return;
     }
     setLoading(true);
@@ -107,6 +170,7 @@ export const ForgotPasswordPage = () => {
     <section className={styles.page}>
       <div className={styles.card}>
         <h1>Сброс пароля</h1>
+
         {step === 'request' && (
           <form
             className={styles.form}
@@ -119,15 +183,32 @@ export const ForgotPasswordPage = () => {
               placeholder="+7 (___) ___-__-__"
               value={phone}
               inputMode="tel"
+              autoComplete="tel"
               onFocus={() => {
                 if (!phone) setPhone('+7');
               }}
-              onChange={(event) => setPhone(formatRuPhone(event.target.value))}
+              onChange={(event) => setPhone(formatRuPhoneInput(event.target.value))}
             />
-            <Button type="submit" disabled={loading}>
-              Отправить код
+            <Button type="submit" disabled={loading} isLoading={loading}>
+              Продолжить
             </Button>
           </form>
+        )}
+
+        {step === 'call_to_auth' && (
+          <div className={styles.flow}>
+            <div className={styles.callToAuthCard}>
+              <h2 className={styles.callToAuthTitle}>Подтверждение номера</h2>
+              <p className={styles.callToAuthSubtitle}>Позвоните на номер ниже с телефона, который хотите восстановить.</p>
+              <a href={toTelHref(callToAuthNumber)} className={styles.callToAuthPhone}>
+                {formatCallToAuthPhone(callToAuthNumber)}
+              </a>
+              <p className={styles.callToAuthHint}>После успешного подтверждения откроется экран нового пароля автоматически.</p>
+            </div>
+            <Button type="button" variant="secondary" disabled={loading} onClick={() => void handleRequest()}>
+              Запросить звонок повторно
+            </Button>
+          </div>
         )}
 
         {step === 'verify' && (
@@ -139,12 +220,13 @@ export const ForgotPasswordPage = () => {
             }}
           >
             <input
-              placeholder="Код из SMS"
+              placeholder="Код подтверждения"
               value={code}
               inputMode="numeric"
+              autoComplete="one-time-code"
               onChange={(event) => setCode(event.target.value)}
             />
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading} isLoading={loading}>
               Подтвердить код
             </Button>
           </form>
@@ -162,15 +244,17 @@ export const ForgotPasswordPage = () => {
               type="password"
               placeholder="Новый пароль"
               value={password}
+              autoComplete="new-password"
               onChange={(event) => setPassword(event.target.value)}
             />
             <input
               type="password"
               placeholder="Повторите пароль"
               value={confirmPassword}
+              autoComplete="new-password"
               onChange={(event) => setConfirmPassword(event.target.value)}
             />
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading} isLoading={loading}>
               Обновить пароль
             </Button>
           </form>
@@ -180,7 +264,7 @@ export const ForgotPasswordPage = () => {
         {message && <p className={styles.success}>{message}</p>}
         {step === 'request' && (
           <div className={styles.hint}>
-            <span>Введите номер телефона, чтобы получить код для сброса пароля.</span>
+            <span>Введите номер телефона, чтобы начать сброс пароля.</span>
           </div>
         )}
       </div>

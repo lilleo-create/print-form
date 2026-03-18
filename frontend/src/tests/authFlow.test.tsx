@@ -3,8 +3,8 @@ import { MemoryRouter } from 'react-router-dom';
 import { AuthPage } from '../pages/AuthPage';
 import { useAuthStore } from '../app/store/authStore';
 
-const fillAndSubmitLogin = async (email: string, password: string) => {
-  fireEvent.change(screen.getByPlaceholderText('Email'), { target: { value: email } });
+const fillAndSubmitLogin = async (phone: string, password: string) => {
+  fireEvent.change(screen.getByPlaceholderText('+7 (___) ___-__-__'), { target: { value: phone } });
   fireEvent.change(screen.getByPlaceholderText('Пароль'), { target: { value: password } });
   fireEvent.click(screen.getByRole('button', { name: 'Войти' }));
 };
@@ -22,7 +22,7 @@ describe('Auth flow', () => {
       </MemoryRouter>
     );
 
-    await fillAndSubmitLogin('buyer@test.com', 'buyer123');
+    await fillAndSubmitLogin('+7 (999) 000-00-00', 'buyer123');
 
     await waitFor(() => {
       expect(screen.getByText('Добро пожаловать!')).toBeInTheDocument();
@@ -36,11 +36,11 @@ describe('Auth flow', () => {
       </MemoryRouter>
     );
 
-    await fillAndSubmitLogin('buyer@test.com', 'wrongpass');
+    await fillAndSubmitLogin('+7 (999) 000-00-00', 'wrongpass');
 
     await waitFor(() => {
       expect(
-        screen.getByText('Неверный email или пароль. Попробуйте снова.')
+        screen.getByText('Неверный номер телефона или пароль.')
       ).toBeInTheDocument();
     });
   });
