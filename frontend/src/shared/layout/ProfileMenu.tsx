@@ -71,6 +71,14 @@ export const ProfileMenu = ({
             <div className={styles.profileMenuSection}>
               <div className={styles.profileMenuSectionLabel}>Покупки</div>
               <Link
+                to="/account?tab=purchases"
+                className={`${styles.profileMenuItem} ${pathname === '/account' && searchTab === 'purchases' ? styles.profileMenuItemActive : ''}`}
+                onClick={onClose}
+              >
+                <span className={styles.profileMenuIcon} aria-hidden>🛍️</span>
+                <span className={styles.profileMenuText}>Покупки</span>
+              </Link>
+              <Link
                 to="/orders"
                 className={`${styles.profileMenuItem} ${pathname === '/orders' ? styles.profileMenuItemActive : ''}`}
                 onClick={onClose}
@@ -105,7 +113,15 @@ export const ProfileMenu = ({
             </div>
 
             <div className={styles.profileMenuSection}>
-              <div className={styles.profileMenuSectionLabel}>Настройки</div>
+              <div className={styles.profileMenuSectionLabel}>Аккаунт</div>
+              <Link
+                to="/account?tab=profile"
+                className={`${styles.profileMenuItem} ${pathname === '/account' && searchTab === 'profile' ? styles.profileMenuItemActive : ''}`}
+                onClick={onClose}
+              >
+                <span className={styles.profileMenuIcon} aria-hidden>⚙️</span>
+                <span className={styles.profileMenuText}>Настройки</span>
+              </Link>
               <Link
                 to="/account?tab=profile"
                 className={`${styles.profileMenuItem} ${pathname === '/account' && (!searchTab || searchTab === 'profile') ? styles.profileMenuItemActive : ''}`}
@@ -150,7 +166,7 @@ export const ProfileMenu = ({
                 onClick={onClose}
               >
                 <span className={styles.profileMenuIcon} aria-hidden>💬</span>
-                <span className={styles.profileMenuText}>Чаты (наше с поддержкой и продавцом)</span>
+                <span className={styles.profileMenuText}>Чаты</span>
               </Link>
 
               <Link

@@ -6,6 +6,7 @@ import {
   useRef,
   useState
 } from 'react';
+import { useFilters } from '../../features/catalog/useFilters';
 import {
   Link,
   useLocation,
@@ -33,6 +34,7 @@ export const Header = () => {
   const navigate = useNavigate();
   const [searchValue, setSearchValue] = useState(searchParams.get('q') ?? '');
   const [isCategoriesHidden, setIsCategoriesHidden] = useState(false);
+  const [isMobileCategoriesOpen, setIsMobileCategoriesOpen] = useState(false);
   const [categoriesHeight, setCategoriesHeight] = useState(0);
   const [productBoardHeight, setProductBoardHeight] = useState(0);
   const isProfileMenuOpen = useHeaderMenuStore((state) => state.isProfileMenuOpen);
@@ -46,9 +48,11 @@ export const Header = () => {
     return stored === 'light' ? 'light' : 'dark';
   });
   const categoriesRef = useRef<HTMLDivElement | null>(null);
+  const mobileCategoriesRef = useRef<HTMLDivElement | null>(null);
   const productBoardRef = useRef<HTMLDivElement | null>(null);
   const scrollStateRef = useRef({ lastY: 0, acc: 0, ticking: false });
   const apiBaseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
+  const { categories } = useFilters();
   const resolveImageUrl = (url?: string | null) => {
     if (!url) return '';
     if (url.startsWith('http')) return url;
@@ -97,11 +101,17 @@ useEffect(() => {
   window.addEventListener('resize', updateGutter);
   return () => window.removeEventListener('resize', updateGutter);
 }, [isProfileMenuOpen]);
-const isMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches;
 const openProfileMenuHandler = () => {
-  if (isMobile) return;
   openProfileMenu();
 };
+
+  const toggleMobileCategories = () => {
+    setIsMobileCategoriesOpen((prev) => !prev);
+  };
+
+  const closeMobileCategories = () => {
+    setIsMobileCategoriesOpen(false);
+  };
   useLayoutEffect(() => {
     if (!categoriesRef.current && !productBoardRef.current) return;
     const updateHeight = () => {
@@ -113,6 +123,9 @@ const openProfileMenuHandler = () => {
       }
     };
     updateHeight();
+    if (typeof ResizeObserver === 'undefined') {
+      return undefined;
+    }
     const observer = new ResizeObserver(updateHeight);
     if (categoriesRef.current) {
       observer.observe(categoriesRef.current);
@@ -129,20 +142,21 @@ const openProfileMenuHandler = () => {
     }
   }, [showCatalogHeader]);
 
-  useBodyScrollLock(isProfileMenuOpen);
+  useBodyScrollLock(isProfileMenuOpen || isMobileCategoriesOpen);
 
   useEffect(() => {
-    if (!isProfileMenuOpen) return;
+    if (!isProfileMenuOpen && !isMobileCategoriesOpen) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         closeProfileMenu();
+        closeMobileCategories();
       }
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [closeProfileMenu, isProfileMenuOpen]);
+  }, [closeProfileMenu, isMobileCategoriesOpen, isProfileMenuOpen]);
 
   const isHome = location.pathname === '/';
   const isProductPage = /^\/product\/[^/]+$/.test(location.pathname);
@@ -192,6 +206,7 @@ const openProfileMenuHandler = () => {
 
   useEffect(() => {
     closeProfileMenu();
+    closeMobileCategories();
   }, [closeProfileMenu, location.pathname, location.search]);
 
   const handleSearchUpdate = (value: string) => {
@@ -275,8 +290,9 @@ const openProfileMenuHandler = () => {
           <button
             type="button"
             className={styles.mobileBurger}
-            onClick={() => navigate('/categories')}
-            aria-label="Открыть категории"
+            onClick={toggleMobileCategories}
+            aria-label={isMobileCategoriesOpen ? 'Закрыть категории' : 'Открыть категории'}
+            aria-expanded={isMobileCategoriesOpen}
           >
             ☰
           </button>
@@ -359,6 +375,43 @@ const openProfileMenuHandler = () => {
           </div>
         </div>
       </div>
+
+      {isMobileCategoriesOpen && (
+        <div className={styles.mobileCategoriesOverlay} role="dialog" aria-modal="true" onClick={closeMobileCategories}>
+          <div
+            className={styles.mobileCategoriesSheet}
+            ref={mobileCategoriesRef}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className={styles.mobileCategoriesHeader}>
+              <span>Категории</span>
+              <button
+                type="button"
+                className={styles.mobileCategoriesClose}
+                onClick={closeMobileCategories}
+                aria-label="Закрыть категории"
+              >
+                ✕
+              </button>
+            </div>
+            <div className={styles.mobileCategoriesList}>
+              <Link to="/catalog" className={styles.mobileCategoryItem} onClick={closeMobileCategories}>
+                Все категории
+              </Link>
+              {categories.map((category) => (
+                <Link
+                  key={category}
+                  to={`/catalog?category=${encodeURIComponent(category)}`}
+                  className={styles.mobileCategoryItem}
+                  onClick={closeMobileCategories}
+                >
+                  {category}
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
       <ProfileMenu
         isOpen={isProfileMenuOpen}
         pathname={location.pathname}

@@ -1,20 +1,22 @@
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { useAuthStore } from '../../app/store/authStore';
+import { useHeaderMenuStore } from '../../app/store/headerMenuStore';
 import styles from './Layout.module.css';
 
 export const BottomNav = () => {
   const location = useLocation();
   const [searchParams] = useSearchParams();
+  const user = useAuthStore((state) => state.user);
+  const openProfileMenu = useHeaderMenuStore((state) => state.openProfileMenu);
   const showBottomNav =
     !location.pathname.startsWith('/seller') &&
     !location.pathname.startsWith('/auth') &&
     !location.pathname.startsWith('/privacy-policy');
-  const isFavoritesActive = location.pathname === '/favorites';
-  const isReturnsActive =
-    location.pathname === '/returns' ||
-    (location.pathname === '/account' && searchParams.get('tab') === 'returns');
-  const isProfile =
-    location.pathname === '/account' &&
-    (searchParams.get('tab') === 'profile' || !searchParams.get('tab'));
+  const isOrdersActive =
+    location.pathname === '/orders' ||
+    (location.pathname === '/account' &&
+      (searchParams.get('tab') === 'orders' || searchParams.get('tab') === 'purchases'));
+  const isProfile = location.pathname === '/account' || location.pathname === '/favorites' || location.pathname === '/returns';
 
   if (!showBottomNav) {
     return null;
@@ -30,24 +32,15 @@ export const BottomNav = () => {
         <span>Главная</span>
       </Link>
       <Link
-        to="/favorites"
-        className={`${styles.bottomNavItem} ${isFavoritesActive ? styles.bottomNavItemActive : ''}`}
-        aria-label="Избранное"
+        to="/catalog"
+        className={`${styles.bottomNavItem} ${location.pathname.startsWith('/catalog') ? styles.bottomNavItemActive : ''}`}
       >
-        <span aria-hidden>❤</span>
-        <span>Избранное</span>
-      </Link>
-      <Link
-        to="/returns"
-        className={`${styles.bottomNavItem} ${isReturnsActive ? styles.bottomNavItemActive : ''}`}
-        aria-label="Возвраты"
-      >
-        <span aria-hidden>↩️</span>
-        <span>Возвраты</span>
+        <span aria-hidden>🧩</span>
+        <span>Каталог</span>
       </Link>
       <Link
         to="/orders"
-        className={`${styles.bottomNavItem} ${location.pathname === '/orders' ? styles.bottomNavItemActive : ''}`}
+        className={`${styles.bottomNavItem} ${isOrdersActive ? styles.bottomNavItemActive : ''}`}
       >
         <span aria-hidden>🧾</span>
         <span>Заказы</span>
@@ -59,13 +52,25 @@ export const BottomNav = () => {
         <span aria-hidden>🛒</span>
         <span>Корзина</span>
       </Link>
-      <Link
-        to="/account?tab=profile"
-        className={`${styles.bottomNavItem} ${isProfile ? styles.bottomNavItemActive : ''}`}
-      >
-        <span aria-hidden>👤</span>
-        <span>Профиль</span>
-      </Link>
+      {user ? (
+        <button
+          type="button"
+          className={`${styles.bottomNavItem} ${styles.bottomNavButton} ${isProfile ? styles.bottomNavItemActive : ''}`}
+          onClick={openProfileMenu}
+          aria-label="Открыть меню профиля"
+        >
+          <span aria-hidden>👤</span>
+          <span>Профиль</span>
+        </button>
+      ) : (
+        <Link
+          to="/auth/login"
+          className={`${styles.bottomNavItem} ${location.pathname.startsWith('/auth') ? styles.bottomNavItemActive : ''}`}
+        >
+          <span aria-hidden>👤</span>
+          <span>Войти</span>
+        </Link>
+      )}
     </nav>
   );
 };

@@ -149,16 +149,11 @@
   .layout {
     grid-template-columns: 1fr;
   }
-
-  .hero {
-    order: -1;
-    padding: 16px;
-  }
 }
 
 @media (max-width: 640px) {
   .page {
-    padding: 32px 0;
+    padding: 20px 0 32px;
   }
 
   .layout {
@@ -166,7 +161,11 @@
   }
 
   .card {
-    padding: 24px;
+    padding: 20px;
+  }
+
+  .hero {
+    display: none;
   }
 }
 
