@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../app/store/authStore';
 import { api } from '../shared/api';
 import { ordersApi } from '../shared/api/ordersApi';
 import { normalizeApiError } from '../shared/api/client';
 import { useSellerContext } from '../hooks/seller/useSellerContext';
+import { useHeaderMenuStore } from '../app/store/headerMenuStore';
 import {
   Order,
   OrderStatus,
@@ -119,10 +120,12 @@ const isAccessError = (error: unknown) => {
 
 export const SellerDashboardPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [activeItem, setActiveItem] =
     useState<(typeof menuItems)[number]>('Сводка');
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const isMenuOpen = useHeaderMenuStore((state) => state.isSellerMenuOpen);
+  const closeSellerMenu = useHeaderMenuStore((state) => state.closeSellerMenu);
 
   const [products, setProducts] = useState<Product[]>([]);
   const [isProductsLoading, setIsProductsLoading] = useState(true);
@@ -225,33 +228,30 @@ export const SellerDashboardPage = () => {
             ? 'Подтвердите обязательные согласия.'
           : null;
 
-  useEffect(() => {
-    if (!isMenuOpen) return undefined;
-
-    const { body } = document;
-    const previousOverflow = body.style.overflow;
-    body.style.overflow = 'hidden';
-
-    return () => {
-      body.style.overflow = previousOverflow;
-    };
-  }, [isMenuOpen]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
     if (window.innerWidth > 960 && isMenuOpen) {
-      setIsMenuOpen(false);
+      closeSellerMenu();
     }
 
     const handleResize = () => {
       if (window.innerWidth > 960) {
-        setIsMenuOpen(false);
+        closeSellerMenu();
       }
     };
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [isMenuOpen]);
+  }, [closeSellerMenu, isMenuOpen]);
+
+  useEffect(() => {
+    closeSellerMenu();
+  }, [closeSellerMenu, location.pathname, location.search]);
+
+  useEffect(() => () => {
+    closeSellerMenu();
+  }, [closeSellerMenu]);
 
   useEffect(() => {
     if (!sellerContextError) return;
@@ -888,7 +888,7 @@ export const SellerDashboardPage = () => {
             type="button"
             aria-label="Закрыть меню"
             className={styles.sidebarOverlay}
-            onClick={() => setIsMenuOpen(false)}
+            onClick={closeSellerMenu}
           />
         )}
         <aside
@@ -900,7 +900,7 @@ export const SellerDashboardPage = () => {
             <button
               type="button"
               className={styles.closeMenu}
-              onClick={() => setIsMenuOpen(false)}
+              onClick={closeSellerMenu}
             >
               ✕
             </button>
@@ -916,7 +916,7 @@ export const SellerDashboardPage = () => {
                 }
                 onClick={() => {
                   setActiveItem(item);
-                  setIsMenuOpen(false);
+                  closeSellerMenu();
                 }}
               >
                 {item}
@@ -929,8 +929,6 @@ export const SellerDashboardPage = () => {
           <SellerHeader
             title={activeItem}
             subtitle={activeItem === 'Сводка' ? 'Ключевые показатели, заказы и статус подключения продавца.' : 'Управляйте данными продавца и следите за операциями без лишних переходов.'}
-            onMenuOpen={() => setIsMenuOpen((prev) => !prev)}
-            isMenuOpen={isMenuOpen}
           />
 
           {isAuthLoading && (

@@ -38,8 +38,11 @@ export const Header = () => {
   const [categoriesHeight, setCategoriesHeight] = useState(0);
   const [productBoardHeight, setProductBoardHeight] = useState(0);
   const isProfileMenuOpen = useHeaderMenuStore((state) => state.isProfileMenuOpen);
+  const isSellerMenuOpen = useHeaderMenuStore((state) => state.isSellerMenuOpen);
   const openProfileMenu = useHeaderMenuStore((state) => state.openProfileMenu);
   const closeProfileMenu = useHeaderMenuStore((state) => state.closeProfileMenu);
+  const closeSellerMenu = useHeaderMenuStore((state) => state.closeSellerMenu);
+  const toggleSellerMenu = useHeaderMenuStore((state) => state.toggleSellerMenu);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window === 'undefined') {
       return 'dark';
@@ -105,7 +108,13 @@ const openProfileMenuHandler = () => {
   openProfileMenu();
 };
 
+  const isSellerPage = location.pathname.startsWith('/seller');
+
   const toggleMobileCategories = () => {
+    if (isSellerPage) {
+      toggleSellerMenu();
+      return;
+    }
     setIsMobileCategoriesOpen((prev) => !prev);
   };
 
@@ -142,21 +151,22 @@ const openProfileMenuHandler = () => {
     }
   }, [showCatalogHeader]);
 
-  useBodyScrollLock(isProfileMenuOpen || isMobileCategoriesOpen);
+  useBodyScrollLock(isProfileMenuOpen || isMobileCategoriesOpen || isSellerMenuOpen);
 
   useEffect(() => {
-    if (!isProfileMenuOpen && !isMobileCategoriesOpen) return;
+    if (!isProfileMenuOpen && !isMobileCategoriesOpen && !isSellerMenuOpen) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         closeProfileMenu();
         closeMobileCategories();
+        closeSellerMenu();
       }
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [closeProfileMenu, isMobileCategoriesOpen, isProfileMenuOpen]);
+  }, [closeProfileMenu, closeSellerMenu, isMobileCategoriesOpen, isProfileMenuOpen, isSellerMenuOpen]);
 
   const isHome = location.pathname === '/';
   const isProductPage = /^\/product\/[^/]+$/.test(location.pathname);
@@ -207,7 +217,8 @@ const openProfileMenuHandler = () => {
   useEffect(() => {
     closeProfileMenu();
     closeMobileCategories();
-  }, [closeProfileMenu, location.pathname, location.search]);
+    closeSellerMenu();
+  }, [closeProfileMenu, closeSellerMenu, location.pathname, location.search]);
 
   const handleSearchUpdate = (value: string) => {
     setSearchValue(value);
@@ -291,8 +302,9 @@ const openProfileMenuHandler = () => {
             type="button"
             className={styles.mobileBurger}
             onClick={toggleMobileCategories}
-            aria-label={isMobileCategoriesOpen ? 'Закрыть категории' : 'Открыть категории'}
-            aria-expanded={isMobileCategoriesOpen}
+            aria-label={isSellerPage ? (isSellerMenuOpen ? 'Закрыть меню продавца' : 'Открыть категории') : (isMobileCategoriesOpen ? 'Закрыть категории' : 'Открыть категории')}
+            aria-expanded={isSellerPage ? isSellerMenuOpen : isMobileCategoriesOpen}
+            aria-controls={isSellerPage ? 'seller-sidebar' : undefined}
           >
             ☰
           </button>

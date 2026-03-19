@@ -28,6 +28,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
 }
 
 .closeMenu {
@@ -42,6 +43,7 @@
 .menu {
   display: grid;
   gap: 8px;
+  min-height: 0;
 }
 
 .menuItem,
@@ -513,23 +515,30 @@
 
   .sidebar {
     position: fixed;
-    top: 0;
-    bottom: 0;
+    top: calc(72px + env(safe-area-inset-top));
+    bottom: calc(96px + env(safe-area-inset-bottom));
     left: 0;
     width: min(280px, calc(100vw - 40px));
     transform: translateX(-100%);
     transition: transform 0.2s ease;
     z-index: 30;
-    overflow-y: auto;
+    overflow: hidden;
+    border-radius: 0 20px 20px 0;
+    box-shadow: var(--shadow-card);
+    padding-bottom: 16px;
   }
 
   .sidebarOpen {
     transform: translateX(0);
   }
 
-  .closeMenu,
-  .menuToggle {
+  .closeMenu {
     display: inline-flex;
+  }
+
+  .menu {
+    overflow-y: auto;
+    padding-right: 4px;
   }
 
   .tableHeader,
