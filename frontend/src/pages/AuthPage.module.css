@@ -212,3 +212,10 @@
   color: var(--muted);
   font-size: 0.95rem;
 }
+
+
+.helperText {
+  margin-top: -4px;
+  font-size: 12px;
+  color: var(--muted);
+}
