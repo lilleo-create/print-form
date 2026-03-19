@@ -60,6 +60,12 @@ const statusLabels: Partial<Record<OrderStatus, string>> = {
 };
 
 const formatCurrency = (value: number) => value.toLocaleString('ru-RU');
+const formatMoney = (value: number, currency = 'RUB') =>
+  new Intl.NumberFormat('ru-RU', {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: 0
+  }).format(value);
 const formatDate = (value: string) =>
   new Date(value).toLocaleDateString('ru-RU', {
     day: '2-digit',
@@ -218,6 +224,34 @@ export const SellerDashboardPage = () => {
           : !acceptedRules || !acceptedPersonalData
             ? 'Подтвердите обязательные согласия.'
           : null;
+
+  useEffect(() => {
+    if (!isMenuOpen) return undefined;
+
+    const { body } = document;
+    const previousOverflow = body.style.overflow;
+    body.style.overflow = 'hidden';
+
+    return () => {
+      body.style.overflow = previousOverflow;
+    };
+  }, [isMenuOpen]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    if (window.innerWidth > 960 && isMenuOpen) {
+      setIsMenuOpen(false);
+    }
+
+    const handleResize = () => {
+      if (window.innerWidth > 960) {
+        setIsMenuOpen(false);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [isMenuOpen]);
 
   useEffect(() => {
     if (!sellerContextError) return;
@@ -739,6 +773,104 @@ export const SellerDashboardPage = () => {
     (order) => order.trackingNumber || order.carrier || order.shippingAddress
   );
 
+  const financeSummary = useMemo(() => {
+    const available = payments
+      .filter((payment) => ['PAID', 'SUCCESS', 'SUCCEEDED', 'COMPLETED'].includes(String(payment.status).toUpperCase()))
+      .reduce((sum, payment) => sum + payment.amount, 0);
+    const inProcessing = payments
+      .filter((payment) => ['PENDING', 'PROCESSING', 'READY'].includes(String(payment.status).toUpperCase()))
+      .reduce((sum, payment) => sum + payment.amount, 0);
+    const frozen = orders
+      .filter((order) => order.payoutStatus === 'HOLD')
+      .reduce((sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + item.lineTotal, 0), 0);
+    const released = orders
+      .filter((order) => order.payoutStatus === 'RELEASED' || order.payoutStatus === 'PAID')
+      .reduce((sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + item.lineTotal, 0), 0);
+
+    return { available, frozen, released, inProcessing };
+  }, [orders, payments]);
+
+  const financeChartRows = useMemo(() => {
+    const rows = Array.from({ length: 4 }, (_, index) => {
+      const date = new Date();
+      date.setMonth(date.getMonth() - (3 - index));
+      const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
+      const label = date.toLocaleDateString('ru-RU', { month: 'short' });
+
+      const orderAmount = orders
+        .filter((order) => {
+          const orderDate = new Date(order.createdAt);
+          return `${orderDate.getFullYear()}-${orderDate.getMonth()}` === monthKey;
+        })
+        .reduce((sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + item.lineTotal, 0), 0);
+
+      const payoutAmount = payments
+        .filter((payment) => {
+          const paymentDate = new Date(payment.createdAt);
+          return `${paymentDate.getFullYear()}-${paymentDate.getMonth()}` === monthKey;
+        })
+        .reduce((sum, payment) => sum + payment.amount, 0);
+
+      const frozenAmount = orders
+        .filter((order) => order.payoutStatus === 'HOLD')
+        .filter((order) => {
+          const orderDate = new Date(order.createdAt);
+          return `${orderDate.getFullYear()}-${orderDate.getMonth()}` === monthKey;
+        })
+        .reduce((sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + item.lineTotal, 0), 0);
+
+      return { label, orderAmount, payoutAmount, frozenAmount };
+    });
+
+    const maxValue = rows.reduce((max, row) => Math.max(max, row.orderAmount, row.payoutAmount, row.frozenAmount), 0);
+    return { rows, maxValue: maxValue || 1 };
+  }, [orders, payments]);
+
+  const paymentStatusLabel = (status: string) => {
+    switch (String(status).toUpperCase()) {
+      case 'PAID':
+      case 'SUCCESS':
+      case 'SUCCEEDED':
+      case 'COMPLETED':
+        return 'Выплачено';
+      case 'READY':
+      case 'PROCESSING':
+        return 'Готовится к выплате';
+      case 'PENDING':
+        return 'В обработке';
+      default:
+        return status;
+    }
+  };
+
+  const financeOperations = useMemo(() => {
+    const payoutOperations = payments.map((payment) => ({
+      id: `payment-${payment.id}`,
+      date: payment.createdAt,
+      type: 'Выплата',
+      orderId: payment.orderId,
+      amount: payment.amount,
+      status: paymentStatusLabel(payment.status),
+      currency: payment.currency
+    }));
+
+    const holdOperations = orders
+      .filter((order) => order.payoutStatus === 'HOLD' || order.payoutStatus === 'BLOCKED' || order.payoutStatus === 'RELEASED' || order.payoutStatus === 'PAID')
+      .map((order) => ({
+        id: `order-${order.id}`,
+        date: order.createdAt,
+        type: order.payoutStatus === 'HOLD' ? 'Заморозка' : order.payoutStatus === 'BLOCKED' ? 'Блокировка' : 'Разблокировка',
+        orderId: order.id,
+        amount: order.items.reduce((sum, item) => sum + item.lineTotal, 0),
+        status: payoutLabel(order.payoutStatus),
+        currency: 'RUB'
+      }));
+
+    return [...payoutOperations, ...holdOperations]
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 12);
+  }, [orders, payments]);
+
   const shouldShowSellerError =
     authStatus === 'authorized' &&
     contextStatus === 'error' &&
@@ -751,9 +883,17 @@ export const SellerDashboardPage = () => {
   return (
     <section className={styles.page}>
       <div className={styles.shell}>
+        {isMenuOpen && (
+          <button
+            type="button"
+            aria-label="Закрыть меню"
+            className={styles.sidebarOverlay}
+            onClick={() => setIsMenuOpen(false)}
+          />
+        )}
         <aside
-          className={`${styles.sidebar} ${isMenuOpen ? styles.sidebarOpen : ''
-            }`}
+          id="seller-sidebar"
+          className={`${styles.sidebar} ${isMenuOpen ? styles.sidebarOpen : ''}`}
         >
           <div className={styles.sidebarHeader}>
             <h2>Кабинет продавца</h2>
@@ -788,7 +928,9 @@ export const SellerDashboardPage = () => {
         <div className={styles.content}>
           <SellerHeader
             title={activeItem}
-            onMenuOpen={() => setIsMenuOpen(true)}
+            subtitle={activeItem === 'Сводка' ? 'Ключевые показатели, заказы и статус подключения продавца.' : 'Управляйте данными продавца и следите за операциями без лишних переходов.'}
+            onMenuOpen={() => setIsMenuOpen((prev) => !prev)}
+            isMenuOpen={isMenuOpen}
           />
 
           {isAuthLoading && (
@@ -1110,6 +1252,10 @@ export const SellerDashboardPage = () => {
                                 <p className={styles.orderAmount}>
                                   {formatCurrency(total)} ₽
                                 </p>
+                                <div className={styles.orderPayoutSummary}>
+                                  <span className={styles.orderPayoutLabel}>Получит продавец</span>
+                                  <strong>{formatMoney(total)}</strong>
+                                </div>
                                 <p className={styles.muted}>Статус: {displayStatus}</p>
                               </div>
                             </div>
@@ -1124,9 +1270,14 @@ export const SellerDashboardPage = () => {
                               <p className={styles.muted}>
                                 Пункт сдачи: {order.sellerDropoffPvzId || dropoffPvzId || '—'}
                               </p>
-                              <p className={styles.muted}>
-                                Выплата: {payoutLabel(order.payoutStatus)}
-                              </p>
+                              <div className={styles.orderFinanceMeta}>
+                                <p className={styles.muted}>
+                                  Выплата: {payoutLabel(order.payoutStatus)}
+                                </p>
+                                <p className={styles.muted}>
+                                  Сумма продавца: {formatMoney(total)}
+                                </p>
+                              </div>
                               <p className={styles.muted}>
                                 Статус доставки:{' '}
                                 {displayStatus}
@@ -1313,33 +1464,91 @@ export const SellerDashboardPage = () => {
 
               {activeItem === 'Бухгалтерия' && (
                 <div className={styles.section}>
+                  <div className={styles.sectionHeader}>
+                    <div>
+                      <h2>Финансы продавца</h2>
+                      <p>Блок подготовлен под денежный контур маркетплейса и интеграцию с YooKassa без изменения текущей логики выплат.</p>
+                    </div>
+                  </div>
+
+                  <div className={styles.financeSummaryGrid}>
+                    <SellerStatsCard title="Доступно" value={formatMoney(financeSummary.available)} />
+                    <SellerStatsCard title="Заморожено" value={formatMoney(financeSummary.frozen)} />
+                    <SellerStatsCard title="Выплачено" value={formatMoney(financeSummary.released)} />
+                    <SellerStatsCard title="В обработке" value={formatMoney(financeSummary.inProcessing)} />
+                  </div>
+
+                  <div className={styles.financeGrid}>
+                    <div className={styles.financeChartCard}>
+                      <div className={styles.sectionHeader}>
+                        <div>
+                          <h3>Движение по периодам</h3>
+                          <p>Поступления, выплаты и удержания по последним месяцам.</p>
+                        </div>
+                      </div>
+                      <div className={styles.financeChartLegend}>
+                        <span><i className={styles.financeLegendRevenue} />Поступления</span>
+                        <span><i className={styles.financeLegendPayout} />Выплаты</span>
+                        <span><i className={styles.financeLegendFrozen} />Заморозка</span>
+                      </div>
+                      <div className={styles.financeChart}>
+                        {financeChartRows.rows.map((row) => (
+                          <div key={row.label} className={styles.financeChartRow}>
+                            <span className={styles.financeChartLabel}>{row.label}</span>
+                            <div className={styles.financeBars}>
+                              <div className={styles.financeBarTrack}>
+                                <div className={`${styles.financeBar} ${styles.financeBarRevenue}`} style={{ width: `${(row.orderAmount / financeChartRows.maxValue) * 100}%` }} />
+                              </div>
+                              <div className={styles.financeBarTrack}>
+                                <div className={`${styles.financeBar} ${styles.financeBarPayout}`} style={{ width: `${(row.payoutAmount / financeChartRows.maxValue) * 100}%` }} />
+                              </div>
+                              <div className={styles.financeBarTrack}>
+                                <div className={`${styles.financeBar} ${styles.financeBarFrozen}`} style={{ width: `${(row.frozenAmount / financeChartRows.maxValue) * 100}%` }} />
+                              </div>
+                            </div>
+                            <span className={styles.financeChartValue}>{formatMoney(row.orderAmount)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className={styles.financeInfoCard}>
+                      <h3>Статусы операций</h3>
+                      <ul className={styles.financeStatusList}>
+                        <li><strong>Доступно</strong><span>Средства, готовые к выводу/зачислению.</span></li>
+                        <li><strong>Заморожено</strong><span>Заказы в hold до завершения сценария доставки.</span></li>
+                        <li><strong>Выплачено</strong><span>Операции с подтвержденной выплатой продавцу.</span></li>
+                        <li><strong>В обработке</strong><span>Подготовленные backend-ом операции, ожидающие завершения.</span></li>
+                      </ul>
+                    </div>
+                  </div>
+
                   {paymentsLoading ? (
-                    <p className={styles.muted}>Загрузка платежей...</p>
+                    <p className={styles.muted}>Загрузка финансовых операций...</p>
                   ) : paymentsError ? (
                     <p className={styles.error}>{paymentsError}</p>
-                  ) : payments.length === 0 ? (
-                    <p className={styles.muted}>
-                      Данные о выплатах пока отсутствуют.
-                    </p>
+                  ) : financeOperations.length === 0 ? (
+                    <div className={styles.infoCard}>
+                      <h3>История операций пока пуста</h3>
+                      <p className={styles.muted}>Как только появятся выплаты, холды или разблокировки, они будут показаны в этом разделе.</p>
+                    </div>
                   ) : (
                     <div className={styles.ordersTable}>
-                      <div className={styles.ordersHeader}>
+                      <div className={styles.financeTableHeader}>
                         <span>Дата</span>
+                        <span>Тип операции</span>
                         <span>Заказ</span>
                         <span>Сумма</span>
                         <span>Статус</span>
                       </div>
 
-                      {payments.map((payment) => (
-                        <div key={payment.id} className={styles.ordersRow}>
-                          <span>{formatDate(payment.createdAt)}</span>
-                          <span className={styles.cellTruncate}>
-                            №{payment.orderId}
-                          </span>
-                          <span>
-                            {formatCurrency(payment.amount)} {payment.currency}
-                          </span>
-                          <span>{payment.status}</span>
+                      {financeOperations.map((operation) => (
+                        <div key={operation.id} className={styles.financeTableRow}>
+                          <span>{formatDate(operation.date)}</span>
+                          <span>{operation.type}</span>
+                          <span className={styles.cellTruncate}>№{operation.orderId}</span>
+                          <span>{formatMoney(operation.amount, operation.currency)}</span>
+                          <span>{operation.status}</span>
                         </div>
                       ))}
                     </div>
