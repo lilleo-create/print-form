@@ -123,3 +123,15 @@
   box-shadow: var(--shadow-card);
   border: 1px solid var(--border);
 }
+
+
+.sectionIntro {
+  display: grid;
+  gap: 6px;
+  padding-bottom: 4px;
+}
+
+.sectionIntro p {
+  margin: 0;
+  color: var(--muted);
+}
