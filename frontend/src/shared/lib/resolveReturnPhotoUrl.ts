@@ -1,4 +1,4 @@
-const API_ORIGIN = import.meta.env.VITE_API_ORIGIN || 'http://localhost:4000';
+const API_ORIGIN = import.meta.env.VITE_API_ORIGIN;
 
 export const resolveReturnPhotoUrl = (value?: string | null) => {
   if (!value) return '';

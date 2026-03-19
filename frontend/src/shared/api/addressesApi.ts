@@ -1,7 +1,7 @@
 import type { Address } from '../types';
 import { createFetchClient } from './client';
 
-const baseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
+const baseUrl = import.meta.env.VITE_API_URL
 const client = createFetchClient(baseUrl);
 
 export const addressesApi = {

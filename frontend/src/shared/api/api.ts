@@ -40,7 +40,7 @@ export interface ApiError {
   details?: unknown;
 }
 
-const baseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
+const baseUrl = import.meta.env.VITE_API_URL
 export const apiClient = createFetchClient(baseUrl);
 
 type UploadResponse = { data: { urls: string[] } };

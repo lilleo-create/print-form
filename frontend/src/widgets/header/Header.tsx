@@ -51,7 +51,7 @@ export const Header = () => {
   const mobileCategoriesRef = useRef<HTMLDivElement | null>(null);
   const productBoardRef = useRef<HTMLDivElement | null>(null);
   const scrollStateRef = useRef({ lastY: 0, acc: 0, ticking: false });
-  const apiBaseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
+  const apiBaseUrl = import.meta.env.VITE_API_URL;
   const { categories } = useFilters();
   const resolveImageUrl = (url?: string | null) => {
     if (!url) return '';
