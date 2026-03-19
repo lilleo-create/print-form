@@ -7,7 +7,7 @@ import { Role } from '../shared/types';
 import styles from './SellerOnboardingPage.module.css';
 import { formatRuPhoneInput, isRuPhone, toE164Ru } from '../shared/lib/validation';
 
-const steps = ['Контакты', 'Статус', 'Город', 'Категория'] as const;
+const steps = ['Контакты', 'Продавец', 'Логистика', 'Категория'] as const;
 
 export const SellerOnboardingPage = () => {
   const navigate = useNavigate();
@@ -27,7 +27,7 @@ export const SellerOnboardingPage = () => {
     storeName: '',
     city: '',
     referenceCategory: '',
-    catalogPosition: ''
+    catalogPosition: 'standard'
   });
   const [touched, setTouched] = useState({
     name: false,
@@ -79,7 +79,7 @@ export const SellerOnboardingPage = () => {
   const storeNameValid = true;
   const cityValid = cities.some((city) => city.name === form.city);
   const referenceCategoryValid = form.referenceCategory.trim().length >= 2;
-  const catalogPositionValid = form.catalogPosition.trim().length >= 2;
+  const catalogPositionValid = true;
 
   const canProceed = useMemo(() => {
     if (step === 0) {
@@ -135,7 +135,7 @@ export const SellerOnboardingPage = () => {
         storeName: form.storeName.trim() || undefined,
         city: form.city,
         referenceCategory: form.referenceCategory,
-        catalogPosition: form.catalogPosition
+        catalogPosition: form.catalogPosition || 'standard'
       });
       const role = response.data.role.toLowerCase() === 'seller' ? 'seller' : 'buyer';
       const nextName = response.data.name ?? form.name; // имя точно строка
@@ -203,6 +203,10 @@ export const SellerOnboardingPage = () => {
           )}
           {step === 0 && (
             <div className={styles.formGrid}>
+              <div className={styles.sectionIntro}>
+                <h2>Контактные данные</h2>
+                <p>Нужны для первого подключения продавца и связи по анкете.</p>
+              </div>
               {!isLoggedIn && (
                 <div className={styles.notice}>
                   <p>Чтобы продолжить, войдите в аккаунт.</p>
@@ -252,6 +256,10 @@ export const SellerOnboardingPage = () => {
 
           {step === 1 && (
             <div className={styles.formGrid}>
+              <div className={styles.sectionIntro}>
+                <h2>Данные продавца</h2>
+                <p>Оставляем только то, что действительно нужно на первом шаге подключения.</p>
+              </div>
               <label>
                 Статус
                 <select
@@ -266,7 +274,7 @@ export const SellerOnboardingPage = () => {
                 {touched.status && !statusValid && <span className={styles.error}>Выберите статус.</span>}
               </label>
               <label>
-                Название магазина (необязательно)
+                Название магазина
                 <input
                   placeholder="По умолчанию — ваше имя"
                   value={form.storeName}
@@ -282,8 +290,12 @@ export const SellerOnboardingPage = () => {
 
           {step === 2 && (
             <div className={styles.formGrid}>
+              <div className={styles.sectionIntro}>
+                <h2>Логистика / точка отгрузки</h2>
+                <p>Пока фиксируем только базовый город хранения. Детальная точка отгрузки выбирается позже в кабинете.</p>
+              </div>
               <label>
-                Город хранения товаров
+                Город отгрузки
                 <select
                   value={form.city}
                   onChange={(event) => setForm((prev) => ({ ...prev, city: event.target.value }))}
@@ -305,6 +317,10 @@ export const SellerOnboardingPage = () => {
 
           {step === 3 && (
             <div className={styles.formGrid}>
+              <div className={styles.sectionIntro}>
+                <h2>Категория продаж</h2>
+                <p>Позиционирование в каталоге скрыто из интерфейса, но безопасно передаётся в backend как fallback.</p>
+              </div>
               <label>
                 Референсная категория
                 <select
@@ -327,19 +343,6 @@ export const SellerOnboardingPage = () => {
                   <span className={styles.error}>Выберите категорию.</span>
                 )}
                 <span className={styles.helper}>Позже вы сможете продавать и другие категории.</span>
-              </label>
-              <label>
-                Позиционирование в каталоге
-                <input
-                  value={form.catalogPosition}
-                  onChange={(event) =>
-                    setForm((prev) => ({ ...prev, catalogPosition: event.target.value }))
-                  }
-                  onBlur={() => setTouched((prev) => ({ ...prev, catalogPosition: true }))}
-                />
-                {touched.catalogPosition && !catalogPositionValid && (
-                  <span className={styles.error}>Укажите позиционирование.</span>
-                )}
               </label>
             </div>
           )}

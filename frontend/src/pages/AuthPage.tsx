@@ -26,13 +26,17 @@ const loginSchema = z.object({
 
 const fioRegex = /^[A-Za-zА-Яа-яЁё\-\s]+$/;
 
+const passwordHelpText = 'Минимум 8 символов, латиница, 1 заглавная буква и 1 цифра';
+
+const isStrongPassword = (value: string) => /^(?=.*[A-Z])(?=.*[a-zA-Z])(?=.*\d).{8,}$/.test(value);
+
 const registerSchema = z.object({
   name: z.string().trim().min(2, 'Введите никнейм'),
   fullName: z.string().trim().min(3, 'Введите ФИО').max(120, 'Слишком длинное ФИО').refine((value) => fioRegex.test(value), 'Допустимы только буквы, пробел и дефис').refine((value) => value.split(/\s+/).filter(Boolean).length >= 2, 'Введите минимум имя и фамилию'),
   phone: z.string().min(5, 'Введите телефон'),
   email: z.string().email('Введите email'),
-  password: z.string().min(6, 'Минимум 6 символов'),
-  confirmPassword: z.string().min(6, 'Минимум 6 символов')
+  password: z.string().trim().refine((value) => isStrongPassword(value), passwordHelpText),
+  confirmPassword: z.string().trim().min(1, 'Повторите пароль')
 }).refine((data) => data.password === data.confirmPassword, {
   message: 'Пароли не совпадают',
   path: ['confirmPassword']
@@ -91,7 +95,7 @@ export const AuthPage = () => {
   }, [location.search]);
 
   const loginForm = useForm<LoginValues>({ resolver: zodResolver(loginSchema), defaultValues: { phone: '', password: '' } });
-  const registerForm = useForm<RegisterValues>({ resolver: zodResolver(registerSchema) });
+  const registerForm = useForm<RegisterValues>({ resolver: zodResolver(registerSchema), mode: 'onBlur', reValidateMode: 'onChange' });
 
   const resolveRedirectPath = async (role?: string) => {
     if (redirectTo) {
@@ -263,8 +267,12 @@ export const AuthPage = () => {
                 />
 
                 <input placeholder="Email" {...registerForm.register('email')} />
-                <input type="password" placeholder="Пароль" {...registerForm.register('password')} />
-                <input type="password" placeholder="Повторите пароль" {...registerForm.register('confirmPassword')} />
+                <input type="password" placeholder="Пароль" autoComplete="new-password" {...registerForm.register('password')} />
+                <span className={styles.helperText}>{passwordHelpText}</span>
+                {registerForm.formState.errors.password && registerForm.formState.touchedFields.password && (
+                  <span>{registerForm.formState.errors.password.message}</span>
+                )}
+                <input type="password" placeholder="Повторите пароль" autoComplete="new-password" {...registerForm.register('confirmPassword')} />
                 {registerForm.formState.errors.confirmPassword && (
                   <span>{registerForm.formState.errors.confirmPassword.message}</span>
                 )}
