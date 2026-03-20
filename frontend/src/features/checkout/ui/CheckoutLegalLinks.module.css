@@ -1,1 +1,35 @@
-.links{display:flex;flex-wrap:wrap;gap:12px;font-size:14px;color:var(--muted)}
+.wrapper {
+  display: grid;
+  gap: 14px;
+}
+
+.checkboxLabel {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--card);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.checkboxLabel input {
+  margin-top: 4px;
+}
+
+.checkboxLabel a,
+.links a {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 14px;
+  color: var(--muted);
+}

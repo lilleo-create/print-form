@@ -28,24 +28,41 @@ type BottomNavProps = {
   onNavigate?: () => void;
 };
 
-export const BottomNav = ({ forceShow = false, onNavigate }: BottomNavProps) => {
+export const BottomNav = ({
+  forceShow = false,
+  onNavigate
+}: BottomNavProps) => {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const user = useAuthStore((state) => state.user);
   const openProfileMenu = useHeaderMenuStore((state) => state.openProfileMenu);
-  const toggleCategoriesMenu = useHeaderMenuStore((state) => state.toggleCategoriesMenu);
-  const closeProfileMenu = useHeaderMenuStore((state) => state.closeProfileMenu);
-  const closeCategoriesMenu = useHeaderMenuStore((state) => state.closeCategoriesMenu);
-  const isCategoriesMenuOpen = useHeaderMenuStore((state) => state.isCategoriesMenuOpen);
+  const toggleCategoriesMenu = useHeaderMenuStore(
+    (state) => state.toggleCategoriesMenu
+  );
+  const closeProfileMenu = useHeaderMenuStore(
+    (state) => state.closeProfileMenu
+  );
+  const closeCategoriesMenu = useHeaderMenuStore(
+    (state) => state.closeCategoriesMenu
+  );
+  const isCategoriesMenuOpen = useHeaderMenuStore(
+    (state) => state.isCategoriesMenuOpen
+  );
   const showBottomNav =
     (forceShow || !location.pathname.startsWith('/seller')) &&
     !location.pathname.startsWith('/auth') &&
-    !location.pathname.startsWith('/privacy-policy');
+    !['/privacy-policy', '/service-rules', '/offer'].some((route) =>
+      location.pathname.startsWith(route)
+    );
   const isOrdersActive =
     location.pathname === '/orders' ||
     (location.pathname === '/account' &&
-      (searchParams.get('tab') === 'orders' || searchParams.get('tab') === 'purchases'));
-  const isProfile = location.pathname === '/account' || location.pathname === '/favorites' || location.pathname === '/returns';
+      (searchParams.get('tab') === 'orders' ||
+        searchParams.get('tab') === 'purchases'));
+  const isProfile =
+    location.pathname === '/account' ||
+    location.pathname === '/favorites' ||
+    location.pathname === '/returns';
   const avatarText = getAvatarText(user?.name, user?.email);
 
   if (!showBottomNav) {
@@ -102,7 +119,9 @@ export const BottomNav = ({ forceShow = false, onNavigate }: BottomNavProps) => 
           }}
           aria-label="Открыть меню профиля"
         >
-          <span className={`${styles.avatarCircle} ${styles.bottomNavAvatar}`}>{avatarText}</span>
+          <span className={`${styles.avatarCircle} ${styles.bottomNavAvatar}`}>
+            {avatarText}
+          </span>
           <span>Профиль</span>
         </button>
       ) : (

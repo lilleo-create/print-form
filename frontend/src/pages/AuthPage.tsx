@@ -6,12 +6,22 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '../shared/ui/Button';
 import { useAuthStore } from '../app/store/authStore';
 import { api } from '../shared/api';
-import { formatRuPhoneInput, normalizePhone, toE164Ru } from '../shared/lib/validation';
+import {
+  formatRuPhoneInput,
+  normalizePhone,
+  toE164Ru
+} from '../shared/lib/validation';
 import styles from './AuthPage.module.css';
 import { OtpStep } from './OtpStep';
 import loginHero from '../shared/assets/login-hero.svg';
 
-type Purpose = 'buyer_register_phone' | 'buyer_change_phone' | 'buyer_sensitive_action' | 'seller_connect_phone' | 'seller_change_payout_details' | 'seller_payout_settings_verify';
+type Purpose =
+  | 'buyer_register_phone'
+  | 'buyer_change_phone'
+  | 'buyer_sensitive_action'
+  | 'seller_connect_phone'
+  | 'seller_change_payout_details'
+  | 'seller_payout_settings_verify';
 
 const isValidLoginPhone = (value: string) => {
   const digits = normalizePhone(value);
@@ -20,27 +30,51 @@ const isValidLoginPhone = (value: string) => {
 };
 
 const loginSchema = z.object({
-  phone: z.string().refine((value) => isValidLoginPhone(value), 'Введите телефон в формате +7 (9XX) XXX-XX-XX'),
+  phone: z
+    .string()
+    .refine(
+      (value) => isValidLoginPhone(value),
+      'Введите телефон в формате +7 (9XX) XXX-XX-XX'
+    ),
   password: z.string().min(6, 'Минимум 6 символов')
 });
 
 const fioRegex = /^[A-Za-zА-Яа-яЁё\-\s]+$/;
 
-const passwordHelpText = 'Минимум 8 символов, латиница, 1 заглавная буква и 1 цифра';
+const passwordHelpText =
+  'Минимум 8 символов, латиница, 1 заглавная буква и 1 цифра';
 
-const isStrongPassword = (value: string) => /^(?=.*[A-Z])(?=.*[a-zA-Z])(?=.*\d).{8,}$/.test(value);
+const isStrongPassword = (value: string) =>
+  /^(?=.*[A-Z])(?=.*[a-zA-Z])(?=.*\d).{8,}$/.test(value);
 
-const registerSchema = z.object({
-  name: z.string().trim().min(2, 'Введите никнейм'),
-  fullName: z.string().trim().min(3, 'Введите ФИО').max(120, 'Слишком длинное ФИО').refine((value) => fioRegex.test(value), 'Допустимы только буквы, пробел и дефис').refine((value) => value.split(/\s+/).filter(Boolean).length >= 2, 'Введите минимум имя и фамилию'),
-  phone: z.string().min(5, 'Введите телефон'),
-  email: z.string().email('Введите email'),
-  password: z.string().trim().refine((value) => isStrongPassword(value), passwordHelpText),
-  confirmPassword: z.string().trim().min(1, 'Повторите пароль')
-}).refine((data) => data.password === data.confirmPassword, {
-  message: 'Пароли не совпадают',
-  path: ['confirmPassword']
-});
+const registerSchema = z
+  .object({
+    name: z.string().trim().min(2, 'Введите никнейм'),
+    fullName: z
+      .string()
+      .trim()
+      .min(3, 'Введите ФИО')
+      .max(120, 'Слишком длинное ФИО')
+      .refine(
+        (value) => fioRegex.test(value),
+        'Допустимы только буквы, пробел и дефис'
+      )
+      .refine(
+        (value) => value.split(/\s+/).filter(Boolean).length >= 2,
+        'Введите минимум имя и фамилию'
+      ),
+    phone: z.string().min(5, 'Введите телефон'),
+    email: z.string().email('Введите email'),
+    password: z
+      .string()
+      .trim()
+      .refine((value) => isStrongPassword(value), passwordHelpText),
+    confirmPassword: z.string().trim().min(1, 'Повторите пароль')
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: 'Пароли не совпадают',
+    path: ['confirmPassword']
+  });
 
 type LoginValues = z.infer<typeof loginSchema>;
 type RegisterValues = z.infer<typeof registerSchema>;
@@ -80,7 +114,9 @@ export const AuthPage = () => {
   const [otpToken, setOtpToken] = useState<string | null>(null);
   const [otpPurpose, setOtpPurpose] = useState<Purpose>('buyer_register_phone');
   const [otpPhone, setOtpPhone] = useState<string>('');
-  const [otpUiState, setOtpUiState] = useState<'idle' | 'requesting' | 'call_to_auth' | 'error'>('idle');
+  const [otpUiState, setOtpUiState] = useState<
+    'idle' | 'requesting' | 'call_to_auth' | 'error'
+  >('idle');
 
   const login = useAuthStore((s) => s.login);
   const register = useAuthStore((s) => s.register);
@@ -94,8 +130,15 @@ export const AuthPage = () => {
     return params.get('redirectTo');
   }, [location.search]);
 
-  const loginForm = useForm<LoginValues>({ resolver: zodResolver(loginSchema), defaultValues: { phone: '', password: '' } });
-  const registerForm = useForm<RegisterValues>({ resolver: zodResolver(registerSchema), mode: 'onBlur', reValidateMode: 'onChange' });
+  const loginForm = useForm<LoginValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: { phone: '', password: '' }
+  });
+  const registerForm = useForm<RegisterValues>({
+    resolver: zodResolver(registerSchema),
+    mode: 'onBlur',
+    reValidateMode: 'onChange'
+  });
 
   const resolveRedirectPath = async (role?: string) => {
     if (redirectTo) {
@@ -221,10 +264,14 @@ export const AuthPage = () => {
           <div className={styles.card}>
             {otpUiState !== 'call_to_auth' && (
               <div className={styles.header}>
-                <p className={styles.eyebrow}>{isRegister ? 'Создайте аккаунт' : 'Добро пожаловать'}</p>
+                <p className={styles.eyebrow}>
+                  {isRegister ? 'Создайте аккаунт' : 'Добро пожаловать'}
+                </p>
                 <h1>{isRegister ? 'Регистрация' : 'Вход'}</h1>
                 <p className={styles.subtitle}>
-                  {isRegister ? 'Начните продавать и покупать 3D печать за пару минут.' : 'Войдите, чтобы продолжить работу с заказами.'}
+                  {isRegister
+                    ? 'Начните продавать и покупать 3D печать за пару минут.'
+                    : 'Войдите, чтобы продолжить работу с заказами.'}
                 </p>
               </div>
             )}
@@ -245,9 +292,18 @@ export const AuthPage = () => {
                 onUiStateChange={setOtpUiState}
               />
             ) : isRegister ? (
-              <form onSubmit={registerForm.handleSubmit(onRegister)} className={styles.form}>
-                <input placeholder="Никнейм" {...registerForm.register('name')} />
-                <input placeholder="ФИО" {...registerForm.register('fullName')} />
+              <form
+                onSubmit={registerForm.handleSubmit(onRegister)}
+                className={styles.form}
+              >
+                <input
+                  placeholder="Никнейм"
+                  {...registerForm.register('name')}
+                />
+                <input
+                  placeholder="ФИО"
+                  {...registerForm.register('fullName')}
+                />
 
                 <input
                   placeholder="+7 (___) ___-__-__"
@@ -256,25 +312,50 @@ export const AuthPage = () => {
                   autoComplete="tel"
                   onFocus={() => {
                     const v = registerForm.getValues('phone') ?? '';
-                    if (!v) registerForm.setValue('phone', '+7', { shouldValidate: true });
+                    if (!v)
+                      registerForm.setValue('phone', '+7', {
+                        shouldValidate: true
+                      });
                   }}
                   onChange={(e) =>
-                    registerForm.setValue('phone', formatRuPhoneInput(e.target.value), {
-                      shouldValidate: true,
-                      shouldDirty: true
-                    })
+                    registerForm.setValue(
+                      'phone',
+                      formatRuPhoneInput(e.target.value),
+                      {
+                        shouldValidate: true,
+                        shouldDirty: true
+                      }
+                    )
                   }
                 />
 
-                <input placeholder="Email" {...registerForm.register('email')} />
-                <input type="password" placeholder="Пароль" autoComplete="new-password" {...registerForm.register('password')} />
+                <input
+                  placeholder="Email"
+                  {...registerForm.register('email')}
+                />
+                <input
+                  type="password"
+                  placeholder="Пароль"
+                  autoComplete="new-password"
+                  {...registerForm.register('password')}
+                />
                 <span className={styles.helperText}>{passwordHelpText}</span>
-                {registerForm.formState.errors.password && registerForm.formState.touchedFields.password && (
-                  <span>{registerForm.formState.errors.password.message}</span>
-                )}
-                <input type="password" placeholder="Повторите пароль" autoComplete="new-password" {...registerForm.register('confirmPassword')} />
+                {registerForm.formState.errors.password &&
+                  registerForm.formState.touchedFields.password && (
+                    <span>
+                      {registerForm.formState.errors.password.message}
+                    </span>
+                  )}
+                <input
+                  type="password"
+                  placeholder="Повторите пароль"
+                  autoComplete="new-password"
+                  {...registerForm.register('confirmPassword')}
+                />
                 {registerForm.formState.errors.confirmPassword && (
-                  <span>{registerForm.formState.errors.confirmPassword.message}</span>
+                  <span>
+                    {registerForm.formState.errors.confirmPassword.message}
+                  </span>
                 )}
 
                 <label className={styles.consent}>
@@ -284,9 +365,13 @@ export const AuthPage = () => {
                     onChange={(e) => setPrivacyAccepted(e.target.checked)}
                   />
                   <span>
-                    Я соглашаюсь на{' '}
+                    Я ознакомился и принимаю{' '}
+                    <Link to="/service-rules" className={styles.policyLink}>
+                      Правила использования сервиса
+                    </Link>{' '}
+                    и{' '}
                     <Link to="/privacy-policy" className={styles.policyLink}>
-                      обработку персональных данных
+                      Политику обработки персональных данных
                     </Link>
                   </span>
                 </label>
@@ -296,7 +381,10 @@ export const AuthPage = () => {
                 </Button>
               </form>
             ) : (
-              <form onSubmit={loginForm.handleSubmit(onLogin)} className={styles.form}>
+              <form
+                onSubmit={loginForm.handleSubmit(onLogin)}
+                className={styles.form}
+              >
                 <input
                   placeholder="+7 (___) ___-__-__"
                   inputMode="tel"
@@ -304,13 +392,31 @@ export const AuthPage = () => {
                   value={loginForm.watch('phone') ?? ''}
                   onFocus={() => {
                     const currentValue = loginForm.getValues('phone') ?? '';
-                    if (!currentValue) loginForm.setValue('phone', '+7', { shouldValidate: true });
+                    if (!currentValue)
+                      loginForm.setValue('phone', '+7', {
+                        shouldValidate: true
+                      });
                   }}
-                  onChange={(event) => loginForm.setValue('phone', formatRuPhoneInput(event.target.value), { shouldDirty: true, shouldValidate: true })}
+                  onChange={(event) =>
+                    loginForm.setValue(
+                      'phone',
+                      formatRuPhoneInput(event.target.value),
+                      { shouldDirty: true, shouldValidate: true }
+                    )
+                  }
                 />
-                {loginForm.formState.errors.phone && <span>{loginForm.formState.errors.phone.message}</span>}
-                <input type="password" placeholder="Пароль" autoComplete="current-password" {...loginForm.register('password')} />
-                {loginForm.formState.errors.password && <span>{loginForm.formState.errors.password.message}</span>}
+                {loginForm.formState.errors.phone && (
+                  <span>{loginForm.formState.errors.phone.message}</span>
+                )}
+                <input
+                  type="password"
+                  placeholder="Пароль"
+                  autoComplete="current-password"
+                  {...loginForm.register('password')}
+                />
+                {loginForm.formState.errors.password && (
+                  <span>{loginForm.formState.errors.password.message}</span>
+                )}
                 <Button type="submit">Войти</Button>
 
                 <Link className={styles.forgot} to="/auth/forgot-password">
@@ -323,8 +429,13 @@ export const AuthPage = () => {
             {message && <p className={styles.success}>{message}</p>}
 
             {!otpRequired && (
-              <Link className={styles.switch} to={isRegister ? '/auth/login' : '/auth/register'}>
-                {isRegister ? 'Уже есть аккаунт? Войти' : 'Нет аккаунта? Зарегистрироваться'}
+              <Link
+                className={styles.switch}
+                to={isRegister ? '/auth/login' : '/auth/register'}
+              >
+                {isRegister
+                  ? 'Уже есть аккаунт? Войти'
+                  : 'Нет аккаунта? Зарегистрироваться'}
               </Link>
             )}
           </div>
