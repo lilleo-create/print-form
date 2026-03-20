@@ -745,10 +745,6 @@
     animation: profileMenuSlideUp 0.2s ease;
   }
 
-  .mobileCategoriesOverlay {
-    display: block;
-  }
-
   .main {
     padding-top: 12px;
     padding-bottom: calc(96px + env(safe-area-inset-bottom));
@@ -775,7 +771,7 @@
   inset: 0;
   background: var(--overlay);
   z-index: 55;
-  display: none;
+  display: block;
 }
 
 .mobileCategoriesSheet {
