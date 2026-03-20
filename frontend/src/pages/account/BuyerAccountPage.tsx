@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../../app/store/authStore';
 import { Button } from '../../shared/ui/Button';
 import { OrdersTab } from './tabs/OrdersTab/OrdersTab';
@@ -111,9 +111,6 @@ export const BuyerAccountPage = () => {
               </div>
             ) : (
               <>
-                <Link to="/account?tab=profile" className={styles.backLink}>
-                  Назад в аккаунт
-                </Link>
                 <div className={styles.pageHeading}>
                   <h1>{pageTitle}</h1>
                   {isReturns && (

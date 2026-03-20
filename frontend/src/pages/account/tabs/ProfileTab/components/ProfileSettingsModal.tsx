@@ -40,7 +40,7 @@ export const ProfileSettingsModal = ({
         </header>
         <div className={styles.content}>
           <Button type="button" variant="secondary" className={styles.action} onClick={onEditProfile}>
-            Изменить фото или имя
+            Изменить фото или контактные данные
           </Button>
         </div>
       </div>

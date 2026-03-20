@@ -16,7 +16,10 @@ export const ProductSpecs = ({ product }: ProductSpecsProps) => {
       { id: 'color', key: 'Цвет', value: (product as any).color, sortOrder: 7 }
     ];
 
-    return [...fallback].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+    return [...fallback]
+      .filter((spec) => String(spec.key ?? '').trim().toLowerCase() !== 'описание')
+      .filter((spec) => String(spec.value ?? '').trim() !== String(product.descriptionFull ?? product.description ?? '').trim())
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   }, [product]);
 
   return (
