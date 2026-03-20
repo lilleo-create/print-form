@@ -26,6 +26,7 @@ import styles from '../layout/Layout.module.css';
 import { useBodyScrollLock } from '../../shared/lib/useBodyScrollLock';
 
 export const Header = () => {
+  const mobileCategoriesMenuId = 'mobile-categories-menu';
   const addItem = useCartStore((state) => state.addItem);
   const user = useAuthStore((state) => state.user);
   const productBoard = useProductBoardStore((state) => state.product);
@@ -105,6 +106,7 @@ useEffect(() => {
   return () => window.removeEventListener('resize', updateGutter);
 }, [isProfileMenuOpen]);
 const openProfileMenuHandler = () => {
+  closeMobileCategories();
   openProfileMenu();
 };
 
@@ -115,6 +117,7 @@ const openProfileMenuHandler = () => {
       toggleSellerMenu();
       return;
     }
+    closeProfileMenu();
     setIsMobileCategoriesOpen((prev) => !prev);
   };
 
@@ -304,7 +307,7 @@ const openProfileMenuHandler = () => {
             onClick={toggleMobileCategories}
             aria-label={isSellerPage ? (isSellerMenuOpen ? 'Закрыть меню продавца' : 'Открыть категории') : (isMobileCategoriesOpen ? 'Закрыть категории' : 'Открыть категории')}
             aria-expanded={isSellerPage ? isSellerMenuOpen : isMobileCategoriesOpen}
-            aria-controls={isSellerPage ? 'seller-sidebar' : undefined}
+            aria-controls={isSellerPage ? 'seller-sidebar' : mobileCategoriesMenuId}
           >
             ☰
           </button>
@@ -391,6 +394,7 @@ const openProfileMenuHandler = () => {
       {isMobileCategoriesOpen && (
         <div className={styles.mobileCategoriesOverlay} role="dialog" aria-modal="true" onClick={closeMobileCategories}>
           <div
+            id={mobileCategoriesMenuId}
             className={styles.mobileCategoriesSheet}
             ref={mobileCategoriesRef}
             onClick={(event) => event.stopPropagation()}
