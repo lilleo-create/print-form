@@ -2,7 +2,6 @@ import {
   FormEvent,
   useEffect,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState
 } from 'react';
@@ -35,7 +34,6 @@ export const Header = () => {
   const navigate = useNavigate();
   const [searchValue, setSearchValue] = useState(searchParams.get('q') ?? '');
   const [isCategoriesHidden, setIsCategoriesHidden] = useState(false);
-  const [isCategoriesMenuOpen, setIsCategoriesMenuOpen] = useState(false);
   const [categoriesHeight, setCategoriesHeight] = useState(0);
   const [productBoardHeight, setProductBoardHeight] = useState(0);
   const isProfileMenuOpen = useHeaderMenuStore(
@@ -44,6 +42,9 @@ export const Header = () => {
   const isSellerMenuOpen = useHeaderMenuStore(
     (state) => state.isSellerMenuOpen
   );
+  const isCategoriesMenuOpen = useHeaderMenuStore(
+    (state) => state.isCategoriesMenuOpen
+  );
   const openProfileMenu = useHeaderMenuStore((state) => state.openProfileMenu);
   const closeProfileMenu = useHeaderMenuStore(
     (state) => state.closeProfileMenu
@@ -51,6 +52,12 @@ export const Header = () => {
   const closeSellerMenu = useHeaderMenuStore((state) => state.closeSellerMenu);
   const toggleSellerMenu = useHeaderMenuStore(
     (state) => state.toggleSellerMenu
+  );
+  const closeCategoriesMenu = useHeaderMenuStore(
+    (state) => state.closeCategoriesMenu
+  );
+  const toggleCategoriesMenu = useHeaderMenuStore(
+    (state) => state.toggleCategoriesMenu
   );
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window === 'undefined') {
@@ -78,17 +85,6 @@ export const Header = () => {
       setSearchValue(searchParams.get('q') ?? '');
     }
   }, [location.pathname, searchParams, user]);
-
-  const avatarText = useMemo(() => {
-    const source = user?.name ?? user?.email ?? 'Пользователь';
-    return source
-      .split(' ')
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0])
-      .join('')
-      .toUpperCase();
-  }, [user?.email, user?.name]);
 
   const showCatalogHeader = location.pathname === '/catalog';
   const CONTENT_MAX = 1120; // твоя max-width контейнера
@@ -122,14 +118,11 @@ export const Header = () => {
 
   const isSellerPage = location.pathname.startsWith('/seller');
 
-  const toggleCategoriesMenu = () => {
+  const toggleCategoriesMenuHandler = () => {
     closeProfileMenu();
-    setIsCategoriesMenuOpen((prev) => !prev);
+    toggleCategoriesMenu();
   };
 
-  const closeCategoriesMenu = () => {
-    setIsCategoriesMenuOpen(false);
-  };
   useLayoutEffect(() => {
     if (!categoriesRef.current && !productBoardRef.current) return;
     const updateHeight = () => {
@@ -179,6 +172,7 @@ export const Header = () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [
+    closeCategoriesMenu,
     closeProfileMenu,
     closeSellerMenu,
     isCategoriesMenuOpen,
@@ -236,7 +230,13 @@ export const Header = () => {
     closeProfileMenu();
     closeCategoriesMenu();
     closeSellerMenu();
-  }, [closeProfileMenu, closeSellerMenu, location.pathname, location.search]);
+  }, [
+    closeCategoriesMenu,
+    closeProfileMenu,
+    closeSellerMenu,
+    location.pathname,
+    location.search
+  ]);
 
   const handleSearchUpdate = (value: string) => {
     setSearchValue(value);
@@ -303,23 +303,11 @@ export const Header = () => {
         <HeaderActions onProfileClick={openProfileMenuHandler} />
       </div>
       <div className={styles.mobileHeader}>
-        <div className={styles.mobileTopRow}>
-          {user && (
-            <button
-              type="button"
-              className={styles.mobileAvatarButton}
-              onClick={openProfileMenuHandler}
-              aria-label="Открыть меню профиля"
-            >
-              <span className={styles.avatarCircle}>{avatarText}</span>
-            </button>
-          )}
-        </div>
         <div className={styles.mobileSearchRow}>
           <button
             type="button"
             className={styles.mobileBurger}
-            onClick={isSellerPage ? toggleSellerMenu : toggleCategoriesMenu}
+            onClick={isSellerPage ? toggleSellerMenu : toggleCategoriesMenuHandler}
             aria-label={
               isSellerPage
                 ? isSellerMenuOpen
@@ -336,7 +324,16 @@ export const Header = () => {
               isSellerPage ? 'seller-sidebar' : mobileCategoriesMenuId
             }
           >
-            ☰
+            {isSellerPage ? (
+              '☰'
+            ) : (
+              <span className={styles.mobileGridIcon} aria-hidden>
+                <span />
+                <span />
+                <span />
+                <span />
+              </span>
+            )}
           </button>
           <form className={styles.mobileSearch} onSubmit={handleSearchSubmit}>
             <input
@@ -438,7 +435,11 @@ export const Header = () => {
             onClick={(event) => event.stopPropagation()}
           >
             <div className={styles.mobileCategoriesHeader}>
-              <span>Категории</span>
+              <div className={styles.mobileCategoriesTitleGroup}>
+                <span className={styles.mobileCategoriesEyebrow}>Каталог</span>
+                <span className={styles.mobileCategoriesTitle}>Категории</span>
+                <span className={styles.mobileCategoriesSubtitle}>Выберите раздел и перейдите к подборке товаров.</span>
+              </div>
               <button
                 type="button"
                 className={styles.mobileCategoriesClose}
@@ -454,7 +455,7 @@ export const Header = () => {
                 className={styles.mobileCategoryItem}
                 onClick={closeCategoriesMenu}
               >
-                Все категории
+                <span>Все категории</span>
               </Link>
               {categories.map((category) => (
                 <Link
@@ -463,7 +464,7 @@ export const Header = () => {
                   className={styles.mobileCategoryItem}
                   onClick={closeCategoriesMenu}
                 >
-                  {category}
+                  <span>{category}</span>
                 </Link>
               ))}
             </div>
