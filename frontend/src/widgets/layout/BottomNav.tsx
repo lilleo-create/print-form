@@ -23,7 +23,12 @@ const getAvatarText = (name?: string | null, email?: string | null) => {
     .toUpperCase();
 };
 
-export const BottomNav = () => {
+type BottomNavProps = {
+  forceShow?: boolean;
+  onNavigate?: () => void;
+};
+
+export const BottomNav = ({ forceShow = false, onNavigate }: BottomNavProps) => {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const user = useAuthStore((state) => state.user);
@@ -33,7 +38,7 @@ export const BottomNav = () => {
   const closeCategoriesMenu = useHeaderMenuStore((state) => state.closeCategoriesMenu);
   const isCategoriesMenuOpen = useHeaderMenuStore((state) => state.isCategoriesMenuOpen);
   const showBottomNav =
-    !location.pathname.startsWith('/seller') &&
+    (forceShow || !location.pathname.startsWith('/seller')) &&
     !location.pathname.startsWith('/auth') &&
     !location.pathname.startsWith('/privacy-policy');
   const isOrdersActive =
@@ -52,6 +57,7 @@ export const BottomNav = () => {
       <Link
         to="/"
         className={`${styles.bottomNavItem} ${location.pathname === '/' ? styles.bottomNavItemActive : ''}`}
+        onClick={onNavigate}
       >
         <span aria-hidden>🏠</span>
         <span>Главная</span>
@@ -60,6 +66,7 @@ export const BottomNav = () => {
         type="button"
         className={`${styles.bottomNavItem} ${styles.bottomNavButton} ${isCategoriesMenuOpen ? styles.bottomNavItemActive : ''}`}
         onClick={() => {
+          onNavigate?.();
           closeProfileMenu();
           toggleCategoriesMenu();
         }}
@@ -71,6 +78,7 @@ export const BottomNav = () => {
       <Link
         to="/orders"
         className={`${styles.bottomNavItem} ${isOrdersActive ? styles.bottomNavItemActive : ''}`}
+        onClick={onNavigate}
       >
         <span aria-hidden>🧾</span>
         <span>Заказы</span>
@@ -78,6 +86,7 @@ export const BottomNav = () => {
       <Link
         to="/cart"
         className={`${styles.bottomNavItem} ${location.pathname === '/cart' ? styles.bottomNavItemActive : ''}`}
+        onClick={onNavigate}
       >
         <span aria-hidden>🛒</span>
         <span>Корзина</span>
@@ -87,6 +96,7 @@ export const BottomNav = () => {
           type="button"
           className={`${styles.bottomNavItem} ${styles.bottomNavButton} ${isProfile ? styles.bottomNavItemActive : ''}`}
           onClick={() => {
+            onNavigate?.();
             closeCategoriesMenu();
             openProfileMenu();
           }}
@@ -99,6 +109,7 @@ export const BottomNav = () => {
         <Link
           to="/auth/login"
           className={`${styles.bottomNavItem} ${location.pathname.startsWith('/auth') ? styles.bottomNavItemActive : ''}`}
+          onClick={onNavigate}
         >
           <span aria-hidden>👤</span>
           <span>Войти</span>
