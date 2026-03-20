@@ -11,17 +11,7 @@
   margin-bottom: 28px;
   border: 1px solid var(--border);
   border-radius: 28px;
-  background:
-    radial-gradient(
-      circle at top right,
-      rgba(122, 162, 255, 0.18),
-      transparent 30%
-    ),
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.96),
-      rgba(249, 250, 252, 0.92)
-    );
+  background: var(--primary-soft);
   box-shadow: var(--shadow-card);
 }
 
@@ -62,7 +52,8 @@
 
 .sidebar {
   position: sticky;
-  top: 112px;
+  top: 24px;
+  align-self: start;
 }
 
 .sidebarCard,
