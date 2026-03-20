@@ -24,7 +24,6 @@ export const ProfileMenu = ({
 }: Props) => {
   const { isSeller, sellerCabinetLink, sellerShopLink } = useIsSeller();
 
-
   useEffect(() => {
     if (!isOpen || typeof window === 'undefined') return;
 
@@ -34,8 +33,14 @@ export const ProfileMenu = ({
     const updateGutter = () => {
       const width = window.innerWidth;
       const containerWidth = Math.min(CONTENT_MAX, width);
-      const gutter = Math.max(SIDE_PAD, Math.floor((width - containerWidth) / 2) - SIDE_PAD);
-      document.documentElement.style.setProperty('--container-gutter', `${gutter}px`);
+      const gutter = Math.max(
+        SIDE_PAD,
+        Math.floor((width - containerWidth) / 2) - SIDE_PAD
+      );
+      document.documentElement.style.setProperty(
+        '--container-gutter',
+        `${gutter}px`
+      );
     };
 
     updateGutter();
@@ -54,7 +59,10 @@ export const ProfileMenu = ({
       aria-modal="true"
       onClick={onClose}
     >
-      <div className={styles.profileMenuPage} onClick={(event) => event.stopPropagation()}>
+      <div
+        className={styles.profileMenuPage}
+        onClick={(event) => event.stopPropagation()}
+      >
         <div className={styles.profileMenuHeader}>
           <span>Меню</span>
           <button
@@ -75,7 +83,9 @@ export const ProfileMenu = ({
                 className={`${styles.profileMenuItem} ${pathname === '/account' && searchTab === 'purchases' ? styles.profileMenuItemActive : ''}`}
                 onClick={onClose}
               >
-                <span className={styles.profileMenuIcon} aria-hidden>🛍️</span>
+                <span className={styles.profileMenuIcon} aria-hidden>
+                  🛍️
+                </span>
                 <span className={styles.profileMenuText}>Покупки</span>
               </Link>
               <Link
@@ -83,7 +93,9 @@ export const ProfileMenu = ({
                 className={`${styles.profileMenuItem} ${pathname === '/orders' ? styles.profileMenuItemActive : ''}`}
                 onClick={onClose}
               >
-                <span className={styles.profileMenuIcon} aria-hidden>🧾</span>
+                <span className={styles.profileMenuIcon} aria-hidden>
+                  🧾
+                </span>
                 <span className={styles.profileMenuText}>Заказы</span>
               </Link>
               <Link
@@ -91,7 +103,9 @@ export const ProfileMenu = ({
                 className={`${styles.profileMenuItem} ${pathname === '/account' && searchTab === 'purchases' ? styles.profileMenuItemActive : ''}`}
                 onClick={onClose}
               >
-                <span className={styles.profileMenuIcon} aria-hidden>📦</span>
+                <span className={styles.profileMenuIcon} aria-hidden>
+                  📦
+                </span>
                 <span className={styles.profileMenuText}>Купленные товары</span>
               </Link>
               <Link
@@ -99,7 +113,9 @@ export const ProfileMenu = ({
                 className={`${styles.profileMenuItem} ${pathname === '/account' && searchTab === 'returns' ? styles.profileMenuItemActive : ''}`}
                 onClick={onClose}
               >
-                <span className={styles.profileMenuIcon} aria-hidden>↩️</span>
+                <span className={styles.profileMenuIcon} aria-hidden>
+                  ↩️
+                </span>
                 <span className={styles.profileMenuText}>Возвраты</span>
               </Link>
               <Link
@@ -107,7 +123,9 @@ export const ProfileMenu = ({
                 className={`${styles.profileMenuItem} ${pathname === '/favorites' ? styles.profileMenuItemActive : ''}`}
                 onClick={onClose}
               >
-                <span className={styles.profileMenuIcon} aria-hidden>❤</span>
+                <span className={styles.profileMenuIcon} aria-hidden>
+                  ❤
+                </span>
                 <span className={styles.profileMenuText}>Избранные</span>
               </Link>
             </div>
@@ -119,7 +137,9 @@ export const ProfileMenu = ({
                 className={`${styles.profileMenuItem} ${pathname === '/account' && searchTab === 'profile' ? styles.profileMenuItemActive : ''}`}
                 onClick={onClose}
               >
-                <span className={styles.profileMenuIcon} aria-hidden>⚙️</span>
+                <span className={styles.profileMenuIcon} aria-hidden>
+                  ⚙️
+                </span>
                 <span className={styles.profileMenuText}>Настройки</span>
               </Link>
               <Link
@@ -127,14 +147,24 @@ export const ProfileMenu = ({
                 className={`${styles.profileMenuItem} ${pathname === '/account' && (!searchTab || searchTab === 'profile') ? styles.profileMenuItemActive : ''}`}
                 onClick={onClose}
               >
-                <span className={styles.profileMenuIcon} aria-hidden>👤</span>
+                <span className={styles.profileMenuIcon} aria-hidden>
+                  👤
+                </span>
                 <span className={styles.profileMenuText}>Профиль</span>
               </Link>
 
-              <button type="button" className={`${styles.profileMenuItem} ${styles.profileMenuToggle}`} onClick={onToggleTheme}>
-                <span className={styles.profileMenuIcon} aria-hidden>🎨</span>
+              <button
+                type="button"
+                className={`${styles.profileMenuItem} ${styles.profileMenuToggle}`}
+                onClick={onToggleTheme}
+              >
+                <span className={styles.profileMenuIcon} aria-hidden>
+                  🎨
+                </span>
                 <span className={styles.profileMenuText}>Тема оформления</span>
-                <span className={styles.profileMenuToggleValue}>{theme === 'light' ? 'Светлая' : 'Тёмная'}</span>
+                <span className={styles.profileMenuToggleValue}>
+                  {theme === 'light' ? 'Светлая' : 'Тёмная'}
+                </span>
               </button>
 
               <Link
@@ -142,19 +172,33 @@ export const ProfileMenu = ({
                 className={`${styles.profileMenuItem} ${pathname.startsWith('/seller') ? styles.profileMenuItemActive : ''}`}
                 onClick={onClose}
               >
-                <span className={styles.profileMenuIcon} aria-hidden>🧑‍💼</span>
-                <span className={styles.profileMenuText}>{isSeller ? 'Кабинет продавца' : 'Продавайте на PrintForm'}</span>
+                <span className={styles.profileMenuIcon} aria-hidden>
+                  🧑‍💼
+                </span>
+                <span className={styles.profileMenuText}>
+                  {isSeller ? 'Кабинет продавца' : 'Продавайте на PrintForm'}
+                </span>
               </Link>
 
               {isSeller ? (
                 sellerShopLink ? (
-                  <Link to={sellerShopLink} className={styles.profileMenuItem} onClick={onClose}>
-                    <span className={styles.profileMenuIcon} aria-hidden>🏪</span>
+                  <Link
+                    to={sellerShopLink}
+                    className={styles.profileMenuItem}
+                    onClick={onClose}
+                  >
+                    <span className={styles.profileMenuIcon} aria-hidden>
+                      🏪
+                    </span>
                     <span className={styles.profileMenuText}>Ваш магазин</span>
                   </Link>
                 ) : (
-                  <span className={`${styles.profileMenuItem} ${styles.profileMenuItemDisabled}`}>
-                    <span className={styles.profileMenuIcon} aria-hidden>🏪</span>
+                  <span
+                    className={`${styles.profileMenuItem} ${styles.profileMenuItemDisabled}`}
+                  >
+                    <span className={styles.profileMenuIcon} aria-hidden>
+                      🏪
+                    </span>
                     <span className={styles.profileMenuText}>Ваш магазин</span>
                   </span>
                 )
@@ -165,7 +209,9 @@ export const ProfileMenu = ({
                 className={`${styles.profileMenuItem} ${pathname === '/account' && searchTab === 'chats' ? styles.profileMenuItemActive : ''}`}
                 onClick={onClose}
               >
-                <span className={styles.profileMenuIcon} aria-hidden>💬</span>
+                <span className={styles.profileMenuIcon} aria-hidden>
+                  💬
+                </span>
                 <span className={styles.profileMenuText}>Чаты</span>
               </Link>
 
@@ -174,14 +220,22 @@ export const ProfileMenu = ({
                 className={`${styles.profileMenuItem} ${pathname === '/privacy-policy' ? styles.profileMenuItemActive : ''}`}
                 onClick={onClose}
               >
-                <span className={styles.profileMenuIcon} aria-hidden>ℹ️</span>
-                <span className={styles.profileMenuText}>О сервисе</span>
+                <span className={styles.profileMenuIcon} aria-hidden>
+                  🛡️
+                </span>
+                <span className={styles.profileMenuText}>Политика данных</span>
               </Link>
             </div>
 
             <div className={styles.profileMenuSection}>
-              <button type="button" className={`${styles.profileMenuItem} ${styles.profileMenuLogout}`} onClick={onLogout}>
-                <span className={styles.profileMenuIcon} aria-hidden>⎋</span>
+              <button
+                type="button"
+                className={`${styles.profileMenuItem} ${styles.profileMenuLogout}`}
+                onClick={onLogout}
+              >
+                <span className={styles.profileMenuIcon} aria-hidden>
+                  ⎋
+                </span>
                 <span className={styles.profileMenuText}>Выйти</span>
               </button>
             </div>

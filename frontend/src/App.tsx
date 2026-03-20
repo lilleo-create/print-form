@@ -12,6 +12,8 @@ import { AdminRoute } from './app/routes/AdminRoute';
 import { ProductPage } from './pages/ProductPage';
 import { ProductReviewsPage } from './pages/ProductReviewsPage';
 import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
+import { ServiceRulesPage } from './pages/ServiceRulesPage';
+import { OfferPage } from './pages/OfferPage';
 import { CategoriesPage } from './pages/CategoriesPage';
 import { SellerOnboardingPage } from './pages/SellerOnboardingPage';
 import { OrdersPage } from './pages/OrdersPage';
@@ -84,6 +86,8 @@ const App = () => {
         <Route path="/auth/register" element={<AuthPage />} />
         <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+        <Route path="/service-rules" element={<ServiceRulesPage />} />
+        <Route path="/offer" element={<OfferPage />} />
       </Route>
 
       <Route element={<Layout showHeader={false} />}>

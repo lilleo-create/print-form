@@ -1,0 +1,180 @@
+.page {
+  width: 100%;
+  align-self: stretch;
+  padding: 56px 0 96px;
+}
+
+.hero {
+  display: grid;
+  gap: 20px;
+  padding: 28px;
+  margin-bottom: 28px;
+  border: 1px solid var(--border);
+  border-radius: 28px;
+  background:
+    radial-gradient(
+      circle at top right,
+      rgba(122, 162, 255, 0.18),
+      transparent 30%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.96),
+      rgba(249, 250, 252, 0.92)
+    );
+  box-shadow: var(--shadow-card);
+}
+
+.heroContent {
+  display: grid;
+  gap: 12px;
+}
+
+.eyebrow {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+
+.subtitle {
+  max-width: 780px;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.sidebar {
+  position: sticky;
+  top: 112px;
+}
+
+.sidebarCard,
+.article {
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+}
+
+.sidebarCard {
+  display: grid;
+  gap: 24px;
+  padding: 24px;
+}
+
+.sidebarCard h2,
+.sidebarCard h3 {
+  font-size: 18px;
+}
+
+.toc,
+.relatedList {
+  display: grid;
+  gap: 10px;
+}
+
+.tocLink,
+.relatedLink {
+  color: var(--text);
+  text-decoration: none;
+  line-height: 1.45;
+}
+
+.tocLink:hover,
+.relatedLink:hover {
+  color: var(--primary);
+}
+
+.article {
+  min-width: 0;
+  padding: 32px;
+}
+
+.section {
+  scroll-margin-top: 112px;
+}
+
+.section + .section {
+  margin-top: 36px;
+  padding-top: 36px;
+  border-top: 1px solid var(--border);
+}
+
+.section h2 {
+  margin-bottom: 18px;
+  font-size: 24px;
+}
+
+.sectionContent {
+  display: grid;
+  gap: 14px;
+  color: var(--text);
+  line-height: 1.7;
+}
+
+.sectionContent p,
+.sectionContent ul,
+.sectionContent ol {
+  margin: 0;
+}
+
+.sectionContent ul,
+.sectionContent ol {
+  padding-left: 20px;
+  display: grid;
+  gap: 10px;
+}
+
+.sectionContent li > ul,
+.sectionContent li > ol {
+  margin-top: 10px;
+}
+
+@media (max-width: 960px) {
+  .page {
+    padding: 28px 0 72px;
+  }
+
+  .hero,
+  .article,
+  .sidebarCard {
+    border-radius: 20px;
+  }
+
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: static;
+  }
+
+  .sidebarCard {
+    gap: 20px;
+  }
+
+  .article {
+    padding: 24px 20px;
+  }
+
+  .section {
+    scroll-margin-top: 88px;
+  }
+}

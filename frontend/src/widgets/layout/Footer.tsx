@@ -34,10 +34,10 @@ export const Footer = () => {
       </div>
 
       <div>
-        <h5>Сервис</h5>
-        <Link to="/">Каталог</Link>
-        <Link to="/privacy-policy">О сервисе</Link>
-        <Link to="/shop">Ваш магазин</Link>
+        <h5>Документы</h5>
+        <Link to="/privacy-policy">Политика обработки персональных данных</Link>
+        <Link to="/service-rules">Правила использования сервиса</Link>
+        <Link to="/offer">Оферта</Link>
       </div>
 
       <div className={styles.footerBottom}>

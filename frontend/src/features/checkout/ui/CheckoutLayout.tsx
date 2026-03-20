@@ -35,6 +35,7 @@ export const CheckoutLayout = () => {
   const [isAddCardOpen, setAddCardOpen] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
   const [pendingPaymentId, setPendingPaymentId] = useState<string | null>(null);
+  const [legalAccepted, setLegalAccepted] = useState(false);
 
   useEffect(() => {
     void fetchCheckout();
@@ -133,7 +134,10 @@ export const CheckoutLayout = () => {
 
         <DeliveryDatesSection items={data.cartItems} />
         <CheckoutItemsList items={data.cartItems} />
-        <CheckoutLegalLinks />
+        <CheckoutLegalLinks
+          accepted={legalAccepted}
+          onAcceptedChange={setLegalAccepted}
+        />
       </div>
 
       <aside className={styles.right}>
@@ -151,18 +155,28 @@ export const CheckoutLayout = () => {
 
             <Button
               isLoading={isSubmittingOrder || isPaying}
-              disabled={isPaying}
+              disabled={isPaying || !legalAccepted}
               onClick={() => void handlePayClick()}
             >
               Пополнить и оплатить
             </Button>
 
             {import.meta.env.DEV && pendingPaymentId ? (
-              <Button variant="ghost" disabled={isPaying} onClick={() => void handleMockSuccess()}>
+              <Button
+                variant="ghost"
+                disabled={isPaying}
+                onClick={() => void handleMockSuccess()}
+              >
                 Симулировать оплату
               </Button>
             ) : null}
 
+            {!legalAccepted ? (
+              <p className={styles.error}>
+                Подтвердите согласие с правилами сервиса и политикой
+                персональных данных.
+              </p>
+            ) : null}
             {error ? <p className={styles.error}>{error}</p> : null}
           </div>
         </div>
