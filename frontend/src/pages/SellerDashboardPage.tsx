@@ -18,6 +18,7 @@ import { SellerActions } from '../components/seller/SellerActions';
 import { SellerErrorState } from '../components/seller/SellerErrorState';
 import { SellerHeader } from '../components/seller/SellerHeader';
 import { SellerStatsCard } from '../components/seller/SellerStatsCard';
+import { BottomNav } from '../widgets/layout/BottomNav';
 import { CdekPvzPickerModal } from '../components/checkout/CdekPvzPickerModal';
 import { getExternalDeliveryStatusLabel } from '../shared/lib/deliveryStatus';
 import {
@@ -1742,6 +1743,7 @@ export const SellerDashboardPage = () => {
           )}
         </div>
       </div>
+      <BottomNav forceShow onNavigate={closeSellerMenu} />
     </section>
   );
 };
