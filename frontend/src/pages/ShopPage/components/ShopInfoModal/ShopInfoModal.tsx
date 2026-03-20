@@ -24,7 +24,7 @@ export const ShopInfoModal = ({ shop, isOpen, onClose, onComplaint }: ShopInfoMo
 
   const legalRows = useMemo(() => {
     if (!shop?.legalInfo) return [];
-    const entries = Object.entries(shop.legalInfo).filter(([, value]) => Boolean(value));
+    const entries = Object.entries(shop.legalInfo).filter(([key, value]) => Boolean(value) && !['phone','status','referenceCategory','catalogPosition'].includes(key));
     return entries.map(([key, value]) => ({
       key,
       label:
