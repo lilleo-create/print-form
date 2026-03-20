@@ -1,0 +1,18 @@
+# deps
+node_modules/
+**/node_modules/
+
+# vite cache
+**/.vite/
+**/dist/
+**/.cache/
+
+# env files
+.env
+.env.*
+**/.env
+**/.env.*
+
+# keep examples
+!.env.example
+!**/.env.example
