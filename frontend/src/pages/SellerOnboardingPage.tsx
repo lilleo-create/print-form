@@ -7,7 +7,7 @@ import { Role } from '../shared/types';
 import styles from './SellerOnboardingPage.module.css';
 import { formatRuPhoneInput, isRuPhone, toE164Ru } from '../shared/lib/validation';
 
-const steps = ['Контакты', 'Продавец', 'Логистика', 'Категория'] as const;
+const steps = ['Контакты', 'Продавец', 'Логистика'] as const;
 
 export const SellerOnboardingPage = () => {
   const navigate = useNavigate();
@@ -17,7 +17,6 @@ export const SellerOnboardingPage = () => {
   const [isComplete, setIsComplete] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [phoneVerificationRequired, setPhoneVerificationRequired] = useState(false);
-  const [referenceCategories, setReferenceCategories] = useState<{ id: string; slug: string; title: string }[]>([]);
   const [cities, setCities] = useState<{ id: string; name: string }[]>([]);
   const [form, setForm] = useState({
     name: '',
@@ -26,8 +25,6 @@ export const SellerOnboardingPage = () => {
     status: 'ИП',
     storeName: '',
     city: '',
-    referenceCategory: '',
-    catalogPosition: 'standard'
   });
   const [touched, setTouched] = useState({
     name: false,
@@ -36,8 +33,6 @@ export const SellerOnboardingPage = () => {
     status: false,
     storeName: false,
     city: false,
-    referenceCategory: false,
-    catalogPosition: false
   });
 
   useEffect(() => {
@@ -53,16 +48,14 @@ export const SellerOnboardingPage = () => {
 
   useEffect(() => {
     let isMounted = true;
-    Promise.all([api.getReferenceCategories(), api.getCities()])
-      .then(([categoriesResponse, citiesResponse]) => {
+    api.getCities()
+      .then((citiesResponse) => {
         if (isMounted) {
-          setReferenceCategories(categoriesResponse.data);
           setCities(citiesResponse.data);
         }
       })
       .catch(() => {
         if (isMounted) {
-          setReferenceCategories([]);
           setCities([]);
         }
       });
@@ -78,8 +71,6 @@ export const SellerOnboardingPage = () => {
   const statusValid = form.status.trim().length > 0;
   const storeNameValid = true;
   const cityValid = cities.some((city) => city.name === form.city);
-  const referenceCategoryValid = form.referenceCategory.trim().length >= 2;
-  const catalogPositionValid = true;
 
   const canProceed = useMemo(() => {
     if (step === 0) {
@@ -91,17 +82,12 @@ export const SellerOnboardingPage = () => {
     if (step === 2) {
       return cityValid;
     }
-    if (step === 3) {
-      return referenceCategoryValid && catalogPositionValid;
-    }
     return false;
   }, [
-    catalogPositionValid,
     cityValid,
     isLoggedIn,
     nameValid,
     phoneValid,
-    referenceCategoryValid,
     statusValid,
     step,
     storeNameValid
@@ -134,8 +120,8 @@ export const SellerOnboardingPage = () => {
         status: form.status as 'ИП' | 'ООО' | 'Самозанятый',
         storeName: form.storeName.trim() || undefined,
         city: form.city,
-        referenceCategory: form.referenceCategory,
-        catalogPosition: form.catalogPosition || 'standard'
+        referenceCategory: '',
+        catalogPosition: 'standard'
       });
       const role = response.data.role.toLowerCase() === 'seller' ? 'seller' : 'buyer';
       const nextName = response.data.name ?? form.name; // имя точно строка
@@ -182,7 +168,7 @@ export const SellerOnboardingPage = () => {
       <div className={styles.onboardingContainer}>
         <div className={styles.header}>
           <h1>Подключение продавца</h1>
-          <p>Заполните короткую анкету — это займет несколько минут.</p>
+          <p>Только самое важное для запуска кабинета продавца.</p>
         </div>
 
         <div className={styles.stepper}>
@@ -205,7 +191,7 @@ export const SellerOnboardingPage = () => {
             <div className={styles.formGrid}>
               <div className={styles.sectionIntro}>
                 <h2>Контактные данные</h2>
-                <p>Нужны для первого подключения продавца и связи по анкете.</p>
+                <p>Контакты подтягиваются из вашего аккаунта и защищены от случайного редактирования.</p>
               </div>
               {!isLoggedIn && (
                 <div className={styles.notice}>
@@ -213,33 +199,15 @@ export const SellerOnboardingPage = () => {
                   <Link to="/auth/login?redirectTo=/seller/onboarding">Войти</Link>
                 </div>
               )}
-              <label>
+              <label className={styles.readonlyField}>
                 Контактное имя
-                <input
-                  value={form.name}
-                  onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
-                  onBlur={() => setTouched((prev) => ({ ...prev, name: true }))}
-                />
-                {touched.name && !nameValid && <span className={styles.error}>Введите имя (минимум 2 символа).</span>}
+                <input value={form.name} readOnly disabled />
               </label>
-              <label>
+              <label className={styles.readonlyField}>
                 Телефон
-                <input
-                  placeholder="+7 (___) ___-__-__"
-                  inputMode="tel"
-                  value={form.phone}
-                  onFocus={() => {
-                    if (!form.phone) {
-                      setForm((prev) => ({ ...prev, phone: '+7 (' }));
-                    }
-                  }}
-                  onChange={(event) =>
-                    setForm((prev) => ({ ...prev, phone: formatRuPhoneInput(event.target.value) }))
-                  }
-                  onBlur={() => setTouched((prev) => ({ ...prev, phone: true }))}
-                />
-                {touched.phone && !phoneValid && <span className={styles.error}>Введите корректный номер.</span>}
+                <input placeholder="+7 (___) ___-__-__" inputMode="tel" value={form.phone} readOnly disabled />
               </label>
+              <p className={styles.helper}>Для смены контактной информации обратитесь в поддержку</p>
               <label>
                 Email (необязательно)
                 <input
@@ -276,7 +244,7 @@ export const SellerOnboardingPage = () => {
               <label>
                 Название магазина
                 <input
-                  placeholder="По умолчанию — ваше имя"
+                  placeholder="По умолчанию - ваше ФИО"
                   value={form.storeName}
                   onChange={(event) => setForm((prev) => ({ ...prev, storeName: event.target.value }))}
                   onBlur={() => setTouched((prev) => ({ ...prev, storeName: true }))}
@@ -315,37 +283,6 @@ export const SellerOnboardingPage = () => {
             </div>
           )}
 
-          {step === 3 && (
-            <div className={styles.formGrid}>
-              <div className={styles.sectionIntro}>
-                <h2>Категория продаж</h2>
-                <p>Позиционирование в каталоге скрыто из интерфейса, но безопасно передаётся в backend как fallback.</p>
-              </div>
-              <label>
-                Референсная категория
-                <select
-                  value={form.referenceCategory}
-                  onChange={(event) =>
-                    setForm((prev) => ({ ...prev, referenceCategory: event.target.value }))
-                  }
-                  onBlur={() => setTouched((prev) => ({ ...prev, referenceCategory: true }))}
-                >
-                  <option value="" disabled>
-                    Выберите категорию
-                  </option>
-                  {referenceCategories.map((category) => (
-                    <option key={category.id} value={category.slug}>
-                      {category.title}
-                    </option>
-                  ))}
-                </select>
-                {touched.referenceCategory && !referenceCategoryValid && (
-                  <span className={styles.error}>Выберите категорию.</span>
-                )}
-                <span className={styles.helper}>Позже вы сможете продавать и другие категории.</span>
-              </label>
-            </div>
-          )}
 
           <div className={styles.actions}>
             {step > 0 && (

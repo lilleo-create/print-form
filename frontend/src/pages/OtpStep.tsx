@@ -197,8 +197,8 @@ export function OtpStep(props: {
         </div>
       )}
 
-      {otpUiState === 'call_to_auth' && (
-        <Button type="button" disabled={isBusy || !requestId} onClick={() => void request()} variant="secondary">
+      {otpUiState === 'error' && requestId && (
+        <Button type="button" disabled={isBusy} onClick={() => void request()} variant="secondary">
           Запросить звонок повторно
         </Button>
       )}

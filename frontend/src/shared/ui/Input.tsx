@@ -7,7 +7,9 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   error?: string;
   helperText?: ReactNode;
   wrapperClassName?: string;
+  endAdornment?: ReactNode;
 }
+
 
 export const Input = ({
   label,
@@ -15,12 +17,22 @@ export const Input = ({
   helperText,
   wrapperClassName,
   className,
+  endAdornment,
   ...props
 }: InputProps) => {
   return (
     <label className={clsx(styles.field, wrapperClassName)}>
       {label && <span className={styles.label}>{label}</span>}
-      <input className={clsx(styles.input, className, { [styles.errorState]: Boolean(error) })} {...props} />
+      <span className={styles.control}>
+        <input
+          className={clsx(styles.input, className, {
+            [styles.errorState]: Boolean(error),
+            [styles.withAdornment]: Boolean(endAdornment)
+          })}
+          {...props}
+        />
+        {endAdornment ? <span className={styles.adornment}>{endAdornment}</span> : null}
+      </span>
       {error ? <span className={styles.error}>{error}</span> : helperText && <span className={styles.helper}>{helperText}</span>}
     </label>
   );
