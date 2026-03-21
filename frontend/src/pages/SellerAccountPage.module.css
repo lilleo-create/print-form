@@ -708,15 +708,3 @@
   padding: 12px 0;
   border-top: 1px solid var(--border);
 }
-
-
-.disabledField input {
-  background: var(--bg-2);
-  color: var(--muted);
-  opacity: 0.75;
-  cursor: not-allowed;
-}
-
-.checkboxLabel a {
-  color: var(--primary);
-}

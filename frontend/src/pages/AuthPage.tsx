@@ -4,7 +4,6 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '../shared/ui/Button';
-import { Input } from '../shared/ui/Input';
 import { useAuthStore } from '../app/store/authStore';
 import { api } from '../shared/api';
 import {
@@ -110,9 +109,6 @@ export const AuthPage = () => {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
-  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
-  const [showRegisterConfirmPassword, setShowRegisterConfirmPassword] = useState(false);
-  const [showLoginPassword, setShowLoginPassword] = useState(false);
 
   const [otpRequired, setOtpRequired] = useState(false);
   const [otpToken, setOtpToken] = useState<string | null>(null);
@@ -143,9 +139,6 @@ export const AuthPage = () => {
     mode: 'onBlur',
     reValidateMode: 'onChange'
   });
-
-  const registerPasswordValue = registerForm.watch('password') ?? '';
-  const shouldShowPasswordHint = Boolean(registerForm.formState.touchedFields.password) || registerForm.formState.submitCount > 0 || registerPasswordValue.length > 0;
 
   const resolveRedirectPath = async (role?: string) => {
     if (redirectTo) {
@@ -190,9 +183,6 @@ export const AuthPage = () => {
     resetOtp();
     resetMessages();
     if (!isRegister) setPrivacyAccepted(false);
-    setShowRegisterPassword(false);
-    setShowRegisterConfirmPassword(false);
-    setShowLoginPassword(false);
   }, [isRegister]);
 
   useEffect(() => {
@@ -343,41 +333,30 @@ export const AuthPage = () => {
                   placeholder="Email"
                   {...registerForm.register('email')}
                 />
-                <Input
-                  type={showRegisterPassword ? 'text' : 'password'}
+                <input
+                  type="password"
                   placeholder="Пароль"
                   autoComplete="new-password"
-                  error={shouldShowPasswordHint ? registerForm.formState.errors.password?.message : undefined}
-                  helperText={shouldShowPasswordHint ? passwordHelpText : undefined}
-                  endAdornment={
-                    <button
-                      type="button"
-                      className={styles.passwordToggle}
-                      onClick={() => setShowRegisterPassword((prev) => !prev)}
-                      aria-label={showRegisterPassword ? 'Скрыть пароль' : 'Показать пароль'}
-                    >
-                      {showRegisterPassword ? '🙈' : '👁'}
-                    </button>
-                  }
                   {...registerForm.register('password')}
                 />
-                <Input
-                  type={showRegisterConfirmPassword ? 'text' : 'password'}
+                <span className={styles.helperText}>{passwordHelpText}</span>
+                {registerForm.formState.errors.password &&
+                  registerForm.formState.touchedFields.password && (
+                    <span>
+                      {registerForm.formState.errors.password.message}
+                    </span>
+                  )}
+                <input
+                  type="password"
                   placeholder="Повторите пароль"
                   autoComplete="new-password"
-                  error={registerForm.formState.errors.confirmPassword?.message}
-                  endAdornment={
-                    <button
-                      type="button"
-                      className={styles.passwordToggle}
-                      onClick={() => setShowRegisterConfirmPassword((prev) => !prev)}
-                      aria-label={showRegisterConfirmPassword ? 'Скрыть пароль' : 'Показать пароль'}
-                    >
-                      {showRegisterConfirmPassword ? '🙈' : '👁'}
-                    </button>
-                  }
                   {...registerForm.register('confirmPassword')}
                 />
+                {registerForm.formState.errors.confirmPassword && (
+                  <span>
+                    {registerForm.formState.errors.confirmPassword.message}
+                  </span>
+                )}
 
                 <label className={styles.consent}>
                   <input
@@ -429,23 +408,15 @@ export const AuthPage = () => {
                 {loginForm.formState.errors.phone && (
                   <span>{loginForm.formState.errors.phone.message}</span>
                 )}
-                <Input
-                  type={showLoginPassword ? 'text' : 'password'}
+                <input
+                  type="password"
                   placeholder="Пароль"
                   autoComplete="current-password"
-                  error={loginForm.formState.errors.password?.message}
-                  endAdornment={
-                    <button
-                      type="button"
-                      className={styles.passwordToggle}
-                      onClick={() => setShowLoginPassword((prev) => !prev)}
-                      aria-label={showLoginPassword ? 'Скрыть пароль' : 'Показать пароль'}
-                    >
-                      {showLoginPassword ? '🙈' : '👁'}
-                    </button>
-                  }
                   {...loginForm.register('password')}
                 />
+                {loginForm.formState.errors.password && (
+                  <span>{loginForm.formState.errors.password.message}</span>
+                )}
                 <Button type="submit">Войти</Button>
 
                 <Link className={styles.forgot} to="/auth/forgot-password">

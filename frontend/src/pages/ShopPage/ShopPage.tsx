@@ -104,10 +104,6 @@ export const ShopPage = () => {
         onSearchSubmit={applySearchNow}
         onRetry={retryShop}
         onMessage={() => navigate('/account?tab=chats')}
-        onBack={() => {
-          if (typeof window !== 'undefined' && window.history.length > 1) navigate(-1);
-          else navigate('/catalog');
-        }}
         onOpenInfo={() => setInfoOpen(true)}
         onCopyLink={copyShopLink}
         onOpenProfileMenu={openProfileMenuHandler}

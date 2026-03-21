@@ -43,22 +43,3 @@
   color: var(--danger);
   font-size: 0.85rem;
 }
-
-
-.control {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.withAdornment {
-  padding-right: 48px;
-}
-
-.adornment {
-  position: absolute;
-  right: 14px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}

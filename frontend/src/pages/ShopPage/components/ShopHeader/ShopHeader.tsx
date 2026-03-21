@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { Button } from '../../../../shared/ui/Button';
 import { Rating } from '../../../../shared/ui/Rating';
 import { Skeleton } from '../../../../shared/ui/Skeleton';
@@ -16,7 +17,6 @@ interface ShopHeaderProps {
   onSearchSubmit: () => void;
   onRetry: () => void;
   onMessage: () => void;
-  onBack: () => void;
   onOpenInfo: () => void;
   onCopyLink: () => void;
   onOpenProfileMenu: () => void;
@@ -36,7 +36,6 @@ export const ShopHeader = ({
   onSearchSubmit,
   onRetry,
   onMessage,
-  onBack,
   onOpenInfo,
   onCopyLink,
   onOpenProfileMenu
@@ -137,9 +136,9 @@ export const ShopHeader = ({
           </div>
         </div>
         <div className={styles.subLinks}>
-          <button type="button" className={styles.backLink} onClick={onBack}>
-            Назад
-          </button>
+          <Link to="/catalog" className={styles.backLink}>
+            Перейти в каталог
+          </Link>
         </div>
       </div>
     </div>

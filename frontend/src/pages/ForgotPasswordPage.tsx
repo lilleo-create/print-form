@@ -205,11 +205,9 @@ export const ForgotPasswordPage = () => {
               </a>
               <p className={styles.callToAuthHint}>После успешного подтверждения откроется экран нового пароля автоматически.</p>
             </div>
-            {error ? (
-              <Button type="button" variant="secondary" disabled={loading} onClick={() => void handleRequest()}>
-                Запросить звонок повторно
-              </Button>
-            ) : null}
+            <Button type="button" variant="secondary" disabled={loading} onClick={() => void handleRequest()}>
+              Запросить звонок повторно
+            </Button>
           </div>
         )}
 

@@ -50,7 +50,10 @@ export const BottomNav = ({
   );
   const showBottomNav =
     (forceShow || !location.pathname.startsWith('/seller')) &&
-    !location.pathname.startsWith('/auth');
+    !location.pathname.startsWith('/auth') &&
+    !['/privacy-policy', '/service-rules', '/offer'].some((route) =>
+      location.pathname.startsWith(route)
+    );
   const isOrdersActive =
     location.pathname === '/orders' ||
     (location.pathname === '/account' &&

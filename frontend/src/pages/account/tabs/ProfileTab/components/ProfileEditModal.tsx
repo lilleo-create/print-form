@@ -46,11 +46,14 @@ export const ProfileEditModal = ({ isOpen, onClose, onSaved }: ProfileEditModalP
     event.preventDefault();
     const trimmedName = name.trim();
     const trimmedEmail = email.trim();
+    const trimmedPhone = phone.trim();
     setIsSaving(true);
     try {
       await updateProfile({
         name: trimmedName || undefined,
-        email: trimmedEmail || undefined
+        fullName: fullName.trim() || undefined,
+        email: trimmedEmail || undefined,
+        phone: trimmedPhone || undefined
       });
       onSaved();
     } finally {
@@ -78,9 +81,9 @@ export const ProfileEditModal = ({ isOpen, onClose, onSaved }: ProfileEditModalP
             Никнейм
             <input value={name} onChange={(event) => setName(event.target.value)} />
           </label>
-          <label className={`${styles.field} ${styles.fieldDisabled}`}>
+          <label className={styles.field}>
             ФИО
-            <input value={fullName} readOnly disabled />
+            <input value={fullName} onChange={(event) => setFullName(event.target.value)} />
           </label>
           <label className={styles.field}>
             Email
@@ -90,16 +93,14 @@ export const ProfileEditModal = ({ isOpen, onClose, onSaved }: ProfileEditModalP
               onChange={(event) => setEmail(event.target.value)}
             />
           </label>
-          <label className={`${styles.field} ${styles.fieldDisabled}`}>
+          <label className={styles.field}>
             Телефон
             <input
               type="tel"
               value={phone}
-              readOnly
-              disabled
+              onChange={(event) => setPhone(event.target.value)}
             />
           </label>
-          <p className={styles.caption}>Для смены контактной информации обратитесь в поддержку</p>
           <div className={styles.actions}>
             <Button type="submit" disabled={isSaving}>
               {isSaving ? 'Сохранение…' : 'Сохранить'}

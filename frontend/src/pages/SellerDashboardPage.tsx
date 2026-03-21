@@ -32,7 +32,10 @@ const menuItems = [
   'Сводка',
   'Товары',
   'Заказы',
+  'Логистика',
+  'Продвижение',
   'Бухгалтерия',
+  'Отчеты',
   'Поддержка',
   'Настройки'
 ] as const;
@@ -137,6 +140,8 @@ export const SellerDashboardPage = () => {
   const [ordersError, setOrdersError] = useState<string | null>(null);
 
   const [orderUpdateError, setOrderUpdateError] = useState<string | null>(null);
+  const [trackingSearch, setTrackingSearch] = useState('');
+  const [trackingResult, setTrackingResult] = useState<any | null>(null);
 
   const [labelDownloaded, setLabelDownloaded] = useState<Record<string, boolean>>({});
   const [actDownloaded, setActDownloaded] = useState<Record<string, boolean>>({});
@@ -147,7 +152,8 @@ export const SellerDashboardPage = () => {
   const [isKycSubmitting, setIsKycSubmitting] = useState(false);
   const [kycMessage, setKycMessage] = useState<string | null>(null);
   const [kycError, setKycError] = useState<string | null>(null);
-  const [agreementsAccepted, setAgreementsAccepted] = useState(false);
+  const [acceptedRules, setAcceptedRules] = useState(false);
+  const [acceptedPersonalData, setAcceptedPersonalData] = useState(false);
 
   const [merchantForm, setMerchantForm] = useState({
     contactName: '',
@@ -165,6 +171,7 @@ export const SellerDashboardPage = () => {
   // === Delivery profile ===
   const [dropoffPvzId, setDropoffPvzId] = useState('');
   const [dropoffPvzAddress, setDropoffPvzAddress] = useState('');
+  const [dropoffSchedule, setDropoffSchedule] = useState<'DAILY' | 'WEEKDAYS'>('WEEKDAYS');
   const [isDropoffModalOpen, setDropoffModalOpen] = useState(false);
 
   const [deliverySettingsMessage, setDeliverySettingsMessage] = useState<
@@ -218,8 +225,8 @@ export const SellerDashboardPage = () => {
         ? 'Выберите точку отгрузки (обязательно).'
         : !hasMerchantData
           ? 'Заполните обязательные поля продавца.'
-          : !agreementsAccepted
-            ? 'Подтвердите согласие с правилами сервиса.'
+          : !acceptedRules || !acceptedPersonalData
+            ? 'Подтвердите обязательные согласия.'
           : null;
 
 
@@ -275,7 +282,7 @@ export const SellerDashboardPage = () => {
     } catch (error) {
       setProducts([]);
       if (isAccessError(error) && isSellerReady) {
-        setProductsError('Добавление товаров станет доступно после подтверждения профиля продавца.');
+        setProductsError('Сессия истекла, войдите снова.');
       }
     } finally {
       setIsProductsLoading(false);
@@ -304,11 +311,12 @@ export const SellerDashboardPage = () => {
       const selectedPvzId = dropoffPvz?.pvzId ?? profileResponse.data?.defaultDropoffPvzId ?? '';
       setDropoffPvzId(selectedPvzId);
       setDropoffPvzAddress(dropoffPvz?.addressFull ?? dropoffMeta?.addressFull ?? '');
+      setDropoffSchedule(profileResponse.data?.dropoffSchedule === 'DAILY' ? 'DAILY' : 'WEEKDAYS');
     } catch (error) {
       setOrders([]);
       setOrdersView([]);
       if (isAccessError(error) && isSellerReady) {
-        setOrdersError('Раздел временно недоступен. Попробуйте обновить страницу.');
+        setOrdersError('Сессия истекла, войдите снова.');
       } else if (isSellerReady) {
         setOrdersError('Не удалось загрузить заказы.');
       }
@@ -325,7 +333,7 @@ export const SellerDashboardPage = () => {
     } catch (error) {
       setKycSubmission(null);
       if (isAccessError(error) && isSellerReady) {
-        setKycError('Проверьте доступ к кабинету продавца и попробуйте снова.');
+        setKycError('Сессия истекла, войдите снова.');
       }
     } finally {
       setKycLoading(false);
@@ -341,7 +349,7 @@ export const SellerDashboardPage = () => {
     } catch (error) {
       setPayments([]);
       if (isAccessError(error) && isSellerReady) {
-        setPaymentsError('Не удалось загрузить бухгалтерию. Попробуйте ещё раз.');
+        setPaymentsError('Сессия истекла, войдите снова.');
       }
     } finally {
       setPaymentsLoading(false);
@@ -433,8 +441,8 @@ export const SellerDashboardPage = () => {
           addressFull: dropoffPvzAddress.trim() || dropoffPvzId.trim(),
           provider: 'CDEK'
         },
-        acceptedRules: agreementsAccepted,
-        acceptedPersonalData: agreementsAccepted,
+        acceptedRules,
+        acceptedPersonalData,
         acceptedRulesSlug: 'seller-delivery-and-store-rules',
         acceptedPersonalDataSlug: 'privacy-policy'
       });
@@ -447,13 +455,13 @@ export const SellerDashboardPage = () => {
       const payload = (error as { payload?: { error?: { code?: string; message?: string } } })?.payload;
       const code = payload?.error?.code ?? normalized.code;
       if (isAccessError(error)) {
-        setKycError('Проверьте доступ к кабинету продавца и попробуйте снова.');
+        setKycError('Сессия истекла, войдите снова.');
       } else if (code === 'DROP_OFF_PVZ_REQUIRED') {
-        setKycError('Выберите точку отгрузки.');
+        setKycError('Выберите точку отгрузки (обязательно).');
       } else if (code === 'MERCHANT_DATA_VALIDATION_ERROR') {
         setKycError(payload?.error?.message ?? 'Проверьте данные продавца.');
       } else if (code === 'CONSENT_REQUIRED') {
-        setKycError(payload?.error?.message ?? 'Подтвердите согласие с правилами сервиса.');
+        setKycError(payload?.error?.message ?? 'Подтвердите обязательные согласия.');
       } else {
         setKycError(normalized.message ?? 'Не удалось отправить на проверку.');
       }
@@ -478,13 +486,25 @@ export const SellerDashboardPage = () => {
       await loadProducts();
     } catch (error) {
       if (isAccessError(error) && isSellerReady) {
-        setProductsError('Добавление товаров станет доступно после подтверждения профиля продавца.');
+        setProductsError('Сессия истекла, войдите снова.');
       } else {
         setKycMessage('Загрузка товаров доступна после одобрения KYC.');
       }
     }
   };
 
+  const handleSaveDropoffSchedule = async () => {
+    setDeliverySettingsMessage(null);
+    setDeliverySettingsError(null);
+
+    try {
+      await api.updateSellerDeliveryProfile({ dropoffSchedule });
+      setDeliverySettingsMessage('График сдачи сохранён.');
+    } catch (error) {
+      const normalized = normalizeApiError(error);
+      setDeliverySettingsError(normalized.message ?? 'Не удалось сохранить график сдачи.');
+    }
+  };
 
   const handleSaveDeliveryProfile = async () => {
     setDeliverySettingsMessage(null);
@@ -493,7 +513,7 @@ export const SellerDashboardPage = () => {
     const selectedPvzId = dropoffPvzId.trim();
 
     if (!selectedPvzId) {
-      setDeliverySettingsError('Выберите точку отгрузки.');
+      setDeliverySettingsError('Выберите пункт приёма в списке.');
       return;
     }
 
@@ -515,7 +535,7 @@ export const SellerDashboardPage = () => {
       setDropoffPvzId(syncedPvzId);
       setDropoffPvzAddress(metaAddress || dropoffPvzAddress);
 
-      setDeliverySettingsMessage('Точка отгрузки сохранена.');
+      setDeliverySettingsMessage('Пункт приёма сохранён.');
     } catch (error) {
       const normalized = normalizeApiError(error);
       setDeliverySettingsError(normalized.message ?? 'Не удалось сохранить пункт приёма.');
@@ -546,7 +566,7 @@ export const SellerDashboardPage = () => {
 
       setDropoffPvzId(selectedId);
       setDropoffPvzAddress(selection.addressFull ?? '');
-      setDeliverySettingsMessage('Точка отгрузки сохранена.');
+      setDeliverySettingsMessage('Пункт приёма сохранён.');
       setDropoffModalOpen(false);
     } catch (error) {
       const normalized = normalizeApiError(error);
@@ -655,10 +675,104 @@ export const SellerDashboardPage = () => {
     }
   };
 
+  const handleTrackingSearch = async () => {
+    if (!trackingSearch.trim()) return;
+    try {
+      const response = await api.findShipmentByTracking(trackingSearch.trim());
+      setTrackingResult(response.data);
+    } catch {
+      setTrackingResult(null);
+      setOrderUpdateError('Отправление по трек-номеру не найдено.');
+    }
+  };
 
+  const payoutLabel = (value?: string | null) => {
+    if (value === 'PAID') return 'PAID';
+    if (
+      value === 'RELEASED' ||
+      value === 'READY_TO_PAYOUT' ||
+      value === 'READY'
+    )
+      return 'READY';
+    return 'HOLD до получения';
+  };
 
+  const readyToShipDisabledReason = (order: Order) => {
+    if (!order.paidAt && order.status !== 'PAID') return 'Ожидает оплаты';
+    if (!order.isPacked) return 'Сначала отметьте упаковку';
+    if (!order.sellerDropoffPvzMeta && !dropoffPvzId)
+      return 'Не выбран ПВЗ сдачи';
+    if (
+      !order.buyerPickupPvzMeta &&
+      !order.shippingAddressId
+    )
+      return 'Не указан адрес доставки';
+    if (order.shipment?.id) return 'Заявка уже создана';
+    if (order.status === 'HANDED_TO_DELIVERY')
+      return 'Уже передан в доставку';
+    if (order.shipment?.status && ['DELIVERED', 'CANCELLED', 'FAILED'].includes(order.shipment.status)) {
+      return 'Доставка завершена';
+    }
+    return null;
+  };
+  const summary = useMemo(() => {
+    const totalProducts = products.length;
+    const totalOrders = orders.length;
 
+    const revenue = orders.reduce(
+      (sum, order) =>
+        sum +
+        order.items.reduce((itemSum, item) => itemSum + item.lineTotal, 0),
+      0
+    );
 
+    const statusCounts = statusFlow.reduce<Record<OrderStatus, number>>(
+      (acc, status) => {
+        acc[status] = orders.filter((order) => order.status === status).length;
+        return acc;
+      },
+      {} as Record<OrderStatus, number>
+    );
+
+    return { totalProducts, totalOrders, revenue, statusCounts };
+  }, [orders, products.length]);
+
+  const reportRows = useMemo(() => {
+    const days = 14;
+    const now = new Date();
+
+    return Array.from({ length: days }, (_, index) => {
+      const date = new Date(now);
+      date.setDate(now.getDate() - (days - 1 - index));
+      const dateKey = date.toISOString().split('T')[0];
+
+      const ordersForDay = orders.filter((order) =>
+        order.createdAt.startsWith(dateKey)
+      );
+
+      const revenue = ordersForDay.reduce(
+        (sum, order) =>
+          sum +
+          order.items.reduce((itemSum, item) => itemSum + item.lineTotal, 0),
+        0
+      );
+
+      return {
+        date: date.toLocaleDateString('ru-RU', {
+          day: '2-digit',
+          month: '2-digit'
+        }),
+        orders: ordersForDay.length,
+        revenue
+      };
+    });
+  }, [orders]);
+
+  const hasSummaryData = summary.totalOrders > 0 || summary.totalProducts > 0;
+
+  const logisticsOrders = orders.filter(
+    (order) => order.trackingNumber || order.carrier || order.shippingAddress
+  );
 
   const financeSummary = useMemo(() => {
     const available = payments
@@ -677,7 +791,41 @@ export const SellerDashboardPage = () => {
     return { available, frozen, released, inProcessing };
   }, [orders, payments]);
 
+  const financeChartRows = useMemo(() => {
+    const rows = Array.from({ length: 4 }, (_, index) => {
+      const date = new Date();
+      date.setMonth(date.getMonth() - (3 - index));
+      const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
+      const label = date.toLocaleDateString('ru-RU', { month: 'short' });
 
+      const orderAmount = orders
+        .filter((order) => {
+          const orderDate = new Date(order.createdAt);
+          return `${orderDate.getFullYear()}-${orderDate.getMonth()}` === monthKey;
+        })
+        .reduce((sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + item.lineTotal, 0), 0);
+
+      const payoutAmount = payments
+        .filter((payment) => {
+          const paymentDate = new Date(payment.createdAt);
+          return `${paymentDate.getFullYear()}-${paymentDate.getMonth()}` === monthKey;
+        })
+        .reduce((sum, payment) => sum + payment.amount, 0);
+
+      const frozenAmount = orders
+        .filter((order) => order.payoutStatus === 'HOLD')
+        .filter((order) => {
+          const orderDate = new Date(order.createdAt);
+          return `${orderDate.getFullYear()}-${orderDate.getMonth()}` === monthKey;
+        })
+        .reduce((sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + item.lineTotal, 0), 0);
+
+      return { label, orderAmount, payoutAmount, frozenAmount };
+    });
+
+    const maxValue = rows.reduce((max, row) => Math.max(max, row.orderAmount, row.payoutAmount, row.frozenAmount), 0);
+    return { rows, maxValue: maxValue || 1 };
+  }, [orders, payments]);
 
   const paymentStatusLabel = (status: string) => {
     switch (String(status).toUpperCase()) {
@@ -695,50 +843,6 @@ export const SellerDashboardPage = () => {
         return status;
     }
   };
-
-
-  const payoutLabel = (status?: string | null) => {
-    switch (String(status ?? '').toUpperCase()) {
-      case 'PAID':
-      case 'RELEASED':
-        return 'Выплачено';
-      case 'HOLD':
-      case 'BLOCKED':
-        return 'Удерживается';
-      case 'PENDING':
-      case 'PROCESSING':
-        return 'В обработке';
-      default:
-        return '—';
-    }
-  };
-
-  const summary = useMemo(() => {
-    const revenue = orders.reduce(
-      (sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + item.lineTotal, 0),
-      0
-    );
-    const statusCounts = statusFlow.reduce((acc, status) => {
-      acc[status] = orders.filter((order) => order.status === status).length;
-      return acc;
-    }, {} as Record<OrderStatus, number>);
-
-    return {
-      totalOrders: orders.length,
-      totalProducts: products.length,
-      revenue,
-      statusCounts
-    };
-  }, [orders, products]);
-
-  const readyToShipDisabledReason = (order: Order) => {
-    if (!hasDropoffPvz) return 'Сначала выберите точку отгрузки.';
-    if (!order.isPacked) return 'Сначала отметьте упаковку заказа.';
-    if (!order.paidAt && order.status !== 'PAID') return 'Дождитесь оплаты заказа.';
-    return null;
-  };
-
-  const hasSummaryData = summary.totalOrders > 0 || summary.totalProducts > 0;
 
   const financeOperations = useMemo(() => {
     const payoutOperations = payments.map((payment) => ({
@@ -923,25 +1027,22 @@ export const SellerDashboardPage = () => {
                       </div>
                       <fieldset disabled={isKycPending || isKycSubmitting} style={{ border: 0, padding: 0, margin: 0, display: 'grid', gap: '12px' }}>
                       <div className={styles.settingsGrid}>
-                        <label className={`${styles.labelBlock} ${styles.disabledField}`}>
+                        <label className={styles.labelBlock}>
                           Контактное лицо (ФИО)
                           <input
                             value={merchantForm.contactName}
-                            readOnly
-                            disabled
+                            onChange={(e) => setMerchantForm((p) => ({ ...p, contactName: e.target.value }))}
                             placeholder="Иванов Иван Иванович"
                           />
                         </label>
-                        <label className={`${styles.labelBlock} ${styles.disabledField}`}>
+                        <label className={styles.labelBlock}>
                           Телефон
                           <input
                             value={merchantForm.contactPhone}
-                            readOnly
-                            disabled
+                            onChange={(e) => setMerchantForm((p) => ({ ...p, contactPhone: e.target.value }))}
                             placeholder="+7 (999) 123-45-67"
                           />
                         </label>
-                        <p className={styles.helperText}>Для смены контактной информации обратитесь в поддержку.</p>
                         {(sellerProfile?.status === 'ООО' || sellerProfile?.status === 'Самозанятый') && (
                           <label className={styles.labelBlock}>
                             Официальное название
@@ -977,8 +1078,8 @@ export const SellerDashboardPage = () => {
 
                       <div className={styles.settingsGrid}>
                         <div>
-                          <span className={styles.muted}>Точка отгрузки</span>
-                          <p>{hasDropoffPvz ? 'Выбрана' : 'Пока не выбрана'}</p>
+                          <span className={styles.muted}>Выбранный dropoffPvzId</span>
+                          <p>{hasDropoffPvz ? dropoffPvzId : 'Не выбрана'}</p>
                           {dropoffPvzAddress ? <p className={styles.muted}>{dropoffPvzAddress}</p> : null}
                           <Button
                             type="button"
@@ -995,10 +1096,18 @@ export const SellerDashboardPage = () => {
                         <label className={styles.checkboxLabel}>
                           <input
                             type="checkbox"
-                            checked={agreementsAccepted}
-                            onChange={(e) => setAgreementsAccepted(e.target.checked)}
+                            checked={acceptedRules}
+                            onChange={(e) => setAcceptedRules(e.target.checked)}
                           />
-                          <span>Принимаю <a href="/offer" target="_blank" rel="noreferrer">оферту</a>, <a href="/service-rules" target="_blank" rel="noreferrer">правила сервиса</a> и <a href="/privacy-policy" target="_blank" rel="noreferrer">политику персональных данных</a></span>
+                          <span>Принимаю правила продавца и отгрузки</span>
+                        </label>
+                        <label className={styles.checkboxLabel}>
+                          <input
+                            type="checkbox"
+                            checked={acceptedPersonalData}
+                            onChange={(e) => setAcceptedPersonalData(e.target.checked)}
+                          />
+                          <span>Даю согласие на обработку персональных данных</span>
                         </label>
                       </div>
 
@@ -1286,12 +1395,78 @@ export const SellerDashboardPage = () => {
                 </div>
               )}
 
+              {activeItem === 'Логистика' && (
+                <div className={styles.section}>
+                  <div className={styles.sectionHeader}>
+                    <div>
+                      <p>Данные по доставке ваших заказов.</p>
+                    </div>
+                    <div>
+                      <input
+                        className={styles.input}
+                        placeholder="Поиск по трек-номеру"
+                        value={trackingSearch}
+                        onChange={(e) => setTrackingSearch(e.target.value)}
+                      />
+                      <Button type="button" variant="secondary" onClick={handleTrackingSearch}>
+                        Найти
+                      </Button>
+                      {trackingResult && (
+                        <p className={styles.muted}>
+                          {trackingResult.trackingNumber} · {trackingResult.status} · {trackingResult.dropoffPvz ?? '—'} → {trackingResult.pvz ?? '—'}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {logisticsOrders.length === 0 ? (
+                    <p className={styles.muted}>Нет данных по доставкам.</p>
+                  ) : (
+                    <div className={styles.ordersTable}>
+                      <div className={styles.ordersHeader}>
+                        <span>Заказ</span>
+                        <span>Адрес</span>
+                        <span>Статус</span>
+                        <span>Доставка</span>
+                      </div>
+
+                      {logisticsOrders.map((order) => (
+                        <div key={order.id} className={styles.ordersRow}>
+                          <div className={styles.cellTruncate}>
+                            <strong>№{order.id}</strong>
+                            <p className={styles.muted}>
+                              {formatDate(order.createdAt)}
+                            </p>
+                          </div>
+                          <div className={styles.cellTruncate}>
+                            {order.shippingAddress?.addressText ?? '—'}
+                          </div>
+                          <div>{statusLabels[order.status]}</div>
+                          <div className={styles.cellTruncate}>
+                            <p>{order.trackingNumber ?? '—'}</p>
+                            <p className={styles.muted}>
+                              {order.carrier ?? '—'}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeItem === 'Продвижение' && (
+                <div className={styles.section}>
+                  <p className={styles.muted}>Пока нет кампаний.</p>
+                </div>
+              )}
 
               {activeItem === 'Бухгалтерия' && (
                 <div className={styles.section}>
                   <div className={styles.sectionHeader}>
                     <div>
-                      <p>Следите за выплатами и операциями без лишних переходов.</p>
+                      <h2>Финансы продавца</h2>
+                      <p>Блок подготовлен под денежный контур маркетплейса и интеграцию с YooKassa без изменения текущей логики выплат.</p>
                     </div>
                   </div>
 
@@ -1302,6 +1477,51 @@ export const SellerDashboardPage = () => {
                     <SellerStatsCard title="В обработке" value={formatMoney(financeSummary.inProcessing)} />
                   </div>
 
+                  <div className={styles.financeGrid}>
+                    <div className={styles.financeChartCard}>
+                      <div className={styles.sectionHeader}>
+                        <div>
+                          <h3>Движение по периодам</h3>
+                          <p>Поступления, выплаты и удержания по последним месяцам.</p>
+                        </div>
+                      </div>
+                      <div className={styles.financeChartLegend}>
+                        <span><i className={styles.financeLegendRevenue} />Поступления</span>
+                        <span><i className={styles.financeLegendPayout} />Выплаты</span>
+                        <span><i className={styles.financeLegendFrozen} />Заморозка</span>
+                      </div>
+                      <div className={styles.financeChart}>
+                        {financeChartRows.rows.map((row) => (
+                          <div key={row.label} className={styles.financeChartRow}>
+                            <span className={styles.financeChartLabel}>{row.label}</span>
+                            <div className={styles.financeBars}>
+                              <div className={styles.financeBarTrack}>
+                                <div className={`${styles.financeBar} ${styles.financeBarRevenue}`} style={{ width: `${(row.orderAmount / financeChartRows.maxValue) * 100}%` }} />
+                              </div>
+                              <div className={styles.financeBarTrack}>
+                                <div className={`${styles.financeBar} ${styles.financeBarPayout}`} style={{ width: `${(row.payoutAmount / financeChartRows.maxValue) * 100}%` }} />
+                              </div>
+                              <div className={styles.financeBarTrack}>
+                                <div className={`${styles.financeBar} ${styles.financeBarFrozen}`} style={{ width: `${(row.frozenAmount / financeChartRows.maxValue) * 100}%` }} />
+                              </div>
+                            </div>
+                            <span className={styles.financeChartValue}>{formatMoney(row.orderAmount)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className={styles.financeInfoCard}>
+                      <h3>Статусы операций</h3>
+                      <ul className={styles.financeStatusList}>
+                        <li><strong>Доступно</strong><span>Средства, готовые к выводу/зачислению.</span></li>
+                        <li><strong>Заморожено</strong><span>Заказы в hold до завершения сценария доставки.</span></li>
+                        <li><strong>Выплачено</strong><span>Операции с подтвержденной выплатой продавцу.</span></li>
+                        <li><strong>В обработке</strong><span>Подготовленные backend-ом операции, ожидающие завершения.</span></li>
+                      </ul>
+                    </div>
+                  </div>
+
                   {paymentsLoading ? (
                     <p className={styles.muted}>Загрузка финансовых операций...</p>
                   ) : paymentsError ? (
@@ -1309,7 +1529,7 @@ export const SellerDashboardPage = () => {
                   ) : financeOperations.length === 0 ? (
                     <div className={styles.infoCard}>
                       <h3>История операций пока пуста</h3>
-                      <p className={styles.muted}>Здесь появятся поступления, выплаты и удержания по заказам.</p>
+                      <p className={styles.muted}>Как только появятся выплаты, холды или разблокировки, они будут показаны в этом разделе.</p>
                     </div>
                   ) : (
                     <div className={styles.ordersTable}>
@@ -1320,6 +1540,7 @@ export const SellerDashboardPage = () => {
                         <span>Сумма</span>
                         <span>Статус</span>
                       </div>
+
                       {financeOperations.map((operation) => (
                         <div key={operation.id} className={styles.financeTableRow}>
                           <span>{formatDate(operation.date)}</span>
@@ -1334,15 +1555,39 @@ export const SellerDashboardPage = () => {
                 </div>
               )}
 
+              {activeItem === 'Отчеты' && (
+                <div className={styles.section}>
+                  <div className={styles.sectionHeader}>
+                    <div>
+                      <p>Заказы за последние 14 дней.</p>
+                    </div>
+                  </div>
+
+                  {orders.length === 0 ? (
+                    <p className={styles.muted}>Данных пока нет.</p>
+                  ) : (
+                    <div className={styles.reportTable}>
+                      <div className={styles.reportHeader}>
+                        <span>Дата</span>
+                        <span>Заказы</span>
+                        <span>Выручка</span>
+                      </div>
+
+                      {reportRows.map((row) => (
+                        <div key={row.date} className={styles.reportRow}>
+                          <span>{row.date}</span>
+                          <span>{row.orders}</span>
+                          <span>{formatCurrency(row.revenue)} ₽</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {activeItem === 'Поддержка' && (
                 <div className={styles.section}>
-                  <div className={styles.infoCard}>
-                    <h3>Поддержка Print-Form</h3>
-                    <p className={styles.muted}>Если нужна помощь по подключению, товарам или доставке, откройте чат с поддержкой в разделе «Чаты».</p>
-                    <Button type="button" variant="secondary" onClick={() => navigate('/account?tab=chats')}>
-                      Перейти в чаты
-                    </Button>
-                  </div>
+                  <p className={styles.muted}>Пока нет обращений.</p>
                 </div>
               )}
 
@@ -1350,7 +1595,7 @@ export const SellerDashboardPage = () => {
                 <div className={styles.section}>
                   <div className={styles.sectionHeader}>
                     <div>
-                      <p>Основные настройки магазина и точки отгрузки.</p>
+                      <p>Актуальные данные магазина.</p>
                     </div>
                   </div>
 
@@ -1358,7 +1603,7 @@ export const SellerDashboardPage = () => {
                     <div className={styles.settingsGrid}>
                       <div>
                         <span className={styles.muted}>Название магазина</span>
-                        <p>{sellerProfile.storeName || sellerProfile.contactName || 'Магазин продавца'}</p>
+                        <p>{sellerProfile.storeName}</p>
                       </div>
                       <div>
                         <span className={styles.muted}>Статус</span>
@@ -1372,32 +1617,104 @@ export const SellerDashboardPage = () => {
                         <span className={styles.muted}>Город</span>
                         <p>{sellerProfile.city}</p>
                       </div>
+                      <div>
+                        <span className={styles.muted}>Категория</span>
+                        <p>{sellerProfile.referenceCategory}</p>
+                      </div>
+                      <div>
+                        <span className={styles.muted}>Позиция в каталоге</span>
+                        <p>{sellerProfile.catalogPosition}</p>
+                      </div>
                     </div>
                   ) : (
                     <p className={styles.muted}>Профиль продавца не найден.</p>
                   )}
 
+                  <p className={styles.muted}>
+                    Редактирование профиля доступно через форму подключения
+                    продавца.
+                  </p>
+
+
                   <div className={styles.settingsGrid}>
+                    <label>
+                      <span className={styles.muted}>Сдаю заказы</span>
+                      <select
+                        className={styles.input}
+                        value={dropoffSchedule}
+                        onChange={(event) => setDropoffSchedule(event.target.value as 'DAILY' | 'WEEKDAYS')}
+                      >
+                        <option value="DAILY">Ежедневно</option>
+                        <option value="WEEKDAYS">По будням</option>
+                      </select>
+                    </label>
                     <div>
-                      <span className={styles.muted}>Точка отгрузки</span>
-                      <p>{dropoffPvzId || 'Пока не выбрана'}</p>
-                      {dropoffPvzAddress ? <p className={styles.muted}>{dropoffPvzAddress}</p> : null}
-                      <div className={styles.inlineActions}>
-                        <Button type="button" variant="secondary" onClick={() => setDropoffModalOpen(true)}>
-                          Выбрать на карте
-                        </Button>
-                      </div>
+                      <Button type="button" variant="secondary" onClick={() => void handleSaveDropoffSchedule()}>
+                        Сохранить график сдачи
+                      </Button>
                     </div>
                   </div>
 
-                  <p className={styles.muted}>Точка нужна для оформления отгрузки и документов доставки.</p>
+                  <div className={styles.settingsGrid}>
+                    <div>
+                      <span className={styles.muted}>
+                        Пункт приёма (C2C dropoff)
+                      </span>
+                      <p>
+                        {dropoffPvzId || 'Не определена'}
+                      </p>
 
-                  <Button type="button" onClick={handleSaveDeliveryProfile} disabled={!dropoffPvzId.trim()}>
-                    Сохранить точку отгрузки
+                      {dropoffPvzAddress ? (
+                        <p className={styles.muted}>{dropoffPvzAddress}</p>
+                      ) : null}
+
+                      <div className={styles.inlineActions}>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => setDropoffModalOpen(true)}
+                        >
+                          Выбрать пункт приёма (как физлицо)
+                        </Button>
+                      </div>
+
+                      {dropoffPvzId ? (
+                        <p className={styles.muted}>
+                          Пункт приёма: {dropoffPvzId}
+                          {dropoffPvzAddress ? ` (${dropoffPvzAddress})` : ''}
+                        </p>
+                      ) : (
+                        <p className={styles.muted}>Пункт приёма не выбран.</p>
+                      )}
+
+                      {deliverySettingsError && (
+                        <p className={styles.error} style={{ marginTop: '0.5rem' }}>
+                          {deliverySettingsError}
+                        </p>
+                      )}
+
+                    </div>
+                  </div>
+
+                  <p className={styles.muted}>
+                    Используется для создания заявок CDEK для отгрузки в ПВЗ.
+                  </p>
+
+                  <Button
+                    type="button"
+                    onClick={handleSaveDeliveryProfile}
+                    disabled={!dropoffPvzId.trim()}
+                  >
+                    Сохранить пункт приёма
                   </Button>
 
-                  {deliverySettingsMessage && <p className={styles.muted}>{deliverySettingsMessage}</p>}
-                  {deliverySettingsError && <p className={styles.error}>{deliverySettingsError}</p>}
+
+                  {deliverySettingsMessage && (
+                    <p className={styles.muted}>{deliverySettingsMessage}</p>
+                  )}
+                  {deliverySettingsError && (
+                    <p className={styles.error}>{deliverySettingsError}</p>
+                  )}
                 </div>
               )}
 

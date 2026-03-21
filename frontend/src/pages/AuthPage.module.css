@@ -219,18 +219,3 @@
   font-size: 12px;
   color: var(--muted);
 }
-
-
-.passwordToggle {
-  border: none;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  padding: 0;
-  font-size: 18px;
-  line-height: 1;
-}
-
-.passwordToggle:hover {
-  color: var(--text);
-}
