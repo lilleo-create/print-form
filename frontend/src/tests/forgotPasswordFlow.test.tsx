@@ -1,12 +1,12 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { ForgotPasswordPage } from '../pages/ForgotPasswordPage';
-import { api } from '../shared/api';
+import { authApi } from '../shared/api/authApi';
 
-vi.mock('../shared/api', () => ({
-  api: {
+vi.mock('../shared/api/authApi', () => ({
+  authApi: {
     requestPasswordReset: vi.fn(),
-    otpStatus: vi.fn(),
+    checkOtpStatus: vi.fn(),
     verifyPasswordReset: vi.fn(),
     confirmPasswordReset: vi.fn()
   }
@@ -15,21 +15,18 @@ vi.mock('../shared/api', () => ({
 describe('Forgot password recovery flow', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
   });
 
   it('shows call confirmation UI without legacy code copy or early retry CTA', async () => {
-    vi.mocked(api.requestPasswordReset).mockResolvedValue({
-      data: {
-        delivery: {
-          requestId: 'req-1',
-          verificationType: 'call_to_auth',
-          callToAuthNumber: '78005553535',
-          phone: '79990000000',
-          expiresInSec: 120
-        }
-      }
+    vi.mocked(authApi.requestPasswordReset).mockResolvedValue({
+      requestId: 'req-1',
+      verificationType: 'call_to_auth',
+      callToAuthNumber: '78005553535',
+      phone: '79990000000',
+      expiresInSec: 120
     } as never);
-    vi.mocked(api.otpStatus).mockResolvedValue({ data: { data: { status: 'pending' } } } as never);
+    vi.mocked(authApi.checkOtpStatus).mockResolvedValue('pending' as never);
 
     render(
       <MemoryRouter initialEntries={['/auth/forgot-password']}>
@@ -45,25 +42,21 @@ describe('Forgot password recovery flow', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Продолжить' }));
     });
 
-    expect(await screen.findByText('Ожидаем подтверждение звонком')).toBeInTheDocument();
-    expect(screen.getByText(/Подтверждение выполняется автоматически после звонка/i)).toBeInTheDocument();
+    expect(await screen.findByText('Подтвердите восстановление пароля')).toBeInTheDocument();
+    expect(screen.getByText(/После звонка подтверждение завершится автоматически/i)).toBeInTheDocument();
     expect(screen.queryByText('Код подтверждения')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Запросить звонок повторно' })).not.toBeInTheDocument();
   });
 
   it('shows retry CTA after confirmation timeout', async () => {
-    vi.mocked(api.requestPasswordReset).mockResolvedValue({
-      data: {
-        delivery: {
-          requestId: 'req-1',
-          verificationType: 'call_to_auth',
-          callToAuthNumber: '78005553535',
-          phone: '79990000000',
-          expiresInSec: 5
-        }
-      }
+    vi.mocked(authApi.requestPasswordReset).mockResolvedValue({
+      requestId: 'req-1',
+      verificationType: 'call_to_auth',
+      callToAuthNumber: '78005553535',
+      phone: '79990000000',
+      expiresInSec: 5
     } as never);
-    vi.mocked(api.otpStatus).mockResolvedValue({ data: { data: { status: 'expired' } } } as never);
+    vi.mocked(authApi.checkOtpStatus).mockResolvedValue('expired' as never);
 
     render(
       <MemoryRouter initialEntries={['/auth/forgot-password']}>
@@ -79,12 +72,12 @@ describe('Forgot password recovery flow', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Продолжить' }));
     });
 
-    expect(await screen.findByText('Ожидаем подтверждение звонком')).toBeInTheDocument();
+    expect(await screen.findByText('Подтвердите восстановление пароля')).toBeInTheDocument();
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Запросить звонок повторно' })).toBeInTheDocument();
     }, { timeout: 4000 });
-    expect(screen.getByText('Подтверждение звонком не завершилось вовремя. Запросите звонок повторно.')).toBeInTheDocument();
+    expect(screen.getByText('Время ожидания звонка истекло. Запросите подтверждение снова.')).toBeInTheDocument();
 
   }, 10000);
 });

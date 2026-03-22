@@ -6,6 +6,8 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '../shared/ui/Button';
 import { useAuthStore } from '../app/store/authStore';
 import { api } from '../shared/api';
+import { loadFromStorage, removeFromStorage, saveToStorage } from '../shared/lib/storage';
+import { STORAGE_KEYS } from '../shared/constants/storageKeys';
 import {
   formatRuPhoneInput,
   normalizePhone,
@@ -155,7 +157,15 @@ export const AuthPage = () => {
   const [otpToken, setOtpToken] = useState<string | null>(null);
   const [otpPurpose, setOtpPurpose] = useState<Purpose>('buyer_register_phone');
   const [otpPhone, setOtpPhone] = useState<string>('');
-  const [otpContext, setOtpContext] = useState<'default' | 'device_verification'>('default');
+  const [otpContext, setOtpContext] = useState<'registration' | 'device_verification'>('registration');
+  const [otpRequest, setOtpRequest] = useState<{
+    requestId: string;
+    verificationType: 'call_to_auth' | 'code';
+    callToAuthNumber?: string | null;
+    phone?: string;
+    status?: string;
+    expiresInSec?: number;
+  } | null>(null);
   const [otpUiState, setOtpUiState] = useState<
     'idle' | 'requesting' | 'call_to_auth' | 'error'
   >('idle');
@@ -166,6 +176,7 @@ export const AuthPage = () => {
   const verifyOtp = useAuthStore((s) => s.verifyOtp);
   const checkOtpStatus = useAuthStore((s) => s.checkOtpStatus);
   const setUser = useAuthStore((s) => s.setUser);
+  const persistedOtp = useAuthStore((s) => s.otp);
 
   const redirectTo = useMemo(() => {
     const params = new URLSearchParams(location.search);
@@ -238,8 +249,10 @@ export const AuthPage = () => {
     setOtpToken(null);
     setOtpPhone('');
     setOtpPurpose('buyer_register_phone');
-    setOtpContext('default');
+    setOtpContext('registration');
+    setOtpRequest(null);
     setOtpUiState('idle');
+    removeFromStorage(STORAGE_KEYS.authOtpFlow);
   };
 
   const resetMessages = () => {
@@ -263,6 +276,51 @@ export const AuthPage = () => {
     }
   }, [location.state]);
 
+  useEffect(() => {
+    if (!otpRequired) {
+      return;
+    }
+
+    saveToStorage(STORAGE_KEYS.authOtpFlow, {
+      required: otpRequired,
+      tempToken: otpToken,
+      phone: otpPhone,
+      purpose: otpPurpose,
+      context: otpContext,
+      request: otpRequest,
+    });
+  }, [otpContext, otpPhone, otpPurpose, otpRequest, otpRequired, otpToken]);
+
+  useEffect(() => {
+    const stored = loadFromStorage<{
+      required?: boolean;
+      tempToken?: string | null;
+      phone?: string;
+      purpose?: Purpose;
+      context?: 'registration' | 'device_verification';
+      request?: typeof otpRequest;
+    } | null>(STORAGE_KEYS.authOtpFlow, null);
+
+    if (stored?.required && stored.tempToken && stored.phone) {
+      setOtpRequired(true);
+      setOtpToken(stored.tempToken);
+      setOtpPhone(stored.phone);
+      setOtpPurpose(stored.purpose ?? 'buyer_register_phone');
+      setOtpContext(stored.context ?? 'registration');
+      setOtpRequest(stored.request ?? null);
+      return;
+    }
+
+    if (persistedOtp.required && persistedOtp.tempToken && persistedOtp.phone) {
+      setOtpRequired(true);
+      setOtpToken(persistedOtp.tempToken);
+      setOtpPhone(persistedOtp.phone);
+      setOtpPurpose((persistedOtp.purpose ?? 'buyer_register_phone') as Purpose);
+      setOtpContext((persistedOtp.context ?? 'registration') as 'registration' | 'device_verification');
+      setOtpRequest(persistedOtp.otpRequest);
+    }
+  }, [persistedOtp]);
+
   const onLogin = async (values: LoginValues) => {
     resetMessages();
     resetOtp();
@@ -275,8 +333,9 @@ export const AuthPage = () => {
         setOtpPurpose('buyer_register_phone');
         setOtpRequired(true);
         setOtpToken(result.tempToken ?? null);
-        setOtpPhone(result.verification?.phone ?? result.user?.phone ?? normalizedPhone);
-        setOtpContext(result.otpContext ?? 'default');
+        setOtpPhone(result.phone ?? result.verification?.phone ?? result.user?.phone ?? normalizedPhone);
+        setOtpContext((result.otpContext ?? 'registration') as 'registration' | 'device_verification');
+        setOtpRequest(result.otpRequest ?? null);
         setMessage(
           result.otpContext === 'device_verification'
             ? 'Подтвердите вход с нового устройства звонком.'
@@ -315,6 +374,7 @@ export const AuthPage = () => {
         setOtpRequired(true);
         setOtpToken(result.tempToken ?? null);
         setOtpPhone(values.phone);
+        setOtpRequest(null);
         setMessage('Подтвердите номер телефона звонком, чтобы завершить регистрацию.');
         return;
       }
@@ -358,17 +418,22 @@ export const AuthPage = () => {
                 tempToken={otpToken}
                 initialPhone={otpPhone}
                 context={otpContext}
+                initialRequest={otpRequest}
                 title={otpContext === 'device_verification' ? 'Подтвердите вход с нового устройства' : undefined}
                 introMessage={otpContext === 'device_verification' ? 'Ожидаем автоматическое подтверждение входа после звонка.' : undefined}
                 onRequestOtp={requestOtp}
                 onCheckOtpStatus={checkOtpStatus}
                 onVerifyOtp={verifyOtp}
                 onSuccess={() => {
+                  removeFromStorage(STORAGE_KEYS.authOtpFlow);
                   void handleRedirect();
                 }}
                 setMessage={setMessage}
                 setError={setError}
                 onUiStateChange={setOtpUiState}
+                onBack={() => {
+                  resetOtp();
+                }}
               />
             ) : isRegister ? (
               <form

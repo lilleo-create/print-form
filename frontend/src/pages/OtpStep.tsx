@@ -9,6 +9,8 @@ type OtpRequestData = {
   verificationType: 'call_to_auth' | 'code';
   callToAuthNumber?: string | null;
   phone?: string;
+  status?: string;
+  expiresInSec?: number;
 };
 type OtpUiState = 'idle' | 'requesting' | 'call_to_auth' | 'error';
 
@@ -57,9 +59,12 @@ export function OtpStep(props: {
   purpose: Purpose;
   tempToken: string | null;
   initialPhone?: string;
-  context?: 'default' | 'device_verification';
+  context?: 'registration' | 'device_verification' | 'password_reset';
   title?: string;
   introMessage?: string;
+  initialRequest?: OtpRequestData | null;
+  hidePhoneInput?: boolean;
+  idleMessage?: string;
   onRequestOtp: (p: { phone: string; purpose: Purpose }, token?: string | null) => Promise<OtpRequestData | null>;
   onCheckOtpStatus: (requestId: string, token?: string | null) => Promise<'pending' | 'verified' | 'expired' | 'failed' | 'cancelled'>;
   onVerifyOtp: (p: { phone: string; code?: string; requestId?: string; purpose: Purpose }, token?: string | null) => Promise<void>;
@@ -67,14 +72,16 @@ export function OtpStep(props: {
   setMessage: (v: string) => void;
   setError: (v: string) => void;
   onUiStateChange?: (state: OtpUiState) => void;
+  onBack?: () => void;
 }) {
-  const { purpose, tempToken, initialPhone } = props;
+  const { purpose, tempToken, initialPhone, initialRequest } = props;
 
   const [otpUiState, setOtpUiState] = useState<OtpUiState>('idle');
   const [phone, setPhone] = useState('');
   const [callToAuthNumber, setCallToAuthNumber] = useState<string | null>(null);
   const pollingRef = useRef<number | null>(null);
   const autoRequestedRef = useRef(false);
+  const requestIdRef = useRef<string | null>(null);
 
   const stopPolling = useCallback(() => {
     if (pollingRef.current) {
@@ -86,10 +93,11 @@ export function OtpStep(props: {
   useEffect(() => {
     stopPolling();
     setOtpUiState('idle');
-    setCallToAuthNumber(null);
+    setCallToAuthNumber(initialRequest?.callToAuthNumber ?? null);
     setPhone(initialPhone ? formatRuPhone(initialPhone) : '');
-    autoRequestedRef.current = false;
-  }, [initialPhone, purpose, stopPolling]);
+    requestIdRef.current = initialRequest?.requestId ?? null;
+    autoRequestedRef.current = Boolean(initialRequest?.requestId);
+  }, [initialPhone, initialRequest, purpose, stopPolling]);
 
   useEffect(() => () => stopPolling(), [stopPolling]);
 
@@ -99,6 +107,45 @@ export function OtpStep(props: {
     const ten = v11.slice(1);
     return ten.length === 10 && ten[0] === '9';
   };
+
+  const beginPolling = useCallback(
+    async (requestData: OtpRequestData, verifiedPhone: string) => {
+      requestIdRef.current = requestData.requestId;
+      setOtpUiState('call_to_auth');
+      setCallToAuthNumber(requestData.callToAuthNumber ?? null);
+      if (requestData.phone) {
+        setPhone(formatRuPhone(requestData.phone));
+      }
+      props.setMessage(props.introMessage ?? 'Ожидаем автоматическое подтверждение после звонка.');
+
+      stopPolling();
+      pollingRef.current = window.setInterval(() => {
+        void (async () => {
+          try {
+            const status = await props.onCheckOtpStatus(requestData.requestId, tempToken);
+            if (status === 'verified') {
+              stopPolling();
+              await props.onVerifyOtp({ phone: verifiedPhone, requestId: requestData.requestId, purpose }, tempToken);
+              props.onSuccess();
+              return;
+            }
+            if (status === 'expired' || status === 'failed' || status === 'cancelled') {
+              stopPolling();
+              requestIdRef.current = null;
+              setOtpUiState('error');
+              props.setError('Время ожидания звонка истекло. Запросите подтверждение снова.');
+            }
+          } catch {
+            stopPolling();
+            requestIdRef.current = null;
+            setOtpUiState('error');
+            props.setError('Не удалось проверить статус подтверждения.');
+          }
+        })();
+      }, POLL_INTERVAL_MS);
+    },
+    [props, purpose, stopPolling, tempToken]
+  );
 
   const request = useCallback(async () => {
     props.setError('');
@@ -126,46 +173,30 @@ export function OtpStep(props: {
         return;
       }
 
-      setOtpUiState('call_to_auth');
-      setCallToAuthNumber(data.callToAuthNumber ?? null);
-      if (data.phone) {
-        setPhone(formatRuPhone(data.phone));
-      }
-      props.setMessage(props.introMessage ?? 'Ожидаем автоматическое подтверждение после звонка.');
-
-      stopPolling();
-      pollingRef.current = window.setInterval(() => {
-        void (async () => {
-          try {
-            const status = await props.onCheckOtpStatus(data.requestId, tempToken);
-            if (status === 'verified') {
-              stopPolling();
-              await props.onVerifyOtp({ phone: v11, requestId: data.requestId, purpose }, tempToken);
-              props.onSuccess();
-              return;
-            }
-            if (status === 'expired' || status === 'failed' || status === 'cancelled') {
-              stopPolling();
-              setOtpUiState('error');
-              props.setError('Время ожидания звонка истекло. Запросите подтверждение снова.');
-            }
-          } catch {
-            stopPolling();
-            setOtpUiState('error');
-            props.setError('Не удалось проверить статус подтверждения.');
-          }
-        })();
-      }, POLL_INTERVAL_MS);
+      await beginPolling(data, v11);
     } catch (error) {
       const normalized = normalizeApiError(error);
       setOtpUiState('error');
       if (normalized.code === 'OTP_PROVIDER_UNAVAILABLE') {
         props.setError('Не удалось начать подтверждение номера. Попробуйте ещё раз.');
+      } else if (normalized.code === 'OTP_TOKEN_REQUIRED') {
+        props.setError('Сессия подтверждения истекла. Начните ещё раз.');
+      } else if (normalized.status === 429) {
+        props.setError('Слишком много запросов. Попробуйте чуть позже.');
       } else {
         props.setError('Не удалось начать подтверждение звонком.');
       }
     }
-  }, [phone, props, purpose, stopPolling, tempToken]);
+  }, [beginPolling, phone, props, purpose, tempToken]);
+
+  useEffect(() => {
+    if (!initialRequest?.requestId || initialRequest.verificationType !== 'call_to_auth') {
+      return;
+    }
+
+    const verifiedPhone = toE164Ru(initialRequest.phone ?? phone ?? initialPhone ?? '');
+    void beginPolling(initialRequest, verifiedPhone);
+  }, [beginPolling, initialPhone, initialRequest, phone]);
 
   useEffect(() => {
     if (autoRequestedRef.current) return;
@@ -197,18 +228,34 @@ export function OtpStep(props: {
       )}
 
       {otpUiState === 'error' && (
-        <Button
-          type="button"
-          disabled={isBusy}
-          onClick={() => void request()}
-          variant="secondary"
-          className={styles.lightButtonText}
-        >
-          Запросить звонок повторно
-        </Button>
+        <>
+          <Button
+            type="button"
+            disabled={isBusy}
+            onClick={() => void request()}
+            variant="secondary"
+            className={styles.lightButtonText}
+          >
+            Запросить звонок повторно
+          </Button>
+          {props.onBack && (
+            <Button type="button" disabled={isBusy} onClick={props.onBack} variant="ghost">
+              Назад
+            </Button>
+          )}
+        </>
       )}
 
-      {otpUiState === 'idle' && <p className={styles.subtitle}>{props.context === 'device_verification' ? 'Подготавливаем подтверждение входа…' : 'Подготавливаем подтверждение номера…'}</p>}
+      {otpUiState === 'idle' && (
+        <p className={styles.subtitle}>
+          {props.idleMessage ??
+            (props.context === 'device_verification'
+              ? 'Подготавливаем подтверждение входа…'
+              : props.context === 'password_reset'
+                ? 'Подготавливаем подтверждение для восстановления пароля…'
+                : 'Подготавливаем подтверждение номера…')}
+        </p>
+      )}
     </div>
   );
 }

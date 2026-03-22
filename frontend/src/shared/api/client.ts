@@ -166,10 +166,13 @@ export function createFetchClient(baseUrl: string) {
       null
     );
 
-    const authToken = opts?.token ?? storedToken;
+    const explicitToken = opts?.token ?? null;
+    const authToken = explicitToken ?? storedToken;
     const isAuthRoute = isPublicAuthPath(path);
 
-    if (authToken && !isAuthRoute) {
+    if (explicitToken) {
+      headers.Authorization = `Bearer ${explicitToken}`;
+    } else if (authToken && !isAuthRoute) {
       headers.Authorization = `Bearer ${authToken}`;
     }
 

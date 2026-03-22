@@ -11,12 +11,24 @@ type OtpRequiredResult = {
   requiresOtp: true;
   tempToken: string;
   user: User;
-  otpContext?: 'default' | 'device_verification';
+  otpContext?: 'registration' | 'device_verification' | 'password_reset';
   verification?: {
     channel: DeviceVerificationChannel;
     phone: string | null;
     reason: string | null;
   };
+  requestId?: string | null;
+  phone?: string | null;
+  verificationMethod?: string | null;
+  otpRequest?: {
+    requestId: string;
+    provider?: string;
+    verificationType: 'call_to_auth' | 'code';
+    callToAuthNumber?: string | null;
+    phone?: string;
+    status?: string;
+    expiresInSec?: number;
+  } | null;
 };
 
 type AuthSuccessResult = {
@@ -39,11 +51,22 @@ interface AuthState {
     tempToken: string | null;
     phone: string | null;
     user: User | null;
-    context: 'default' | 'device_verification';
+    context: 'registration' | 'device_verification' | 'password_reset';
     verification: {
       channel: DeviceVerificationChannel;
       phone: string | null;
       reason: string | null;
+    } | null;
+    requestId: string | null;
+    verificationMethod: string | null;
+    otpRequest: {
+      requestId: string;
+      provider?: string;
+      verificationType: 'call_to_auth' | 'code';
+      callToAuthNumber?: string | null;
+      phone?: string;
+      status?: string;
+      expiresInSec?: number;
     } | null;
   };
 
@@ -55,12 +78,24 @@ interface AuthState {
         requiresOtp: true;
         tempToken?: string;
         user?: User;
-        otpContext?: 'default' | 'device_verification';
+        otpContext?: 'registration' | 'device_verification' | 'password_reset';
         verification?: {
           channel: DeviceVerificationChannel;
           phone: string | null;
           reason: string | null;
         };
+        requestId?: string | null;
+        phone?: string | null;
+        verificationMethod?: string | null;
+        otpRequest?: {
+          requestId: string;
+          provider?: string;
+          verificationType: 'call_to_auth' | 'code';
+          callToAuthNumber?: string | null;
+          phone?: string;
+          status?: string;
+          expiresInSec?: number;
+        } | null;
       }
     | {
         requiresOtp: false;
@@ -133,8 +168,11 @@ const emptyOtp: AuthState['otp'] = {
   tempToken: null,
   phone: null,
   user: null,
-  context: 'default',
+  context: 'registration',
   verification: null,
+  requestId: null,
+  verificationMethod: null,
+  otpRequest: null,
 };
 
 export const useAuthStore = create<AuthState>((set, get) => {
@@ -169,18 +207,25 @@ export const useAuthStore = create<AuthState>((set, get) => {
             required: true,
             purpose: 'buyer_register_phone',
             tempToken: result.tempToken,
-            phone: result.user.phone ?? null,
+            phone: result.phone ?? result.user.phone ?? null,
             user: result.user,
-            context: result.otpContext ?? 'default',
+            context: result.otpContext ?? 'registration',
             verification: result.verification ?? null,
+            requestId: result.requestId ?? result.otpRequest?.requestId ?? null,
+            verificationMethod: result.verificationMethod ?? null,
+            otpRequest: result.otpRequest ?? null,
           },
         });
         return {
           requiresOtp: true,
           tempToken: result.tempToken,
           user: result.user,
-          otpContext: result.otpContext ?? 'default',
+          otpContext: result.otpContext ?? 'registration',
           verification: result.verification,
+          requestId: result.requestId ?? null,
+          phone: result.phone ?? null,
+          verificationMethod: result.verificationMethod ?? null,
+          otpRequest: result.otpRequest ?? null,
         };
       }
 
@@ -206,8 +251,11 @@ export const useAuthStore = create<AuthState>((set, get) => {
             tempToken: result.tempToken,
             phone: payload.phone ?? result.user.phone ?? null,
             user: result.user,
-            context: 'default',
+            context: 'registration',
             verification: null,
+            requestId: null,
+            verificationMethod: null,
+            otpRequest: null,
           },
         });
         return { requiresOtp: true, tempToken: result.tempToken, user: result.user };

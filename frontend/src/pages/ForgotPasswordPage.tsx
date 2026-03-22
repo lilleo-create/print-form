@@ -1,47 +1,42 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../shared/ui/Button';
-import { api } from '../shared/api';
+import { authApi } from '../shared/api/authApi';
 import { normalizeApiError } from '../shared/api/client';
-import { formatRuPhoneInput, normalizePhone, toE164Ru } from '../shared/lib/validation';
+import { loadFromStorage, removeFromStorage, saveToStorage } from '../shared/lib/storage';
+import { STORAGE_KEYS } from '../shared/constants/storageKeys';
+import { formatRuPhoneInput, toE164Ru } from '../shared/lib/validation';
+import { OtpStep } from './OtpStep';
 import styles from './ForgotPasswordPage.module.css';
 
-type Step = 'request' | 'call_to_auth' | 'reset';
-type DeliveryData = {
-  requestId?: string;
-  provider?: string;
-  verificationType?: 'call_to_auth' | 'code';
-  callToAuthNumber?: string | null;
-  phone?: string;
-  status?: string;
-  expiresInSec?: number;
-};
+type Step = 'request' | 'otp' | 'reset';
 
-const POLL_INTERVAL_MS = 3000;
-
-const formatCallToAuthPhone = (value: string | null | undefined) => (value ? formatRuPhoneInput(value) : 'номер недоступен');
-const toTelHref = (value: string | null | undefined) => {
-  const digits = normalizePhone(value ?? '');
-  if (!digits) return '';
-  return digits.startsWith('8') ? `tel:+7${digits.slice(1)}` : `tel:+${digits}`;
+type PersistedResetFlow = {
+  step: Step;
+  phone: string;
+  resetToken: string;
+  otpRequest: {
+    requestId: string;
+    verificationType: 'call_to_auth' | 'code';
+    callToAuthNumber?: string | null;
+    phone?: string;
+    status?: string;
+    expiresInSec?: number;
+  } | null;
 };
 
 export const ForgotPasswordPage = () => {
   const navigate = useNavigate();
-  const pollingRef = useRef<number | null>(null);
 
   const [step, setStep] = useState<Step>('request');
   const [phone, setPhone] = useState('');
   const [resetToken, setResetToken] = useState('');
-  const [callToAuthNumber, setCallToAuthNumber] = useState<string | null>(null);
+  const [otpRequest, setOtpRequest] = useState<PersistedResetFlow['otpRequest']>(null);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [canRetryCall, setCanRetryCall] = useState(false);
-  const [callDeadlineAt, setCallDeadlineAt] = useState<number | null>(null);
-  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
 
   const normalizedPhone = useMemo(() => toE164Ru(phone), [phone]);
 
@@ -50,106 +45,54 @@ export const ForgotPasswordPage = () => {
     setMessage('');
   };
 
-  const stopPolling = useCallback(() => {
-    if (pollingRef.current) {
-      window.clearInterval(pollingRef.current);
-      pollingRef.current = null;
-    }
-  }, []);
-
-  useEffect(() => () => stopPolling(), [stopPolling]);
+  const clearPersistedFlow = () => {
+    removeFromStorage(STORAGE_KEYS.passwordResetFlow);
+  };
 
   useEffect(() => {
-    if (!callDeadlineAt) {
-      setSecondsLeft(null);
+    const stored = loadFromStorage<PersistedResetFlow | null>(STORAGE_KEYS.passwordResetFlow, null);
+    if (!stored?.phone) {
       return;
     }
 
-    const updateSecondsLeft = () => {
-      const next = Math.max(0, Math.ceil((callDeadlineAt - Date.now()) / 1000));
-      setSecondsLeft(next);
-      if (next === 0) {
-        setCanRetryCall(true);
-      }
-    };
-
-    updateSecondsLeft();
-    const timerId = window.setInterval(updateSecondsLeft, 1000);
-    return () => window.clearInterval(timerId);
-  }, [callDeadlineAt]);
-
-  const finishResetVerification = useCallback(async (payload: { phone: string; requestId?: string }) => {
-    const response = await api.verifyPasswordReset(payload);
-    setResetToken(response.data.resetToken);
-    setStep('reset');
-    setCanRetryCall(false);
-    setCallDeadlineAt(null);
-    setMessage('Подтверждение прошло. Теперь задайте новый пароль.');
+    setPhone(stored.phone);
+    setResetToken(stored.resetToken ?? '');
+    setOtpRequest(stored.otpRequest ?? null);
+    setStep(stored.step ?? 'request');
   }, []);
 
-  const startPolling = useCallback((currentRequestId: string, currentPhone: string) => {
-    stopPolling();
-    pollingRef.current = window.setInterval(() => {
-      void (async () => {
-        try {
-          const status = await api.otpStatus(currentRequestId);
-          if (status.data.data.status === 'verified') {
-            stopPolling();
-            setLoading(true);
-            try {
-              await finishResetVerification({ phone: currentPhone, requestId: currentRequestId });
-            } catch {
-              setCanRetryCall(true);
-              setError('Подтверждение прошло, но не удалось открыть смену пароля. Попробуйте запросить звонок ещё раз.');
-              setStep('request');
-            } finally {
-              setLoading(false);
-            }
-            return;
-          }
-
-          if (['expired', 'failed', 'cancelled'].includes(status.data.data.status)) {
-            stopPolling();
-            setCanRetryCall(true);
-            setError('Подтверждение звонком не завершилось вовремя. Запросите звонок повторно.');
-          }
-        } catch {
-          stopPolling();
-          setCanRetryCall(true);
-          setError('Не удалось проверить статус подтверждения. Запросите звонок повторно.');
-        }
-      })();
-    }, POLL_INTERVAL_MS);
-  }, [finishResetVerification, stopPolling]);
+  useEffect(() => {
+    saveToStorage(STORAGE_KEYS.passwordResetFlow, {
+      step,
+      phone,
+      resetToken,
+      otpRequest,
+    } satisfies PersistedResetFlow);
+  }, [otpRequest, phone, resetToken, step]);
 
   const handleRequest = async () => {
     resetMessages();
     setLoading(true);
+
     try {
-      const response = await api.requestPasswordReset({ phone: normalizedPhone });
-      const delivery = response.data.delivery as DeliveryData | undefined;
-
-      setCallToAuthNumber(delivery?.callToAuthNumber ?? null);
-      setCanRetryCall(false);
-      setCallDeadlineAt(delivery?.expiresInSec ? Date.now() + delivery.expiresInSec * 1000 : null);
-      if (delivery?.phone) {
-        setPhone(formatRuPhoneInput(delivery.phone));
-      }
-
-      if (delivery?.verificationType === 'call_to_auth' && delivery.requestId) {
-        setStep('call_to_auth');
-        setMessage('Ожидаем подтверждение звонком. После успешного подтверждения откроется экран нового пароля.');
-        startPolling(delivery.requestId, delivery.phone ?? normalizedPhone);
+      const request = await authApi.requestPasswordReset({ phone: normalizedPhone });
+      if (!request || request.verificationType !== 'call_to_auth') {
+        setError('Не удалось запустить подтверждение звонком. Попробуйте ещё раз.');
         return;
       }
 
-      setStep('request');
-      setCanRetryCall(true);
-      setError('Не удалось запустить подтверждение звонком. Попробуйте ещё раз.');
-    } catch (error) {
-      const normalized = normalizeApiError(error);
+      setOtpRequest(request);
+      setStep('otp');
+      setMessage('Подтвердите восстановление пароля звонком. После подтверждения откроется форма нового пароля.');
+      if (request.phone) {
+        setPhone(formatRuPhoneInput(request.phone));
+      }
+    } catch (rawError) {
+      const normalized = normalizeApiError(rawError);
       if (normalized.code === 'NOT_FOUND') {
         setError('Пользователь с таким номером телефона не найден.');
+      } else if (normalized.status === 429) {
+        setError('Слишком много запросов. Попробуйте чуть позже.');
       } else {
         setError('Не удалось начать восстановление пароля.');
       }
@@ -168,9 +111,11 @@ export const ForgotPasswordPage = () => {
       setError('Пароли не совпадают.');
       return;
     }
+
     setLoading(true);
     try {
-      await api.confirmPasswordReset({ token: resetToken, password });
+      await authApi.confirmPasswordReset({ token: resetToken, password });
+      clearPersistedFlow();
       navigate('/auth/login', { state: { message: 'Пароль обновлён' }, replace: true });
     } catch {
       setError('Не удалось обновить пароль.');
@@ -208,32 +153,39 @@ export const ForgotPasswordPage = () => {
           </form>
         )}
 
-        {step === 'call_to_auth' && (
-          <div className={styles.flow}>
-            <div className={styles.callToAuthCard}>
-              <h2 className={styles.callToAuthTitle}>Ожидаем подтверждение звонком</h2>
-              <p className={styles.callToAuthSubtitle}>
-                Чтобы подтвердить восстановление, позвоните на номер ниже с телефона, для которого восстанавливаете доступ.
-              </p>
-              <a href={toTelHref(callToAuthNumber)} className={styles.callToAuthPhone}>
-                {formatCallToAuthPhone(callToAuthNumber)}
-              </a>
-              <p className={styles.callToAuthHint}>
-                Подтверждение выполняется автоматически после звонка. Мы сами переведём вас к созданию нового пароля.
-              </p>
-              {secondsLeft !== null && secondsLeft > 0 && (
-                <p className={styles.callToAuthMeta}>Обычно это занимает до {secondsLeft} сек.</p>
-              )}
-              {!canRetryCall && (
-                <p className={styles.callToAuthMeta}>Если подтверждение не произойдёт в течение ожидания, появится возможность запросить звонок повторно.</p>
-              )}
-            </div>
-            {canRetryCall && (
-              <Button type="button" variant="secondary" disabled={loading} onClick={() => void handleRequest()}>
-                Запросить звонок повторно
-              </Button>
-            )}
-          </div>
+        {step === 'otp' && (
+          <OtpStep
+            purpose="buyer_sensitive_action"
+            tempToken={null}
+            initialPhone={phone}
+            initialRequest={otpRequest}
+            context="password_reset"
+            title="Подтвердите восстановление пароля"
+            introMessage="Ожидаем автоматическое подтверждение восстановления после звонка."
+            idleMessage="Подготавливаем подтверждение для восстановления пароля…"
+            onRequestOtp={async ({ phone: requestPhone }) => {
+              const request = await authApi.requestPasswordReset({ phone: requestPhone });
+              setOtpRequest(request);
+              return request;
+            }}
+            onCheckOtpStatus={async (requestId) => authApi.checkOtpStatus(requestId)}
+            onVerifyOtp={async ({ phone: requestPhone, requestId }) => {
+              const token = await authApi.verifyPasswordReset({ phone: requestPhone, requestId });
+              setResetToken(token);
+              setStep('reset');
+              setMessage('Подтверждение прошло. Теперь задайте новый пароль.');
+            }}
+            onSuccess={() => {
+              setOtpRequest(null);
+            }}
+            setMessage={setMessage}
+            setError={setError}
+            onBack={() => {
+              setStep('request');
+              setOtpRequest(null);
+              resetMessages();
+            }}
+          />
         )}
 
         {step === 'reset' && (
@@ -269,6 +221,13 @@ export const ForgotPasswordPage = () => {
         {step === 'request' && (
           <div className={styles.hint}>
             <span>Введите номер телефона, и мы запустим подтверждение для восстановления пароля звонком.</span>
+          </div>
+        )}
+        {step !== 'request' && (
+          <div className={styles.hint}>
+            <span>
+              Номер для подтверждения и статус звонка берутся из существующего OTP flow проекта без старой SMS-логики.
+            </span>
           </div>
         )}
       </div>
