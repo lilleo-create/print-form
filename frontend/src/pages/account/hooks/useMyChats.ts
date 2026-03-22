@@ -2,48 +2,62 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../../shared/api';
 import { ChatMessage, ChatThread } from '../../../shared/types';
 
-const emptyThreads = { active: [], closed: [] } as { active: ChatThread[]; closed: ChatThread[] };
+const emptyThreads = { active: [], closed: [] } as {
+  active: ChatThread[];
+  closed: ChatThread[];
+};
+
+const mergeThreads = (
+  data: { active: ChatThread[]; closed: ChatThread[] } | undefined
+) => [...(data?.active ?? []), ...(data?.closed ?? [])];
 
 export const useMyChats = (activeTab: string, threadIdParam: string | null) => {
-  const [chatThreads, setChatThreads] = useState<{ active: ChatThread[]; closed: ChatThread[] }>(
-    emptyThreads
-  );
+  const [chatThreads, setChatThreads] = useState<{
+    active: ChatThread[];
+    closed: ChatThread[];
+  }>(emptyThreads);
   const [selectedThread, setSelectedThread] = useState<ChatThread | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
+  const [creatingSupportThread, setCreatingSupportThread] = useState(false);
+
+  const refreshThreads = useCallback(
+    async (preferredThreadId?: string | null) => {
+      const response = await api.chats.listMy();
+      const data = response.data ?? emptyThreads;
+      const allThreads = mergeThreads(data);
+      setChatThreads(data);
+      setSelectedThread((prev) => {
+        const targetId = preferredThreadId ?? threadIdParam;
+        if (targetId) {
+          return (
+            allThreads.find((thread) => thread.id === targetId) ??
+            prev ??
+            allThreads[0] ??
+            null
+          );
+        }
+        return prev
+          ? (allThreads.find((thread) => thread.id === prev.id) ?? prev)
+          : (allThreads[0] ?? null);
+      });
+      return data;
+    },
+    [threadIdParam]
+  );
 
   useEffect(() => {
     if (activeTab !== 'chats') return;
     let isMounted = true;
-    api.chats
-      .listMy()
-      .then((response) => {
-        if (!isMounted) return;
-        const data = response.data ?? emptyThreads;
-        const allThreads = [...(data.active ?? []), ...(data.closed ?? [])];
-        setChatThreads(data);
-        setSelectedThread((prev) => {
-          if (threadIdParam) {
-            return (
-              allThreads.find((thread) => thread.id === threadIdParam) ??
-              prev ??
-              data.active?.[0] ??
-              data.closed?.[0] ??
-              null
-            );
-          }
-          return prev ?? data.active?.[0] ?? data.closed?.[0] ?? null;
-        });
-      })
-      .catch(() => {
-        if (!isMounted) return;
-        setChatThreads(emptyThreads);
-      });
+    refreshThreads().catch(() => {
+      if (!isMounted) return;
+      setChatThreads(emptyThreads);
+    });
     return () => {
       isMounted = false;
     };
-  }, [activeTab, threadIdParam]);
+  }, [activeTab, refreshThreads]);
 
   const loadChatThread = useCallback(async (threadId: string) => {
     setChatLoading(true);
@@ -75,13 +89,31 @@ export const useMyChats = (activeTab: string, threadIdParam: string | null) => {
       try {
         await api.chats.sendMessage(selectedThread.id, { text });
         await loadChatThread(selectedThread.id);
-        const refreshed = await api.chats.listMy();
-        setChatThreads(refreshed.data ?? emptyThreads);
+        await refreshThreads(selectedThread.id);
       } catch {
         setChatError('Не удалось отправить сообщение.');
       }
     },
-    [loadChatThread, selectedThread]
+    [loadChatThread, refreshThreads, selectedThread]
+  );
+
+  const createSupportThread = useCallback(
+    async (topic: string) => {
+      setCreatingSupportThread(true);
+      setChatError(null);
+      try {
+        const response = await api.chats.createSupportThread({ topic });
+        await refreshThreads(response.data.id);
+        await loadChatThread(response.data.id);
+        return response.data;
+      } catch {
+        setChatError('Не удалось создать обращение в поддержку.');
+        return null;
+      } finally {
+        setCreatingSupportThread(false);
+      }
+    },
+    [loadChatThread, refreshThreads]
   );
 
   return {
@@ -91,6 +123,8 @@ export const useMyChats = (activeTab: string, threadIdParam: string | null) => {
     chatMessages,
     chatLoading,
     chatError,
-    handleSendMessage
+    creatingSupportThread,
+    handleSendMessage,
+    createSupportThread
   };
 };

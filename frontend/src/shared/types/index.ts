@@ -12,9 +12,24 @@ export type OrderStatus =
   | 'CANCELLED'
   | 'RETURNED'
   | 'EXPIRED';
-export type ProductModerationStatus = 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'NEEDS_EDIT' | 'ARCHIVED';
-export type ReviewModerationStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'NEEDS_EDIT';
-export type ReturnStatus = 'CREATED' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED' | 'REFUNDED';
+export type ProductModerationStatus =
+  | 'DRAFT'
+  | 'PENDING'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'NEEDS_EDIT'
+  | 'ARCHIVED';
+export type ReviewModerationStatus =
+  | 'PENDING'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'NEEDS_EDIT';
+export type ReturnStatus =
+  | 'CREATED'
+  | 'UNDER_REVIEW'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'REFUNDED';
 export type ReturnReason = 'NOT_FIT' | 'DAMAGED' | 'WRONG_ITEM';
 export type ChatThreadKind = 'SUPPORT' | 'SELLER';
 export type ChatThreadStatus = 'ACTIVE' | 'CLOSED';
@@ -136,7 +151,12 @@ export interface ReturnItem {
     priceAtPurchase: number;
     productId: string;
     product?: Product | null;
-    order?: { id: string; createdAt: string; statusUpdatedAt?: string | null; status?: OrderStatus } | null;
+    order?: {
+      id: string;
+      createdAt: string;
+      statusUpdatedAt?: string | null;
+      status?: OrderStatus;
+    } | null;
   } | null;
 }
 
@@ -169,6 +189,9 @@ export interface ChatThread {
   userId: string;
   status: ChatThreadStatus;
   returnRequestId?: string | null;
+  sellerId?: string | null;
+  sellerShopName?: string | null;
+  supportTopic?: string | null;
   lastMessageAt?: string | null;
   createdAt: string;
   updatedAt?: string;
@@ -238,7 +261,12 @@ export interface Order {
   estimatedDeliveryDateMax?: string | null;
   contact?: Contact | null;
   shippingAddress?: Address | null;
-  buyer?: { id: string; name: string; email: string; phone?: string | null } | null;
+  buyer?: {
+    id: string;
+    name: string;
+    email: string;
+    phone?: string | null;
+  } | null;
   items: OrderItem[];
   delivery?: OrderDelivery | null;
   payoutStatus?: string | null;
@@ -259,7 +287,10 @@ export interface SellerDeliveryProfile {
 
   // что реально хранится/возвращается
   defaultDropoffPvzId?: string | null;
-  defaultDropoffPvzMeta?: { addressFull?: string; raw?: Record<string, unknown> } | null;
+  defaultDropoffPvzMeta?: {
+    addressFull?: string;
+    raw?: Record<string, unknown>;
+  } | null;
 
   // payload/profile shape for dropoff PVZ
   dropoffPvz?: {
@@ -274,7 +305,6 @@ export interface SellerDeliveryProfile {
 
   dropoffSchedule?: 'DAILY' | 'WEEKDAYS';
 }
-
 
 export interface User {
   id: string;

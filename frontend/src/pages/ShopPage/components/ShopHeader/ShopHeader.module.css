@@ -112,8 +112,12 @@
 }
 
 .backLink {
+  padding: 0;
+  border: none;
+  background: transparent;
   color: var(--muted);
   font-size: 13px;
+  cursor: pointer;
 }
 
 .error {

@@ -19,7 +19,9 @@ export const HeroSection = () => (
   <section className={`${styles.hero} container`}>
     <div className={styles.heroContent}>
       <h1>3D-печать и готовые модели — в одном сервисе</h1>
-      <p>Купите готовую 3D-модель или загрузите свою — мы напечатаем и доставим</p>
+      <p>
+        Купите готовую 3D-модель или загрузите свою — мы напечатаем и доставим
+      </p>
       <div className={styles.heroActions}>
         <Link to="/catalog" className={styles.ctaButton}>
           Найти готовую модель
@@ -29,7 +31,8 @@ export const HeroSection = () => (
         </a>
       </div>
       <div className={styles.heroHint}>
-        Без переписок с типографиями · Проверенные производства · Прозрачные цены
+        Без переписок с типографиями · Проверенные производства · Прозрачные
+        цены
       </div>
     </div>
   </section>
@@ -76,20 +79,23 @@ export const UploadSection = () => (
   <section className={`${styles.uploadSection} container`} id="custom">
     <div className={styles.uploadContent}>
       <h2>Есть своя 3D-модель?</h2>
-      <p>Мы подберём материал, рассчитаем цену и напечатаем</p>
-      <div className={styles.uploadCard}>
-        <label htmlFor="model-upload" className={styles.uploadDrop}>
-          <span className={styles.uploadTitle}>Перетащите файл</span>
-          <span className={styles.uploadHint}>Drag & Drop или выберите на компьютере</span>
-          <span className={styles.uploadFormats}>STL / STEP / OBJ</span>
-        </label>
-        <input
-          id="model-upload"
-          className={styles.uploadInput}
-          type="file"
-          accept=".stl,.step,.stp,.obj"
-          multiple
-        />
+      <p>
+        Функция временно отключена. Скоро здесь снова можно будет загрузить файл
+        на печать.
+      </p>
+      <div className={`${styles.uploadCard} ${styles.uploadCardDisabled}`}>
+        <div
+          className={`${styles.uploadDrop} ${styles.uploadDropDisabled}`}
+          aria-disabled="true"
+        >
+          <span className={styles.uploadTitle}>Появится в будущем</span>
+          <span className={styles.uploadHint}>
+            Загрузка STL / STEP / OBJ временно недоступна
+          </span>
+          <span className={styles.uploadFormats}>
+            Следите за обновлениями Print-Form
+          </span>
+        </div>
       </div>
     </div>
   </section>

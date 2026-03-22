@@ -15,38 +15,39 @@ interface ShopInfoModalProps {
 
 const formatCompactNumber = (value?: number | null) => {
   if (!value && value !== 0) return null;
-  return new Intl.NumberFormat('ru-RU', { notation: 'compact', maximumFractionDigits: 1 }).format(value);
+  return new Intl.NumberFormat('ru-RU', {
+    notation: 'compact',
+    maximumFractionDigits: 1
+  }).format(value);
 };
 
-export const ShopInfoModal = ({ shop, isOpen, onClose, onComplaint }: ShopInfoModalProps) => {
+const LEGAL_FIELD_LABELS: Record<string, string> = {
+  name: 'Название',
+  city: 'Город',
+  ogrn: 'ОГРН',
+  inn: 'ИНН'
+};
+
+const SAFE_LEGAL_FIELDS = new Set(Object.keys(LEGAL_FIELD_LABELS));
+
+export const ShopInfoModal = ({
+  shop,
+  isOpen,
+  onClose,
+  onComplaint
+}: ShopInfoModalProps) => {
   const contentRef = useRef<HTMLDivElement>(null);
   useModalFocus(isOpen, onClose, contentRef);
 
   const legalRows = useMemo(() => {
     if (!shop?.legalInfo) return [];
-    const entries = Object.entries(shop.legalInfo).filter(([, value]) => Boolean(value));
-    return entries.map(([key, value]) => ({
-      key,
-      label:
-        key === 'name'
-          ? 'Название'
-          : key === 'status'
-            ? 'Статус'
-            : key === 'phone'
-              ? 'Телефон'
-              : key === 'city'
-                ? 'Город'
-                : key === 'referenceCategory'
-                  ? 'Категория'
-                  : key === 'catalogPosition'
-                    ? 'Позиция в каталоге'
-                    : key === 'ogrn'
-                      ? 'ОГРН'
-                      : key === 'inn'
-                        ? 'ИНН'
-                        : key,
-      value: String(value)
-    }));
+    return Object.entries(shop.legalInfo)
+      .filter(([key, value]) => SAFE_LEGAL_FIELDS.has(key) && Boolean(value))
+      .map(([key, value]) => ({
+        key,
+        label: LEGAL_FIELD_LABELS[key] ?? key,
+        value: String(value)
+      }));
   }, [shop?.legalInfo]);
 
   return (
@@ -54,32 +55,45 @@ export const ShopInfoModal = ({ shop, isOpen, onClose, onComplaint }: ShopInfoMo
       <div ref={contentRef}>
         <header className={styles.header}>
           <h2>{shop?.title ?? 'Магазин'}</h2>
-          <button type="button" className={styles.close} onClick={onClose} aria-label="Закрыть окно">
+          <button
+            type="button"
+            className={styles.close}
+            onClick={onClose}
+            aria-label="Закрыть окно"
+          >
             ✕
           </button>
         </header>
         <div className={styles.metrics}>
           <div>
-            <Rating value={shop?.rating ?? 0} count={shop?.reviewsCount ?? 0} size="sm" />
+            <Rating
+              value={shop?.rating ?? 0}
+              count={shop?.reviewsCount ?? 0}
+              size="sm"
+            />
             <span className={styles.metricLabel}>
               {formatCompactNumber(shop?.reviewsCount) ?? '0'} оценок
             </span>
           </div>
           {shop?.subscribersCount && (
             <div>
-              <div className={styles.metricValue}>{formatCompactNumber(shop.subscribersCount)}</div>
+              <div className={styles.metricValue}>
+                {formatCompactNumber(shop.subscribersCount)}
+              </div>
               <div className={styles.metricLabel}>Подписчиков</div>
             </div>
           )}
           {shop?.ordersCount && (
             <div>
-              <div className={styles.metricValue}>{formatCompactNumber(shop.ordersCount)}</div>
+              <div className={styles.metricValue}>
+                {formatCompactNumber(shop.ordersCount)}
+              </div>
               <div className={styles.metricLabel}>Заказов</div>
             </div>
           )}
         </div>
         <div className={styles.legal}>
-          <div className={styles.legalTitle}>Юридическая информация</div>
+          <div className={styles.legalTitle}>Информация о магазине</div>
           {legalRows.length ? (
             <ul className={styles.legalList}>
               {legalRows.map((row) => (
