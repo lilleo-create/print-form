@@ -38,6 +38,34 @@ describe('Auth UI flow checks', () => {
     });
   });
 
+  it('keeps login error on screen when authorization fails', async () => {
+    const loginMock = vi.fn(async () => {
+      throw new Error('Unauthorized');
+    });
+    useAuthStore.setState({ login: loginMock });
+
+    render(
+      <MemoryRouter initialEntries={['/auth/login']}>
+        <AuthPage />
+      </MemoryRouter>
+    );
+
+    fireEvent.change(screen.getByPlaceholderText('+7 (___) ___-__-__'), {
+      target: { value: '+7 (999) 000-00-00' }
+    });
+    fireEvent.change(screen.getByPlaceholderText('Пароль'), {
+      target: { value: 'wrongpass' }
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Войти' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Неверный номер телефона или пароль.')).toBeInTheDocument();
+    });
+
+    expect(loginMock).toHaveBeenCalledWith('+79990000000', 'wrongpass');
+    expect(screen.getByPlaceholderText('+7 (___) ___-__-__')).toBeInTheDocument();
+  });
+
   it('submits login with typed password value', async () => {
     const loginMock = vi.fn(async () => ({ requiresOtp: false, user: baseUser, token: 'token' }));
     useAuthStore.setState({ login: loginMock });

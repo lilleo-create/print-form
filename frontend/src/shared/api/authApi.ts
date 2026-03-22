@@ -56,7 +56,7 @@ function requireUser(data: RawAuthData, context: string): User {
 
 export const authApi = {
   login: async (phone: string, password: string): Promise<AuthResult> => {
-    const result = await api.login({ phone, password, email: phone });
+    const result = await api.login({ phone, password });
     const data = result.data as RawAuthData;
 
     const requiresOtp = data.requiresOtp ?? data.requires_otp ?? false;
