@@ -153,18 +153,22 @@ describe('Auth UI flow checks', () => {
       tempToken: 'temp-token',
       user: baseUser,
       otpContext: 'device_verification',
+      requestId: 'request-1',
+      phone: '79990000000',
+      verificationMethod: 'existing_otp_flow',
+      otpRequest: {
+        requestId: 'request-1',
+        verificationType: 'call_to_auth' as const,
+        callToAuthNumber: '79990000001',
+        phone: '79990000000'
+      },
       verification: {
         channel: 'PHONE_CALL',
         phone: '79990000000',
         reason: 'Новое устройство'
       }
     }));
-    const requestOtpMock = vi.fn(async () => ({
-      requestId: 'request-1',
-      verificationType: 'call_to_auth' as const,
-      callToAuthNumber: '79990000001',
-      phone: '79990000000'
-    }));
+    const requestOtpMock = vi.fn();
 
     useAuthStore.setState({ login: loginMock as never, requestOtp: requestOtpMock as never });
 
@@ -186,9 +190,6 @@ describe('Auth UI flow checks', () => {
     expect(screen.getByText('Позвоните на')).toBeInTheDocument();
     expect(screen.getByText('+7 (999) 000-00-01')).toBeInTheDocument();
     expect(screen.getByText('Ожидаем автоматическое подтверждение входа после звонка.')).toBeInTheDocument();
-    expect(requestOtpMock).toHaveBeenCalledWith(
-      { phone: '79990000000', purpose: 'buyer_register_phone' },
-      'temp-token'
-    );
+    expect(requestOtpMock).not.toHaveBeenCalled();
   });
 });

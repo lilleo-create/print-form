@@ -16,8 +16,30 @@ type DeviceVerification = {
   reason: string | null;
 };
 
+export type OtpContext = 'registration' | 'device_verification' | 'password_reset';
+
+export type OtpRequestResponse = {
+  requestId: string;
+  provider?: string;
+  verificationType: 'call_to_auth' | 'code';
+  callToAuthNumber?: string | null;
+  phone?: string;
+  status?: string;
+  expiresInSec?: number;
+};
+
 type AuthResult =
-  | { requiresOtp: true; tempToken: string; user: User; otpContext?: 'default' | 'device_verification'; verification?: DeviceVerification }
+  | {
+      requiresOtp: true;
+      tempToken: string;
+      user: User;
+      otpContext?: OtpContext;
+      verification?: DeviceVerification;
+      requestId?: string | null;
+      phone?: string | null;
+      otpRequest?: OtpRequestResponse | null;
+      verificationMethod?: string | null;
+    }
   | { requiresOtp: false; token: string; user: User };
 
 type RawUser = {
@@ -47,6 +69,13 @@ type RawAuthData = {
   accessToken?: string;
   user?: RawUser;
   verification?: RawDeviceVerification;
+  requestId?: string;
+  request_id?: string;
+  phone?: string | null;
+  verificationMethod?: string | null;
+  verification_method?: string | null;
+  otpRequest?: OtpRequestResponse;
+  otp_request?: OtpRequestResponse;
 };
 
 const normalizeRole = (role?: string): Role => {
@@ -105,6 +134,24 @@ const extractErrorData = (error: unknown): RawAuthData | null => {
   return direct;
 };
 
+const normalizeOtpRequest = (
+  data?: OtpRequestResponse | null
+): OtpRequestResponse | null => {
+  if (!data?.requestId || !data.verificationType) {
+    return null;
+  }
+
+  return {
+    requestId: data.requestId,
+    provider: data.provider,
+    verificationType: data.verificationType,
+    callToAuthNumber: data.callToAuthNumber ?? null,
+    phone: data.phone,
+    status: data.status,
+    expiresInSec: data.expiresInSec,
+  };
+};
+
 export const authApi = {
   login: async (phone: string, password: string): Promise<AuthResult> => {
     try {
@@ -145,6 +192,10 @@ export const authApi = {
         user: data?.user ? normalizeUser(data.user) : normalizeUser({ phone }),
         otpContext: 'device_verification',
         verification: normalizeDeviceVerification(data?.verification),
+        requestId: data?.requestId ?? data?.request_id ?? data?.otpRequest?.requestId ?? data?.otp_request?.requestId ?? null,
+        phone: data?.phone ?? data?.verification?.phone ?? data?.user?.phone ?? phone,
+        otpRequest: normalizeOtpRequest(data?.otpRequest ?? data?.otp_request ?? null),
+        verificationMethod: data?.verificationMethod ?? data?.verification_method ?? null,
       };
     }
   },
@@ -191,7 +242,7 @@ export const authApi = {
   requestOtp: async (
     payload: { phone: string; purpose?: 'buyer_register_phone' | 'buyer_change_phone' | 'buyer_sensitive_action' | 'seller_connect_phone' | 'seller_change_payout_details' | 'seller_payout_settings_verify' },
     token?: string | null
-  ) => {
+  ): Promise<OtpRequestResponse | null> => {
     const response = await api.requestOtp(payload, token);
     const raw = response.data as
       | {
@@ -257,6 +308,28 @@ export const authApi = {
       throw new Error('OTP verify: invalid response');
     }
     return session;
+  },
+
+  requestPasswordReset: async (payload: { phone: string }) => {
+    const response = await api.requestPasswordReset(payload);
+    const raw = response.data as
+      | {
+          ok?: boolean;
+          devOtp?: string;
+          delivery?: OtpRequestResponse;
+        }
+      | undefined;
+
+    return normalizeOtpRequest(raw?.delivery ?? null);
+  },
+
+  verifyPasswordReset: async (payload: { phone: string; requestId?: string; code?: string }) => {
+    const response = await api.verifyPasswordReset(payload);
+    return response.data.resetToken;
+  },
+
+  confirmPasswordReset: async (payload: { token: string; password: string }) => {
+    return api.confirmPasswordReset(payload);
   },
 
   updateProfile: async (payload: { name?: string; fullName?: string; email?: string; phone?: string; address?: string }) => {
