@@ -1,17 +1,16 @@
 import { create } from 'zustand';
-import { authApi } from '../../shared/api/authApi';
+import { authApi, type OtpFlowType, type RegistrationPurpose } from '../../shared/api/authApi';
 import { loadFromStorage, removeFromStorage, saveToStorage, setAccessToken } from '../../shared/lib/storage';
 import { STORAGE_KEYS } from '../../shared/constants/storageKeys';
 import { User, Role } from '../../shared/types';
 
-type Purpose = 'buyer_register_phone' | 'buyer_change_phone' | 'buyer_sensitive_action' | 'seller_connect_phone' | 'seller_change_payout_details' | 'seller_payout_settings_verify';
 type DeviceVerificationChannel = 'PHONE_CALL' | 'SMS' | 'PUSH' | 'UNKNOWN';
 
 type OtpRequiredResult = {
   requiresOtp: true;
   tempToken: string;
   user: User;
-  otpContext?: 'registration' | 'device_verification' | 'password_reset';
+  flowType: OtpFlowType;
   verification?: {
     channel: DeviceVerificationChannel;
     phone: string | null;
@@ -47,11 +46,11 @@ interface AuthState {
 
   otp: {
     required: boolean;
-    purpose: Purpose | null;
+    purpose: RegistrationPurpose | null;
     tempToken: string | null;
     phone: string | null;
     user: User | null;
-    context: 'registration' | 'device_verification' | 'password_reset';
+    flowType: OtpFlowType;
     verification: {
       channel: DeviceVerificationChannel;
       phone: string | null;
@@ -78,7 +77,7 @@ interface AuthState {
         requiresOtp: true;
         tempToken?: string;
         user?: User;
-        otpContext?: 'registration' | 'device_verification' | 'password_reset';
+        flowType?: OtpFlowType;
         verification?: {
           channel: DeviceVerificationChannel;
           phone: string | null;
@@ -120,13 +119,15 @@ interface AuthState {
     token?: string;
   }>;
 
-  requestOtp: (payload: { phone: string; purpose?: Purpose }, token?: string | null) => Promise<{ requestId: string; provider?: string; verificationType: 'call_to_auth' | 'code'; callToAuthNumber?: string | null; phone?: string; status?: string; expiresInSec?: number } | null>;
+  requestOtp: (payload: { phone: string; purpose?: RegistrationPurpose }, token?: string | null) => Promise<{ requestId: string; provider?: string; verificationType: 'call_to_auth' | 'code'; callToAuthNumber?: string | null; phone?: string; status?: string; expiresInSec?: number } | null>;
+  requestDeviceLoginOtp: (payload: { phone: string }, token?: string | null) => Promise<{ requestId: string; provider?: string; verificationType: 'call_to_auth' | 'code'; callToAuthNumber?: string | null; phone?: string; status?: string; expiresInSec?: number } | null>;
 
   checkOtpStatus: (requestId: string, token?: string | null) => Promise<'pending' | 'verified' | 'expired' | 'failed' | 'cancelled'>;
   verifyOtp: (
-    payload: { phone: string; code?: string; requestId?: string; purpose?: Purpose },
+    payload: { phone: string; code?: string; requestId?: string; purpose?: RegistrationPurpose },
     token?: string | null
   ) => Promise<void>;
+  verifyDeviceLoginOtp: (payload: { phone: string; requestId?: string }, token?: string | null) => Promise<void>;
 
   updateProfile: (payload: { name?: string; fullName?: string; email?: string; phone?: string; address?: string }) => Promise<void>;
 
@@ -168,7 +169,7 @@ const emptyOtp: AuthState['otp'] = {
   tempToken: null,
   phone: null,
   user: null,
-  context: 'registration',
+  flowType: 'registration',
   verification: null,
   requestId: null,
   verificationMethod: null,
@@ -205,11 +206,11 @@ export const useAuthStore = create<AuthState>((set, get) => {
         set({
           otp: {
             required: true,
-            purpose: 'buyer_register_phone',
+            purpose: result.flowType === 'registration' ? 'buyer_register_phone' : null,
             tempToken: result.tempToken,
             phone: result.phone ?? result.user.phone ?? null,
             user: result.user,
-            context: result.otpContext ?? 'registration',
+            flowType: result.flowType,
             verification: result.verification ?? null,
             requestId: result.requestId ?? result.otpRequest?.requestId ?? null,
             verificationMethod: result.verificationMethod ?? null,
@@ -220,7 +221,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
           requiresOtp: true,
           tempToken: result.tempToken,
           user: result.user,
-          otpContext: result.otpContext ?? 'registration',
+          flowType: result.flowType,
           verification: result.verification,
           requestId: result.requestId ?? null,
           phone: result.phone ?? null,
@@ -251,7 +252,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
             tempToken: result.tempToken,
             phone: payload.phone ?? result.user.phone ?? null,
             user: result.user,
-            context: 'registration',
+            flowType: 'registration',
             verification: null,
             requestId: null,
             verificationMethod: null,
@@ -268,10 +269,18 @@ export const useAuthStore = create<AuthState>((set, get) => {
     },
 
     async requestOtp(payload, token) {
-      const purpose = (payload.purpose ?? get().otp.purpose ?? 'buyer_register_phone') as Purpose;
+      const purpose = (payload.purpose ?? get().otp.purpose ?? 'buyer_register_phone') as RegistrationPurpose;
       const finalPayload = { ...payload, purpose };
 
       return await authApi.requestOtp(finalPayload, token ?? get().otp.tempToken ?? get().token);
+    },
+
+    async requestDeviceLoginOtp(payload, token) {
+      const otpToken = token ?? get().otp.tempToken;
+      if (!otpToken) {
+        throw new Error('Device login OTP request: temp token missing');
+      }
+      return await authApi.requestDeviceLoginOtp(payload, otpToken);
     },
 
     async checkOtpStatus(requestId, token) {
@@ -280,7 +289,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
     async verifyOtp(payload, token) {
       const otp = get().otp;
-      const purpose = (payload.purpose ?? otp.purpose ?? 'buyer_register_phone') as Purpose;
+      const purpose = (payload.purpose ?? otp.purpose ?? 'buyer_register_phone') as RegistrationPurpose;
 
       const finalPayload = { ...payload, purpose };
       const result = await authApi.verifyOtp(finalPayload, token ?? otp.tempToken ?? get().token);
@@ -289,6 +298,21 @@ export const useAuthStore = create<AuthState>((set, get) => {
         throw new Error('OTP verify failed: invalid response');
       }
 
+      set({
+        user: result.user,
+        token: result.token,
+        otp: { ...emptyOtp },
+      });
+      saveStoredUser(result.user);
+      setAccessToken(result.token);
+    },
+
+    async verifyDeviceLoginOtp(payload, token) {
+      const otpToken = token ?? get().otp.tempToken;
+      if (!otpToken) {
+        throw new Error('Device login OTP verify: temp token missing');
+      }
+      const result = await authApi.verifyDeviceLoginOtp(payload, otpToken);
       set({
         user: result.user,
         token: result.token,

@@ -14,6 +14,7 @@ type Step = 'request' | 'otp' | 'reset';
 type PersistedResetFlow = {
   step: Step;
   phone: string;
+  tempToken: string;
   resetToken: string;
   otpRequest: {
     requestId: string;
@@ -30,6 +31,7 @@ export const ForgotPasswordPage = () => {
 
   const [step, setStep] = useState<Step>('request');
   const [phone, setPhone] = useState('');
+  const [tempToken, setTempToken] = useState('');
   const [resetToken, setResetToken] = useState('');
   const [otpRequest, setOtpRequest] = useState<PersistedResetFlow['otpRequest']>(null);
   const [password, setPassword] = useState('');
@@ -56,6 +58,7 @@ export const ForgotPasswordPage = () => {
     }
 
     setPhone(stored.phone);
+    setTempToken(stored.tempToken ?? '');
     setResetToken(stored.resetToken ?? '');
     setOtpRequest(stored.otpRequest ?? null);
     setStep(stored.step ?? 'request');
@@ -65,10 +68,11 @@ export const ForgotPasswordPage = () => {
     saveToStorage(STORAGE_KEYS.passwordResetFlow, {
       step,
       phone,
+      tempToken,
       resetToken,
       otpRequest,
     } satisfies PersistedResetFlow);
-  }, [otpRequest, phone, resetToken, step]);
+  }, [otpRequest, phone, tempToken, resetToken, step]);
 
   const handleRequest = async () => {
     resetMessages();
@@ -76,17 +80,16 @@ export const ForgotPasswordPage = () => {
 
     try {
       const request = await authApi.requestPasswordReset({ phone: normalizedPhone });
-      if (!request || request.verificationType !== 'call_to_auth') {
+      if (!request.requiresOtp || !request.otpRequest || request.otpRequest.verificationType !== 'call_to_auth') {
         setError('Не удалось запустить подтверждение звонком. Попробуйте ещё раз.');
         return;
       }
 
-      setOtpRequest(request);
+      setTempToken(request.tempToken ?? '');
+      setOtpRequest(request.otpRequest);
       setStep('otp');
       setMessage('Подтвердите восстановление пароля звонком. После подтверждения откроется форма нового пароля.');
-      if (request.phone) {
-        setPhone(formatRuPhoneInput(request.phone));
-      }
+      setPhone(formatRuPhoneInput(request.phone || request.otpRequest.phone || normalizedPhone));
     } catch (rawError) {
       const normalized = normalizeApiError(rawError);
       if (normalized.code === 'NOT_FOUND') {
@@ -155,23 +158,26 @@ export const ForgotPasswordPage = () => {
 
         {step === 'otp' && (
           <OtpStep
-            purpose="buyer_sensitive_action"
-            tempToken={null}
+            tempToken={tempToken}
             initialPhone={phone}
             initialRequest={otpRequest}
-            context="password_reset"
+            flowType="password_reset_verification"
             title="Подтвердите восстановление пароля"
             introMessage="Ожидаем автоматическое подтверждение восстановления после звонка."
             idleMessage="Подготавливаем подтверждение для восстановления пароля…"
             onRequestOtp={async ({ phone: requestPhone }) => {
               const request = await authApi.requestPasswordReset({ phone: requestPhone });
-              setOtpRequest(request);
-              return request;
+              setTempToken(request.tempToken ?? '');
+              setOtpRequest(request.otpRequest);
+              return request.otpRequest;
             }}
-            onCheckOtpStatus={async (requestId) => authApi.checkOtpStatus(requestId)}
-            onVerifyOtp={async ({ phone: requestPhone, requestId }) => {
-              const token = await authApi.verifyPasswordReset({ phone: requestPhone, requestId });
-              setResetToken(token);
+            onCheckOtpStatus={async (requestId, token) => authApi.checkOtpStatus(requestId, token)}
+            onVerifyOtp={async ({ phone: requestPhone, requestId }, token) => {
+              const tokenForReset = await authApi.completePasswordResetVerification(
+                { phone: requestPhone, requestId },
+                token
+              );
+              setResetToken(tokenForReset);
               setStep('reset');
               setMessage('Подтверждение прошло. Теперь задайте новый пароль.');
             }}
@@ -182,6 +188,7 @@ export const ForgotPasswordPage = () => {
             setError={setError}
             onBack={() => {
               setStep('request');
+              setTempToken('');
               setOtpRequest(null);
               resetMessages();
             }}

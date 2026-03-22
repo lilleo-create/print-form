@@ -760,12 +760,13 @@ export const api = {
     phone: string;
     code?: string;
     requestId?: string;
-  }) {
+  }, token?: string | null) {
     return apiClient.request<{ ok: boolean; resetToken: string }>(
       '/auth/password-reset/verify',
       {
         method: 'POST',
-        body: payload
+        body: payload,
+        token
       }
     );
   },
