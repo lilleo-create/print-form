@@ -5,20 +5,14 @@ import { STORAGE_KEYS } from '../../shared/constants/storageKeys';
 import { User, Role } from '../../shared/types';
 
 type Purpose = 'buyer_register_phone' | 'buyer_change_phone' | 'buyer_sensitive_action' | 'seller_connect_phone' | 'seller_change_payout_details' | 'seller_payout_settings_verify';
-type DeviceVerificationStatus = 'pending' | 'verified' | 'expired' | 'failed' | 'cancelled';
 type DeviceVerificationChannel = 'PHONE_CALL' | 'SMS' | 'PUSH' | 'UNKNOWN';
 
 type OtpRequiredResult = {
   requiresOtp: true;
   tempToken: string;
   user: User;
-};
-
-type DeviceVerificationRequiredResult = {
-  requiresDeviceVerification: true;
-  tempToken: string;
-  user?: User | null;
-  verification: {
+  otpContext?: 'default' | 'device_verification';
+  verification?: {
     channel: DeviceVerificationChannel;
     phone: string | null;
     reason: string | null;
@@ -31,10 +25,9 @@ type AuthSuccessResult = {
   user: User;
 };
 
-type AuthResult = OtpRequiredResult | DeviceVerificationRequiredResult | AuthSuccessResult;
+type AuthResult = OtpRequiredResult | AuthSuccessResult;
 
 const isOtpRequired = (r: AuthResult): r is OtpRequiredResult => 'requiresOtp' in r && r.requiresOtp === true;
-const isDeviceVerificationRequired = (r: AuthResult): r is DeviceVerificationRequiredResult => 'requiresDeviceVerification' in r && r.requiresDeviceVerification === true;
 
 interface AuthState {
   user: User | null;
@@ -46,12 +39,7 @@ interface AuthState {
     tempToken: string | null;
     phone: string | null;
     user: User | null;
-  };
-
-  deviceVerification: {
-    required: boolean;
-    tempToken: string | null;
-    user: User | null;
+    context: 'default' | 'device_verification';
     verification: {
       channel: DeviceVerificationChannel;
       phone: string | null;
@@ -61,19 +49,14 @@ interface AuthState {
 
   setOtpState: (v: Partial<AuthState['otp']>) => void;
   clearOtp: () => void;
-  clearDeviceVerification: () => void;
 
   login: (phone: string, password: string) => Promise<
     | {
         requiresOtp: true;
         tempToken?: string;
         user?: User;
-      }
-    | {
-        requiresDeviceVerification: true;
-        tempToken?: string;
-        user?: User | null;
-        verification: {
+        otpContext?: 'default' | 'device_verification';
+        verification?: {
           channel: DeviceVerificationChannel;
           phone: string | null;
           reason: string | null;
@@ -105,9 +88,6 @@ interface AuthState {
   requestOtp: (payload: { phone: string; purpose?: Purpose }, token?: string | null) => Promise<{ requestId: string; provider?: string; verificationType: 'call_to_auth' | 'code'; callToAuthNumber?: string | null; phone?: string; status?: string; expiresInSec?: number } | null>;
 
   checkOtpStatus: (requestId: string, token?: string | null) => Promise<'pending' | 'verified' | 'expired' | 'failed' | 'cancelled'>;
-  checkDeviceVerificationStatus: (token?: string | null) => Promise<{ status: DeviceVerificationStatus; verificationResult?: string | Record<string, unknown> | null }>;
-  completeDeviceVerification: (payload: { verificationResult?: string | Record<string, unknown> | null }, token?: string | null) => Promise<void>;
-
   verifyOtp: (
     payload: { phone: string; code?: string; requestId?: string; purpose?: Purpose },
     token?: string | null
@@ -153,12 +133,7 @@ const emptyOtp: AuthState['otp'] = {
   tempToken: null,
   phone: null,
   user: null,
-};
-
-const emptyDeviceVerification: AuthState['deviceVerification'] = {
-  required: false,
-  tempToken: null,
-  user: null,
+  context: 'default',
   verification: null,
 };
 
@@ -171,7 +146,6 @@ export const useAuthStore = create<AuthState>((set, get) => {
     token: storedToken,
 
     otp: { ...emptyOtp },
-    deviceVerification: { ...emptyDeviceVerification },
 
     setOtpState(v) {
       set({ otp: { ...get().otp, ...v } });
@@ -181,13 +155,8 @@ export const useAuthStore = create<AuthState>((set, get) => {
       set({ otp: { ...emptyOtp } });
     },
 
-    clearDeviceVerification() {
-      set({ deviceVerification: { ...emptyDeviceVerification } });
-    },
-
     async login(phone, password) {
       get().clearOtp();
-      get().clearDeviceVerification();
 
       const raw = await authApi.login(phone, password);
       if (!raw) throw new Error('Login failed: empty response');
@@ -202,24 +171,15 @@ export const useAuthStore = create<AuthState>((set, get) => {
             tempToken: result.tempToken,
             phone: result.user.phone ?? null,
             user: result.user,
-          },
-        });
-        return { requiresOtp: true, tempToken: result.tempToken, user: result.user };
-      }
-
-      if (isDeviceVerificationRequired(result)) {
-        set({
-          deviceVerification: {
-            required: true,
-            tempToken: result.tempToken,
-            user: result.user ?? null,
-            verification: result.verification,
+            context: result.otpContext ?? 'default',
+            verification: result.verification ?? null,
           },
         });
         return {
-          requiresDeviceVerification: true,
+          requiresOtp: true,
           tempToken: result.tempToken,
-          user: result.user ?? null,
+          user: result.user,
+          otpContext: result.otpContext ?? 'default',
           verification: result.verification,
         };
       }
@@ -232,12 +192,11 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
     async register(payload) {
       get().clearOtp();
-      get().clearDeviceVerification();
 
       const raw = await authApi.register(payload);
       if (!raw) throw new Error('Register failed: empty response');
 
-      const result = raw as Exclude<AuthResult, DeviceVerificationRequiredResult>;
+      const result = raw as AuthResult;
 
       if (isOtpRequired(result)) {
         set({
@@ -247,6 +206,8 @@ export const useAuthStore = create<AuthState>((set, get) => {
             tempToken: result.tempToken,
             phone: payload.phone ?? result.user.phone ?? null,
             user: result.user,
+            context: 'default',
+            verification: null,
           },
         });
         return { requiresOtp: true, tempToken: result.tempToken, user: result.user };
@@ -267,32 +228,6 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
     async checkOtpStatus(requestId, token) {
       return await authApi.checkOtpStatus(requestId, token ?? get().otp.tempToken ?? get().token);
-    },
-
-    async checkDeviceVerificationStatus(token) {
-      const authToken = token ?? get().deviceVerification.tempToken;
-      if (!authToken) {
-        throw new Error('Device verification token missing');
-      }
-      return await authApi.checkDeviceVerificationStatus(authToken);
-    },
-
-    async completeDeviceVerification(payload, token) {
-      const authToken = token ?? get().deviceVerification.tempToken;
-      if (!authToken) {
-        throw new Error('Device verification token missing');
-      }
-
-      const result = await authApi.verifyDevice(payload, authToken);
-
-      set({
-        user: result.user,
-        token: result.token,
-        otp: { ...emptyOtp },
-        deviceVerification: { ...emptyDeviceVerification },
-      });
-      saveStoredUser(result.user);
-      setAccessToken(result.token);
     },
 
     async verifyOtp(payload, token) {
@@ -342,7 +277,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
       } finally {
         removeFromStorage(STORAGE_KEYS.session);
         setAccessToken(null);
-        set({ user: null, token: null, otp: { ...emptyOtp }, deviceVerification: { ...emptyDeviceVerification } });
+        set({ user: null, token: null, otp: { ...emptyOtp } });
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new Event('auth:logout'));
         }
@@ -361,6 +296,6 @@ if (typeof window !== 'undefined') {
   window.addEventListener('auth:logout', () => {
     removeFromStorage(STORAGE_KEYS.session);
     setAccessToken(null);
-    useAuthStore.setState({ user: null, token: null, otp: { ...emptyOtp }, deviceVerification: { ...emptyDeviceVerification } });
+    useAuthStore.setState({ user: null, token: null, otp: { ...emptyOtp } });
   });
 }

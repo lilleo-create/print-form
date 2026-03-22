@@ -22,12 +22,8 @@ describe('Auth UI flow checks', () => {
         purpose: null,
         tempToken: null,
         phone: null,
-        user: null
-      },
-      deviceVerification: {
-        required: false,
-        tempToken: null,
         user: null,
+        context: 'default',
         verification: null
       },
       login: async () => ({ requiresOtp: false, user: baseUser, token: 'token' }),
@@ -35,12 +31,9 @@ describe('Auth UI flow checks', () => {
       requestOtp: async () => null,
       checkOtpStatus: async () => 'pending',
       verifyOtp: async () => undefined,
-      checkDeviceVerificationStatus: async () => ({ status: 'pending', verificationResult: null }),
-      completeDeviceVerification: async () => undefined,
       updateProfile: async () => undefined,
       setOtpState: () => undefined,
       clearOtp: () => undefined,
-      clearDeviceVerification: () => undefined,
       setUser: () => undefined,
       logout: async () => undefined,
       hydrate: () => undefined
@@ -154,19 +147,26 @@ describe('Auth UI flow checks', () => {
     expect(screen.queryByText('Введите пароль')).not.toBeInTheDocument();
   });
 
-  it('redirects login with new device to verification step', async () => {
+  it('redirects login with new device to shared otp step', async () => {
     const loginMock = vi.fn(async () => ({
-      requiresDeviceVerification: true,
+      requiresOtp: true,
       tempToken: 'temp-token',
       user: baseUser,
+      otpContext: 'device_verification',
       verification: {
         channel: 'PHONE_CALL',
         phone: '79990000000',
         reason: 'Новое устройство'
       }
     }));
+    const requestOtpMock = vi.fn(async () => ({
+      requestId: 'request-1',
+      verificationType: 'call_to_auth' as const,
+      callToAuthNumber: '79990000001',
+      phone: '79990000000'
+    }));
 
-    useAuthStore.setState({ login: loginMock as never });
+    useAuthStore.setState({ login: loginMock as never, requestOtp: requestOtpMock as never });
 
     render(
       <MemoryRouter initialEntries={['/auth/login']}>
@@ -182,8 +182,13 @@ describe('Auth UI flow checks', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Войти' }));
 
-    expect(await screen.findByText('Подтвердите вход')).toBeInTheDocument();
-    expect(screen.getByText('Мы позвоним на номер +7 (999) 000-00-00')).toBeInTheDocument();
-    expect(screen.getByText('Не закрывайте страницу — вход завершится автоматически без перезагрузки.')).toBeInTheDocument();
+    expect(await screen.findByText('Подтвердите вход с нового устройства')).toBeInTheDocument();
+    expect(screen.getByText('Позвоните на')).toBeInTheDocument();
+    expect(screen.getByText('+7 (999) 000-00-01')).toBeInTheDocument();
+    expect(screen.getByText('Ожидаем автоматическое подтверждение входа после звонка.')).toBeInTheDocument();
+    expect(requestOtpMock).toHaveBeenCalledWith(
+      { phone: '79990000000', purpose: 'buyer_register_phone' },
+      'temp-token'
+    );
   });
 });

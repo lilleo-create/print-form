@@ -17,8 +17,7 @@ type DeviceVerification = {
 };
 
 type AuthResult =
-  | { requiresOtp: true; tempToken: string; user: User }
-  | { requiresDeviceVerification: true; tempToken: string; user: User | null; verification: DeviceVerification }
+  | { requiresOtp: true; tempToken: string; user: User; otpContext?: 'default' | 'device_verification'; verification?: DeviceVerification }
   | { requiresOtp: false; token: string; user: User };
 
 type RawUser = {
@@ -48,19 +47,6 @@ type RawAuthData = {
   accessToken?: string;
   user?: RawUser;
   verification?: RawDeviceVerification;
-};
-
-type RawDeviceVerificationStatus = {
-  status?: 'pending' | 'verified' | 'expired' | 'failed' | 'cancelled';
-  verificationResult?: string | Record<string, unknown> | null;
-  verification_result?: string | Record<string, unknown> | null;
-  result?: string | Record<string, unknown> | null;
-  data?: {
-    status?: 'pending' | 'verified' | 'expired' | 'failed' | 'cancelled';
-    verificationResult?: string | Record<string, unknown> | null;
-    verification_result?: string | Record<string, unknown> | null;
-    result?: string | Record<string, unknown> | null;
-  };
 };
 
 const normalizeRole = (role?: string): Role => {
@@ -154,9 +140,10 @@ export const authApi = {
       }
 
       return {
-        requiresDeviceVerification: true,
+        requiresOtp: true,
         tempToken: data?.tempToken ?? data?.temp_token ?? '',
-        user: data?.user ? normalizeUser(data.user) : null,
+        user: data?.user ? normalizeUser(data.user) : normalizeUser({ phone }),
+        otpContext: 'device_verification',
         verification: normalizeDeviceVerification(data?.verification),
       };
     }
@@ -269,33 +256,6 @@ export const authApi = {
     if (!session.token || !session.user.id) {
       throw new Error('OTP verify: invalid response');
     }
-    return session;
-  },
-
-  checkDeviceVerificationStatus: async (token: string) => {
-    const response = await api.deviceVerificationStatus(token);
-    const raw = response.data as RawDeviceVerificationStatus | undefined;
-    const data = raw?.data && typeof raw.data === 'object' ? raw.data : raw;
-
-    return {
-      status: data?.status ?? 'pending',
-      verificationResult: data?.verificationResult ?? data?.verification_result ?? data?.result ?? null,
-    };
-  },
-
-  verifyDevice: async (payload: { verificationResult?: string | Record<string, unknown> | null }, token: string) => {
-    const result = await api.verifyDeviceVerification(payload, token);
-    const data = result.data as { accessToken?: string; user?: RawUser };
-
-    const session = {
-      token: data.accessToken ?? '',
-      user: normalizeUser(data.user)
-    };
-
-    if (!session.token || !session.user.id) {
-      throw new Error('Device verification: invalid response');
-    }
-
     return session;
   },
 
