@@ -70,13 +70,13 @@ describe('authApi login device verification', () => {
       }),
       flowType: 'device_login_verification',
       requestId: 'request-1',
-      phone: '79990000000',
+      phone: '+79990000000',
       verificationMethod: 'existing_otp_flow',
       otpRequest: {
         requestId: 'request-1',
         verificationType: 'call_to_auth',
         callToAuthNumber: '79990000001',
-        phone: '79990000000',
+        phone: '+79990000000',
         provider: 'plusofon',
         status: undefined,
         expiresInSec: undefined

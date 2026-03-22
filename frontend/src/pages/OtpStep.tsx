@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '../shared/ui/Button';
 import { normalizeApiError } from '../shared/api/client';
+import { normalizePhone, toCanonicalRuPhone } from '../shared/lib/validation';
 import styles from './AuthPage.module.css';
 
 import type { OtpFlowType, OtpVerifyStatus, RegistrationPurpose } from '../shared/api/authApi';
@@ -16,8 +17,6 @@ type OtpRequestData = {
 type OtpUiState = 'idle' | 'requesting' | 'call_to_auth' | 'error';
 
 const POLL_INTERVAL_MS = 3000;
-
-const normalizePhone = (v: string) => (v ?? '').replace(/\D/g, '');
 
 const formatRuPhone = (value: string) => {
   const digits = normalizePhone(value);
@@ -43,17 +42,28 @@ const formatRuPhone = (value: string) => {
   return out;
 };
 
-const toE164Ru = (value: string) => {
-  const digits = normalizePhone(value);
-  const last10 = digits.length >= 10 ? digits.slice(-10) : digits;
-  const ten = last10.slice(0, 10);
-  return ('7' + ten).slice(0, 11);
-};
-
 const toTelHref = (value: string | null) => {
   const digits = normalizePhone(value ?? '');
   if (!digits) return '';
   return digits.startsWith('8') ? `tel:+7${digits.slice(1)}` : `tel:+${digits}`;
+};
+
+type ActiveOtpChallenge = {
+  flowType: OtpFlowType;
+  requestId: string;
+  tempToken: string | null;
+  challengePhone: string | null;
+  callToAuthNumber: string | null;
+  originalUserPhone: string | null;
+  otpRequest: OtpRequestData;
+};
+
+const resolveChallengePhone = (challengePhone?: string | null, fallbackPhone?: string | null) => {
+  const normalizedChallengePhone = toCanonicalRuPhone(challengePhone ?? '');
+  if (/^\+7\d{10}$/.test(normalizedChallengePhone)) {
+    return normalizedChallengePhone;
+  }
+  return fallbackPhone ? toCanonicalRuPhone(fallbackPhone) : null;
 };
 
 export function OtpStep(props: {
@@ -88,6 +98,33 @@ export function OtpStep(props: {
   const requestIdRef = useRef<string | null>(null);
   const challengeKeyRef = useRef<string | null>(null);
   const activeTokenRef = useRef<string | null>(tempToken);
+  const activeChallengeRef = useRef<ActiveOtpChallenge | null>(null);
+
+  const traceOtp = useCallback((stage: string, challenge: ActiveOtpChallenge | null, details?: Record<string, unknown>) => {
+    if (!import.meta.env.DEV) return;
+    console.debug('[otp]', stage, {
+      flowType: challenge?.flowType ?? props.flowType ?? 'registration',
+      requestId: challenge?.requestId ?? null,
+      phoneSentInRequest: details?.phoneSentInRequest ?? null,
+      phoneSentInVerify: details?.phoneSentInVerify ?? null,
+      challengePhone: challenge?.challengePhone ?? null,
+      callToAuthNumber: challenge?.callToAuthNumber ?? null,
+      originalUserPhone: challenge?.originalUserPhone ?? null,
+    });
+  }, [props.flowType]);
+
+  const buildActiveChallenge = useCallback((requestData: OtpRequestData, originalPhone?: string | null): ActiveOtpChallenge => ({
+    flowType: props.flowType ?? 'registration',
+    requestId: requestData.requestId,
+    tempToken: activeTokenRef.current,
+    challengePhone: resolveChallengePhone(requestData.phone, originalPhone ?? initialPhone ?? ''),
+    callToAuthNumber: requestData.callToAuthNumber ?? null,
+    originalUserPhone: originalPhone ? toCanonicalRuPhone(originalPhone) : (initialPhone ? toCanonicalRuPhone(initialPhone) : null),
+    otpRequest: {
+      ...requestData,
+      phone: resolveChallengePhone(requestData.phone, originalPhone ?? initialPhone ?? '') ?? requestData.phone,
+    },
+  }), [initialPhone, props.flowType]);
 
   const stopPolling = useCallback(() => {
     if (pollingRef.current) {
@@ -106,8 +143,10 @@ export function OtpStep(props: {
     requestIdRef.current = initialRequest?.requestId ?? null;
     challengeKeyRef.current = initialRequest?.requestId ? `${props.flowType ?? 'registration'}:${initialRequest.requestId}:${tempToken ?? ''}` : null;
     activeTokenRef.current = tempToken;
+    activeChallengeRef.current = initialRequest?.requestId ? buildActiveChallenge(initialRequest, initialPhone ?? null) : null;
     autoRequestedRef.current = Boolean(initialRequest?.requestId);
-  }, [initialPhone, initialRequest, purpose, stopPolling]);
+    traceOtp('init', activeChallengeRef.current);
+  }, [buildActiveChallenge, initialPhone, initialRequest, purpose, stopPolling, tempToken, traceOtp, props.flowType]);
 
   useEffect(() => () => stopPolling(), [stopPolling]);
 
@@ -127,10 +166,12 @@ export function OtpStep(props: {
   };
 
   const beginPolling = useCallback(
-    async (requestData: OtpRequestData, verifiedPhone: string) => {
+    async (requestData: OtpRequestData, requestedPhone: string) => {
       const challengeKey = `${props.flowType ?? 'registration'}:${requestData.requestId}:${activeTokenRef.current ?? ''}`;
+      const activeChallenge = buildActiveChallenge(requestData, requestedPhone);
       challengeKeyRef.current = challengeKey;
       requestIdRef.current = requestData.requestId;
+      activeChallengeRef.current = activeChallenge;
       setOtpUiState('call_to_auth');
       setCallToAuthNumber(requestData.callToAuthNumber ?? null);
       setResendAvailableAt(requestData.expiresInSec ? Date.now() + requestData.expiresInSec * 1000 : null);
@@ -138,6 +179,7 @@ export function OtpStep(props: {
       if (requestData.phone) {
         setPhone(formatRuPhone(requestData.phone));
       }
+      traceOtp('challenge_started', activeChallenge, { phoneSentInRequest: requestedPhone });
       props.setMessage(props.introMessage ?? 'Ожидаем автоматическое подтверждение после звонка.');
 
       stopPolling();
@@ -151,13 +193,19 @@ export function OtpStep(props: {
             setVerifyStatus(status);
             if (status === 'verified') {
               stopPolling();
-              await props.onVerifyOtp({ phone: verifiedPhone, requestId: requestData.requestId, purpose: purpose ?? undefined }, activeTokenRef.current);
+              const phoneForVerify = activeChallengeRef.current?.challengePhone;
+              if (!phoneForVerify) {
+                throw new Error('OTP verify phone missing from active challenge');
+              }
+              traceOtp('verify', activeChallengeRef.current, { phoneSentInVerify: phoneForVerify });
+              await props.onVerifyOtp({ phone: phoneForVerify, requestId: requestData.requestId, purpose: purpose ?? undefined }, activeTokenRef.current);
               props.onSuccess();
               return;
             }
             if (status === 'expired' || status === 'failed' || status === 'cancelled') {
               stopPolling();
               requestIdRef.current = null;
+              activeChallengeRef.current = null;
               setOtpUiState('error');
               props.setError('Время ожидания звонка истекло. Запросите подтверждение снова.');
             }
@@ -170,7 +218,7 @@ export function OtpStep(props: {
         })();
       }, POLL_INTERVAL_MS);
     },
-    [props, purpose, stopPolling]
+    [buildActiveChallenge, props, purpose, stopPolling, traceOtp]
   );
 
   const request = useCallback(async () => {
@@ -185,14 +233,16 @@ export function OtpStep(props: {
         return;
       }
 
-      const v11 = toE164Ru(phone);
-      if (!validateRuPhone(v11)) {
+      const canonicalPhone = toCanonicalRuPhone(phone);
+      const canonicalDigits = normalizePhone(canonicalPhone);
+      if (!validateRuPhone(canonicalDigits)) {
         props.setError('Введите номер в формате: +7 (9XX) XXX-XX-XX');
         setOtpUiState('error');
         return;
       }
 
-      const response = await props.onRequestOtp({ phone: v11, purpose: purpose ?? undefined }, activeTokenRef.current);
+      traceOtp('request', activeChallengeRef.current, { phoneSentInRequest: canonicalPhone });
+      const response = await props.onRequestOtp({ phone: canonicalPhone, purpose: purpose ?? undefined }, activeTokenRef.current);
       const data = response.otpRequest;
       if (!data?.requestId || !data?.verificationType) {
         props.setError('Не удалось начать подтверждение номера. Попробуйте ещё раз.');
@@ -207,12 +257,14 @@ export function OtpStep(props: {
         return;
       }
 
-      await beginPolling(data, v11);
+      await beginPolling(data, canonicalPhone);
     } catch (error) {
       const normalized = normalizeApiError(error);
       setOtpUiState('error');
       if (normalized.code === 'OTP_PROVIDER_UNAVAILABLE') {
         props.setError('Не удалось начать подтверждение номера. Попробуйте ещё раз.');
+      } else if (normalized.code === 'PHONE_MISMATCH') {
+        props.setError('Не удалось подтвердить номер. Повторите запрос подтверждения.');
       } else if (normalized.code === 'OTP_TOKEN_REQUIRED') {
         props.setError('Сессия подтверждения истекла. Начните ещё раз.');
       } else if (normalized.status === 429) {
@@ -229,9 +281,9 @@ export function OtpStep(props: {
       return;
     }
 
-    const verifiedPhone = toE164Ru(initialRequest.phone ?? phone ?? initialPhone ?? '');
-    void beginPolling(initialRequest, verifiedPhone);
-  }, [beginPolling, initialPhone, initialRequest, phone]);
+    const challengePhone = resolveChallengePhone(initialRequest.phone, initialPhone || '') ?? toCanonicalRuPhone(initialPhone || '');
+    void beginPolling(initialRequest, challengePhone);
+  }, [beginPolling, initialPhone, initialRequest]);
 
   useEffect(() => {
     if (autoRequestedRef.current) return;

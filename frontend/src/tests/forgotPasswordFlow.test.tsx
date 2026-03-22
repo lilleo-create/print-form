@@ -7,7 +7,7 @@ vi.mock('../shared/api/authApi', () => ({
   authApi: {
     requestPasswordReset: vi.fn(),
     checkOtpStatus: vi.fn(),
-    verifyPasswordReset: vi.fn(),
+    completePasswordResetVerification: vi.fn(),
     confirmPasswordReset: vi.fn()
   }
 }));
@@ -94,4 +94,44 @@ describe('Forgot password recovery flow', () => {
     expect(screen.getByText('Время ожидания звонка истекло. Запросите подтверждение снова.')).toBeInTheDocument();
 
   }, 10000);
+
+  it('verifies password reset with challenge phone in canonical format', async () => {
+    vi.mocked(authApi.requestPasswordReset).mockResolvedValue({
+      requiresOtp: true,
+      flowType: 'password_reset_verification',
+      tempToken: 'temp-token',
+      phone: '+7 (999) 000-00-00',
+      requestId: 'req-1',
+      otpRequest: {
+        requestId: 'req-1',
+        verificationType: 'call_to_auth',
+        callToAuthNumber: '78005553535',
+        phone: '***0000',
+        expiresInSec: 120
+      }
+    } as never);
+    vi.mocked(authApi.checkOtpStatus).mockResolvedValue('verified' as never);
+    vi.mocked(authApi.completePasswordResetVerification).mockResolvedValue('reset-token' as never);
+
+    render(
+      <MemoryRouter initialEntries={['/auth/forgot-password']}>
+        <ForgotPasswordPage />
+      </MemoryRouter>
+    );
+
+    fireEvent.change(screen.getByPlaceholderText('+7 (___) ___-__-__'), {
+      target: { value: '+7 (999) 000-00-00' }
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Продолжить' }));
+    });
+
+    await waitFor(() => {
+      expect(authApi.completePasswordResetVerification).toHaveBeenCalledWith(
+        { phone: '+79990000000', requestId: 'req-1' },
+        'temp-token'
+      );
+    }, { timeout: 4000 });
+  });
 });

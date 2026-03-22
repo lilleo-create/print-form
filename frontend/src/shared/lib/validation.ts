@@ -1,5 +1,16 @@
 export const normalizePhone = (v: string) => (v ?? '').replace(/\D/g, '');
 
+export const toCanonicalRuPhone = (input: string) => {
+  const digits = normalizePhone(input);
+  const localDigits = digits.length >= 10 ? digits.slice(-10) : digits;
+
+  if (localDigits.length !== 10) {
+    return input.trim();
+  }
+
+  return `+7${localDigits}`;
+};
+
 export const isRuPhone = (input: string) => {
   const digits = normalizePhone(input);
 
@@ -15,18 +26,7 @@ export const isRuPhone = (input: string) => {
 };
 
 export const toE164Ru = (input: string) => {
-  const digits = normalizePhone(input);
-
-  if (digits.length === 11 && digits.startsWith('8')) {
-    return `+7${digits.slice(1)}`;
-  }
-  if (digits.length === 11 && digits.startsWith('7')) {
-    return `+${digits}`;
-  }
-
-  // Если сюда попали, значит вызывают не после валидации
-  // Лучше вернуть исходное, но я бы кидал ошибку в dev.
-  return input.trim();
+  return toCanonicalRuPhone(input);
 };
 export const formatRuPhoneInput = (value: string) => {
   const digits = normalizePhone(value);
