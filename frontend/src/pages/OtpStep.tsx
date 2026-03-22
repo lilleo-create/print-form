@@ -3,7 +3,7 @@ import { Button } from '../shared/ui/Button';
 import { normalizeApiError } from '../shared/api/client';
 import styles from './AuthPage.module.css';
 
-import type { OtpFlowType, RegistrationPurpose } from '../shared/api/authApi';
+import type { OtpFlowType, OtpVerifyStatus, RegistrationPurpose } from '../shared/api/authApi';
 
 type OtpRequestData = {
   requestId: string;
@@ -57,7 +57,7 @@ const toTelHref = (value: string | null) => {
 };
 
 export function OtpStep(props: {
-  purpose?: RegistrationPurpose;
+  purpose?: RegistrationPurpose | null;
   tempToken: string | null;
   initialPhone?: string;
   flowType?: OtpFlowType;
@@ -66,7 +66,7 @@ export function OtpStep(props: {
   initialRequest?: OtpRequestData | null;
   hidePhoneInput?: boolean;
   idleMessage?: string;
-  onRequestOtp: (p: { phone: string; purpose?: RegistrationPurpose }, token?: string | null) => Promise<OtpRequestData | null>;
+  onRequestOtp: (p: { phone: string; purpose?: RegistrationPurpose }, token?: string | null) => Promise<{ otpRequest: OtpRequestData | null; tempToken?: string | null }>;
   onCheckOtpStatus: (requestId: string, token?: string | null) => Promise<'pending' | 'verified' | 'expired' | 'failed' | 'cancelled'>;
   onVerifyOtp: (p: { phone: string; code?: string; requestId?: string; purpose?: RegistrationPurpose }, token?: string | null) => Promise<void>;
   onSuccess: () => void;
@@ -80,9 +80,14 @@ export function OtpStep(props: {
   const [otpUiState, setOtpUiState] = useState<OtpUiState>('idle');
   const [phone, setPhone] = useState('');
   const [callToAuthNumber, setCallToAuthNumber] = useState<string | null>(null);
+  const [resendAvailableAt, setResendAvailableAt] = useState<number | null>(null);
+  const [verifyStatus, setVerifyStatus] = useState<OtpVerifyStatus>('idle');
+  const [now, setNow] = useState(() => Date.now());
   const pollingRef = useRef<number | null>(null);
   const autoRequestedRef = useRef(false);
   const requestIdRef = useRef<string | null>(null);
+  const challengeKeyRef = useRef<string | null>(null);
+  const activeTokenRef = useRef<string | null>(tempToken);
 
   const stopPolling = useCallback(() => {
     if (pollingRef.current) {
@@ -95,12 +100,24 @@ export function OtpStep(props: {
     stopPolling();
     setOtpUiState('idle');
     setCallToAuthNumber(initialRequest?.callToAuthNumber ?? null);
+    setResendAvailableAt(initialRequest?.expiresInSec ? Date.now() + initialRequest.expiresInSec * 1000 : null);
+    setVerifyStatus(initialRequest?.requestId ? 'pending' : 'idle');
     setPhone(initialPhone ? formatRuPhone(initialPhone) : '');
     requestIdRef.current = initialRequest?.requestId ?? null;
+    challengeKeyRef.current = initialRequest?.requestId ? `${props.flowType ?? 'registration'}:${initialRequest.requestId}:${tempToken ?? ''}` : null;
+    activeTokenRef.current = tempToken;
     autoRequestedRef.current = Boolean(initialRequest?.requestId);
   }, [initialPhone, initialRequest, purpose, stopPolling]);
 
   useEffect(() => () => stopPolling(), [stopPolling]);
+
+  useEffect(() => {
+    if (!resendAvailableAt || now >= resendAvailableAt) {
+      return;
+    }
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [now, resendAvailableAt]);
 
   const phoneDigits = useMemo(() => normalizePhone(phone), [phone]);
 
@@ -111,9 +128,13 @@ export function OtpStep(props: {
 
   const beginPolling = useCallback(
     async (requestData: OtpRequestData, verifiedPhone: string) => {
+      const challengeKey = `${props.flowType ?? 'registration'}:${requestData.requestId}:${activeTokenRef.current ?? ''}`;
+      challengeKeyRef.current = challengeKey;
       requestIdRef.current = requestData.requestId;
       setOtpUiState('call_to_auth');
       setCallToAuthNumber(requestData.callToAuthNumber ?? null);
+      setResendAvailableAt(requestData.expiresInSec ? Date.now() + requestData.expiresInSec * 1000 : null);
+      setVerifyStatus('pending');
       if (requestData.phone) {
         setPhone(formatRuPhone(requestData.phone));
       }
@@ -123,10 +144,14 @@ export function OtpStep(props: {
       pollingRef.current = window.setInterval(() => {
         void (async () => {
           try {
-            const status = await props.onCheckOtpStatus(requestData.requestId, tempToken);
+            if (challengeKeyRef.current !== challengeKey) {
+              return;
+            }
+            const status = await props.onCheckOtpStatus(requestData.requestId, activeTokenRef.current);
+            setVerifyStatus(status);
             if (status === 'verified') {
               stopPolling();
-              await props.onVerifyOtp({ phone: verifiedPhone, requestId: requestData.requestId, purpose }, tempToken);
+              await props.onVerifyOtp({ phone: verifiedPhone, requestId: requestData.requestId, purpose: purpose ?? undefined }, activeTokenRef.current);
               props.onSuccess();
               return;
             }
@@ -138,14 +163,14 @@ export function OtpStep(props: {
             }
           } catch {
             stopPolling();
-            requestIdRef.current = null;
             setOtpUiState('error');
+            setVerifyStatus('error');
             props.setError('Не удалось проверить статус подтверждения.');
           }
         })();
       }, POLL_INTERVAL_MS);
     },
-    [props, purpose, stopPolling, tempToken]
+    [props, purpose, stopPolling]
   );
 
   const request = useCallback(async () => {
@@ -154,6 +179,12 @@ export function OtpStep(props: {
     setOtpUiState('requesting');
 
     try {
+      if (resendAvailableAt && Date.now() < resendAvailableAt) {
+        props.setError('Повторный запрос пока недоступен. Дождитесь завершения текущего окна подтверждения.');
+        setOtpUiState('error');
+        return;
+      }
+
       const v11 = toE164Ru(phone);
       if (!validateRuPhone(v11)) {
         props.setError('Введите номер в формате: +7 (9XX) XXX-XX-XX');
@@ -161,12 +192,14 @@ export function OtpStep(props: {
         return;
       }
 
-      const data = await props.onRequestOtp({ phone: v11, purpose }, tempToken);
+      const response = await props.onRequestOtp({ phone: v11, purpose: purpose ?? undefined }, activeTokenRef.current);
+      const data = response.otpRequest;
       if (!data?.requestId || !data?.verificationType) {
         props.setError('Не удалось начать подтверждение номера. Попробуйте ещё раз.');
         setOtpUiState('error');
         return;
       }
+      activeTokenRef.current = response.tempToken ?? activeTokenRef.current;
 
       if (data.verificationType !== 'call_to_auth') {
         setOtpUiState('error');
@@ -183,12 +216,13 @@ export function OtpStep(props: {
       } else if (normalized.code === 'OTP_TOKEN_REQUIRED') {
         props.setError('Сессия подтверждения истекла. Начните ещё раз.');
       } else if (normalized.status === 429) {
-        props.setError('Слишком много запросов. Попробуйте чуть позже.');
+        setVerifyStatus('pending');
+        props.setError('Слишком частые повторы. Используйте текущий активный запрос и попробуйте позже.');
       } else {
         props.setError('Не удалось начать подтверждение звонком.');
       }
     }
-  }, [beginPolling, phone, props, purpose, tempToken]);
+  }, [beginPolling, phone, props, purpose, resendAvailableAt]);
 
   useEffect(() => {
     if (!initialRequest?.requestId || initialRequest.verificationType !== 'call_to_auth') {
@@ -212,6 +246,7 @@ export function OtpStep(props: {
   }, [otpUiState, props]);
 
   const isBusy = otpUiState === 'requesting';
+  const isResendDisabled = isBusy || (resendAvailableAt !== null && now < resendAvailableAt && verifyStatus === 'pending');
   const callToAuthDisplayNumber = callToAuthNumber ? formatRuPhone(callToAuthNumber) : null;
   const callToAuthTelHref = toTelHref(callToAuthNumber);
 
@@ -232,7 +267,7 @@ export function OtpStep(props: {
         <>
           <Button
             type="button"
-            disabled={isBusy}
+            disabled={isResendDisabled}
             onClick={() => void request()}
             variant="secondary"
             className={styles.lightButtonText}

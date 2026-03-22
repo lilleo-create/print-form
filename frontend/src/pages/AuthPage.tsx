@@ -18,6 +18,7 @@ import { OtpStep } from './OtpStep';
 import loginHero from '../shared/assets/login-hero.svg';
 
 import type { OtpFlowType, RegistrationPurpose } from '../shared/api/authApi';
+import { getOtpPurposeForFlow } from '../shared/api/authApi';
 
 const isValidLoginPhone = (value: string) => {
   const digits = normalizePhone(value);
@@ -149,7 +150,7 @@ export const AuthPage = () => {
 
   const [otpRequired, setOtpRequired] = useState(false);
   const [otpToken, setOtpToken] = useState<string | null>(null);
-  const [otpPurpose, setOtpPurpose] = useState<RegistrationPurpose>('buyer_register_phone');
+  const [otpPurpose, setOtpPurpose] = useState<RegistrationPurpose | null>('buyer_register_phone');
   const [otpPhone, setOtpPhone] = useState<string>('');
   const [otpFlowType, setOtpFlowType] = useState<OtpFlowType>('registration');
   const [otpRequest, setOtpRequest] = useState<{
@@ -292,7 +293,7 @@ export const AuthPage = () => {
       required?: boolean;
       tempToken?: string | null;
       phone?: string;
-      purpose?: RegistrationPurpose;
+      purpose?: RegistrationPurpose | null;
       flowType?: OtpFlowType;
       request?: typeof otpRequest;
     } | null>(STORAGE_KEYS.authOtpFlow, null);
@@ -301,7 +302,7 @@ export const AuthPage = () => {
       setOtpRequired(true);
       setOtpToken(stored.tempToken);
       setOtpPhone(stored.phone);
-      setOtpPurpose(stored.purpose ?? 'buyer_register_phone');
+      setOtpPurpose(stored.purpose ?? getOtpPurposeForFlow(stored.flowType ?? 'registration'));
       setOtpFlowType(stored.flowType ?? 'registration');
       setOtpRequest(stored.request ?? null);
       return;
@@ -311,7 +312,7 @@ export const AuthPage = () => {
       setOtpRequired(true);
       setOtpToken(persistedOtp.tempToken);
       setOtpPhone(persistedOtp.phone);
-      setOtpPurpose((persistedOtp.purpose ?? 'buyer_register_phone') as RegistrationPurpose);
+      setOtpPurpose(persistedOtp.purpose ?? getOtpPurposeForFlow(persistedOtp.flowType ?? 'registration'));
       setOtpFlowType(persistedOtp.flowType ?? 'registration');
       setOtpRequest(persistedOtp.otpRequest);
     }
@@ -326,17 +327,16 @@ export const AuthPage = () => {
       const result = await login(normalizedPhone, values.password);
 
       if ('requiresOtp' in result && result.requiresOtp) {
-        setOtpPurpose('buyer_register_phone');
+        const flowType = result.flowType ?? 'registration';
         setOtpRequired(true);
         setOtpToken(result.tempToken ?? null);
         setOtpPhone(result.phone ?? result.verification?.phone ?? result.user?.phone ?? normalizedPhone);
-        setOtpFlowType(result.flowType ?? 'registration');
+        setOtpFlowType(flowType);
         setOtpRequest(result.otpRequest ?? null);
-        if ((result.flowType ?? 'registration') === 'device_login_verification') {
-          setOtpPurpose('buyer_sensitive_action');
+        setOtpPurpose(getOtpPurposeForFlow(flowType));
+        if (flowType === 'device_login_verification') {
           setMessage('Подтвердите вход с нового устройства звонком.');
         } else {
-          setOtpPurpose('buyer_register_phone');
           setMessage('Подтвердите номер телефона для входа через звонок.');
         }
         return;
@@ -419,7 +419,17 @@ export const AuthPage = () => {
                 initialRequest={otpRequest}
                 title={otpFlowType === 'device_login_verification' ? 'Подтвердите вход с нового устройства' : undefined}
                 introMessage={otpFlowType === 'device_login_verification' ? 'Ожидаем автоматическое подтверждение входа после звонка.' : undefined}
-                onRequestOtp={otpFlowType === 'device_login_verification' ? requestDeviceLoginOtp : requestOtp}
+                onRequestOtp={async (payload, token) => {
+                  if (otpFlowType === 'device_login_verification') {
+                    const otpRequest = await requestDeviceLoginOtp({ phone: payload.phone }, token);
+                    setOtpRequest(otpRequest);
+                    return { otpRequest };
+                  }
+
+                  const otpRequest = await requestOtp(payload, token);
+                  setOtpRequest(otpRequest);
+                  return { otpRequest };
+                }}
                 onCheckOtpStatus={checkOtpStatus}
                 onVerifyOtp={otpFlowType === 'device_login_verification' ? verifyDeviceLoginOtp : verifyOtp}
                 onSuccess={() => {
