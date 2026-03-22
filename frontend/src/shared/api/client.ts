@@ -60,6 +60,17 @@ export const normalizeApiError = (error: unknown): NormalizedApiError => {
 
 let refreshPromise: Promise<string | null> | null = null;
 
+const PUBLIC_AUTH_PATH_PREFIXES = [
+  '/auth/login',
+  '/auth/register',
+  '/auth/refresh',
+  '/auth/otp/',
+  '/auth/password-reset/'
+] as const;
+
+const isPublicAuthPath = (path: string) =>
+  PUBLIC_AUTH_PATH_PREFIXES.some((prefix) => path.startsWith(prefix));
+
 const readAccessToken = (payload: unknown): string | null => {
   if (typeof payload !== 'object' || payload === null) {
     return null;
@@ -156,10 +167,7 @@ export function createFetchClient(baseUrl: string) {
     );
 
     const authToken = opts?.token ?? storedToken;
-    const isAuthRoute =
-      path.startsWith('/auth/register') ||
-      path.startsWith('/auth/login') ||
-      path.startsWith('/auth/refresh');
+    const isAuthRoute = isPublicAuthPath(path);
 
     if (authToken && !isAuthRoute) {
       headers.Authorization = `Bearer ${authToken}`;
@@ -191,7 +199,10 @@ export function createFetchClient(baseUrl: string) {
       payload = await res.text();
     }
 
-    if (res.status === 401 && !opts?.retry && path !== '/auth/refresh') {
+    const shouldAttemptRefresh =
+      res.status === 401 && !opts?.retry && !isPublicAuthPath(path);
+
+    if (shouldAttemptRefresh) {
       try {
         if (!refreshPromise) {
           refreshPromise = refreshAccessToken().finally(() => {

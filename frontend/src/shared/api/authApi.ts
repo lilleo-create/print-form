@@ -122,7 +122,7 @@ const extractErrorData = (error: unknown): RawAuthData | null => {
 export const authApi = {
   login: async (phone: string, password: string): Promise<AuthResult> => {
     try {
-      const result = await api.login({ phone, password, email: phone });
+      const result = await api.login({ phone, password });
       const data = result.data as RawAuthData;
 
       const requiresOtp = data.requiresOtp ?? data.requires_otp ?? false;
