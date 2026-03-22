@@ -20,7 +20,6 @@ import type {
 import { loadFromStorage } from '../lib/storage';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 
-
 export type SellerDropoffStation = {
   pvzId?: string | null;
   id?: string | null;
@@ -40,13 +39,14 @@ export interface ApiError {
   details?: unknown;
 }
 
-const baseUrl = import.meta.env.VITE_API_URL
+const baseUrl = import.meta.env.VITE_API_URL;
 export const apiClient = createFetchClient(baseUrl);
 
 type UploadResponse = { data: { urls: string[] } };
 
-
-const normalizeSellerDropoffStation = (point: Record<string, unknown>): SellerDropoffStation => ({
+const normalizeSellerDropoffStation = (
+  point: Record<string, unknown>
+): SellerDropoffStation => ({
   pvzId:
     typeof point.pvzId === 'string'
       ? point.pvzId
@@ -54,7 +54,10 @@ const normalizeSellerDropoffStation = (point: Record<string, unknown>): SellerDr
         ? point.id
         : null,
   id: typeof point.id === 'string' ? point.id : null,
-  platformStationId: typeof point.platformStationId === 'string' ? point.platformStationId : null,
+  platformStationId:
+    typeof point.platformStationId === 'string'
+      ? point.platformStationId
+      : null,
   operatorStationId:
     typeof point.operatorStationId === 'string'
       ? point.operatorStationId
@@ -65,21 +68,27 @@ const normalizeSellerDropoffStation = (point: Record<string, unknown>): SellerDr
   addressFull:
     typeof point.addressFull === 'string'
       ? point.addressFull
-      : typeof (point.address as Record<string, unknown> | undefined)?.full_address === 'string'
+      : typeof (point.address as Record<string, unknown> | undefined)
+            ?.full_address === 'string'
         ? String((point.address as Record<string, unknown>).full_address)
         : undefined,
   geoId: typeof point.geoId === 'number' ? point.geoId : null,
   position:
-    point.position && typeof point.position === 'object'
-      && typeof (point.position as Record<string, unknown>).latitude === 'number'
-      && typeof (point.position as Record<string, unknown>).longitude === 'number'
+    point.position &&
+    typeof point.position === 'object' &&
+    typeof (point.position as Record<string, unknown>).latitude === 'number' &&
+    typeof (point.position as Record<string, unknown>).longitude === 'number'
       ? {
-          latitude: (point.position as Record<string, unknown>).latitude as number,
-          longitude: (point.position as Record<string, unknown>).longitude as number
+          latitude: (point.position as Record<string, unknown>)
+            .latitude as number,
+          longitude: (point.position as Record<string, unknown>)
+            .longitude as number
         }
       : null,
-  maxWeightGross: typeof point.maxWeightGross === 'number' ? point.maxWeightGross : null,
-  distanceMeters: typeof point.distanceMeters === 'number' ? point.distanceMeters : null
+  maxWeightGross:
+    typeof point.maxWeightGross === 'number' ? point.maxWeightGross : null,
+  distanceMeters:
+    typeof point.distanceMeters === 'number' ? point.distanceMeters : null
 });
 
 const normalizeUploadUrl = (u: string) => {
@@ -335,7 +344,6 @@ export const api = {
     return apiClient.request<SellerDeliveryProfile | null>('/seller/settings');
   },
 
-
   async updateSourcePlatformStation(sourcePlatformStation: string) {
     return apiClient.request<SellerDeliveryProfile>(
       '/seller/settings/source-platform-station',
@@ -346,7 +354,6 @@ export const api = {
     );
   },
 
-
   async getSellerDropoffStations(
     geoIdOrParams: number | { geoId: number; limit?: number },
     limitArg?: number
@@ -354,15 +361,13 @@ export const api = {
     const geoId =
       typeof geoIdOrParams === 'number' ? geoIdOrParams : geoIdOrParams.geoId;
     const limit =
-      typeof geoIdOrParams === 'number'
-        ? limitArg
-        : geoIdOrParams.limit;
+      typeof geoIdOrParams === 'number' ? limitArg : geoIdOrParams.limit;
 
     const query = new URLSearchParams({ geoId: String(geoId) });
     if (limit) query.set('limit', String(limit));
-    const response = await apiClient.request<{ points: Record<string, unknown>[] }>(
-      `/seller/ndd/dropoff-stations?${query.toString()}`
-    );
+    const response = await apiClient.request<{
+      points: Record<string, unknown>[];
+    }>(`/seller/ndd/dropoff-stations?${query.toString()}`);
 
     return {
       ...response,
@@ -372,26 +377,39 @@ export const api = {
     };
   },
 
-  async searchSellerDropoffStations(query: string, geoId?: number, limit = 50, signal?: AbortSignal) {
-    const response = await apiClient.request<{ points: Record<string, unknown>[]; debug?: { geoId?: number; geocode?: { lat: number; lon: number; precision?: string | null; text?: string | null } } }>(
-      '/seller/ndd/dropoff-stations/search',
-      {
-        method: 'POST',
-        body: { query, geoId, limit },
-        signal
-      }
-    );
+  async searchSellerDropoffStations(
+    query: string,
+    geoId?: number,
+    limit = 50,
+    signal?: AbortSignal
+  ) {
+    const response = await apiClient.request<{
+      points: Record<string, unknown>[];
+      debug?: {
+        geoId?: number;
+        geocode?: {
+          lat: number;
+          lon: number;
+          precision?: string | null;
+          text?: string | null;
+        };
+      };
+    }>('/seller/ndd/dropoff-stations/search', {
+      method: 'POST',
+      body: { query, geoId, limit },
+      signal
+    });
 
     return {
       ...response,
       data: {
-        points: (response.data?.points ?? []).map(normalizeSellerDropoffStation),
+        points: (response.data?.points ?? []).map(
+          normalizeSellerDropoffStation
+        ),
         debug: response.data?.debug
       }
     };
   },
-
-
 
   async updateSellerDropoffStation(payload: {
     stationId: string;
@@ -407,11 +425,13 @@ export const api = {
     );
   },
 
-  async updateSellerDeliveryProfile(payload: { dropoffSchedule: 'DAILY' | 'WEEKDAYS' }) {
-    return apiClient.request<SellerDeliveryProfile>(
-      '/seller/settings',
-      { method: 'PUT', body: payload }
-    );
+  async updateSellerDeliveryProfile(payload: {
+    dropoffSchedule: 'DAILY' | 'WEEKDAYS';
+  }) {
+    return apiClient.request<SellerDeliveryProfile>('/seller/settings', {
+      method: 'PUT',
+      body: payload
+    });
   },
 
   async updateSellerDropoffPvz(payload: {
@@ -457,9 +477,12 @@ export const api = {
   },
 
   async syncShipment(shipmentId: string) {
-    return apiClient.request<{ shipment: { id: string } }>(`/seller/shipments/${shipmentId}/sync`, {
-      method: 'POST'
-    });
+    return apiClient.request<{ shipment: { id: string } }>(
+      `/seller/shipments/${shipmentId}/sync`,
+      {
+        method: 'POST'
+      }
+    );
   },
 
   async syncCdekOrder(orderId: string) {
@@ -475,11 +498,14 @@ export const api = {
   },
 
   async downloadShippingLabel(orderId: string) {
-    const response = await fetch(`${baseUrl}/seller/orders/${orderId}/documents/label.pdf`, {
-      headers: {
-        ...(authHeaders() ?? {})
+    const response = await fetch(
+      `${baseUrl}/seller/orders/${orderId}/documents/label.pdf`,
+      {
+        headers: {
+          ...(authHeaders() ?? {})
+        }
       }
-    });
+    );
 
     if (!response.ok) {
       throw new Error(`LABEL_DOWNLOAD_FAILED_${response.status}`);
@@ -492,15 +518,22 @@ export const api = {
   },
 
   async downloadShipmentBarcodes(shipmentId: string) {
-    return apiClient.request<{ status: 'ready'; format: 'application/pdf'; size: number }>(`/seller/shipments/${shipmentId}/barcodes`);
+    return apiClient.request<{
+      status: 'ready';
+      format: 'application/pdf';
+      size: number;
+    }>(`/seller/shipments/${shipmentId}/barcodes`);
   },
 
   async downloadShipmentAct(shipmentId: string) {
-    const response = await fetch(`${baseUrl}/seller/shipments/${shipmentId}/act`, {
-      headers: {
-        ...(authHeaders() ?? {})
+    const response = await fetch(
+      `${baseUrl}/seller/shipments/${shipmentId}/act`,
+      {
+        headers: {
+          ...(authHeaders() ?? {})
+        }
       }
-    });
+    );
     if (!response.ok) {
       throw new Error(`ACT_DOWNLOAD_FAILED_${response.status}`);
     }
@@ -628,7 +661,13 @@ export const api = {
   async requestOtp(
     payload: {
       phone: string;
-      purpose?: 'buyer_register_phone' | 'buyer_change_phone' | 'buyer_sensitive_action' | 'seller_connect_phone' | 'seller_change_payout_details' | 'seller_payout_settings_verify';
+      purpose?:
+        | 'buyer_register_phone'
+        | 'buyer_change_phone'
+        | 'buyer_sensitive_action'
+        | 'seller_connect_phone'
+        | 'seller_change_payout_details'
+        | 'seller_payout_settings_verify';
       turnstileToken?: string;
     },
     token?: string | null
@@ -645,14 +684,11 @@ export const api = {
         expiresInSec?: number;
       };
       devOtp?: string;
-    }>(
-      '/auth/otp/request',
-      {
-        method: 'POST',
-        body: payload,
-        token
-      }
-    );
+    }>('/auth/otp/request', {
+      method: 'POST',
+      body: payload,
+      token
+    });
   },
 
   async verifyOtp(
@@ -660,7 +696,13 @@ export const api = {
       phone: string;
       code?: string;
       requestId?: string;
-      purpose?: 'buyer_register_phone' | 'buyer_change_phone' | 'buyer_sensitive_action' | 'seller_connect_phone' | 'seller_change_payout_details' | 'seller_payout_settings_verify';
+      purpose?:
+        | 'buyer_register_phone'
+        | 'buyer_change_phone'
+        | 'buyer_sensitive_action'
+        | 'seller_connect_phone'
+        | 'seller_change_payout_details'
+        | 'seller_payout_settings_verify';
     },
     token?: string | null
   ) {
@@ -681,7 +723,11 @@ export const api = {
   async otpStatus(requestId: string, token?: string | null) {
     return apiClient.request<{
       ok: boolean;
-      data: { requestId: string; status: 'pending' | 'verified' | 'expired' | 'failed' | 'cancelled'; provider: 'plusofon' | 'telegram' };
+      data: {
+        requestId: string;
+        status: 'pending' | 'verified' | 'expired' | 'failed' | 'cancelled';
+        provider: 'plusofon' | 'telegram';
+      };
     }>(`/auth/otp/status/${requestId}`, { token });
   },
 
@@ -704,16 +750,17 @@ export const api = {
         status?: string;
         expiresInSec?: number;
       };
-    }>(
-      '/auth/password-reset/request',
-      {
-        method: 'POST',
-        body: payload
-      }
-    );
+    }>('/auth/password-reset/request', {
+      method: 'POST',
+      body: payload
+    });
   },
 
-  async verifyPasswordReset(payload: { phone: string; code?: string; requestId?: string }) {
+  async verifyPasswordReset(payload: {
+    phone: string;
+    code?: string;
+    requestId?: string;
+  }) {
     return apiClient.request<{ ok: boolean; resetToken: string }>(
       '/auth/password-reset/verify',
       {
@@ -861,7 +908,9 @@ export const api = {
 
     if (!response.ok) {
       const payloadJson = await response.json().catch(() => null);
-      const error = new Error(payloadJson?.error?.message ?? 'KYC_SUBMIT_FAILED') as Error & {
+      const error = new Error(
+        payloadJson?.error?.message ?? 'KYC_SUBMIT_FAILED'
+      ) as Error & {
         status?: number;
         payload?: unknown;
       };
@@ -873,7 +922,9 @@ export const api = {
     return (await response.json()) as { data: SellerKycSubmission };
   },
 
-  async getAdminKyc(status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'REVISION' = 'PENDING') {
+  async getAdminKyc(
+    status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'REVISION' = 'PENDING'
+  ) {
     return apiClient.request<SellerKycSubmission[]>(
       `/admin/kyc?status=${status}`
     );
@@ -883,7 +934,10 @@ export const api = {
     return apiClient.request<SellerKycSubmission>(`/admin/kyc/${id}`);
   },
 
-  async updateAdminKycStatus(id: string, payload: { status: 'APPROVED' | 'REJECTED' | 'REVISION'; comment?: string }) {
+  async updateAdminKycStatus(
+    id: string,
+    payload: { status: 'APPROVED' | 'REJECTED' | 'REVISION'; comment?: string }
+  ) {
     return apiClient.request<SellerKycSubmission>(`/admin/kyc/${id}/status`, {
       method: 'PATCH',
       body: payload
@@ -1007,6 +1061,18 @@ export const api = {
       return apiClient.request<{ active: ChatThread[]; closed: ChatThread[] }>(
         '/chats/my'
       );
+    },
+    async createSellerThread(payload: { sellerId: string }) {
+      return apiClient.request<ChatThread>('/chats/threads', {
+        method: 'POST',
+        body: { kind: 'SELLER', ...payload }
+      });
+    },
+    async createSupportThread(payload: { topic: string }) {
+      return apiClient.request<ChatThread>('/chats/threads', {
+        method: 'POST',
+        body: { kind: 'SUPPORT', ...payload }
+      });
     },
     async getThread(id: string) {
       return apiClient.request<{ thread: ChatThread; messages: ChatMessage[] }>(

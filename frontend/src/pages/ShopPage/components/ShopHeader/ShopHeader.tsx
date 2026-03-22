@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import { Link } from 'react-router-dom';
 import { Button } from '../../../../shared/ui/Button';
 import { Rating } from '../../../../shared/ui/Rating';
 import { Skeleton } from '../../../../shared/ui/Skeleton';
@@ -17,6 +16,7 @@ interface ShopHeaderProps {
   onSearchSubmit: () => void;
   onRetry: () => void;
   onMessage: () => void;
+  onBack: () => void;
   onOpenInfo: () => void;
   onCopyLink: () => void;
   onOpenProfileMenu: () => void;
@@ -24,7 +24,10 @@ interface ShopHeaderProps {
 
 const formatCompactNumber = (value?: number | null) => {
   if (!value && value !== 0) return null;
-  return new Intl.NumberFormat('ru-RU', { notation: 'compact', maximumFractionDigits: 1 }).format(value);
+  return new Intl.NumberFormat('ru-RU', {
+    notation: 'compact',
+    maximumFractionDigits: 1
+  }).format(value);
 };
 
 export const ShopHeader = ({
@@ -36,6 +39,7 @@ export const ShopHeader = ({
   onSearchSubmit,
   onRetry,
   onMessage,
+  onBack,
   onOpenInfo,
   onCopyLink,
   onOpenProfileMenu
@@ -72,7 +76,11 @@ export const ShopHeader = ({
             {loading ? (
               <Skeleton className={styles.avatarSkeleton} variant="circle" />
             ) : shop?.avatarUrl ? (
-              <img className={styles.avatar} src={resolveImageUrl(shop.avatarUrl)} alt={shop.title} />
+              <img
+                className={styles.avatar}
+                src={resolveImageUrl(shop.avatarUrl)}
+                alt={shop.title}
+              />
             ) : (
               <div className={styles.avatarFallback}>{avatarText}</div>
             )}
@@ -86,7 +94,11 @@ export const ShopHeader = ({
                 <Skeleton className={styles.ratingSkeleton} />
               ) : (
                 <div className={styles.ratingRow}>
-                  <Rating value={shop?.rating ?? 0} count={shop?.reviewsCount ?? 0} size="sm" />
+                  <Rating
+                    value={shop?.rating ?? 0}
+                    count={shop?.reviewsCount ?? 0}
+                    size="sm"
+                  />
                   {shop?.reviewsCount ? (
                     <span className={styles.reviewsText}>
                       {formatCompactNumber(shop.reviewsCount)} оценок
@@ -121,7 +133,12 @@ export const ShopHeader = ({
             <Button type="button" variant="secondary" onClick={onMessage}>
               Написать
             </Button>
-            <button type="button" className={styles.iconButton} onClick={onOpenInfo} aria-label="Данные магазина">
+            <button
+              type="button"
+              className={styles.iconButton}
+              onClick={onOpenInfo}
+              aria-label="Данные магазина"
+            >
               i
             </button>
             <button
@@ -132,13 +149,16 @@ export const ShopHeader = ({
             >
               🔗
             </button>
-            <HeaderActions variant="compact" onProfileClick={onOpenProfileMenu} />
+            <HeaderActions
+              variant="compact"
+              onProfileClick={onOpenProfileMenu}
+            />
           </div>
         </div>
         <div className={styles.subLinks}>
-          <Link to="/catalog" className={styles.backLink}>
-            Перейти в каталог
-          </Link>
+          <button type="button" className={styles.backLink} onClick={onBack}>
+            Назад
+          </button>
         </div>
       </div>
     </div>

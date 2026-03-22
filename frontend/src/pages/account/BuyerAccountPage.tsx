@@ -18,8 +18,12 @@ export const BuyerAccountPage = () => {
   const activeTab = searchParams.get('tab') ?? 'profile';
   const threadIdParam = searchParams.get('threadId');
   const [showReturnCreate, setShowReturnCreate] = useState(false);
-  const [returnCreateStep, setReturnCreateStep] = useState<'select' | 'form' | 'success' | 'exists'>('select');
-  const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
+  const [returnCreateStep, setReturnCreateStep] = useState<
+    'select' | 'form' | 'success' | 'exists'
+  >('select');
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(
+    null
+  );
 
   useEffect(() => {
     if (activeTab !== 'returns') {
@@ -29,10 +33,15 @@ export const BuyerAccountPage = () => {
     }
   }, [activeTab]);
 
-  const { activeOrders, purchasedItems, returnCandidates, reloadOrders } = useBuyerOrders(user);
+  const { activeOrders, purchasedItems, returnCandidates, reloadOrders } =
+    useBuyerOrders(user);
 
-  const { returns, isLoading: returnsLoading, error: returnsError, reload: reloadReturns } =
-    useMyReturns(activeTab);
+  const {
+    returns,
+    isLoading: returnsLoading,
+    error: returnsError,
+    reload: reloadReturns
+  } = useMyReturns(activeTab);
 
   const {
     chatThreads,
@@ -41,7 +50,9 @@ export const BuyerAccountPage = () => {
     chatMessages,
     chatLoading,
     chatError,
-    handleSendMessage
+    handleSendMessage,
+    creatingSupportThread,
+    createSupportThread
   } = useMyChats(activeTab, threadIdParam);
 
   const isProfile = activeTab === 'profile';
@@ -81,8 +92,6 @@ export const BuyerAccountPage = () => {
     setShowReturnCreate(true);
   };
 
-
-
   const closeReturnCreate = () => {
     setShowReturnCreate(false);
     setReturnCreateStep('select');
@@ -104,16 +113,24 @@ export const BuyerAccountPage = () => {
           <div className={styles.pageHeader}>
             {isReturns && showReturnCreate ? (
               <div className={styles.flowHeader}>
-                <button type="button" className={styles.backButton} onClick={handleReturnBack}>
+                <button
+                  type="button"
+                  className={styles.backButton}
+                  onClick={handleReturnBack}
+                >
                   ← Назад
                 </button>
-                <span className={styles.flowTitle}>Оформление возврата · {stepLabel}</span>
+                <span className={styles.flowTitle}>
+                  Оформление возврата · {stepLabel}
+                </span>
               </div>
             ) : (
               <>
-                <Link to="/account?tab=profile" className={styles.backLink}>
-                  Назад в аккаунт
-                </Link>
+                {activeTab !== 'chats' && (
+                  <Link to="/account?tab=profile" className={styles.backLink}>
+                    Назад в аккаунт
+                  </Link>
+                )}
                 <div className={styles.pageHeading}>
                   <h1>{pageTitle}</h1>
                   {isReturns && (
@@ -159,8 +176,10 @@ export const BuyerAccountPage = () => {
             chatMessages={chatMessages}
             chatLoading={chatLoading}
             chatError={chatError}
+            creatingSupportThread={creatingSupportThread}
             onSelectThread={setSelectedThread}
             onSendMessage={handleSendMessage}
+            onCreateSupportThread={createSupportThread}
           />
         )}
       </div>

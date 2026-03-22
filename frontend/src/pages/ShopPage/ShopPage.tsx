@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import {
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams
+} from 'react-router-dom';
 import { useHeaderMenuStore } from '../../app/store/headerMenuStore';
 import { ShopHeader } from './components/ShopHeader/ShopHeader';
 import { ShopInfoModal } from './components/ShopInfoModal/ShopInfoModal';
@@ -7,6 +12,7 @@ import { ShopFilters } from './components/ShopFilters/ShopFilters';
 import { ShopCatalog } from './components/ShopCatalog/ShopCatalog';
 import { useShopPage } from './hooks/useShopPage';
 import { ProfileMenu } from '../../shared/layout/ProfileMenu';
+import { api } from '../../shared/api';
 import styles from './ShopPage.module.css';
 import { useBodyScrollLock } from '../../shared/lib/useBodyScrollLock';
 
@@ -15,9 +21,13 @@ export const ShopPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const isProfileMenuOpen = useHeaderMenuStore((state) => state.isProfileMenuOpen);
+  const isProfileMenuOpen = useHeaderMenuStore(
+    (state) => state.isProfileMenuOpen
+  );
   const openProfileMenu = useHeaderMenuStore((state) => state.openProfileMenu);
-  const closeProfileMenu = useHeaderMenuStore((state) => state.closeProfileMenu);
+  const closeProfileMenu = useHeaderMenuStore(
+    (state) => state.closeProfileMenu
+  );
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window === 'undefined') {
       return 'dark';
@@ -28,8 +38,12 @@ export const ShopPage = () => {
   });
 
   const [isInfoOpen, setInfoOpen] = useState(false);
+  const [isCreatingSellerThread, setIsCreatingSellerThread] = useState(false);
   const openProfileMenuHandler = () => {
-    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches) {
+    if (
+      typeof window !== 'undefined' &&
+      window.matchMedia('(max-width: 768px)').matches
+    ) {
       return;
     }
     openProfileMenu();
@@ -89,9 +103,33 @@ export const ShopPage = () => {
   } = useShopPage(shopId);
 
   const hasFilters = useMemo(
-    () => Boolean(filters.category || filters.material || filters.price || searchQuery),
+    () =>
+      Boolean(
+        filters.category || filters.material || filters.price || searchQuery
+      ),
     [filters.category, filters.material, filters.price, searchQuery]
   );
+
+  const handleBack = () => {
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+    navigate('/catalog');
+  };
+
+  const handleMessageSeller = async () => {
+    if (!shopId || isCreatingSellerThread) return;
+    setIsCreatingSellerThread(true);
+    try {
+      const response = await api.chats.createSellerThread({ sellerId: shopId });
+      navigate(`/account?tab=chats&threadId=${response.data.id}`);
+    } catch {
+      navigate('/account?tab=chats');
+    } finally {
+      setIsCreatingSellerThread(false);
+    }
+  };
 
   return (
     <section className={styles.page}>
@@ -103,7 +141,8 @@ export const ShopPage = () => {
         onSearchChange={setSearchValue}
         onSearchSubmit={applySearchNow}
         onRetry={retryShop}
-        onMessage={() => navigate('/account?tab=chats')}
+        onMessage={handleMessageSeller}
+        onBack={handleBack}
         onOpenInfo={() => setInfoOpen(true)}
         onCopyLink={copyShopLink}
         onOpenProfileMenu={openProfileMenuHandler}
@@ -122,7 +161,7 @@ export const ShopPage = () => {
           />
           <ShopCatalog
             products={products}
-            loading={productsLoading}
+            loading={productsLoading || isCreatingSellerThread}
             error={productsError}
             hasMore={hasMore}
             sortKey={sortKey}
@@ -152,7 +191,9 @@ export const ShopPage = () => {
           closeProfileMenu();
         }}
         theme={theme}
-        onToggleTheme={() => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))}
+        onToggleTheme={() =>
+          setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))
+        }
       />
     </section>
   );
