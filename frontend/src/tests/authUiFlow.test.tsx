@@ -24,14 +24,23 @@ describe('Auth UI flow checks', () => {
         phone: null,
         user: null
       },
+      deviceVerification: {
+        required: false,
+        tempToken: null,
+        user: null,
+        verification: null
+      },
       login: async () => ({ requiresOtp: false, user: baseUser, token: 'token' }),
       register: async () => ({ requiresOtp: false, user: baseUser, token: 'token' }),
       requestOtp: async () => null,
       checkOtpStatus: async () => 'pending',
       verifyOtp: async () => undefined,
+      checkDeviceVerificationStatus: async () => ({ status: 'pending', verificationResult: null }),
+      completeDeviceVerification: async () => undefined,
       updateProfile: async () => undefined,
       setOtpState: () => undefined,
       clearOtp: () => undefined,
+      clearDeviceVerification: () => undefined,
       setUser: () => undefined,
       logout: async () => undefined,
       hydrate: () => undefined
@@ -143,5 +152,38 @@ describe('Auth UI flow checks', () => {
     });
 
     expect(screen.queryByText('Введите пароль')).not.toBeInTheDocument();
+  });
+
+  it('redirects login with new device to verification step', async () => {
+    const loginMock = vi.fn(async () => ({
+      requiresDeviceVerification: true,
+      tempToken: 'temp-token',
+      user: baseUser,
+      verification: {
+        channel: 'PHONE_CALL',
+        phone: '79990000000',
+        reason: 'Новое устройство'
+      }
+    }));
+
+    useAuthStore.setState({ login: loginMock as never });
+
+    render(
+      <MemoryRouter initialEntries={['/auth/login']}>
+        <AuthPage />
+      </MemoryRouter>
+    );
+
+    fireEvent.change(screen.getByPlaceholderText('+7 (___) ___-__-__'), {
+      target: { value: '+7 (999) 000-00-00' }
+    });
+    fireEvent.change(screen.getByPlaceholderText('Пароль'), {
+      target: { value: 'buyer123' }
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Войти' }));
+
+    expect(await screen.findByText('Подтвердите вход')).toBeInTheDocument();
+    expect(screen.getByText('Мы позвоним на номер +7 (999) 000-00-00')).toBeInTheDocument();
+    expect(screen.getByText('Не закрывайте страницу — вход завершится автоматически без перезагрузки.')).toBeInTheDocument();
   });
 });
