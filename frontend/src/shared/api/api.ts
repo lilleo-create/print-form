@@ -103,6 +103,17 @@ const authHeaders = () => {
   return token ? { Authorization: `Bearer ${token}` } : undefined;
 };
 
+export type SellerType = 'ИП' | 'ООО' | 'Самозанятый';
+
+export interface SellerOnboardingPayload {
+  name: string;
+  phone: string;
+  sellerType: SellerType;
+  city: string;
+  email?: string;
+  storeName?: string;
+}
+
 export const api = {
   async getProducts(
     filters?: {
@@ -756,11 +767,14 @@ export const api = {
     });
   },
 
-  async verifyPasswordReset(payload: {
-    phone: string;
-    code?: string;
-    requestId?: string;
-  }, token?: string | null) {
+  async verifyPasswordReset(
+    payload: {
+      phone: string;
+      code?: string;
+      requestId?: string;
+    },
+    token?: string | null
+  ) {
     return apiClient.request<{ ok: boolean; resetToken: string }>(
       '/auth/password-reset/verify',
       {
@@ -819,16 +833,7 @@ export const api = {
     });
   },
 
-  async submitSellerOnboarding(payload: {
-    name: string | null;
-    phone: string;
-    email?: string | null;
-    status: 'ИП' | 'ООО' | 'Самозанятый';
-    storeName?: string | null;
-    city: string;
-    referenceCategory: string;
-    catalogPosition: string;
-  }) {
+  async submitSellerOnboarding(payload: SellerOnboardingPayload) {
     return apiClient.request<{
       id: string;
       name: string | null;
