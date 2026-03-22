@@ -11,8 +11,6 @@ vi.mock('../shared/api', async () => {
       requestOtp: vi.fn(),
       otpStatus: vi.fn(),
       verifyOtp: vi.fn(),
-      deviceVerificationStatus: vi.fn(),
-      verifyDeviceVerification: vi.fn(),
       updateProfile: vi.fn(),
       logout: vi.fn(),
       getSellerContext: vi.fn(),
@@ -54,13 +52,14 @@ describe('authApi login device verification', () => {
     vi.mocked(api.login).mockRejectedValue(error as never);
 
     await expect(authApi.login('+79990000000', 'buyer123')).resolves.toEqual({
-      requiresDeviceVerification: true,
+      requiresOtp: true,
       tempToken: 'temp-token',
       user: expect.objectContaining({
         id: 'user-1',
         role: 'buyer',
         phone: '79990000000'
       }),
+      otpContext: 'device_verification',
       verification: {
         channel: 'PHONE_CALL',
         phone: '79990000000',

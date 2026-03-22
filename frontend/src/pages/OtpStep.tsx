@@ -57,6 +57,9 @@ export function OtpStep(props: {
   purpose: Purpose;
   tempToken: string | null;
   initialPhone?: string;
+  context?: 'default' | 'device_verification';
+  title?: string;
+  introMessage?: string;
   onRequestOtp: (p: { phone: string; purpose: Purpose }, token?: string | null) => Promise<OtpRequestData | null>;
   onCheckOtpStatus: (requestId: string, token?: string | null) => Promise<'pending' | 'verified' | 'expired' | 'failed' | 'cancelled'>;
   onVerifyOtp: (p: { phone: string; code?: string; requestId?: string; purpose: Purpose }, token?: string | null) => Promise<void>;
@@ -128,7 +131,7 @@ export function OtpStep(props: {
       if (data.phone) {
         setPhone(formatRuPhone(data.phone));
       }
-      props.setMessage('Ожидаем автоматическое подтверждение после звонка.');
+      props.setMessage(props.introMessage ?? 'Ожидаем автоматическое подтверждение после звонка.');
 
       stopPolling();
       pollingRef.current = window.setInterval(() => {
@@ -184,7 +187,7 @@ export function OtpStep(props: {
     <div className={styles.form}>
       {otpUiState === 'call_to_auth' && (
         <div className={styles.callToAuthCard}>
-          <h2 className={styles.callToAuthTitle}>Подтверждение номера</h2>
+          <h2 className={styles.callToAuthTitle}>{props.title ?? 'Подтверждение номера'}</h2>
           <p className={styles.callToAuthSubtitle}>Позвоните на</p>
           <a href={callToAuthTelHref} className={styles.callToAuthPhone}>
             {callToAuthDisplayNumber ?? 'номер недоступен'}
@@ -205,7 +208,7 @@ export function OtpStep(props: {
         </Button>
       )}
 
-      {otpUiState === 'idle' && <p className={styles.subtitle}>Подготавливаем подтверждение номера…</p>}
+      {otpUiState === 'idle' && <p className={styles.subtitle}>{props.context === 'device_verification' ? 'Подготавливаем подтверждение входа…' : 'Подготавливаем подтверждение номера…'}</p>}
     </div>
   );
 }
