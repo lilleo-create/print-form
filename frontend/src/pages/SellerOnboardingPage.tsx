@@ -7,7 +7,8 @@ import { Role } from '../shared/types';
 import styles from './SellerOnboardingPage.module.css';
 import { formatRuPhoneInput, isRuPhone, toE164Ru } from '../shared/lib/validation';
 
-const steps = ['Контакты', 'Продавец', 'Логистика', 'Категория'] as const;
+const steps = ['Контакты', 'Продавец', 'Логистика'] as const;
+const CONTACT_SUPPORT_TEXT = 'Для смены контактной информации обратитесь в поддержку';
 
 export const SellerOnboardingPage = () => {
   const navigate = useNavigate();
@@ -17,7 +18,6 @@ export const SellerOnboardingPage = () => {
   const [isComplete, setIsComplete] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [phoneVerificationRequired, setPhoneVerificationRequired] = useState(false);
-  const [referenceCategories, setReferenceCategories] = useState<{ id: string; slug: string; title: string }[]>([]);
   const [cities, setCities] = useState<{ id: string; name: string }[]>([]);
   const [form, setForm] = useState({
     name: '',
@@ -26,7 +26,6 @@ export const SellerOnboardingPage = () => {
     status: 'ИП',
     storeName: '',
     city: '',
-    referenceCategory: '',
     catalogPosition: 'standard'
   });
   const [touched, setTouched] = useState({
@@ -36,7 +35,6 @@ export const SellerOnboardingPage = () => {
     status: false,
     storeName: false,
     city: false,
-    referenceCategory: false,
     catalogPosition: false
   });
 
@@ -44,25 +42,23 @@ export const SellerOnboardingPage = () => {
     if (user) {
       setForm((prev) => ({
         ...prev,
-        name: prev.name || user.name,
-        phone: prev.phone || formatRuPhoneInput(user.phone ?? ''),
-        email: prev.email || (user?.email ?? '')
+        name: user.fullName?.trim() || prev.name || user.name,
+        phone: formatRuPhoneInput(user.phone ?? prev.phone ?? ''),
+        email: prev.email || (user.email ?? '')
       }));
     }
   }, [user]);
 
   useEffect(() => {
     let isMounted = true;
-    Promise.all([api.getReferenceCategories(), api.getCities()])
-      .then(([categoriesResponse, citiesResponse]) => {
+    api.getCities()
+      .then((citiesResponse) => {
         if (isMounted) {
-          setReferenceCategories(categoriesResponse.data);
           setCities(citiesResponse.data);
         }
       })
       .catch(() => {
         if (isMounted) {
-          setReferenceCategories([]);
           setCities([]);
         }
       });
@@ -78,8 +74,6 @@ export const SellerOnboardingPage = () => {
   const statusValid = form.status.trim().length > 0;
   const storeNameValid = true;
   const cityValid = cities.some((city) => city.name === form.city);
-  const referenceCategoryValid = form.referenceCategory.trim().length >= 2;
-  const catalogPositionValid = true;
 
   const canProceed = useMemo(() => {
     if (step === 0) {
@@ -91,21 +85,8 @@ export const SellerOnboardingPage = () => {
     if (step === 2) {
       return cityValid;
     }
-    if (step === 3) {
-      return referenceCategoryValid && catalogPositionValid;
-    }
     return false;
-  }, [
-    catalogPositionValid,
-    cityValid,
-    isLoggedIn,
-    nameValid,
-    phoneValid,
-    referenceCategoryValid,
-    statusValid,
-    step,
-    storeNameValid
-  ]);
+  }, [cityValid, isLoggedIn, nameValid, phoneValid, statusValid, step, storeNameValid]);
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
@@ -134,16 +115,17 @@ export const SellerOnboardingPage = () => {
         status: form.status as 'ИП' | 'ООО' | 'Самозанятый',
         storeName: form.storeName.trim() || undefined,
         city: form.city,
-        referenceCategory: form.referenceCategory,
+        referenceCategory: '',
         catalogPosition: form.catalogPosition || 'standard'
       });
       const role = response.data.role.toLowerCase() === 'seller' ? 'seller' : 'buyer';
-      const nextName = response.data.name ?? form.name; // имя точно строка
-      const nextEmail = response.data.email ?? (form.email.trim() || ''); // если в сторе email: string
+      const nextName = response.data.name ?? form.name;
+      const nextEmail = response.data.email ?? (form.email.trim() || '');
 
       setUser({
         id: response.data.id,
         name: nextName,
+        fullName: user?.fullName ?? form.name,
         email: nextEmail,
         phone: toE164Ru(response.data.phone ?? form.phone),
         role: role as Role,
@@ -215,11 +197,7 @@ export const SellerOnboardingPage = () => {
               )}
               <label>
                 Контактное имя
-                <input
-                  value={form.name}
-                  onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
-                  onBlur={() => setTouched((prev) => ({ ...prev, name: true }))}
-                />
+                <input value={form.name} readOnly disabled className={styles.readOnlyInput} />
                 {touched.name && !nameValid && <span className={styles.error}>Введите имя (минимум 2 символа).</span>}
               </label>
               <label>
@@ -228,18 +206,13 @@ export const SellerOnboardingPage = () => {
                   placeholder="+7 (___) ___-__-__"
                   inputMode="tel"
                   value={form.phone}
-                  onFocus={() => {
-                    if (!form.phone) {
-                      setForm((prev) => ({ ...prev, phone: '+7 (' }));
-                    }
-                  }}
-                  onChange={(event) =>
-                    setForm((prev) => ({ ...prev, phone: formatRuPhoneInput(event.target.value) }))
-                  }
-                  onBlur={() => setTouched((prev) => ({ ...prev, phone: true }))}
+                  readOnly
+                  disabled
+                  className={styles.readOnlyInput}
                 />
                 {touched.phone && !phoneValid && <span className={styles.error}>Введите корректный номер.</span>}
               </label>
+              <p className={styles.helper}>{CONTACT_SUPPORT_TEXT}</p>
               <label>
                 Email (необязательно)
                 <input
@@ -311,38 +284,6 @@ export const SellerOnboardingPage = () => {
                   ))}
                 </select>
                 {touched.city && !cityValid && <span className={styles.error}>Выберите город из списка.</span>}
-              </label>
-            </div>
-          )}
-
-          {step === 3 && (
-            <div className={styles.formGrid}>
-              <div className={styles.sectionIntro}>
-                <h2>Категория продаж</h2>
-                <p>Позиционирование в каталоге скрыто из интерфейса, но безопасно передаётся в backend как fallback.</p>
-              </div>
-              <label>
-                Референсная категория
-                <select
-                  value={form.referenceCategory}
-                  onChange={(event) =>
-                    setForm((prev) => ({ ...prev, referenceCategory: event.target.value }))
-                  }
-                  onBlur={() => setTouched((prev) => ({ ...prev, referenceCategory: true }))}
-                >
-                  <option value="" disabled>
-                    Выберите категорию
-                  </option>
-                  {referenceCategories.map((category) => (
-                    <option key={category.id} value={category.slug}>
-                      {category.title}
-                    </option>
-                  ))}
-                </select>
-                {touched.referenceCategory && !referenceCategoryValid && (
-                  <span className={styles.error}>Выберите категорию.</span>
-                )}
-                <span className={styles.helper}>Позже вы сможете продавать и другие категории.</span>
               </label>
             </div>
           )}
