@@ -50,10 +50,7 @@ export const BottomNav = ({
   );
   const showBottomNav =
     (forceShow || !location.pathname.startsWith('/seller')) &&
-    !location.pathname.startsWith('/auth') &&
-    !['/privacy-policy', '/service-rules', '/offer'].some((route) =>
-      location.pathname.startsWith(route)
-    );
+    !location.pathname.startsWith('/auth');
   const isOrdersActive =
     location.pathname === '/orders' ||
     (location.pathname === '/account' &&
@@ -76,8 +73,10 @@ export const BottomNav = ({
         className={`${styles.bottomNavItem} ${location.pathname === '/' ? styles.bottomNavItemActive : ''}`}
         onClick={onNavigate}
       >
-        <span aria-hidden>🏠</span>
-        <span>Главная</span>
+        <span className={styles.bottomNavIcon} aria-hidden>
+          🏠
+        </span>
+        <span className={styles.bottomNavLabel}>Главная</span>
       </Link>
       <button
         type="button"
@@ -89,24 +88,30 @@ export const BottomNav = ({
         }}
         aria-label="Открыть категории"
       >
-        <GridIcon />
-        <span>Категории</span>
+        <span className={styles.bottomNavIcon} aria-hidden>
+          <GridIcon />
+        </span>
+        <span className={styles.bottomNavLabel}>Категории</span>
       </button>
       <Link
         to="/orders"
         className={`${styles.bottomNavItem} ${isOrdersActive ? styles.bottomNavItemActive : ''}`}
         onClick={onNavigate}
       >
-        <span aria-hidden>🧾</span>
-        <span>Заказы</span>
+        <span className={styles.bottomNavIcon} aria-hidden>
+          🧾
+        </span>
+        <span className={styles.bottomNavLabel}>Заказы</span>
       </Link>
       <Link
         to="/cart"
         className={`${styles.bottomNavItem} ${location.pathname === '/cart' ? styles.bottomNavItemActive : ''}`}
         onClick={onNavigate}
       >
-        <span aria-hidden>🛒</span>
-        <span>Корзина</span>
+        <span className={styles.bottomNavIcon} aria-hidden>
+          🛒
+        </span>
+        <span className={styles.bottomNavLabel}>Корзина</span>
       </Link>
       {user ? (
         <button
@@ -119,10 +124,12 @@ export const BottomNav = ({
           }}
           aria-label="Открыть меню профиля"
         >
-          <span className={`${styles.avatarCircle} ${styles.bottomNavAvatar}`}>
+          <span
+            className={`${styles.avatarCircle} ${styles.bottomNavAvatar} ${styles.bottomNavIcon}`}
+          >
             {avatarText}
           </span>
-          <span>Профиль</span>
+          <span className={styles.bottomNavLabel}>Профиль</span>
         </button>
       ) : (
         <Link
@@ -130,8 +137,10 @@ export const BottomNav = ({
           className={`${styles.bottomNavItem} ${location.pathname.startsWith('/auth') ? styles.bottomNavItemActive : ''}`}
           onClick={onNavigate}
         >
-          <span aria-hidden>👤</span>
-          <span>Войти</span>
+          <span className={styles.bottomNavIcon} aria-hidden>
+            👤
+          </span>
+          <span className={styles.bottomNavLabel}>Войти</span>
         </Link>
       )}
     </nav>

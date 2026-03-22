@@ -68,6 +68,7 @@
   display: grid;
   gap: 24px;
   padding: 24px;
+  background: var(--primary-soft);
 }
 
 .sidebarCard h2,
@@ -140,7 +141,7 @@
 
 @media (max-width: 960px) {
   .page {
-    padding: 28px 0 72px;
+    padding: 28px 0 88px;
   }
 
   .hero,
