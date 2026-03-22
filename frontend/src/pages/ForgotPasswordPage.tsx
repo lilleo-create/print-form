@@ -17,6 +17,13 @@ type DeliveryData = {
   expiresInSec?: number;
 };
 
+type PasswordResetRequestResponse = {
+  ok?: boolean;
+  success?: boolean;
+  delivery?: DeliveryData;
+  data?: DeliveryData | { delivery?: DeliveryData };
+};
+
 const POLL_INTERVAL_MS = 3000;
 
 const formatCallToAuthPhone = (value: string | null | undefined) => (value ? formatRuPhoneInput(value) : 'номер недоступен');
@@ -24,6 +31,49 @@ const toTelHref = (value: string | null | undefined) => {
   const digits = normalizePhone(value ?? '');
   if (!digits) return '';
   return digits.startsWith('8') ? `tel:+7${digits.slice(1)}` : `tel:+${digits}`;
+};
+
+const isDeliveryData = (value: unknown): value is DeliveryData => {
+  if (!value || typeof value !== 'object') return false;
+
+  return [
+    'requestId',
+    'provider',
+    'verificationType',
+    'callToAuthNumber',
+    'phone',
+    'status',
+    'expiresInSec'
+  ].some((key) => key in value);
+};
+
+const extractDelivery = (payload: PasswordResetRequestResponse | undefined): DeliveryData | null => {
+  if (!payload || typeof payload !== 'object') return null;
+
+  if (isDeliveryData(payload.delivery)) {
+    return payload.delivery;
+  }
+
+  if (payload.data && typeof payload.data === 'object') {
+    const nestedData = 'delivery' in payload.data ? payload.data.delivery : payload.data;
+    if (isDeliveryData(nestedData)) {
+      return nestedData;
+    }
+  }
+
+  return null;
+};
+
+const isSuccessfulRecoveryRequest = (payload: PasswordResetRequestResponse | undefined, delivery: DeliveryData | null) => {
+  if (!payload || !delivery) return false;
+
+  return (
+    payload.ok === true ||
+    payload.success === true ||
+    delivery.verificationType === 'call_to_auth' ||
+    Boolean(delivery.requestId) ||
+    Boolean(delivery.callToAuthNumber)
+  );
 };
 
 export const ForgotPasswordPage = () => {
@@ -124,10 +174,12 @@ export const ForgotPasswordPage = () => {
 
   const handleRequest = async () => {
     resetMessages();
+    stopPolling();
     setLoading(true);
     try {
       const response = await api.requestPasswordReset({ phone: normalizedPhone });
-      const delivery = response.data.delivery as DeliveryData | undefined;
+      const payload = response.data as PasswordResetRequestResponse | undefined;
+      const delivery = extractDelivery(payload);
 
       setCallToAuthNumber(delivery?.callToAuthNumber ?? null);
       setCanRetryCall(false);
@@ -136,10 +188,12 @@ export const ForgotPasswordPage = () => {
         setPhone(formatRuPhoneInput(delivery.phone));
       }
 
-      if (delivery?.verificationType === 'call_to_auth' && delivery.requestId) {
+      if (isSuccessfulRecoveryRequest(payload, delivery)) {
         setStep('call_to_auth');
         setMessage('Ожидаем подтверждение звонком. После успешного подтверждения откроется экран нового пароля.');
-        startPolling(delivery.requestId, delivery.phone ?? normalizedPhone);
+        if (delivery?.requestId) {
+          startPolling(delivery.requestId, delivery.phone ?? normalizedPhone);
+        }
         return;
       }
 
