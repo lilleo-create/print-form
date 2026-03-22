@@ -22,9 +22,22 @@ describe('Auth UI flow checks', () => {
         purpose: null,
         tempToken: null,
         phone: null,
+        challengePhone: null,
+        originalUserPhone: null,
         user: null,
         flowType: 'registration',
-        verification: null
+        verification: null,
+        requestId: null,
+        verificationMethod: null,
+        otpRequest: null,
+        callToAuthNumber: null,
+        cooldownUntil: null,
+        resendAvailableAt: null,
+        verifyStatus: 'idle',
+        lastError: null,
+        isPolling: false,
+        createdAt: null,
+        updatedAt: null
       },
       login: async () => ({ requiresOtp: false, user: baseUser, token: 'token' }),
       register: async () => ({ requiresOtp: false, user: baseUser, token: 'token' }),
@@ -193,5 +206,59 @@ describe('Auth UI flow checks', () => {
     expect(screen.getByText('+7 (999) 000-00-01')).toBeInTheDocument();
     expect(screen.getByText('Ожидаем автоматическое подтверждение входа после звонка.')).toBeInTheDocument();
     expect(requestOtpMock).not.toHaveBeenCalled();
+  });
+
+  it('verifies device login with active challenge phone in canonical format', async () => {
+    const loginMock = vi.fn(async () => ({
+      requiresOtp: true,
+      tempToken: 'temp-token',
+      user: baseUser,
+      flowType: 'device_login_verification',
+      requestId: 'request-1',
+      phone: '+7 (999) 000-00-00',
+      verificationMethod: 'existing_otp_flow',
+      otpRequest: {
+        requestId: 'request-1',
+        verificationType: 'call_to_auth' as const,
+        callToAuthNumber: '79990000001',
+        phone: '79990000000'
+      },
+      verification: {
+        channel: 'PHONE_CALL',
+        phone: '79990000000',
+        reason: 'Новое устройство'
+      }
+    }));
+    const checkOtpStatusMock = vi.fn(async () => 'verified' as const);
+    const verifyDeviceLoginOtpMock = vi.fn(async () => undefined);
+
+    useAuthStore.setState({
+      login: loginMock as never,
+      checkOtpStatus: checkOtpStatusMock as never,
+      verifyDeviceLoginOtp: verifyDeviceLoginOtpMock as never
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/auth/login']}>
+        <AuthPage />
+      </MemoryRouter>
+    );
+
+    fireEvent.change(screen.getByPlaceholderText('+7 (___) ___-__-__'), {
+      target: { value: '+7 (999) 000-00-00' }
+    });
+    fireEvent.change(screen.getByPlaceholderText('Пароль'), {
+      target: { value: 'buyer123' }
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Войти' }));
+
+    expect(await screen.findByText('Подтвердите вход с нового устройства')).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(verifyDeviceLoginOtpMock).toHaveBeenCalledWith(
+        { phone: '+79990000000', requestId: 'request-1', purpose: undefined },
+        'temp-token'
+      );
+    }, { timeout: 4000 });
   });
 });

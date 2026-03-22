@@ -3,6 +3,7 @@ import { loadFromStorage, removeFromStorage, saveToStorage, setAccessToken } fro
 import { STORAGE_KEYS } from '../constants/storageKeys';
 import { normalizeApiError } from './client';
 import { api } from './index';
+import { toCanonicalRuPhone } from '../lib/validation';
 
 interface StoredSession {
   user: User;
@@ -43,6 +44,8 @@ export type OtpFlowState = {
   tempToken: string | null;
   requestId: string | null;
   phone: string | null;
+  challengePhone: string | null;
+  originalUserPhone: string | null;
   otpRequest: OtpRequestResponse | null;
   callToAuthNumber: string | null;
   verificationMethod: string | null;
@@ -189,7 +192,7 @@ const normalizeOtpRequest = (
     provider: data.provider,
     verificationType: data.verificationType,
     callToAuthNumber: data.callToAuthNumber ?? null,
-    phone: data.phone,
+    phone: data.phone ? toCanonicalRuPhone(data.phone) : data.phone,
     status: data.status,
     expiresInSec: data.expiresInSec,
   };
@@ -202,7 +205,7 @@ const mapOtpFlowResult = (data: RawAuthData, flowType: OtpFlowType, fallbackPhon
   flowType,
   verification: normalizeDeviceVerification(data.verification),
   requestId: data.requestId ?? data.request_id ?? data.otpRequest?.requestId ?? data.otp_request?.requestId ?? null,
-  phone: data.phone ?? data.verification?.phone ?? data.user?.phone ?? fallbackPhone,
+  phone: toCanonicalRuPhone(data.phone ?? data.verification?.phone ?? data.user?.phone ?? fallbackPhone),
   otpRequest: normalizeOtpRequest(data.otpRequest ?? data.otp_request ?? null),
   verificationMethod: data.verificationMethod ?? data.verification_method ?? null,
 });
@@ -373,7 +376,7 @@ export const authApi = {
         requiresOtp: true,
         flowType: 'password_reset_verification',
         tempToken: raw.tempToken ?? raw.temp_token ?? '',
-        phone: raw.phone ?? otpRequest.phone ?? payload.phone,
+        phone: toCanonicalRuPhone(raw.phone ?? otpRequest.phone ?? payload.phone),
         requestId: raw.requestId ?? raw.request_id ?? otpRequest.requestId ?? null,
         otpRequest,
         verificationMethod: raw.verificationMethod ?? raw.verification_method ?? null,
@@ -396,7 +399,7 @@ export const authApi = {
         requiresOtp: true,
         flowType: 'password_reset_verification',
         tempToken: data.tempToken ?? data.temp_token ?? '',
-        phone: data.phone ?? payload.phone,
+        phone: toCanonicalRuPhone(data.phone ?? data.otpRequest?.phone ?? data.otp_request?.phone ?? payload.phone),
         requestId: data.requestId ?? data.request_id ?? data.otpRequest?.requestId ?? data.otp_request?.requestId ?? null,
         otpRequest: normalizeOtpRequest(data.otpRequest ?? data.otp_request ?? null),
         verificationMethod: data.verificationMethod ?? data.verification_method ?? null,

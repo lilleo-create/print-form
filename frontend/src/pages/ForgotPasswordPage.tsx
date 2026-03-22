@@ -5,7 +5,7 @@ import { authApi } from '../shared/api/authApi';
 import { normalizeApiError } from '../shared/api/client';
 import { loadFromStorage, removeFromStorage, saveToStorage } from '../shared/lib/storage';
 import { STORAGE_KEYS } from '../shared/constants/storageKeys';
-import { formatRuPhoneInput, toE164Ru } from '../shared/lib/validation';
+import { formatRuPhoneInput, toCanonicalRuPhone, toE164Ru } from '../shared/lib/validation';
 import { OtpStep } from './OtpStep';
 import styles from './ForgotPasswordPage.module.css';
 
@@ -16,6 +16,7 @@ type PersistedResetFlow = {
   phone: string;
   tempToken: string;
   resetToken: string;
+  challengePhone: string;
   otpRequest: {
     requestId: string;
     verificationType: 'call_to_auth' | 'code';
@@ -33,6 +34,7 @@ export const ForgotPasswordPage = () => {
   const [phone, setPhone] = useState('');
   const [tempToken, setTempToken] = useState('');
   const [resetToken, setResetToken] = useState('');
+  const [challengePhone, setChallengePhone] = useState('');
   const [otpRequest, setOtpRequest] = useState<PersistedResetFlow['otpRequest']>(null);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -60,6 +62,7 @@ export const ForgotPasswordPage = () => {
     setPhone(stored.phone);
     setTempToken(stored.tempToken ?? '');
     setResetToken(stored.resetToken ?? '');
+    setChallengePhone(stored.challengePhone ?? '');
     setOtpRequest(stored.otpRequest ?? null);
     setStep(stored.step ?? 'request');
   }, []);
@@ -70,9 +73,10 @@ export const ForgotPasswordPage = () => {
       phone,
       tempToken,
       resetToken,
+      challengePhone,
       otpRequest,
     } satisfies PersistedResetFlow);
-  }, [otpRequest, phone, tempToken, resetToken, step]);
+  }, [challengePhone, otpRequest, phone, tempToken, resetToken, step]);
 
   const handleRequest = async () => {
     resetMessages();
@@ -87,6 +91,7 @@ export const ForgotPasswordPage = () => {
 
       setTempToken(request.tempToken ?? '');
       setOtpRequest(request.otpRequest);
+      setChallengePhone(toCanonicalRuPhone(request.phone || request.otpRequest.phone || normalizedPhone));
       setStep('otp');
       setMessage('Подтвердите восстановление пароля звонком. После подтверждения откроется форма нового пароля.');
       setPhone(formatRuPhoneInput(request.phone || request.otpRequest.phone || normalizedPhone));
@@ -169,12 +174,13 @@ export const ForgotPasswordPage = () => {
               const request = await authApi.requestPasswordReset({ phone: requestPhone });
               setTempToken(request.tempToken ?? '');
               setOtpRequest(request.otpRequest);
+              setChallengePhone(toCanonicalRuPhone(request.phone || request.otpRequest?.phone || requestPhone));
               return { otpRequest: request.otpRequest, tempToken: request.tempToken ?? '' };
             }}
             onCheckOtpStatus={async (requestId, token) => authApi.checkOtpStatus(requestId, token)}
-            onVerifyOtp={async ({ phone: requestPhone, requestId }, token) => {
+            onVerifyOtp={async ({ requestId }, token) => {
               const tokenForReset = await authApi.completePasswordResetVerification(
-                { phone: requestPhone, requestId },
+                { phone: challengePhone, requestId },
                 token
               );
               setResetToken(tokenForReset);
@@ -189,6 +195,7 @@ export const ForgotPasswordPage = () => {
             onBack={() => {
               setStep('request');
               setTempToken('');
+              setChallengePhone('');
               setOtpRequest(null);
               resetMessages();
             }}
