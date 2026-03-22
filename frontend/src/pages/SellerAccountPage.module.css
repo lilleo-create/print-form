@@ -64,14 +64,18 @@
 }
 
 .content {
-  padding: 28px 32px 40px;
+  padding: 20px 28px 36px;
   display: grid;
-  gap: 24px;
+  gap: 20px;
 }
 
 .pageHeader {
   display: grid;
-  gap: 14px;
+  gap: 8px;
+  padding: 18px 20px;
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.08), rgba(59, 130, 246, 0.02));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
 }
 
 .topBar {
@@ -214,6 +218,16 @@
   border: 1px solid var(--border);
   display: grid;
   gap: 12px;
+}
+
+.productPanel {
+  background: var(--card);
+  border-radius: var(--radius-card);
+  padding: 18px;
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border);
+  display: grid;
+  gap: 14px;
 }
 
 .tableHeader,
@@ -432,6 +446,15 @@
   text-align: left;
 }
 
+.inlineLink {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.inlineLink:hover {
+  text-decoration: underline;
+}
+
 .moderationNote {
   display: block;
   color: var(--muted);
@@ -504,13 +527,40 @@
   color: var(--muted);
 }
 
+.supportCard {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.12), rgba(15, 23, 42, 0.08));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  padding: 20px;
+  box-shadow: var(--shadow-card);
+  display: grid;
+  gap: 16px;
+}
+
+.supportHero {
+  display: grid;
+  gap: 8px;
+}
+
+.supportHero h2,
+.supportHero p {
+  margin: 0;
+}
+
+.supportActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
 @media (max-width: 960px) {
   .shell {
     grid-template-columns: 1fr;
   }
 
   .content {
-    padding: 20px 16px calc(96px + env(safe-area-inset-bottom));
+    padding: 12px 16px calc(96px + env(safe-area-inset-bottom));
   }
 
   .sidebar {
@@ -561,8 +611,24 @@
     grid-template-columns: 1fr;
   }
 
+  .financeChartRow {
+    gap: 8px;
+  }
+
+  .financeChartValue {
+    word-break: break-word;
+  }
+
+  .financeChartCard,
+  .financeInfoCard,
+  .productPanel,
+  .supportCard {
+    padding: 16px;
+  }
+
   .pageHeader {
-    gap: 10px;
+    gap: 8px;
+    padding: 14px 16px;
   }
 
   .topBar {
