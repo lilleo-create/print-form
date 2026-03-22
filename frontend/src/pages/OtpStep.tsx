@@ -69,7 +69,6 @@ export function OtpStep(props: {
 
   const [otpUiState, setOtpUiState] = useState<OtpUiState>('idle');
   const [phone, setPhone] = useState('');
-  const [requestId, setRequestId] = useState<string | null>(null);
   const [callToAuthNumber, setCallToAuthNumber] = useState<string | null>(null);
   const pollingRef = useRef<number | null>(null);
   const autoRequestedRef = useRef(false);
@@ -84,7 +83,6 @@ export function OtpStep(props: {
   useEffect(() => {
     stopPolling();
     setOtpUiState('idle');
-    setRequestId(null);
     setCallToAuthNumber(null);
     setPhone(initialPhone ? formatRuPhone(initialPhone) : '');
     autoRequestedRef.current = false;
@@ -119,8 +117,6 @@ export function OtpStep(props: {
         return;
       }
 
-      setRequestId(data.requestId);
-
       if (data.verificationType !== 'call_to_auth') {
         setOtpUiState('error');
         props.setError('Не удалось начать подтверждение звонком. Попробуйте ещё раз.');
@@ -132,7 +128,7 @@ export function OtpStep(props: {
       if (data.phone) {
         setPhone(formatRuPhone(data.phone));
       }
-      props.setMessage('Ожидаем подтверждение звонком.');
+      props.setMessage('Ожидаем автоматическое подтверждение после звонка.');
 
       stopPolling();
       pollingRef.current = window.setInterval(() => {
@@ -163,7 +159,7 @@ export function OtpStep(props: {
       if (normalized.code === 'OTP_PROVIDER_UNAVAILABLE') {
         props.setError('Не удалось начать подтверждение номера. Попробуйте ещё раз.');
       } else {
-        props.setError('Не удалось отправить код.');
+        props.setError('Не удалось начать подтверждение звонком.');
       }
     }
   }, [phone, props, purpose, stopPolling, tempToken]);
@@ -193,12 +189,18 @@ export function OtpStep(props: {
           <a href={callToAuthTelHref} className={styles.callToAuthPhone}>
             {callToAuthDisplayNumber ?? 'номер недоступен'}
           </a>
-          <p className={styles.callToAuthHint}>Звонок бесплатный. Подтверждение произойдёт автоматически.</p>
+          <p className={styles.callToAuthHint}>Звонок бесплатный. После звонка подтверждение завершится автоматически.</p>
         </div>
       )}
 
-      {otpUiState === 'call_to_auth' && (
-        <Button type="button" disabled={isBusy || !requestId} onClick={() => void request()} variant="secondary">
+      {otpUiState === 'error' && (
+        <Button
+          type="button"
+          disabled={isBusy}
+          onClick={() => void request()}
+          variant="secondary"
+          className={styles.lightButtonText}
+        >
           Запросить звонок повторно
         </Button>
       )}

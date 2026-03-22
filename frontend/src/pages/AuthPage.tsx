@@ -29,6 +29,12 @@ const isValidLoginPhone = (value: string) => {
   return normalized.length === 11 && normalized.startsWith('7');
 };
 
+const isValidRegisterPhone = (value: string) => {
+  const digits = normalizePhone(value);
+  const normalized = digits.startsWith('8') ? `7${digits.slice(1)}` : digits;
+  return normalized.length === 11 && normalized.startsWith('79');
+};
+
 const loginSchema = z.object({
   phone: z
     .string()
@@ -42,14 +48,14 @@ const loginSchema = z.object({
 const fioRegex = /^[A-Za-zА-Яа-яЁё\-\s]+$/;
 
 const passwordHelpText =
-  'Минимум 8 символов, латиница, 1 заглавная буква и 1 цифра';
+  'Пароль должен содержать минимум 8 символов, заглавную латинскую букву и цифру';
 
 const isStrongPassword = (value: string) =>
   /^(?=.*[A-Z])(?=.*[a-zA-Z])(?=.*\d).{8,}$/.test(value);
 
 const registerSchema = z
   .object({
-    name: z.string().trim().min(2, 'Введите никнейм'),
+    name: z.string().trim().min(1, 'Введите имя'),
     fullName: z
       .string()
       .trim()
@@ -63,13 +69,45 @@ const registerSchema = z
         (value) => value.split(/\s+/).filter(Boolean).length >= 2,
         'Введите минимум имя и фамилию'
       ),
-    phone: z.string().min(5, 'Введите телефон'),
-    email: z.string().email('Введите email'),
-    password: z
+    phone: z
+      .string()
+      .min(1, 'Введите корректный номер телефона')
+      .refine(
+        (value) => isValidRegisterPhone(value),
+        'Введите корректный номер телефона'
+      ),
+    email: z
       .string()
       .trim()
-      .refine((value) => isStrongPassword(value), passwordHelpText),
-    confirmPassword: z.string().trim().min(1, 'Повторите пароль')
+      .min(1, 'Введите корректный email')
+      .email('Введите корректный email'),
+    password: z
+      .string()
+      .superRefine((value, ctx) => {
+        if (!value.trim()) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Введите пароль'
+          });
+          return;
+        }
+
+        if (value.trim().length < 8) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Пароль должен содержать минимум 8 символов'
+          });
+          return;
+        }
+
+        if (!isStrongPassword(value.trim())) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: passwordHelpText
+          });
+        }
+      }),
+    confirmPassword: z.string().trim().min(1, 'Введите пароль')
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: 'Пароли не совпадают',
@@ -109,6 +147,9 @@ export const AuthPage = () => {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [otpRequired, setOtpRequired] = useState(false);
   const [otpToken, setOtpToken] = useState<string | null>(null);
@@ -137,8 +178,33 @@ export const AuthPage = () => {
   const registerForm = useForm<RegisterValues>({
     resolver: zodResolver(registerSchema),
     mode: 'onBlur',
-    reValidateMode: 'onChange'
+    reValidateMode: 'onChange',
+    defaultValues: {
+      name: '',
+      fullName: '',
+      phone: '',
+      email: '',
+      password: '',
+      confirmPassword: ''
+    }
   });
+
+  const registerPasswordValue = registerForm.watch('password') ?? '';
+  const registerPasswordField = registerForm.register('password');
+  const confirmPasswordField = registerForm.register('confirmPassword');
+  const registerPasswordError = registerForm.formState.errors.password?.message;
+  const shouldShowRegisterPasswordMessage =
+    Boolean(registerPasswordError) &&
+    (Boolean(registerForm.formState.touchedFields.password) ||
+      registerForm.formState.submitCount > 0 ||
+      registerPasswordValue.length > 0);
+
+  const confirmPasswordValue = registerForm.watch('confirmPassword') ?? '';
+  const shouldShowConfirmPasswordError =
+    Boolean(registerForm.formState.errors.confirmPassword) &&
+    (Boolean(registerForm.formState.touchedFields.confirmPassword) ||
+      registerForm.formState.submitCount > 0 ||
+      confirmPasswordValue.length > 0);
 
   const resolveRedirectPath = async (role?: string) => {
     if (redirectTo) {
@@ -182,6 +248,9 @@ export const AuthPage = () => {
   useEffect(() => {
     resetOtp();
     resetMessages();
+    setShowLoginPassword(false);
+    setShowRegisterPassword(false);
+    setShowConfirmPassword(false);
     if (!isRegister) setPrivacyAccepted(false);
   }, [isRegister]);
 
@@ -205,7 +274,7 @@ export const AuthPage = () => {
         setOtpRequired(true);
         setOtpToken(result.tempToken ?? null);
         setOtpPhone(result.user?.phone ?? normalizedPhone);
-        setMessage('Подтвердите номер телефона для входа.');
+        setMessage('Подтвердите номер телефона для входа через звонок.');
         return;
       }
 
@@ -228,7 +297,7 @@ export const AuthPage = () => {
       const result = await register({
         name: values.name.trim(),
         fullName: values.fullName.trim().replace(/\s+/g, ' '),
-        email: values.email,
+        email: values.email.trim(),
         password: values.password,
         phone: toE164Ru(values.phone),
         privacyAccepted
@@ -239,7 +308,7 @@ export const AuthPage = () => {
         setOtpRequired(true);
         setOtpToken(result.tempToken ?? null);
         setOtpPhone(values.phone);
-        setMessage('Подтвердите номер телефона для завершения регистрации.');
+        setMessage('Подтвердите номер телефона звонком, чтобы завершить регистрацию.');
         return;
       }
 
@@ -300,10 +369,16 @@ export const AuthPage = () => {
                   placeholder="Никнейм"
                   {...registerForm.register('name')}
                 />
+                {registerForm.formState.errors.name && (
+                  <span>{registerForm.formState.errors.name.message}</span>
+                )}
                 <input
                   placeholder="ФИО"
                   {...registerForm.register('fullName')}
                 />
+                {registerForm.formState.errors.fullName && (
+                  <span>{registerForm.formState.errors.fullName.message}</span>
+                )}
 
                 <input
                   placeholder="+7 (___) ___-__-__"
@@ -328,33 +403,67 @@ export const AuthPage = () => {
                     )
                   }
                 />
+                {registerForm.formState.errors.phone && (
+                  <span>{registerForm.formState.errors.phone.message}</span>
+                )}
 
                 <input
                   placeholder="Email"
                   {...registerForm.register('email')}
                 />
-                <input
-                  type="password"
-                  placeholder="Пароль"
-                  autoComplete="new-password"
-                  {...registerForm.register('password')}
-                />
-                <span className={styles.helperText}>{passwordHelpText}</span>
-                {registerForm.formState.errors.password &&
-                  registerForm.formState.touchedFields.password && (
-                    <span>
-                      {registerForm.formState.errors.password.message}
-                    </span>
-                  )}
-                <input
-                  type="password"
-                  placeholder="Повторите пароль"
-                  autoComplete="new-password"
-                  {...registerForm.register('confirmPassword')}
-                />
-                {registerForm.formState.errors.confirmPassword && (
+                {registerForm.formState.errors.email && (
+                  <span>{registerForm.formState.errors.email.message}</span>
+                )}
+                <label className={styles.passwordField}>
+                  <input
+                    type={showRegisterPassword ? 'text' : 'password'}
+                    placeholder="Пароль"
+                    autoComplete="new-password"
+                    {...registerPasswordField}
+                    onChange={(event) => {
+                      registerPasswordField.onChange(event);
+                      void registerForm.trigger('password');
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className={styles.passwordToggle}
+                    onClick={() => setShowRegisterPassword((value) => !value)}
+                    aria-label={showRegisterPassword ? 'Скрыть пароль' : 'Показать пароль'}
+                    aria-pressed={showRegisterPassword}
+                  >
+                    {showRegisterPassword ? 'Скрыть' : 'Показать'}
+                  </button>
+                </label>
+                {shouldShowRegisterPasswordMessage && (
+                  <span>{registerPasswordError}</span>
+                )}
+                <label className={styles.passwordField}>
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    placeholder="Повторите пароль"
+                    autoComplete="new-password"
+                    {...confirmPasswordField}
+                    onChange={(event) => {
+                      confirmPasswordField.onChange(event);
+                      if (registerForm.formState.submitCount > 0 || event.target.value.length > 0) {
+                        void registerForm.trigger('confirmPassword');
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className={styles.passwordToggle}
+                    onClick={() => setShowConfirmPassword((value) => !value)}
+                    aria-label={showConfirmPassword ? 'Скрыть пароль' : 'Показать пароль'}
+                    aria-pressed={showConfirmPassword}
+                  >
+                    {showConfirmPassword ? 'Скрыть' : 'Показать'}
+                  </button>
+                </label>
+                {shouldShowConfirmPasswordError && (
                   <span>
-                    {registerForm.formState.errors.confirmPassword.message}
+                    {registerForm.formState.errors.confirmPassword?.message}
                   </span>
                 )}
 
@@ -408,12 +517,23 @@ export const AuthPage = () => {
                 {loginForm.formState.errors.phone && (
                   <span>{loginForm.formState.errors.phone.message}</span>
                 )}
-                <input
-                  type="password"
-                  placeholder="Пароль"
-                  autoComplete="current-password"
-                  {...loginForm.register('password')}
-                />
+                <label className={styles.passwordField}>
+                  <input
+                    type={showLoginPassword ? 'text' : 'password'}
+                    placeholder="Пароль"
+                    autoComplete="current-password"
+                    {...loginForm.register('password')}
+                  />
+                  <button
+                    type="button"
+                    className={styles.passwordToggle}
+                    onClick={() => setShowLoginPassword((value) => !value)}
+                    aria-label={showLoginPassword ? 'Скрыть пароль' : 'Показать пароль'}
+                    aria-pressed={showLoginPassword}
+                  >
+                    {showLoginPassword ? 'Скрыть' : 'Показать'}
+                  </button>
+                </label>
                 {loginForm.formState.errors.password && (
                   <span>{loginForm.formState.errors.password.message}</span>
                 )}

@@ -76,6 +76,40 @@
   color: var(--danger);
 }
 
+.passwordField {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.passwordField input {
+  width: 100%;
+  padding-right: 92px;
+}
+
+.passwordToggle {
+  position: absolute;
+  right: 14px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--primary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.passwordToggle:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: 8px;
+}
+
+.lightButtonText {
+  color: #fff;
+}
+
+
 .consent {
   display: flex;
   align-items: flex-start;
@@ -213,9 +247,3 @@
   font-size: 0.95rem;
 }
 
-
-.helperText {
-  margin-top: -4px;
-  font-size: 12px;
-  color: var(--muted);
-}
