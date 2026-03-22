@@ -13,6 +13,7 @@ import {
 } from '../shared/lib/validation';
 import styles from './AuthPage.module.css';
 import { OtpStep } from './OtpStep';
+import { DeviceVerificationStep } from './DeviceVerificationStep';
 import loginHero from '../shared/assets/login-hero.svg';
 
 type Purpose =
@@ -158,12 +159,21 @@ export const AuthPage = () => {
   const [otpUiState, setOtpUiState] = useState<
     'idle' | 'requesting' | 'call_to_auth' | 'error'
   >('idle');
+  const [deviceVerificationRequired, setDeviceVerificationRequired] = useState(false);
+  const [deviceVerificationToken, setDeviceVerificationToken] = useState<string | null>(null);
+  const [deviceVerificationInfo, setDeviceVerificationInfo] = useState<{
+    channel: 'PHONE_CALL' | 'SMS' | 'PUSH' | 'UNKNOWN';
+    phone: string | null;
+    reason: string | null;
+  } | null>(null);
 
   const login = useAuthStore((s) => s.login);
   const register = useAuthStore((s) => s.register);
   const requestOtp = useAuthStore((s) => s.requestOtp);
   const verifyOtp = useAuthStore((s) => s.verifyOtp);
   const checkOtpStatus = useAuthStore((s) => s.checkOtpStatus);
+  const checkDeviceVerificationStatus = useAuthStore((s) => s.checkDeviceVerificationStatus);
+  const completeDeviceVerification = useAuthStore((s) => s.completeDeviceVerification);
   const setUser = useAuthStore((s) => s.setUser);
 
   const redirectTo = useMemo(() => {
@@ -240,6 +250,12 @@ export const AuthPage = () => {
     setOtpUiState('idle');
   };
 
+  const resetDeviceVerification = () => {
+    setDeviceVerificationRequired(false);
+    setDeviceVerificationToken(null);
+    setDeviceVerificationInfo(null);
+  };
+
   const resetMessages = () => {
     setError('');
     setMessage('');
@@ -247,6 +263,7 @@ export const AuthPage = () => {
 
   useEffect(() => {
     resetOtp();
+    resetDeviceVerification();
     resetMessages();
     setShowLoginPassword(false);
     setShowRegisterPassword(false);
@@ -264,17 +281,26 @@ export const AuthPage = () => {
   const onLogin = async (values: LoginValues) => {
     resetMessages();
     resetOtp();
+    resetDeviceVerification();
 
     try {
       const normalizedPhone = toE164Ru(values.phone);
       const result = await login(normalizedPhone, values.password);
 
-      if (result.requiresOtp) {
+      if ('requiresOtp' in result && result.requiresOtp) {
         setOtpPurpose('buyer_register_phone');
         setOtpRequired(true);
         setOtpToken(result.tempToken ?? null);
         setOtpPhone(result.user?.phone ?? normalizedPhone);
         setMessage('Подтвердите номер телефона для входа через звонок.');
+        return;
+      }
+
+      if ('requiresDeviceVerification' in result && result.requiresDeviceVerification) {
+        setDeviceVerificationRequired(true);
+        setDeviceVerificationToken(result.tempToken ?? null);
+        setDeviceVerificationInfo(result.verification);
+        setMessage('Подтвердите вход с нового устройства.');
         return;
       }
 
@@ -292,6 +318,7 @@ export const AuthPage = () => {
   const onRegister = async (values: RegisterValues) => {
     resetMessages();
     resetOtp();
+    resetDeviceVerification();
 
     try {
       const result = await register({
@@ -331,7 +358,7 @@ export const AuthPage = () => {
       <div className={styles.layout}>
         <div className={styles.formColumn}>
           <div className={styles.card}>
-            {otpUiState !== 'call_to_auth' && (
+            {otpUiState !== 'call_to_auth' && !deviceVerificationRequired && (
               <div className={styles.header}>
                 <p className={styles.eyebrow}>
                   {isRegister ? 'Создайте аккаунт' : 'Добро пожаловать'}
@@ -345,7 +372,24 @@ export const AuthPage = () => {
               </div>
             )}
 
-            {otpRequired ? (
+            {deviceVerificationRequired && deviceVerificationInfo ? (
+              <DeviceVerificationStep
+                tempToken={deviceVerificationToken}
+                verification={deviceVerificationInfo}
+                onCheckStatus={async (token) => checkDeviceVerificationStatus(token)}
+                onComplete={async (payload, token) => completeDeviceVerification(payload, token)}
+                onSuccess={() => {
+                  void handleRedirect();
+                }}
+                onBack={() => {
+                  resetDeviceVerification();
+                  setMessage('');
+                  setError('');
+                }}
+                setMessage={setMessage}
+                setError={setError}
+              />
+            ) : otpRequired ? (
               <OtpStep
                 purpose={otpPurpose}
                 tempToken={otpToken}
@@ -548,7 +592,7 @@ export const AuthPage = () => {
             {error && <p className={styles.error}>{error}</p>}
             {message && <p className={styles.success}>{message}</p>}
 
-            {!otpRequired && (
+            {!otpRequired && !deviceVerificationRequired && (
               <Link
                 className={styles.switch}
                 to={isRegister ? '/auth/login' : '/auth/register'}

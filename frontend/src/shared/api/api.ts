@@ -731,6 +731,41 @@ export const api = {
     }>(`/auth/otp/status/${requestId}`, { token });
   },
 
+  async deviceVerificationStatus(token: string) {
+    return apiClient.request<{
+      status?: 'pending' | 'verified' | 'expired' | 'failed' | 'cancelled';
+      verificationResult?: string | Record<string, unknown> | null;
+      data?: {
+        status?: 'pending' | 'verified' | 'expired' | 'failed' | 'cancelled';
+        verificationResult?: string | Record<string, unknown> | null;
+      };
+    }>('/auth/device-verification/status', {
+      token
+    });
+  },
+
+  async verifyDeviceVerification(
+    payload: { verificationResult?: string | Record<string, unknown> | null },
+    token: string
+  ) {
+    return apiClient.request<{
+      accessToken?: string;
+      user?: {
+        name: string | null;
+        fullName?: string | null;
+        role: string;
+        email: string;
+        id: string;
+        phone?: string | null;
+        address?: string | null;
+      };
+    }>('/auth/device-verification/verify', {
+      method: 'POST',
+      body: payload,
+      token
+    });
+  },
+
   async logout() {
     return apiClient.request<{ success: boolean }>('/auth/logout', {
       method: 'POST'
