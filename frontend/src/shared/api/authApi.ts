@@ -17,6 +17,7 @@ type DeviceVerification = {
 };
 
 export type OtpFlowType = 'registration' | 'device_login_verification' | 'password_reset_verification';
+export type OtpVerifyStatus = 'idle' | 'pending' | 'verified' | 'expired' | 'failed' | 'cancelled' | 'error';
 
 export type RegistrationPurpose =
   | 'buyer_register_phone'
@@ -35,6 +36,27 @@ export type OtpRequestResponse = {
   status?: string;
   expiresInSec?: number;
 };
+
+export type OtpFlowState = {
+  flowType: OtpFlowType;
+  purpose: RegistrationPurpose | null;
+  tempToken: string | null;
+  requestId: string | null;
+  phone: string | null;
+  otpRequest: OtpRequestResponse | null;
+  callToAuthNumber: string | null;
+  verificationMethod: string | null;
+  cooldownUntil: number | null;
+  resendAvailableAt: number | null;
+  verifyStatus: OtpVerifyStatus;
+  lastError: string | null;
+  isPolling: boolean;
+  createdAt: number | null;
+  updatedAt: number | null;
+};
+
+export const getOtpPurposeForFlow = (flowType: OtpFlowType): RegistrationPurpose | null =>
+  flowType === 'registration' ? 'buyer_register_phone' : null;
 
 type AuthResult =
   | {

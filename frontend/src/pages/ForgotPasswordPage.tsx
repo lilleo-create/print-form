@@ -169,7 +169,7 @@ export const ForgotPasswordPage = () => {
               const request = await authApi.requestPasswordReset({ phone: requestPhone });
               setTempToken(request.tempToken ?? '');
               setOtpRequest(request.otpRequest);
-              return request.otpRequest;
+              return { otpRequest: request.otpRequest, tempToken: request.tempToken ?? '' };
             }}
             onCheckOtpStatus={async (requestId, token) => authApi.checkOtpStatus(requestId, token)}
             onVerifyOtp={async ({ phone: requestPhone, requestId }, token) => {

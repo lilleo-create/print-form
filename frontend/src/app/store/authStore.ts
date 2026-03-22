@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { authApi, type OtpFlowType, type RegistrationPurpose } from '../../shared/api/authApi';
+import { authApi, getOtpPurposeForFlow, type OtpFlowState, type OtpFlowType, type RegistrationPurpose } from '../../shared/api/authApi';
 import { loadFromStorage, removeFromStorage, saveToStorage, setAccessToken } from '../../shared/lib/storage';
 import { STORAGE_KEYS } from '../../shared/constants/storageKeys';
 import { User, Role } from '../../shared/types';
@@ -44,28 +44,13 @@ interface AuthState {
   user: User | null;
   token: string | null;
 
-  otp: {
+  otp: OtpFlowState & {
     required: boolean;
-    purpose: RegistrationPurpose | null;
-    tempToken: string | null;
-    phone: string | null;
     user: User | null;
-    flowType: OtpFlowType;
     verification: {
       channel: DeviceVerificationChannel;
       phone: string | null;
       reason: string | null;
-    } | null;
-    requestId: string | null;
-    verificationMethod: string | null;
-    otpRequest: {
-      requestId: string;
-      provider?: string;
-      verificationType: 'call_to_auth' | 'code';
-      callToAuthNumber?: string | null;
-      phone?: string;
-      status?: string;
-      expiresInSec?: number;
     } | null;
   };
 
@@ -174,6 +159,14 @@ const emptyOtp: AuthState['otp'] = {
   requestId: null,
   verificationMethod: null,
   otpRequest: null,
+  callToAuthNumber: null,
+  cooldownUntil: null,
+  resendAvailableAt: null,
+  verifyStatus: 'idle',
+  lastError: null,
+  isPolling: false,
+  createdAt: null,
+  updatedAt: null,
 };
 
 export const useAuthStore = create<AuthState>((set, get) => {
@@ -203,10 +196,11 @@ export const useAuthStore = create<AuthState>((set, get) => {
       const result = raw as AuthResult;
 
       if (isOtpRequired(result)) {
+        const now = Date.now();
         set({
           otp: {
             required: true,
-            purpose: result.flowType === 'registration' ? 'buyer_register_phone' : null,
+            purpose: getOtpPurposeForFlow(result.flowType),
             tempToken: result.tempToken,
             phone: result.phone ?? result.user.phone ?? null,
             user: result.user,
@@ -215,6 +209,14 @@ export const useAuthStore = create<AuthState>((set, get) => {
             requestId: result.requestId ?? result.otpRequest?.requestId ?? null,
             verificationMethod: result.verificationMethod ?? null,
             otpRequest: result.otpRequest ?? null,
+            callToAuthNumber: result.otpRequest?.callToAuthNumber ?? null,
+            cooldownUntil: null,
+            resendAvailableAt: null,
+            verifyStatus: 'pending',
+            lastError: null,
+            isPolling: Boolean(result.otpRequest?.requestId),
+            createdAt: now,
+            updatedAt: now,
           },
         });
         return {
@@ -245,6 +247,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
       const result = raw as AuthResult;
 
       if (isOtpRequired(result)) {
+        const now = Date.now();
         set({
           otp: {
             required: true,
@@ -257,6 +260,14 @@ export const useAuthStore = create<AuthState>((set, get) => {
             requestId: null,
             verificationMethod: null,
             otpRequest: null,
+            callToAuthNumber: null,
+            cooldownUntil: null,
+            resendAvailableAt: null,
+            verifyStatus: 'pending',
+            lastError: null,
+            isPolling: false,
+            createdAt: now,
+            updatedAt: now,
           },
         });
         return { requiresOtp: true, tempToken: result.tempToken, user: result.user };
