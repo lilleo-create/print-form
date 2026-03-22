@@ -68,7 +68,7 @@ describe('authApi login device verification', () => {
         role: 'buyer',
         phone: '79990000000'
       }),
-      otpContext: 'device_verification',
+      flowType: 'device_login_verification',
       requestId: 'request-1',
       phone: '79990000000',
       verificationMethod: 'existing_otp_flow',

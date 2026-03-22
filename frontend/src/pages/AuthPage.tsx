@@ -17,13 +17,7 @@ import styles from './AuthPage.module.css';
 import { OtpStep } from './OtpStep';
 import loginHero from '../shared/assets/login-hero.svg';
 
-type Purpose =
-  | 'buyer_register_phone'
-  | 'buyer_change_phone'
-  | 'buyer_sensitive_action'
-  | 'seller_connect_phone'
-  | 'seller_change_payout_details'
-  | 'seller_payout_settings_verify';
+import type { OtpFlowType, RegistrationPurpose } from '../shared/api/authApi';
 
 const isValidLoginPhone = (value: string) => {
   const digits = normalizePhone(value);
@@ -155,9 +149,9 @@ export const AuthPage = () => {
 
   const [otpRequired, setOtpRequired] = useState(false);
   const [otpToken, setOtpToken] = useState<string | null>(null);
-  const [otpPurpose, setOtpPurpose] = useState<Purpose>('buyer_register_phone');
+  const [otpPurpose, setOtpPurpose] = useState<RegistrationPurpose>('buyer_register_phone');
   const [otpPhone, setOtpPhone] = useState<string>('');
-  const [otpContext, setOtpContext] = useState<'registration' | 'device_verification'>('registration');
+  const [otpFlowType, setOtpFlowType] = useState<OtpFlowType>('registration');
   const [otpRequest, setOtpRequest] = useState<{
     requestId: string;
     verificationType: 'call_to_auth' | 'code';
@@ -174,6 +168,8 @@ export const AuthPage = () => {
   const register = useAuthStore((s) => s.register);
   const requestOtp = useAuthStore((s) => s.requestOtp);
   const verifyOtp = useAuthStore((s) => s.verifyOtp);
+  const requestDeviceLoginOtp = useAuthStore((s) => s.requestDeviceLoginOtp);
+  const verifyDeviceLoginOtp = useAuthStore((s) => s.verifyDeviceLoginOtp);
   const checkOtpStatus = useAuthStore((s) => s.checkOtpStatus);
   const setUser = useAuthStore((s) => s.setUser);
   const persistedOtp = useAuthStore((s) => s.otp);
@@ -249,7 +245,7 @@ export const AuthPage = () => {
     setOtpToken(null);
     setOtpPhone('');
     setOtpPurpose('buyer_register_phone');
-    setOtpContext('registration');
+    setOtpFlowType('registration');
     setOtpRequest(null);
     setOtpUiState('idle');
     removeFromStorage(STORAGE_KEYS.authOtpFlow);
@@ -286,18 +282,18 @@ export const AuthPage = () => {
       tempToken: otpToken,
       phone: otpPhone,
       purpose: otpPurpose,
-      context: otpContext,
+      flowType: otpFlowType,
       request: otpRequest,
     });
-  }, [otpContext, otpPhone, otpPurpose, otpRequest, otpRequired, otpToken]);
+  }, [otpFlowType, otpPhone, otpPurpose, otpRequest, otpRequired, otpToken]);
 
   useEffect(() => {
     const stored = loadFromStorage<{
       required?: boolean;
       tempToken?: string | null;
       phone?: string;
-      purpose?: Purpose;
-      context?: 'registration' | 'device_verification';
+      purpose?: RegistrationPurpose;
+      flowType?: OtpFlowType;
       request?: typeof otpRequest;
     } | null>(STORAGE_KEYS.authOtpFlow, null);
 
@@ -306,7 +302,7 @@ export const AuthPage = () => {
       setOtpToken(stored.tempToken);
       setOtpPhone(stored.phone);
       setOtpPurpose(stored.purpose ?? 'buyer_register_phone');
-      setOtpContext(stored.context ?? 'registration');
+      setOtpFlowType(stored.flowType ?? 'registration');
       setOtpRequest(stored.request ?? null);
       return;
     }
@@ -315,8 +311,8 @@ export const AuthPage = () => {
       setOtpRequired(true);
       setOtpToken(persistedOtp.tempToken);
       setOtpPhone(persistedOtp.phone);
-      setOtpPurpose((persistedOtp.purpose ?? 'buyer_register_phone') as Purpose);
-      setOtpContext((persistedOtp.context ?? 'registration') as 'registration' | 'device_verification');
+      setOtpPurpose((persistedOtp.purpose ?? 'buyer_register_phone') as RegistrationPurpose);
+      setOtpFlowType(persistedOtp.flowType ?? 'registration');
       setOtpRequest(persistedOtp.otpRequest);
     }
   }, [persistedOtp]);
@@ -334,13 +330,15 @@ export const AuthPage = () => {
         setOtpRequired(true);
         setOtpToken(result.tempToken ?? null);
         setOtpPhone(result.phone ?? result.verification?.phone ?? result.user?.phone ?? normalizedPhone);
-        setOtpContext((result.otpContext ?? 'registration') as 'registration' | 'device_verification');
+        setOtpFlowType(result.flowType ?? 'registration');
         setOtpRequest(result.otpRequest ?? null);
-        setMessage(
-          result.otpContext === 'device_verification'
-            ? 'Подтвердите вход с нового устройства звонком.'
-            : 'Подтвердите номер телефона для входа через звонок.'
-        );
+        if ((result.flowType ?? 'registration') === 'device_login_verification') {
+          setOtpPurpose('buyer_sensitive_action');
+          setMessage('Подтвердите вход с нового устройства звонком.');
+        } else {
+          setOtpPurpose('buyer_register_phone');
+          setMessage('Подтвердите номер телефона для входа через звонок.');
+        }
         return;
       }
 
@@ -417,13 +415,13 @@ export const AuthPage = () => {
                 purpose={otpPurpose}
                 tempToken={otpToken}
                 initialPhone={otpPhone}
-                context={otpContext}
+                flowType={otpFlowType}
                 initialRequest={otpRequest}
-                title={otpContext === 'device_verification' ? 'Подтвердите вход с нового устройства' : undefined}
-                introMessage={otpContext === 'device_verification' ? 'Ожидаем автоматическое подтверждение входа после звонка.' : undefined}
-                onRequestOtp={requestOtp}
+                title={otpFlowType === 'device_login_verification' ? 'Подтвердите вход с нового устройства' : undefined}
+                introMessage={otpFlowType === 'device_login_verification' ? 'Ожидаем автоматическое подтверждение входа после звонка.' : undefined}
+                onRequestOtp={otpFlowType === 'device_login_verification' ? requestDeviceLoginOtp : requestOtp}
                 onCheckOtpStatus={checkOtpStatus}
-                onVerifyOtp={verifyOtp}
+                onVerifyOtp={otpFlowType === 'device_login_verification' ? verifyDeviceLoginOtp : verifyOtp}
                 onSuccess={() => {
                   removeFromStorage(STORAGE_KEYS.authOtpFlow);
                   void handleRedirect();

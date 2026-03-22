@@ -3,7 +3,8 @@ import { Button } from '../shared/ui/Button';
 import { normalizeApiError } from '../shared/api/client';
 import styles from './AuthPage.module.css';
 
-type Purpose = 'buyer_register_phone' | 'buyer_change_phone' | 'buyer_sensitive_action' | 'seller_connect_phone' | 'seller_change_payout_details' | 'seller_payout_settings_verify';
+import type { OtpFlowType, RegistrationPurpose } from '../shared/api/authApi';
+
 type OtpRequestData = {
   requestId: string;
   verificationType: 'call_to_auth' | 'code';
@@ -56,18 +57,18 @@ const toTelHref = (value: string | null) => {
 };
 
 export function OtpStep(props: {
-  purpose: Purpose;
+  purpose?: RegistrationPurpose;
   tempToken: string | null;
   initialPhone?: string;
-  context?: 'registration' | 'device_verification' | 'password_reset';
+  flowType?: OtpFlowType;
   title?: string;
   introMessage?: string;
   initialRequest?: OtpRequestData | null;
   hidePhoneInput?: boolean;
   idleMessage?: string;
-  onRequestOtp: (p: { phone: string; purpose: Purpose }, token?: string | null) => Promise<OtpRequestData | null>;
+  onRequestOtp: (p: { phone: string; purpose?: RegistrationPurpose }, token?: string | null) => Promise<OtpRequestData | null>;
   onCheckOtpStatus: (requestId: string, token?: string | null) => Promise<'pending' | 'verified' | 'expired' | 'failed' | 'cancelled'>;
-  onVerifyOtp: (p: { phone: string; code?: string; requestId?: string; purpose: Purpose }, token?: string | null) => Promise<void>;
+  onVerifyOtp: (p: { phone: string; code?: string; requestId?: string; purpose?: RegistrationPurpose }, token?: string | null) => Promise<void>;
   onSuccess: () => void;
   setMessage: (v: string) => void;
   setError: (v: string) => void;
@@ -249,9 +250,9 @@ export function OtpStep(props: {
       {otpUiState === 'idle' && (
         <p className={styles.subtitle}>
           {props.idleMessage ??
-            (props.context === 'device_verification'
+            (props.flowType === 'device_login_verification'
               ? 'Подготавливаем подтверждение входа…'
-              : props.context === 'password_reset'
+              : props.flowType === 'password_reset_verification'
                 ? 'Подготавливаем подтверждение для восстановления пароля…'
                 : 'Подготавливаем подтверждение номера…')}
         </p>

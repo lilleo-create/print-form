@@ -20,11 +20,18 @@ describe('Forgot password recovery flow', () => {
 
   it('shows call confirmation UI without legacy code copy or early retry CTA', async () => {
     vi.mocked(authApi.requestPasswordReset).mockResolvedValue({
-      requestId: 'req-1',
-      verificationType: 'call_to_auth',
-      callToAuthNumber: '78005553535',
+      requiresOtp: true,
+      flowType: 'password_reset_verification',
+      tempToken: 'temp-token',
       phone: '79990000000',
-      expiresInSec: 120
+      requestId: 'req-1',
+      otpRequest: {
+        requestId: 'req-1',
+        verificationType: 'call_to_auth',
+        callToAuthNumber: '78005553535',
+        phone: '79990000000',
+        expiresInSec: 120
+      }
     } as never);
     vi.mocked(authApi.checkOtpStatus).mockResolvedValue('pending' as never);
 
@@ -50,11 +57,18 @@ describe('Forgot password recovery flow', () => {
 
   it('shows retry CTA after confirmation timeout', async () => {
     vi.mocked(authApi.requestPasswordReset).mockResolvedValue({
-      requestId: 'req-1',
-      verificationType: 'call_to_auth',
-      callToAuthNumber: '78005553535',
+      requiresOtp: true,
+      flowType: 'password_reset_verification',
+      tempToken: 'temp-token',
       phone: '79990000000',
-      expiresInSec: 5
+      requestId: 'req-1',
+      otpRequest: {
+        requestId: 'req-1',
+        verificationType: 'call_to_auth',
+        callToAuthNumber: '78005553535',
+        phone: '79990000000',
+        expiresInSec: 5
+      }
     } as never);
     vi.mocked(authApi.checkOtpStatus).mockResolvedValue('expired' as never);
 

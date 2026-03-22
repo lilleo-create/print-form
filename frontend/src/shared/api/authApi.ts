@@ -16,7 +16,15 @@ type DeviceVerification = {
   reason: string | null;
 };
 
-export type OtpContext = 'registration' | 'device_verification' | 'password_reset';
+export type OtpFlowType = 'registration' | 'device_login_verification' | 'password_reset_verification';
+
+export type RegistrationPurpose =
+  | 'buyer_register_phone'
+  | 'buyer_change_phone'
+  | 'buyer_sensitive_action'
+  | 'seller_connect_phone'
+  | 'seller_change_payout_details'
+  | 'seller_payout_settings_verify';
 
 export type OtpRequestResponse = {
   requestId: string;
@@ -33,7 +41,7 @@ type AuthResult =
       requiresOtp: true;
       tempToken: string;
       user: User;
-      otpContext?: OtpContext;
+      flowType: OtpFlowType;
       verification?: DeviceVerification;
       requestId?: string | null;
       phone?: string | null;
@@ -41,6 +49,17 @@ type AuthResult =
       verificationMethod?: string | null;
     }
   | { requiresOtp: false; token: string; user: User };
+
+type PasswordResetRequestResult = {
+  requiresOtp: true;
+  flowType: 'password_reset_verification';
+  tempToken: string;
+  phone: string;
+  requestId: string | null;
+  otpRequest: OtpRequestResponse | null;
+  verificationMethod?: string | null;
+  user?: User;
+};
 
 type RawUser = {
   id?: string;
@@ -64,6 +83,8 @@ type RawAuthData = {
   requires_otp?: boolean;
   requiresDeviceVerification?: boolean;
   requires_device_verification?: boolean;
+  requiresPasswordResetVerification?: boolean;
+  requires_password_reset_verification?: boolean;
   tempToken?: string;
   temp_token?: string;
   accessToken?: string;
@@ -152,11 +173,31 @@ const normalizeOtpRequest = (
   };
 };
 
+const mapOtpFlowResult = (data: RawAuthData, flowType: OtpFlowType, fallbackPhone: string, fallbackUser?: RawUser): AuthResult => ({
+  requiresOtp: true,
+  tempToken: data.tempToken ?? data.temp_token ?? '',
+  user: data.user ? normalizeUser(data.user) : normalizeUser(fallbackUser ?? { phone: fallbackPhone }),
+  flowType,
+  verification: normalizeDeviceVerification(data.verification),
+  requestId: data.requestId ?? data.request_id ?? data.otpRequest?.requestId ?? data.otp_request?.requestId ?? null,
+  phone: data.phone ?? data.verification?.phone ?? data.user?.phone ?? fallbackPhone,
+  otpRequest: normalizeOtpRequest(data.otpRequest ?? data.otp_request ?? null),
+  verificationMethod: data.verificationMethod ?? data.verification_method ?? null,
+});
+
+
+const unwrapNestedData = <T>(payload: { data: unknown }): T => {
+  const outer = payload.data as T | { data?: T };
+  if (outer && typeof outer === 'object' && 'data' in outer) {
+    return (outer as { data?: T }).data ?? (outer as T);
+  }
+  return outer as T;
+};
 export const authApi = {
   login: async (phone: string, password: string): Promise<AuthResult> => {
     try {
       const result = await api.login({ phone, password });
-      const data = result.data as RawAuthData;
+      const data = unwrapNestedData<RawAuthData>(result);
 
       const requiresOtp = data.requiresOtp ?? data.requires_otp ?? false;
       const tempToken = data.tempToken ?? data.temp_token ?? '';
@@ -165,7 +206,8 @@ export const authApi = {
         return {
           requiresOtp: true,
           tempToken,
-          user: requireUser(data, 'Login')
+          user: requireUser(data, 'Login'),
+          flowType: 'registration'
         };
       }
 
@@ -182,21 +224,11 @@ export const authApi = {
         data?.requiresDeviceVerification === true ||
         data?.requires_device_verification === true;
 
-      if (!requiresDeviceVerification) {
+      if (!requiresDeviceVerification || !data) {
         throw error;
       }
 
-      return {
-        requiresOtp: true,
-        tempToken: data?.tempToken ?? data?.temp_token ?? '',
-        user: data?.user ? normalizeUser(data.user) : normalizeUser({ phone }),
-        otpContext: 'device_verification',
-        verification: normalizeDeviceVerification(data?.verification),
-        requestId: data?.requestId ?? data?.request_id ?? data?.otpRequest?.requestId ?? data?.otp_request?.requestId ?? null,
-        phone: data?.phone ?? data?.verification?.phone ?? data?.user?.phone ?? phone,
-        otpRequest: normalizeOtpRequest(data?.otpRequest ?? data?.otp_request ?? null),
-        verificationMethod: data?.verificationMethod ?? data?.verification_method ?? null,
-      };
+      return mapOtpFlowResult(data, 'device_login_verification', phone);
     }
   },
 
@@ -220,7 +252,7 @@ export const authApi = {
       privacyAccepted: payload.privacyAccepted
     });
 
-    const data = result.data as RawAuthData;
+    const data = unwrapNestedData<RawAuthData>(result);
 
     const requiresOtp = data.requiresOtp ?? data.requires_otp ?? false;
     const tempToken = data.tempToken ?? data.temp_token ?? '';
@@ -229,7 +261,8 @@ export const authApi = {
       return {
         requiresOtp: true,
         tempToken,
-        user: requireUser(data, 'Register')
+        user: requireUser(data, 'Register'),
+        flowType: 'registration'
       };
     }
 
@@ -240,49 +273,30 @@ export const authApi = {
   },
 
   requestOtp: async (
-    payload: { phone: string; purpose?: 'buyer_register_phone' | 'buyer_change_phone' | 'buyer_sensitive_action' | 'seller_connect_phone' | 'seller_change_payout_details' | 'seller_payout_settings_verify' },
+    payload: { phone: string; purpose?: RegistrationPurpose },
     token?: string | null
   ): Promise<OtpRequestResponse | null> => {
     const response = await api.requestOtp(payload, token);
-    const raw = response.data as
+    const raw = response.data as unknown as
       | {
           ok?: boolean;
-          data?: {
-            requestId?: string;
-            provider?: string;
-            verificationType?: 'call_to_auth' | 'code';
-            callToAuthNumber?: string | null;
-            phone?: string;
-            status?: string;
-            expiresInSec?: number;
-          };
-          requestId?: string;
-          provider?: string;
-          verificationType?: 'call_to_auth' | 'code';
-          callToAuthNumber?: string | null;
-          phone?: string;
-          status?: string;
-          expiresInSec?: number;
+          data?: OtpRequestResponse;
+          delivery?: OtpRequestResponse;
         }
       | undefined;
 
-    const data = raw?.data && typeof raw.data === 'object' ? raw.data : raw;
-    if (!data?.requestId || !data?.verificationType) return null;
+    return normalizeOtpRequest(raw?.data ?? raw?.delivery ?? null);
+  },
 
-    return {
-      requestId: data.requestId,
-      provider: data.provider,
-      verificationType: data.verificationType,
-      callToAuthNumber: data.callToAuthNumber ?? null,
-      phone: data.phone,
-      status: data.status,
-      expiresInSec: data.expiresInSec,
-    };
+  requestDeviceLoginOtp: async (payload: { phone: string }, tempToken: string) => {
+    const response = await api.requestOtp(payload, tempToken);
+    const raw = response.data as unknown as { data?: OtpRequestResponse; delivery?: OtpRequestResponse } | undefined;
+    return normalizeOtpRequest(raw?.data ?? raw?.delivery ?? null);
   },
 
   checkOtpStatus: async (requestId: string, token?: string | null) => {
     const response = await api.otpStatus(requestId, token);
-    const raw = response.data as
+    const raw = response.data as unknown as
       | {
           status?: 'pending' | 'verified' | 'expired' | 'failed' | 'cancelled';
           data?: { status?: 'pending' | 'verified' | 'expired' | 'failed' | 'cancelled' };
@@ -292,12 +306,12 @@ export const authApi = {
   },
 
   verifyOtp: async (
-    payload: { phone: string; code?: string; requestId?: string; purpose?: 'buyer_register_phone' | 'buyer_change_phone' | 'buyer_sensitive_action' | 'seller_connect_phone' | 'seller_change_payout_details' | 'seller_payout_settings_verify' },
+    payload: { phone: string; code?: string; requestId?: string; purpose?: RegistrationPurpose },
     token?: string | null
   ) => {
     const result = await api.verifyOtp(payload, token);
 
-    const data = result.data as { accessToken?: string; user?: RawUser };
+    const data = unwrapNestedData<{ accessToken?: string; user?: RawUser }>(result);
 
     const session = {
       token: data.accessToken ?? '',
@@ -310,21 +324,70 @@ export const authApi = {
     return session;
   },
 
-  requestPasswordReset: async (payload: { phone: string }) => {
-    const response = await api.requestPasswordReset(payload);
-    const raw = response.data as
-      | {
-          ok?: boolean;
-          devOtp?: string;
-          delivery?: OtpRequestResponse;
-        }
-      | undefined;
-
-    return normalizeOtpRequest(raw?.delivery ?? null);
+  verifyDeviceLoginOtp: async (payload: { phone: string; requestId?: string }, tempToken: string) => {
+    const result = await api.verifyOtp(payload, tempToken);
+    const data = unwrapNestedData<{ accessToken?: string; user?: RawUser }>(result);
+    const session = {
+      token: data.accessToken ?? '',
+      user: normalizeUser(data.user)
+    };
+    if (!session.token || !session.user.id) {
+      throw new Error('Device login OTP verify: invalid response');
+    }
+    return session;
   },
 
-  verifyPasswordReset: async (payload: { phone: string; requestId?: string; code?: string }) => {
-    const response = await api.verifyPasswordReset(payload);
+  requestPasswordReset: async (payload: { phone: string }): Promise<PasswordResetRequestResult> => {
+    try {
+      const response = await api.requestPasswordReset(payload);
+      const raw = response.data as unknown as RawAuthData & { delivery?: OtpRequestResponse };
+      const otpRequest = normalizeOtpRequest(raw.otpRequest ?? raw.otp_request ?? raw.delivery ?? null);
+
+      if (!otpRequest) {
+        throw new Error('Password reset OTP request: invalid response');
+      }
+
+      return {
+        requiresOtp: true,
+        flowType: 'password_reset_verification',
+        tempToken: raw.tempToken ?? raw.temp_token ?? '',
+        phone: raw.phone ?? otpRequest.phone ?? payload.phone,
+        requestId: raw.requestId ?? raw.request_id ?? otpRequest.requestId ?? null,
+        otpRequest,
+        verificationMethod: raw.verificationMethod ?? raw.verification_method ?? null,
+        user: raw.user ? normalizeUser(raw.user) : undefined,
+      };
+    } catch (error) {
+      const normalized = normalizeApiError(error);
+      const data = extractErrorData(error);
+      const requiresPasswordResetVerification =
+        normalized.code === 'PASSWORD_RESET_VERIFICATION_REQUIRED' ||
+        data?.code === 'PASSWORD_RESET_VERIFICATION_REQUIRED' ||
+        data?.requiresPasswordResetVerification === true ||
+        data?.requires_password_reset_verification === true;
+
+      if (!requiresPasswordResetVerification || !data) {
+        throw error;
+      }
+
+      return {
+        requiresOtp: true,
+        flowType: 'password_reset_verification',
+        tempToken: data.tempToken ?? data.temp_token ?? '',
+        phone: data.phone ?? payload.phone,
+        requestId: data.requestId ?? data.request_id ?? data.otpRequest?.requestId ?? data.otp_request?.requestId ?? null,
+        otpRequest: normalizeOtpRequest(data.otpRequest ?? data.otp_request ?? null),
+        verificationMethod: data.verificationMethod ?? data.verification_method ?? null,
+        user: data.user ? normalizeUser(data.user) : undefined,
+      };
+    }
+  },
+
+  completePasswordResetVerification: async (
+    payload: { phone: string; requestId?: string; code?: string },
+    tempToken?: string | null
+  ) => {
+    const response = await api.verifyPasswordReset(payload, tempToken ?? undefined);
     return response.data.resetToken;
   },
 
