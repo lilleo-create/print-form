@@ -21,7 +21,7 @@ export const SellerActions = ({ canSell, onAddProduct }: SellerActionsProps) => 
       >
         Добавить товар
       </Button>
-      {!canSell && <span className={styles.helperText}>Добавление товаров доступно после одобрения KYC.</span>}
+      {!canSell && <span className={styles.helperText}>Добавление и редактирование товаров станут доступны после подтверждения профиля продавца.</span>}
     </div>
   );
 };
