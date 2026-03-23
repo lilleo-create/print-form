@@ -88,4 +88,46 @@ describe('authApi login device verification', () => {
       }
     });
   });
+
+  it('maps registration otp response from rejected register call to frontend auth result', async () => {
+    const error = new Error('OTP_REQUIRED') as Error & {
+      status?: number;
+      payload?: unknown;
+    };
+    error.status = 403;
+    error.payload = {
+      requiresOtp: true,
+      tempToken: 'temp-token',
+      user: {
+        id: 'user-1',
+        name: 'User',
+        fullName: 'Тестовый Пользователь',
+        email: 'user@example.com',
+        role: 'BUYER',
+        phone: '+79990000000'
+      }
+    };
+
+    vi.mocked(api.register).mockRejectedValue(error as never);
+
+    await expect(
+      authApi.register({
+        name: 'User',
+        fullName: 'Тестовый Пользователь',
+        email: 'user@example.com',
+        password: 'buyer123',
+        phone: '+79990000000',
+        privacyAccepted: true
+      })
+    ).resolves.toEqual({
+      requiresOtp: true,
+      tempToken: 'temp-token',
+      user: expect.objectContaining({
+        id: 'user-1',
+        role: 'buyer',
+        phone: '+79990000000'
+      }),
+      flowType: 'registration'
+    });
+  });
 });

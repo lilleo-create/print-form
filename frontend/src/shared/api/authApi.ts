@@ -267,34 +267,51 @@ export const authApi = {
     address?: string;
     privacyAccepted?: boolean;
   }): Promise<AuthResult> => {
-    const result = await api.register({
-      name: payload.name,
-      fullName: payload.fullName,
-      email: payload.email,
-      password: payload.password,
-      phone: payload.phone,
-      address: payload.address,
-      privacyAccepted: payload.privacyAccepted
-    });
+    try {
+      const result = await api.register({
+        name: payload.name,
+        fullName: payload.fullName,
+        email: payload.email,
+        password: payload.password,
+        phone: payload.phone,
+        address: payload.address,
+        privacyAccepted: payload.privacyAccepted
+      });
 
-    const data = unwrapNestedData<RawAuthData>(result);
+      const data = unwrapNestedData<RawAuthData>(result);
 
-    const requiresOtp = data.requiresOtp ?? data.requires_otp ?? false;
-    const tempToken = data.tempToken ?? data.temp_token ?? '';
+      const requiresOtp = data.requiresOtp ?? data.requires_otp ?? false;
+      const tempToken = data.tempToken ?? data.temp_token ?? '';
 
-    if (requiresOtp) {
-      return {
-        requiresOtp: true,
-        tempToken,
-        user: requireUser(data, 'Register'),
-        flowType: 'registration'
-      };
+      if (requiresOtp) {
+        return {
+          requiresOtp: true,
+          tempToken,
+          user: requireUser(data, 'Register'),
+          flowType: 'registration'
+        };
+      }
+
+      const token = data.accessToken ?? '';
+      const user = requireUser(data, 'Register');
+
+      return { requiresOtp: false, token, user };
+    } catch (error) {
+      const data = extractErrorData(error);
+      const requiresOtp = data?.requiresOtp ?? data?.requires_otp ?? false;
+      const tempToken = data?.tempToken ?? data?.temp_token ?? '';
+
+      if (requiresOtp && data?.user && tempToken) {
+        return {
+          requiresOtp: true,
+          tempToken,
+          user: normalizeUser(data.user),
+          flowType: 'registration'
+        };
+      }
+
+      throw error;
     }
-
-    const token = data.accessToken ?? '';
-    const user = requireUser(data, 'Register');
-
-    return { requiresOtp: false, token, user };
   },
 
   requestOtp: async (

@@ -208,6 +208,73 @@ describe('Auth UI flow checks', () => {
     expect(requestOtpMock).not.toHaveBeenCalled();
   });
 
+  it('keeps registration otp flow on screen and persists temp token', async () => {
+    const registerMock = vi.fn(async () => ({
+      requiresOtp: true,
+      tempToken: 'temp-token',
+      user: {
+        ...baseUser,
+        phone: '+79990000000'
+      },
+      flowType: 'registration' as const
+    }));
+    const requestOtpMock = vi.fn(async () => ({
+      requestId: 'request-1',
+      verificationType: 'call_to_auth' as const,
+      callToAuthNumber: '79990000001',
+      phone: '+79990000000'
+    }));
+
+    useAuthStore.setState({ register: registerMock as never, requestOtp: requestOtpMock as never });
+
+    render(
+      <MemoryRouter initialEntries={['/auth/register']}>
+        <AuthPage />
+      </MemoryRouter>
+    );
+
+    fireEvent.change(screen.getByPlaceholderText('Никнейм'), {
+      target: { value: 'tester' }
+    });
+    fireEvent.change(screen.getByPlaceholderText('ФИО'), {
+      target: { value: 'Тест Пользователь' }
+    });
+    fireEvent.change(screen.getByPlaceholderText('+7 (___) ___-__-__'), {
+      target: { value: '+7 (999) 000-00-00' }
+    });
+    fireEvent.change(screen.getByPlaceholderText('Email'), {
+      target: { value: 'user@example.com' }
+    });
+    fireEvent.change(screen.getByPlaceholderText('Пароль'), {
+      target: { value: 'Valid123' }
+    });
+    fireEvent.change(screen.getByPlaceholderText('Повторите пароль'), {
+      target: { value: 'Valid123' }
+    });
+    fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent.click(screen.getByRole('button', { name: 'Создать аккаунт' }));
+
+    expect(await screen.findByText('Подтверждение номера')).toBeInTheDocument();
+    expect(screen.getByText('Ожидаем автоматическое подтверждение после звонка.')).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(requestOtpMock).toHaveBeenCalledWith(
+        { phone: '+79990000000', purpose: 'buyer_register_phone' },
+        'temp-token'
+      );
+    });
+
+    expect(JSON.parse(window.localStorage.getItem('pf_auth_otp_flow') ?? 'null')).toEqual(
+      expect.objectContaining({
+        required: true,
+        tempToken: 'temp-token',
+        phone: '+7 (999) 000-00-00',
+        purpose: 'buyer_register_phone',
+        flowType: 'registration'
+      })
+    );
+  });
+
   it('verifies device login with active challenge phone in canonical format', async () => {
     const loginMock = vi.fn(async () => ({
       requiresOtp: true,
