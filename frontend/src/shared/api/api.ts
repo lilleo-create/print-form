@@ -987,6 +987,10 @@ export const api = {
     return apiClient.request<Product[]>(`/admin/products?status=${status}`);
   },
 
+  async getAdminProductById(id: string) {
+    return apiClient.request<Product>(`/admin/products/${id}`);
+  },
+
   async approveAdminProduct(id: string) {
     return apiClient.request<Product>(`/admin/products/${id}/approve`, {
       method: 'POST'

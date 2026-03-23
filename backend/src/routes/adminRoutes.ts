@@ -239,6 +239,28 @@ adminRoutes.get('/products', async (req, res, next) => {
   }
 });
 
+adminRoutes.get('/products/:id', async (req, res, next) => {
+  try {
+    const product = await prisma.product.findUnique({
+      where: { id: req.params.id },
+      include: {
+        seller: { select: { id: true, name: true, email: true } },
+        images: { orderBy: { sortOrder: 'asc' } },
+        variants: { orderBy: { name: 'asc' } },
+        specs: { orderBy: { sortOrder: 'asc' } }
+      }
+    });
+
+    if (!product) {
+      return notFound(res, 'Product not found');
+    }
+
+    res.json({ data: product });
+  } catch (error) {
+    next(error);
+  }
+});
+
 adminRoutes.post('/products/:id/approve', writeLimiter, async (req: AuthRequest, res, next) => {
   try {
     const existing = await prisma.product.findUnique({

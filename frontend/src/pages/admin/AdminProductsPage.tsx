@@ -3,6 +3,7 @@ import { api } from '../../shared/api';
 import { Product } from '../../shared/types';
 import { Button } from '../../shared/ui/Button';
 import { EmptyState } from '../../shared/ui/EmptyState';
+import { Modal } from '../../shared/ui/Modal';
 import { Table } from '../../shared/ui/Table';
 import { resolveImageUrl } from '../../shared/lib/resolveImageUrl';
 import { getProductMainImage } from '../../shared/lib/productMedia';
@@ -19,7 +20,10 @@ export const AdminProductsPage = () => {
   const [status, setStatus] = useState<(typeof statusOptions)[number]>('PENDING');
   const [products, setProducts] = useState<AdminProduct[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selected, setSelected] = useState<AdminProduct | null>(null);
+  const [modalLoading, setModalLoading] = useState(false);
+  const [modalError, setModalError] = useState('');
   const [notes, setNotes] = useState('');
   const [actionId, setActionId] = useState<string | null>(null);
   const [isPreviewBroken, setIsPreviewBroken] = useState(false);
@@ -38,12 +42,38 @@ export const AdminProductsPage = () => {
     loadProducts();
   }, [status]);
 
+  const closeModal = () => {
+    setSelectedId(null);
+    setSelected(null);
+    setNotes('');
+    setModalError('');
+    setIsPreviewBroken(false);
+  };
+
+  const openDetails = async (product: AdminProduct) => {
+    setSelectedId(product.id);
+    setSelected(null);
+    setNotes(product.moderationNotes ?? '');
+    setModalError('');
+    setModalLoading(true);
+    setIsPreviewBroken(false);
+
+    try {
+      const response = await api.getAdminProductById(product.id);
+      setSelected(response.data as AdminProduct);
+      setNotes(response.data.moderationNotes ?? '');
+    } catch {
+      setModalError('Не удалось загрузить карточку товара для модерации.');
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
   const handleApprove = async (id: string) => {
     setActionId(id);
     try {
       await api.approveAdminProduct(id);
-      setSelected(null);
-      setNotes('');
+      closeModal();
       await loadProducts();
     } finally {
       setActionId(null);
@@ -58,8 +88,7 @@ export const AdminProductsPage = () => {
       } else {
         await api.needsEditAdminProduct(id, { notes: notes || undefined });
       }
-      setSelected(null);
-      setNotes('');
+      closeModal();
       await loadProducts();
     } finally {
       setActionId(null);
@@ -70,7 +99,7 @@ export const AdminProductsPage = () => {
     setActionId(id);
     try {
       await api.archiveAdminProduct(id);
-      setSelected(null);
+      closeModal();
       await loadProducts();
     } finally {
       setActionId(null);
@@ -139,11 +168,7 @@ export const AdminProductsPage = () => {
               <div className={styles.actions}>
                 <Button
                   type="button"
-                  onClick={() => {
-                    setSelected(product);
-                    setNotes(product.moderationNotes ?? '');
-                    setIsPreviewBroken(false);
-                  }}
+                  onClick={() => openDetails(product)}
                 >
                   Подробнее
                 </Button>
@@ -153,11 +178,22 @@ export const AdminProductsPage = () => {
         </Table>
       )}
 
-      {selected && (
-        <div className={styles.modalOverlay}>
-          <div className={styles.modal}>
+      <Modal isOpen={Boolean(selectedId)} onClose={actionId ? undefined : closeModal} className={styles.modal}>
+        {modalLoading ? (
+          <p className={styles.muted}>Загрузка карточки товара...</p>
+        ) : modalError ? (
+          <>
+            <p className={styles.errorText}>{modalError}</p>
+            <div className={styles.modalActions}>
+              <Button type="button" onClick={closeModal}>
+                Закрыть
+              </Button>
+            </div>
+          </>
+        ) : selected ? (
+          <>
             <h2>{selected.title}</h2>
-            <p className={styles.muted}>{selected.description}</p>
+            <p className={styles.muted}>{selected.description || 'Описание не заполнено.'}</p>
             <div>
               <strong>Продавец:</strong> {selected.seller?.name ?? '—'} {selected.seller?.email ? `(${selected.seller.email})` : ''}
             </div>
@@ -165,7 +201,7 @@ export const AdminProductsPage = () => {
               <strong>Цена:</strong> {selected.price.toLocaleString('ru-RU')} ₽
             </div>
             <div>
-              <strong>Категория:</strong> {selected.category}
+              <strong>Категория:</strong> {String(selected.category || '—')}
             </div>
             <div className={styles.previewList}>
               {(() => {
@@ -173,13 +209,7 @@ export const AdminProductsPage = () => {
                 if (!mainImage || isPreviewBroken) {
                   return <div className={styles.imagePlaceholder}>Нет изображения</div>;
                 }
-                return (
-                  <img
-                    src={mainImage}
-                    alt={selected.title}
-                    onError={() => setIsPreviewBroken(true)}
-                  />
-                );
+                return <img src={mainImage} alt={selected.title} onError={() => setIsPreviewBroken(true)} />;
               })()}
             </div>
             <label>
@@ -203,13 +233,13 @@ export const AdminProductsPage = () => {
               <Button type="button" onClick={() => handleArchive(selected.id)} disabled={actionId === selected.id}>
                 Архивировать
               </Button>
-              <Button type="button" onClick={() => setSelected(null)} disabled={actionId === selected.id}>
+              <Button type="button" onClick={closeModal} disabled={actionId === selected.id}>
                 Закрыть
               </Button>
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        ) : null}
+      </Modal>
     </div>
   );
 };
