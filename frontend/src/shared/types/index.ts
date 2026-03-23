@@ -346,6 +346,7 @@ export interface Address {
 export interface SellerProfile {
   id: string;
   status: string;
+  sellerType?: 'IP' | 'LLC' | 'SELF_EMPLOYED' | null;
   storeName: string;
   phone: string;
   city: string;
