@@ -2,7 +2,7 @@ export type BackendSellerType = 'IP' | 'LLC' | 'SELF_EMPLOYED';
 export type SellerTypeUi = 'ИП' | 'ООО' | 'Самозанятый';
 export type SellerTypeValue = BackendSellerType | SellerTypeUi;
 
-const sellerTypeToUiMap: Record<SellerTypeValue, SellerTypeUi> = {
+export const sellerTypeLabelMap: Record<SellerTypeValue, SellerTypeUi> = {
   IP: 'ИП',
   LLC: 'ООО',
   SELF_EMPLOYED: 'Самозанятый',
@@ -24,8 +24,8 @@ export const normalizeSellerType = (
     return null;
   }
 
-  return value in sellerTypeToUiMap
-    ? sellerTypeToUiMap[value as SellerTypeValue]
+  return value in sellerTypeLabelMap
+    ? sellerTypeLabelMap[value as SellerTypeValue]
     : null;
 };
 

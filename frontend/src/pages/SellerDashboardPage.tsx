@@ -199,17 +199,15 @@ export const SellerDashboardPage = () => {
 
   const hasDropoffPvz = Boolean(dropoffPvzId.trim());
 
-  const sellerType = normalizeSellerType(
-    sellerProfile?.status ?? sellerProfile?.legalType ?? null
-  );
+  const sellerType = normalizeSellerType(sellerProfile?.sellerType);
 
-  const requiredMerchantFieldsByStatus = {
+  const requiredMerchantFieldsBySellerType = {
     ООО: ['contactName', 'contactPhone', 'legalName', 'inn', 'ogrn'],
     ИП: ['contactName', 'contactPhone', 'inn', 'ogrn'],
     Самозанятый: ['contactName', 'contactPhone', 'legalName', 'inn']
   } satisfies Record<'ООО' | 'ИП' | 'Самозанятый', Array<keyof typeof merchantForm>>;
 
-  const merchantFieldLabelsByStatus = {
+  const merchantFieldLabelsBySellerType = {
     ООО: {
       contactName: 'контактное лицо',
       contactPhone: 'телефон',
@@ -232,7 +230,7 @@ export const SellerDashboardPage = () => {
   } satisfies Record<'ООО' | 'ИП' | 'Самозанятый', Partial<Record<keyof typeof merchantForm, string>>>;
 
   const requiredMerchantFields = sellerType
-    ? requiredMerchantFieldsByStatus[sellerType]
+    ? requiredMerchantFieldsBySellerType[sellerType]
     : [];
 
   const missingMerchantFields = requiredMerchantFields.filter((field) => {
@@ -242,7 +240,7 @@ export const SellerDashboardPage = () => {
 
   const missingMerchantFieldLabels = sellerType
     ? missingMerchantFields.map((field) => {
-        const labels = merchantFieldLabelsByStatus[sellerType] as Partial<
+        const labels = merchantFieldLabelsBySellerType[sellerType] as Partial<
           Record<keyof typeof merchantForm, string>
         >;
         return labels[field] ?? field;
@@ -446,9 +444,7 @@ export const SellerDashboardPage = () => {
     setIsKycSubmitting(true);
 
     try {
-      const status = sellerType;
-
-      if (!status) {
+      if (!sellerType) {
         setKycError('Не удалось определить тип продавца. Обновите страницу и попробуйте снова.');
         return;
       }
@@ -460,12 +456,12 @@ export const SellerDashboardPage = () => {
 
       if (merchantForm.representativeName.trim()) merchantPayload.representativeName = merchantForm.representativeName.trim();
       if (merchantForm.legalName.trim()) merchantPayload.legalName = merchantForm.legalName.trim();
-      if (status === 'ООО') {
+      if (sellerType === 'ООО') {
         merchantPayload.representativeName = merchantForm.representativeName.trim() || merchantForm.contactName.trim();
         merchantPayload.legalName = merchantForm.legalName.trim();
         merchantPayload.ogrn = merchantForm.ogrn.trim();
       }
-      if (status === 'ИП') merchantPayload.ogrn = merchantForm.ogrn.trim();
+      if (sellerType === 'ИП') merchantPayload.ogrn = merchantForm.ogrn.trim();
 
       const response = await api.submitSellerKyc({
         merchantData: merchantPayload as {
@@ -1527,8 +1523,8 @@ export const SellerDashboardPage = () => {
                         <span className={styles.helperText}>На витрине сейчас будет показано: {displayStoreName}</span>
                       </label>
                       <div>
-                        <span className={styles.muted}>Статус</span>
-                        <p>{sellerType ?? sellerProfile.status}</p>
+                        <span className={styles.muted}>Тип продавца</span>
+                        <p>{sellerType ?? '—'}</p>
                       </div>
                       <div>
                         <span className={styles.muted}>Телефон</span>
