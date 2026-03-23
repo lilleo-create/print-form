@@ -39,7 +39,7 @@ export interface ApiError {
   details?: unknown;
 }
 
-const baseUrl = import.meta.env.VITE_API_URL;
+const baseUrl = import.meta.env.VITE_API_URL?.trim() || '/api';
 export const apiClient = createFetchClient(baseUrl);
 
 type UploadResponse = { data: { urls: string[] } };
