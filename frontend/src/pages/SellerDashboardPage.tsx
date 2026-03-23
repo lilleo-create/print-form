@@ -198,31 +198,74 @@ export const SellerDashboardPage = () => {
 
   const hasDropoffPvz = Boolean(dropoffPvzId.trim());
 
-  const requiredMerchantFieldsByStatus: Record<string, string[]> = {
+  const sellerType =
+    sellerProfile?.status === 'ООО' ||
+    sellerProfile?.status === 'ИП' ||
+    sellerProfile?.status === 'Самозанятый'
+      ? sellerProfile.status
+      : null;
+
+  const requiredMerchantFieldsByStatus = {
     ООО: ['contactName', 'contactPhone', 'legalName', 'inn', 'ogrn'],
     ИП: ['contactName', 'contactPhone', 'inn', 'ogrn'],
     Самозанятый: ['contactName', 'contactPhone', 'legalName', 'inn']
-  };
-  const hasMerchantData = (() => {
-    if (!sellerProfile) return false;
-    const required = requiredMerchantFieldsByStatus[sellerProfile.status] ?? requiredMerchantFieldsByStatus['ИП'];
-    return required.every((field) => {
-      const v = (merchantForm as unknown as Record<string, unknown>)[field];
-      return v !== undefined && v !== null && String(v).trim() !== '';
-    });
-  })();
+  } satisfies Record<'ООО' | 'ИП' | 'Самозанятый', Array<keyof typeof merchantForm>>;
+
+  const merchantFieldLabelsByStatus = {
+    ООО: {
+      contactName: 'контактное лицо',
+      contactPhone: 'телефон',
+      legalName: 'официальное название',
+      inn: 'ИНН',
+      ogrn: 'ОГРН'
+    },
+    ИП: {
+      contactName: 'контактное лицо',
+      contactPhone: 'телефон',
+      inn: 'ИНН',
+      ogrn: 'ОГРНИП'
+    },
+    Самозанятый: {
+      contactName: 'контактное лицо',
+      contactPhone: 'телефон',
+      legalName: 'официальное название',
+      inn: 'ИНН'
+    }
+  } satisfies Record<'ООО' | 'ИП' | 'Самозанятый', Partial<Record<keyof typeof merchantForm, string>>>;
+
+  const requiredMerchantFields = sellerType
+    ? requiredMerchantFieldsByStatus[sellerType]
+    : [];
+
+  const missingMerchantFields = requiredMerchantFields.filter((field) => {
+    const value = merchantForm[field];
+    return typeof value !== 'string' || value.trim() === '';
+  });
+
+  const missingMerchantFieldLabels = sellerType
+    ? missingMerchantFields.map((field) => {
+        const labels = merchantFieldLabelsByStatus[sellerType] as Partial<
+          Record<keyof typeof merchantForm, string>
+        >;
+        return labels[field] ?? field;
+      })
+    : [];
+
+  const hasMerchantData = Boolean(sellerType) && missingMerchantFields.length === 0;
 
   const isKycPending = kycSubmission?.status === 'PENDING';
 
   const kycSubmitDisabledReason = isKycPending
     ? 'Заявка уже находится на проверке.'
-    : !hasDropoffPvz
+    : !sellerType
+      ? 'Не удалось определить тип продавца. Обновите страницу и проверьте профиль.'
+      : !hasDropoffPvz
         ? 'Выберите точку отгрузки, чтобы завершить подключение.'
         : !hasMerchantData
-          ? 'Заполните обязательные поля продавца.'
+          ? `Заполните обязательные поля продавца: ${missingMerchantFieldLabels.join(', ')}.`
           : !acceptedRules
             ? 'Подтвердите согласие с документами.'
-          : null;
+            : null;
 
 
   useEffect(() => {
@@ -405,7 +448,12 @@ export const SellerDashboardPage = () => {
     setIsKycSubmitting(true);
 
     try {
-      const status = sellerProfile?.status ?? 'ИП';
+      const status = sellerType;
+
+      if (!status) {
+        setKycError('Не удалось определить тип продавца. Обновите страницу и попробуйте снова.');
+        return;
+      }
       const merchantPayload: Record<string, string> = {
         contactName: merchantForm.contactName.trim(),
         contactPhone: merchantForm.contactPhone.trim(),
