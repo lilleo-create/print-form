@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useAuthStore } from '../../app/store/authStore';
+import { useSellerContext } from '../../hooks/seller/useSellerContext';
 
 type UserWithShop = {
   role?: string | null;
@@ -9,16 +10,22 @@ type UserWithShop = {
 
 export const useIsSeller = () => {
   const user = useAuthStore((state) => state.user) as UserWithShop | null;
+  const { authStatus, context } = useSellerContext();
 
   return useMemo(() => {
-    const isSeller = user?.role === 'seller';
-    const shopId = user?.shopId ?? user?.id ?? null;
+    const hasSellerProfile = Boolean(context?.profile);
+    const normalizedRole = user?.role?.toLowerCase() ?? null;
+    const isSeller = hasSellerProfile || normalizedRole === 'seller';
+    const shopId = context?.profile?.id ?? user?.shopId ?? user?.id ?? null;
+    const sellerCabinetLink = isSeller ? '/seller' : '/seller/onboarding';
 
     return {
       isSeller,
       shopId,
-      sellerCabinetLink: isSeller ? '/seller' : '/seller/onboarding',
-      sellerShopLink: shopId ? `/shop/${shopId}` : null
+      sellerCabinetLink,
+      sellerShopLink: shopId ? `/shop/${shopId}` : null,
+      hasSellerProfile,
+      isSellerContextResolved: authStatus !== 'loading'
     };
-  }, [user?.id, user?.role, user?.shopId]);
+  }, [authStatus, context?.profile, user?.id, user?.role, user?.shopId]);
 };

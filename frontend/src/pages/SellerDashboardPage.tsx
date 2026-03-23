@@ -77,8 +77,20 @@ const formatDate = (value: string) =>
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 
+const firstNonEmpty = (...values: Array<string | null | undefined>) => {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value;
+    }
+  }
+  return '';
+};
 
-const HANDOFF_STATUSES = new Set<OrderStatus>(['HANDED_TO_DELIVERY', 'IN_TRANSIT', 'DELIVERED']);
+const HANDOFF_STATUSES = new Set<OrderStatus>([
+  'HANDED_TO_DELIVERY',
+  'IN_TRANSIT',
+  'DELIVERED'
+]);
 
 const isHandoverToDelivery = (order: Order) => {
   const orderStatus = String(order.status ?? '').toUpperCase();
@@ -89,17 +101,25 @@ const isHandoverToDelivery = (order: Order) => {
   );
 };
 
-
 const getSellerOrderDisplayStatus = (order: Order) => {
   const isPaid =
     Boolean(order.paidAt) ||
-    ['PAID', 'READY_FOR_SHIPMENT', 'PRINTING', 'HANDED_TO_DELIVERY', 'IN_TRANSIT', 'DELIVERED'].includes(order.status);
+    [
+      'PAID',
+      'READY_FOR_SHIPMENT',
+      'PRINTING',
+      'HANDED_TO_DELIVERY',
+      'IN_TRANSIT',
+      'DELIVERED'
+    ].includes(order.status);
 
   if (!isPaid) return 'Ожидает оплаты';
 
   const handoverStarted = isHandoverToDelivery(order);
   if (handoverStarted) {
-    return getExternalDeliveryStatusLabel(order.cdekStatus ?? order.shipment?.status ?? null);
+    return getExternalDeliveryStatusLabel(
+      order.cdekStatus ?? order.shipment?.status ?? null
+    );
   }
 
   if (!order.isPacked) return 'Ожидает упаковки';
@@ -116,7 +136,6 @@ const isAccessError = (error: unknown) => {
     message.includes('403')
   );
 };
-
 
 export const SellerDashboardPage = () => {
   const navigate = useNavigate();
@@ -140,8 +159,12 @@ export const SellerDashboardPage = () => {
 
   const [orderUpdateError, setOrderUpdateError] = useState<string | null>(null);
 
-  const [labelDownloaded, setLabelDownloaded] = useState<Record<string, boolean>>({});
-  const [actDownloaded, setActDownloaded] = useState<Record<string, boolean>>({});
+  const [labelDownloaded, setLabelDownloaded] = useState<
+    Record<string, boolean>
+  >({});
+  const [actDownloaded, setActDownloaded] = useState<Record<string, boolean>>(
+    {}
+  );
 
   const [kycSubmission, setKycSubmission] =
     useState<SellerKycSubmission | null>(null);
@@ -205,7 +228,10 @@ export const SellerDashboardPage = () => {
     ООО: ['contactName', 'contactPhone', 'legalName', 'inn', 'ogrn'],
     ИП: ['contactName', 'contactPhone', 'inn', 'ogrn'],
     Самозанятый: ['contactName', 'contactPhone', 'legalName', 'inn']
-  } satisfies Record<'ООО' | 'ИП' | 'Самозанятый', Array<keyof typeof merchantForm>>;
+  } satisfies Record<
+    'ООО' | 'ИП' | 'Самозанятый',
+    Array<keyof typeof merchantForm>
+  >;
 
   const merchantFieldLabelsBySellerType = {
     ООО: {
@@ -227,7 +253,10 @@ export const SellerDashboardPage = () => {
       legalName: 'официальное название',
       inn: 'ИНН'
     }
-  } satisfies Record<'ООО' | 'ИП' | 'Самозанятый', Partial<Record<keyof typeof merchantForm, string>>>;
+  } satisfies Record<
+    'ООО' | 'ИП' | 'Самозанятый',
+    Partial<Record<keyof typeof merchantForm, string>>
+  >;
 
   const requiredMerchantFields = sellerType
     ? requiredMerchantFieldsBySellerType[sellerType]
@@ -247,7 +276,8 @@ export const SellerDashboardPage = () => {
       })
     : [];
 
-  const hasMerchantData = Boolean(sellerType) && missingMerchantFields.length === 0;
+  const hasMerchantData =
+    Boolean(sellerType) && missingMerchantFields.length === 0;
 
   const isKycPending = kycSubmission?.status === 'PENDING';
 
@@ -262,7 +292,6 @@ export const SellerDashboardPage = () => {
           : !acceptedRules
             ? 'Подтвердите согласие с документами.'
             : null;
-
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
@@ -284,9 +313,12 @@ export const SellerDashboardPage = () => {
     closeSellerMenu();
   }, [closeSellerMenu, location.pathname, location.search]);
 
-  useEffect(() => () => {
-    closeSellerMenu();
-  }, [closeSellerMenu]);
+  useEffect(
+    () => () => {
+      closeSellerMenu();
+    },
+    [closeSellerMenu]
+  );
 
   useEffect(() => {
     if (!sellerContextError) return;
@@ -342,9 +374,12 @@ export const SellerDashboardPage = () => {
       const profileResponse = await api.getSellerDeliveryProfile();
       const dropoffPvz = profileResponse.data?.dropoffPvz;
       const dropoffMeta = profileResponse.data?.defaultDropoffPvzMeta;
-      const selectedPvzId = dropoffPvz?.pvzId ?? profileResponse.data?.defaultDropoffPvzId ?? '';
+      const selectedPvzId =
+        dropoffPvz?.pvzId ?? profileResponse.data?.defaultDropoffPvzId ?? '';
       setDropoffPvzId(selectedPvzId);
-      setDropoffPvzAddress(dropoffPvz?.addressFull ?? dropoffMeta?.addressFull ?? '');
+      setDropoffPvzAddress(
+        dropoffPvz?.addressFull ?? dropoffMeta?.addressFull ?? ''
+      );
     } catch (error) {
       setOrders([]);
       setOrdersView([]);
@@ -366,7 +401,9 @@ export const SellerDashboardPage = () => {
     } catch (error) {
       setKycSubmission(null);
       if (isAccessError(error) && isSellerReady) {
-        setKycError('Не удалось отправить заявку. Попробуйте ещё раз чуть позже.');
+        setKycError(
+          'Не удалось отправить заявку. Попробуйте ещё раз чуть позже.'
+        );
       }
     } finally {
       setKycLoading(false);
@@ -382,7 +419,9 @@ export const SellerDashboardPage = () => {
     } catch (error) {
       setPayments([]);
       if (isAccessError(error) && isSellerReady) {
-        setPaymentsError('Не удалось загрузить операции. Попробуйте ещё раз чуть позже.');
+        setPaymentsError(
+          'Не удалось загрузить операции. Попробуйте ещё раз чуть позже.'
+        );
       }
     } finally {
       setPaymentsLoading(false);
@@ -393,15 +432,23 @@ export const SellerDashboardPage = () => {
     if (sellerProfile) {
       setMerchantForm((prev) => ({
         ...prev,
-        contactName: sellerProfile.contactName ?? prev.contactName ?? '',
-        contactPhone: sellerProfile.contactPhone ?? sellerProfile.phone ?? prev.contactPhone ?? '',
-        representativeName: sellerProfile.representativeName ?? prev.representativeName ?? '',
-        legalName: sellerProfile.legalName ?? prev.legalName ?? '',
-        inn: sellerProfile.inn ?? prev.inn ?? '',
-        ogrn: sellerProfile.ogrn ?? prev.ogrn ?? ''
+        contactName: firstNonEmpty(sellerProfile.contactName, prev.contactName),
+        contactPhone: firstNonEmpty(
+          sellerProfile.contactPhone,
+          sellerProfile.phone,
+          user?.phone,
+          prev.contactPhone
+        ),
+        representativeName: firstNonEmpty(
+          sellerProfile.representativeName,
+          prev.representativeName
+        ),
+        legalName: firstNonEmpty(sellerProfile.legalName, prev.legalName),
+        inn: firstNonEmpty(sellerProfile.inn, prev.inn),
+        ogrn: firstNonEmpty(sellerProfile.ogrn, prev.ogrn)
       }));
     }
-  }, [sellerProfile?.id, sellerProfile?.contactName, sellerProfile?.contactPhone, sellerProfile?.representativeName, sellerProfile?.legalName, sellerProfile?.inn, sellerProfile?.ogrn, sellerProfile?.phone]);
+  }, [sellerProfile, user?.phone]);
 
   useEffect(() => {
     if (!isSellerReady) {
@@ -445,7 +492,9 @@ export const SellerDashboardPage = () => {
 
     try {
       if (!sellerType) {
-        setKycError('Не удалось определить тип продавца. Обновите страницу и попробуйте снова.');
+        setKycError(
+          'Не удалось определить тип продавца. Обновите страницу и попробуйте снова.'
+        );
         return;
       }
       const merchantPayload: Record<string, string> = {
@@ -454,10 +503,15 @@ export const SellerDashboardPage = () => {
         inn: merchantForm.inn.trim()
       };
 
-      if (merchantForm.representativeName.trim()) merchantPayload.representativeName = merchantForm.representativeName.trim();
-      if (merchantForm.legalName.trim()) merchantPayload.legalName = merchantForm.legalName.trim();
+      if (merchantForm.representativeName.trim())
+        merchantPayload.representativeName =
+          merchantForm.representativeName.trim();
+      if (merchantForm.legalName.trim())
+        merchantPayload.legalName = merchantForm.legalName.trim();
       if (sellerType === 'ООО') {
-        merchantPayload.representativeName = merchantForm.representativeName.trim() || merchantForm.contactName.trim();
+        merchantPayload.representativeName =
+          merchantForm.representativeName.trim() ||
+          merchantForm.contactName.trim();
         merchantPayload.legalName = merchantForm.legalName.trim();
         merchantPayload.ogrn = merchantForm.ogrn.trim();
       }
@@ -488,16 +542,22 @@ export const SellerDashboardPage = () => {
       await reload();
     } catch (error) {
       const normalized = normalizeApiError(error);
-      const payload = (error as { payload?: { error?: { code?: string; message?: string } } })?.payload;
+      const payload = (
+        error as { payload?: { error?: { code?: string; message?: string } } }
+      )?.payload;
       const code = payload?.error?.code ?? normalized.code;
       if (isAccessError(error)) {
-        setKycError('Не удалось отправить заявку. Попробуйте ещё раз чуть позже.');
+        setKycError(
+          'Не удалось отправить заявку. Попробуйте ещё раз чуть позже.'
+        );
       } else if (code === 'DROP_OFF_PVZ_REQUIRED') {
         setKycError('Выберите точку отгрузки (обязательно).');
       } else if (code === 'MERCHANT_DATA_VALIDATION_ERROR') {
         setKycError(payload?.error?.message ?? 'Проверьте данные продавца.');
       } else if (code === 'CONSENT_REQUIRED') {
-        setKycError(payload?.error?.message ?? 'Подтвердите согласие с документами.');
+        setKycError(
+          payload?.error?.message ?? 'Подтвердите согласие с документами.'
+        );
       } else {
         setKycError(normalized.message ?? 'Не удалось отправить на проверку.');
       }
@@ -522,9 +582,13 @@ export const SellerDashboardPage = () => {
       await loadProducts();
     } catch (error) {
       if (isAccessError(error) && isSellerReady) {
-        setProductsError('Не удалось загрузить товары. Попробуйте обновить страницу чуть позже.');
+        setProductsError(
+          'Не удалось загрузить товары. Попробуйте обновить страницу чуть позже.'
+        );
       } else {
-        setKycMessage('Управление товарами станет доступно после подтверждения профиля продавца.');
+        setKycMessage(
+          'Управление товарами станет доступно после подтверждения профиля продавца.'
+        );
       }
     }
   };
@@ -548,7 +612,10 @@ export const SellerDashboardPage = () => {
       });
 
       const profileResponse = await api.getSellerDeliveryProfile();
-      const syncedPvzId = profileResponse.data?.dropoffPvz?.pvzId ?? profileResponse.data?.defaultDropoffPvzId ?? selectedPvzId;
+      const syncedPvzId =
+        profileResponse.data?.dropoffPvz?.pvzId ??
+        profileResponse.data?.defaultDropoffPvzId ??
+        selectedPvzId;
       const dropoffMeta = profileResponse.data?.defaultDropoffPvzMeta;
       const metaAddress =
         dropoffMeta && typeof dropoffMeta === 'object'
@@ -561,19 +628,31 @@ export const SellerDashboardPage = () => {
       setDeliverySettingsMessage('Пункт приёма сохранён.');
     } catch (error) {
       const normalized = normalizeApiError(error);
-      setDeliverySettingsError(normalized.message ?? 'Не удалось сохранить пункт приёма.');
+      setDeliverySettingsError(
+        normalized.message ?? 'Не удалось сохранить пункт приёма.'
+      );
     }
   };
 
-  const handleDropoffSelect = async (selection: { pvzId?: string | null; id?: string | null; addressFull?: string; provider?: string; raw?: unknown;[key: string]: unknown }) => {
+  const handleDropoffSelect = async (selection: {
+    pvzId?: string | null;
+    id?: string | null;
+    addressFull?: string;
+    provider?: string;
+    raw?: unknown;
+    [key: string]: unknown;
+  }) => {
     setDeliverySettingsMessage(null);
     setDeliverySettingsError(null);
 
     const selectedId = selection.pvzId ?? selection.id ?? null;
-    const canContinue = typeof selectedId === 'string' && selectedId.trim().length > 0;
+    const canContinue =
+      typeof selectedId === 'string' && selectedId.trim().length > 0;
 
     if (!canContinue) {
-      setDeliverySettingsError('Не удалось определить pvzId выбранной точки. Выберите другой пункт.');
+      setDeliverySettingsError(
+        'Не удалось определить pvzId выбранной точки. Выберите другой пункт.'
+      );
       return;
     }
 
@@ -593,10 +672,11 @@ export const SellerDashboardPage = () => {
       setDropoffModalOpen(false);
     } catch (error) {
       const normalized = normalizeApiError(error);
-      setDeliverySettingsError(normalized.message ?? 'Не удалось сохранить пункт приёма.');
+      setDeliverySettingsError(
+        normalized.message ?? 'Не удалось сохранить пункт приёма.'
+      );
     }
   };
-
 
   const handleTogglePacked = async (order: Order) => {
     setOrderUpdateError(null);
@@ -685,7 +765,9 @@ export const SellerDashboardPage = () => {
   const handleDownloadAct = async (shipmentId: string, orderId: string) => {
     setOrderUpdateError(null);
     try {
-      const blob = await api.downloadShipmentAct(shipmentId) as unknown as Blob;
+      const blob = (await api.downloadShipmentAct(
+        shipmentId
+      )) as unknown as Blob;
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -714,15 +796,14 @@ export const SellerDashboardPage = () => {
     if (!order.isPacked) return 'Сначала отметьте упаковку';
     if (!order.sellerDropoffPvzMeta && !dropoffPvzId)
       return 'Не выбран ПВЗ сдачи';
-    if (
-      !order.buyerPickupPvzMeta &&
-      !order.shippingAddressId
-    )
+    if (!order.buyerPickupPvzMeta && !order.shippingAddressId)
       return 'Не указан адрес доставки';
     if (order.shipment?.id) return 'Заявка уже создана';
-    if (order.status === 'HANDED_TO_DELIVERY')
-      return 'Уже передан в доставку';
-    if (order.shipment?.status && ['DELIVERED', 'CANCELLED', 'FAILED'].includes(order.shipment.status)) {
+    if (order.status === 'HANDED_TO_DELIVERY') return 'Уже передан в доставку';
+    if (
+      order.shipment?.status &&
+      ['DELIVERED', 'CANCELLED', 'FAILED'].includes(order.shipment.status)
+    ) {
       return 'Доставка завершена';
     }
     return null;
@@ -758,17 +839,38 @@ export const SellerDashboardPage = () => {
 
   const financeSummary = useMemo(() => {
     const available = payments
-      .filter((payment) => ['PAID', 'SUCCESS', 'SUCCEEDED', 'COMPLETED'].includes(String(payment.status).toUpperCase()))
+      .filter((payment) =>
+        ['PAID', 'SUCCESS', 'SUCCEEDED', 'COMPLETED'].includes(
+          String(payment.status).toUpperCase()
+        )
+      )
       .reduce((sum, payment) => sum + payment.amount, 0);
     const inProcessing = payments
-      .filter((payment) => ['PENDING', 'PROCESSING', 'READY'].includes(String(payment.status).toUpperCase()))
+      .filter((payment) =>
+        ['PENDING', 'PROCESSING', 'READY'].includes(
+          String(payment.status).toUpperCase()
+        )
+      )
       .reduce((sum, payment) => sum + payment.amount, 0);
     const frozen = orders
       .filter((order) => order.payoutStatus === 'HOLD')
-      .reduce((sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + item.lineTotal, 0), 0);
+      .reduce(
+        (sum, order) =>
+          sum +
+          order.items.reduce((itemSum, item) => itemSum + item.lineTotal, 0),
+        0
+      );
     const released = orders
-      .filter((order) => order.payoutStatus === 'RELEASED' || order.payoutStatus === 'PAID')
-      .reduce((sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + item.lineTotal, 0), 0);
+      .filter(
+        (order) =>
+          order.payoutStatus === 'RELEASED' || order.payoutStatus === 'PAID'
+      )
+      .reduce(
+        (sum, order) =>
+          sum +
+          order.items.reduce((itemSum, item) => itemSum + item.lineTotal, 0),
+        0
+      );
 
     return { available, frozen, released, inProcessing };
   }, [orders, payments]);
@@ -783,14 +885,24 @@ export const SellerDashboardPage = () => {
       const orderAmount = orders
         .filter((order) => {
           const orderDate = new Date(order.createdAt);
-          return `${orderDate.getFullYear()}-${orderDate.getMonth()}` === monthKey;
+          return (
+            `${orderDate.getFullYear()}-${orderDate.getMonth()}` === monthKey
+          );
         })
-        .reduce((sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + item.lineTotal, 0), 0);
+        .reduce(
+          (sum, order) =>
+            sum +
+            order.items.reduce((itemSum, item) => itemSum + item.lineTotal, 0),
+          0
+        );
 
       const payoutAmount = payments
         .filter((payment) => {
           const paymentDate = new Date(payment.createdAt);
-          return `${paymentDate.getFullYear()}-${paymentDate.getMonth()}` === monthKey;
+          return (
+            `${paymentDate.getFullYear()}-${paymentDate.getMonth()}` ===
+            monthKey
+          );
         })
         .reduce((sum, payment) => sum + payment.amount, 0);
 
@@ -798,14 +910,25 @@ export const SellerDashboardPage = () => {
         .filter((order) => order.payoutStatus === 'HOLD')
         .filter((order) => {
           const orderDate = new Date(order.createdAt);
-          return `${orderDate.getFullYear()}-${orderDate.getMonth()}` === monthKey;
+          return (
+            `${orderDate.getFullYear()}-${orderDate.getMonth()}` === monthKey
+          );
         })
-        .reduce((sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + item.lineTotal, 0), 0);
+        .reduce(
+          (sum, order) =>
+            sum +
+            order.items.reduce((itemSum, item) => itemSum + item.lineTotal, 0),
+          0
+        );
 
       return { label, orderAmount, payoutAmount, frozenAmount };
     });
 
-    const maxValue = rows.reduce((max, row) => Math.max(max, row.orderAmount, row.payoutAmount, row.frozenAmount), 0);
+    const maxValue = rows.reduce(
+      (max, row) =>
+        Math.max(max, row.orderAmount, row.payoutAmount, row.frozenAmount),
+      0
+    );
     return { rows, maxValue: maxValue || 1 };
   }, [orders, payments]);
 
@@ -838,11 +961,22 @@ export const SellerDashboardPage = () => {
     }));
 
     const holdOperations = orders
-      .filter((order) => order.payoutStatus === 'HOLD' || order.payoutStatus === 'BLOCKED' || order.payoutStatus === 'RELEASED' || order.payoutStatus === 'PAID')
+      .filter(
+        (order) =>
+          order.payoutStatus === 'HOLD' ||
+          order.payoutStatus === 'BLOCKED' ||
+          order.payoutStatus === 'RELEASED' ||
+          order.payoutStatus === 'PAID'
+      )
       .map((order) => ({
         id: `order-${order.id}`,
         date: order.createdAt,
-        type: order.payoutStatus === 'HOLD' ? 'Заморозка' : order.payoutStatus === 'BLOCKED' ? 'Блокировка' : 'Разблокировка',
+        type:
+          order.payoutStatus === 'HOLD'
+            ? 'Заморозка'
+            : order.payoutStatus === 'BLOCKED'
+              ? 'Блокировка'
+              : 'Разблокировка',
         orderId: order.id,
         amount: order.items.reduce((sum, item) => sum + item.lineTotal, 0),
         status: payoutLabel(order.payoutStatus),
@@ -911,7 +1045,11 @@ export const SellerDashboardPage = () => {
         <div className={styles.content}>
           <SellerHeader
             title={activeItem}
-            subtitle={activeItem === 'Сводка' ? 'Ключевые показатели, заказы и статус подключения продавца.' : 'Управляйте данными продавца и следите за операциями без лишних переходов.'}
+            subtitle={
+              activeItem === 'Сводка'
+                ? 'Ключевые показатели, заказы и статус подключения продавца.'
+                : 'Управляйте данными продавца и следите за операциями без лишних переходов.'
+            }
           />
 
           {isAuthLoading && (
@@ -979,7 +1117,10 @@ export const SellerDashboardPage = () => {
                 <div className={styles.section}>
                   <div className={styles.sectionHeader}>
                     <div>
-                      <p>Заполните данные продавца, выберите точку отгрузки и прикрепите документы одним отправлением.</p>
+                      <p>
+                        Заполните данные продавца, выберите точку отгрузки и
+                        прикрепите документы одним отправлением.
+                      </p>
                     </div>
                   </div>
 
@@ -997,117 +1138,191 @@ export const SellerDashboardPage = () => {
                       {(kycSubmission?.comment ||
                         kycSubmission?.moderationNotes ||
                         kycSubmission?.notes) && (
-                          <p className={styles.kycNotes}>
-                            Комментарий:{' '}
-                            {kycSubmission.comment ?? kycSubmission.moderationNotes ?? kycSubmission.notes}
-                          </p>
-                        )}
+                        <p className={styles.kycNotes}>
+                          Комментарий:{' '}
+                          {kycSubmission.comment ??
+                            kycSubmission.moderationNotes ??
+                            kycSubmission.notes}
+                        </p>
+                      )}
 
                       <div className={styles.sectionHeader}>
                         <h3>Данные продавца</h3>
-                        <p>Укажите только обязательные данные для подключения продавца.</p>
+                        <p>
+                          Укажите только обязательные данные для подключения
+                          продавца.
+                        </p>
                       </div>
-                      <fieldset disabled={isKycPending || isKycSubmitting} style={{ border: 0, padding: 0, margin: 0, display: 'grid', gap: '12px' }}>
-                      <div className={styles.settingsGrid}>
-                        <label className={styles.labelBlock}>
-                          Контактное лицо (ФИО)
-                          <input
-                            value={merchantForm.contactName}
-                            disabled
-                            readOnly
-                            placeholder="Иванов Иван Иванович"
-                          />
-                        </label>
-                        <label className={styles.labelBlock}>
-                          Телефон
-                          <input
-                            value={merchantForm.contactPhone}
-                            disabled
-                            readOnly
-                            placeholder="+7 (999) 123-45-67"
-                          />
-                        </label>
-                        {(sellerType === 'ООО' || sellerType === 'Самозанятый') && (
+                      <fieldset
+                        disabled={isKycPending || isKycSubmitting}
+                        style={{
+                          border: 0,
+                          padding: 0,
+                          margin: 0,
+                          display: 'grid',
+                          gap: '12px'
+                        }}
+                      >
+                        <div className={styles.settingsGrid}>
                           <label className={styles.labelBlock}>
-                            Официальное название
+                            Контактное лицо (ФИО)
                             <input
-                              value={merchantForm.legalName}
-                              onChange={(e) => setMerchantForm((p) => ({ ...p, legalName: e.target.value }))}
-                              placeholder={sellerType === 'Самозанятый' ? 'Самозанятый Иванов И. И.' : 'ООО «Название»'}
+                              value={merchantForm.contactName}
+                              disabled
+                              readOnly
+                              placeholder="Иванов Иван Иванович"
                             />
                           </label>
-                        )}
-                        <label className={styles.labelBlock}>
-                          ИНН
-                          <input
-                            value={merchantForm.inn}
-                            onChange={(e) => setMerchantForm((p) => ({ ...p, inn: e.target.value.replace(/\D/g, '').slice(0, sellerType === 'ООО' ? 10 : 12) }))}
-                            placeholder={sellerType === 'ООО' ? '10 цифр' : '12 цифр'}
-                          />
-                        </label>
-                        {(sellerType === 'ООО' || sellerType === 'ИП') && (
                           <label className={styles.labelBlock}>
-                            ОГРН{sellerType === 'ИП' ? 'ИП' : ''}
+                            Телефон
                             <input
-                              value={merchantForm.ogrn}
-                              onChange={(e) => setMerchantForm((p) => ({ ...p, ogrn: e.target.value.replace(/\D/g, '').slice(0, sellerType === 'ИП' ? 15 : 13) }))}
-                              placeholder={sellerType === 'ИП' ? '15 цифр' : '13 цифр'}
+                              value={merchantForm.contactPhone}
+                              disabled
+                              readOnly
+                              placeholder="+7 (999) 123-45-67"
                             />
                           </label>
-                        )}
-                      </div>
-                      <div className={styles.sectionHeader}>
-                        <h3>Точка отгрузки</h3>
-                      </div>
+                          {(sellerType === 'ООО' ||
+                            sellerType === 'Самозанятый') && (
+                            <label className={styles.labelBlock}>
+                              Официальное название
+                              <input
+                                value={merchantForm.legalName}
+                                onChange={(e) =>
+                                  setMerchantForm((p) => ({
+                                    ...p,
+                                    legalName: e.target.value
+                                  }))
+                                }
+                                placeholder={
+                                  sellerType === 'Самозанятый'
+                                    ? 'Самозанятый Иванов И. И.'
+                                    : 'ООО «Название»'
+                                }
+                              />
+                            </label>
+                          )}
+                          <label className={styles.labelBlock}>
+                            ИНН
+                            <input
+                              value={merchantForm.inn}
+                              onChange={(e) =>
+                                setMerchantForm((p) => ({
+                                  ...p,
+                                  inn: e.target.value
+                                    .replace(/\D/g, '')
+                                    .slice(0, sellerType === 'ООО' ? 10 : 12)
+                                }))
+                              }
+                              placeholder={
+                                sellerType === 'ООО' ? '10 цифр' : '12 цифр'
+                              }
+                            />
+                          </label>
+                          {(sellerType === 'ООО' || sellerType === 'ИП') && (
+                            <label className={styles.labelBlock}>
+                              ОГРН{sellerType === 'ИП' ? 'ИП' : ''}
+                              <input
+                                value={merchantForm.ogrn}
+                                onChange={(e) =>
+                                  setMerchantForm((p) => ({
+                                    ...p,
+                                    ogrn: e.target.value
+                                      .replace(/\D/g, '')
+                                      .slice(0, sellerType === 'ИП' ? 15 : 13)
+                                  }))
+                                }
+                                placeholder={
+                                  sellerType === 'ИП' ? '15 цифр' : '13 цифр'
+                                }
+                              />
+                            </label>
+                          )}
+                        </div>
+                        <div className={styles.sectionHeader}>
+                          <h3>Точка отгрузки</h3>
+                        </div>
 
-                      <div className={styles.settingsGrid}>
-                        <div>
-                          <span className={styles.muted}>Точка отгрузки</span>
-                          <p>{hasDropoffPvz ? dropoffPvzAddress || `Пункт ${dropoffPvzId}` : 'Пока не выбрана'}</p>
+                        <div className={styles.settingsGrid}>
+                          <div>
+                            <span className={styles.muted}>Точка отгрузки</span>
+                            <p>
+                              {hasDropoffPvz
+                                ? dropoffPvzAddress || `Пункт ${dropoffPvzId}`
+                                : 'Пока не выбрана'}
+                            </p>
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              onClick={() => setDropoffModalOpen(true)}
+                              disabled={isKycPending}
+                            >
+                              Выбрать на карте
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div className={styles.settingsGrid}>
+                          <label className={styles.checkboxLabel}>
+                            <input
+                              type="checkbox"
+                              checked={acceptedRules}
+                              onChange={(e) =>
+                                setAcceptedRules(e.target.checked)
+                              }
+                            />
+                            <span>
+                              Принимаю{' '}
+                              <Link to="/offer" className={styles.inlineLink}>
+                                оферту
+                              </Link>
+                              ,{' '}
+                              <Link
+                                to="/service-rules"
+                                className={styles.inlineLink}
+                              >
+                                правила сервиса
+                              </Link>{' '}
+                              и{' '}
+                              <Link
+                                to="/privacy-policy"
+                                className={styles.inlineLink}
+                              >
+                                условия обработки персональных данных
+                              </Link>
+                            </span>
+                          </label>
+                        </div>
+
+                        <div className={styles.kycActions}>
                           <Button
                             type="button"
-                            variant="secondary"
-                            onClick={() => setDropoffModalOpen(true)}
-                            disabled={isKycPending}
+                            onClick={handleKycSubmit}
+                            disabled={
+                              Boolean(kycSubmitDisabledReason) ||
+                              isKycSubmitting
+                            }
                           >
-                            Выбрать на карте
+                            {isKycSubmitting
+                              ? 'Отправка...'
+                              : 'Отправить на проверку'}
                           </Button>
+
+                          {isKycPending && (
+                            <p className={styles.kycMessage}>На проверке</p>
+                          )}
                         </div>
-                      </div>
 
-                      <div className={styles.settingsGrid}>
-                        <label className={styles.checkboxLabel}>
-                          <input
-                            type="checkbox"
-                            checked={acceptedRules}
-                            onChange={(e) => setAcceptedRules(e.target.checked)}
-                          />
-                          <span>
-                            Принимаю{' '}
-                            <Link to="/offer" className={styles.inlineLink}>оферту</Link>,{' '}
-                            <Link to="/service-rules" className={styles.inlineLink}>правила сервиса</Link>{' '}
-                            и{' '}
-                            <Link to="/privacy-policy" className={styles.inlineLink}>условия обработки персональных данных</Link>
-                          </span>
-                        </label>
-                      </div>
-
-                      <div className={styles.kycActions}>
-                        <Button
-                          type="button"
-                          onClick={handleKycSubmit}
-                          disabled={Boolean(kycSubmitDisabledReason) || isKycSubmitting}
-                        >
-                          {isKycSubmitting ? 'Отправка...' : 'Отправить на проверку'}
-                        </Button>
-
-                        {isKycPending && <p className={styles.kycMessage}>На проверке</p>}
-                      </div>
-
-                      {kycSubmitDisabledReason && <p className={styles.muted}>{kycSubmitDisabledReason}</p>}
+                        {kycSubmitDisabledReason && (
+                          <p className={styles.muted}>
+                            {kycSubmitDisabledReason}
+                          </p>
+                        )}
                       </fieldset>
                       {kycError && <p className={styles.error}>{kycError}</p>}
-                      {kycMessage && <p className={styles.kycMessage}>{kycMessage}</p>}
+                      {kycMessage && (
+                        <p className={styles.kycMessage}>{kycMessage}</p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1147,7 +1362,11 @@ export const SellerDashboardPage = () => {
 
                       {products.length === 0 ? (
                         <EmptyState
-                          title={canSell ? 'Пока нет товаров' : 'Каталог станет доступен после проверки профиля'}
+                          title={
+                            canSell
+                              ? 'Пока нет товаров'
+                              : 'Каталог станет доступен после проверки профиля'
+                          }
                           description={
                             canSell
                               ? 'Добавьте первый товар, чтобы он появился в витрине магазина.'
@@ -1204,7 +1423,8 @@ export const SellerDashboardPage = () => {
                   ) : (
                     <div className={styles.ordersList}>
                       {ordersView.map((order) => {
-                        const displayStatus = getSellerOrderDisplayStatus(order);
+                        const displayStatus =
+                          getSellerOrderDisplayStatus(order);
                         const total = order.items.reduce(
                           (sum, item) => sum + item.lineTotal,
                           0
@@ -1240,10 +1460,14 @@ export const SellerDashboardPage = () => {
                                   {formatCurrency(total)} ₽
                                 </p>
                                 <div className={styles.orderPayoutSummary}>
-                                  <span className={styles.orderPayoutLabel}>Получит продавец</span>
+                                  <span className={styles.orderPayoutLabel}>
+                                    Получит продавец
+                                  </span>
                                   <strong>{formatMoney(total)}</strong>
                                 </div>
-                                <p className={styles.muted}>Статус: {displayStatus}</p>
+                                <p className={styles.muted}>
+                                  Статус: {displayStatus}
+                                </p>
                               </div>
                             </div>
 
@@ -1252,10 +1476,14 @@ export const SellerDashboardPage = () => {
                                 Способ доставки: ПВЗ (Pickup Point)
                               </p>
                               <p className={styles.muted}>
-                                Пункт выдачи: {order.buyerPickupPvzMeta?.addressFull ?? '—'}
+                                Пункт выдачи:{' '}
+                                {order.buyerPickupPvzMeta?.addressFull ?? '—'}
                               </p>
                               <p className={styles.muted}>
-                                Пункт сдачи: {order.sellerDropoffPvzId || dropoffPvzId || '—'}
+                                Пункт сдачи:{' '}
+                                {order.sellerDropoffPvzId ||
+                                  dropoffPvzId ||
+                                  '—'}
                               </p>
                               <div className={styles.orderFinanceMeta}>
                                 <p className={styles.muted}>
@@ -1266,12 +1494,11 @@ export const SellerDashboardPage = () => {
                                 </p>
                               </div>
                               <p className={styles.muted}>
-                                Статус доставки:{' '}
-                                {displayStatus}
+                                Статус доставки: {displayStatus}
                                 {order.shipment?.lastSyncAt
                                   ? ` · обновлено ${new Date(
-                                    order.shipment.lastSyncAt
-                                  ).toLocaleString('ru-RU')}`
+                                      order.shipment.lastSyncAt
+                                    ).toLocaleString('ru-RU')}`
                                   : ''}
                               </p>
 
@@ -1283,9 +1510,13 @@ export const SellerDashboardPage = () => {
                                 type="button"
                                 variant={order.isPacked ? 'ghost' : 'secondary'}
                                 onClick={() => handleTogglePacked(order)}
-                                disabled={!order.paidAt && order.status !== 'PAID'}
+                                disabled={
+                                  !order.paidAt && order.status !== 'PAID'
+                                }
                               >
-                                {order.isPacked ? 'Снять отметку упаковки' : 'Отметить упаковку'}
+                                {order.isPacked
+                                  ? 'Снять отметку упаковки'
+                                  : 'Отметить упаковку'}
                               </Button>
 
                               {!order.shipment?.id ? (
@@ -1294,7 +1525,9 @@ export const SellerDashboardPage = () => {
                                     type="button"
                                     variant="secondary"
                                     onClick={() => handleReadyToShip(order.id)}
-                                    disabled={Boolean(readyToShipDisabledReason(order))}
+                                    disabled={Boolean(
+                                      readyToShipDisabledReason(order)
+                                    )}
                                   >
                                     Готов к отгрузке
                                   </Button>
@@ -1309,7 +1542,9 @@ export const SellerDashboardPage = () => {
                                   type="button"
                                   variant="ghost"
                                   onClick={() => handleSyncShipment(order)}
-                                  disabled={!order.shipment?.id && !order.cdekOrderId}
+                                  disabled={
+                                    !order.shipment?.id && !order.cdekOrderId
+                                  }
                                 >
                                   Синхронизировать CDEK
                                 </Button>
@@ -1352,21 +1587,44 @@ export const SellerDashboardPage = () => {
                               <Button
                                 type="button"
                                 variant="ghost"
-                                className={labelDownloaded[order.id] ? styles.downloadedButton : ''}
-                                onClick={() => order.shipment?.id && handleDownloadLabel(order.shipment.id, order.id)}
-                                disabled={!order.shipment?.id || !order.trackingNumber}
+                                className={
+                                  labelDownloaded[order.id]
+                                    ? styles.downloadedButton
+                                    : ''
+                                }
+                                onClick={() =>
+                                  order.shipment?.id &&
+                                  handleDownloadLabel(
+                                    order.shipment.id,
+                                    order.id
+                                  )
+                                }
+                                disabled={
+                                  !order.shipment?.id || !order.trackingNumber
+                                }
                               >
                                 Скачать ярлык
                               </Button>
 
-                              {!order.trackingNumber && <p className={styles.muted}>ещё формируется</p>}
+                              {!order.trackingNumber && (
+                                <p className={styles.muted}>ещё формируется</p>
+                              )}
 
                               <Button
                                 type="button"
                                 variant="ghost"
-                                className={actDownloaded[order.id] ? styles.downloadedButton : ''}
-                                onClick={() => order.shipment?.id && handleDownloadAct(order.shipment.id, order.id)}
-                                disabled={!order.shipment?.id && !order.cdekOrderId}
+                                className={
+                                  actDownloaded[order.id]
+                                    ? styles.downloadedButton
+                                    : ''
+                                }
+                                onClick={() =>
+                                  order.shipment?.id &&
+                                  handleDownloadAct(order.shipment.id, order.id)
+                                }
+                                disabled={
+                                  !order.shipment?.id && !order.cdekOrderId
+                                }
                               >
                                 Скачать акт
                               </Button>
@@ -1388,15 +1646,31 @@ export const SellerDashboardPage = () => {
                   <div className={styles.sectionHeader}>
                     <div>
                       <h2>Финансы продавца</h2>
-                      <p>Блок подготовлен под денежный контур маркетплейса и интеграцию с YooKassa без изменения текущей логики выплат.</p>
+                      <p>
+                        Блок подготовлен под денежный контур маркетплейса и
+                        интеграцию с YooKassa без изменения текущей логики
+                        выплат.
+                      </p>
                     </div>
                   </div>
 
                   <div className={styles.financeSummaryGrid}>
-                    <SellerStatsCard title="Доступно" value={formatMoney(financeSummary.available)} />
-                    <SellerStatsCard title="Заморожено" value={formatMoney(financeSummary.frozen)} />
-                    <SellerStatsCard title="Выплачено" value={formatMoney(financeSummary.released)} />
-                    <SellerStatsCard title="В обработке" value={formatMoney(financeSummary.inProcessing)} />
+                    <SellerStatsCard
+                      title="Доступно"
+                      value={formatMoney(financeSummary.available)}
+                    />
+                    <SellerStatsCard
+                      title="Заморожено"
+                      value={formatMoney(financeSummary.frozen)}
+                    />
+                    <SellerStatsCard
+                      title="Выплачено"
+                      value={formatMoney(financeSummary.released)}
+                    />
+                    <SellerStatsCard
+                      title="В обработке"
+                      value={formatMoney(financeSummary.inProcessing)}
+                    />
                   </div>
 
                   <div className={styles.financeGrid}>
@@ -1404,30 +1678,64 @@ export const SellerDashboardPage = () => {
                       <div className={styles.sectionHeader}>
                         <div>
                           <h3>Движение по периодам</h3>
-                          <p>Поступления, выплаты и удержания по последним месяцам.</p>
+                          <p>
+                            Поступления, выплаты и удержания по последним
+                            месяцам.
+                          </p>
                         </div>
                       </div>
                       <div className={styles.financeChartLegend}>
-                        <span><i className={styles.financeLegendRevenue} />Поступления</span>
-                        <span><i className={styles.financeLegendPayout} />Выплаты</span>
-                        <span><i className={styles.financeLegendFrozen} />Заморозка</span>
+                        <span>
+                          <i className={styles.financeLegendRevenue} />
+                          Поступления
+                        </span>
+                        <span>
+                          <i className={styles.financeLegendPayout} />
+                          Выплаты
+                        </span>
+                        <span>
+                          <i className={styles.financeLegendFrozen} />
+                          Заморозка
+                        </span>
                       </div>
                       <div className={styles.financeChart}>
                         {financeChartRows.rows.map((row) => (
-                          <div key={row.label} className={styles.financeChartRow}>
-                            <span className={styles.financeChartLabel}>{row.label}</span>
+                          <div
+                            key={row.label}
+                            className={styles.financeChartRow}
+                          >
+                            <span className={styles.financeChartLabel}>
+                              {row.label}
+                            </span>
                             <div className={styles.financeBars}>
                               <div className={styles.financeBarTrack}>
-                                <div className={`${styles.financeBar} ${styles.financeBarRevenue}`} style={{ width: `${(row.orderAmount / financeChartRows.maxValue) * 100}%` }} />
+                                <div
+                                  className={`${styles.financeBar} ${styles.financeBarRevenue}`}
+                                  style={{
+                                    width: `${(row.orderAmount / financeChartRows.maxValue) * 100}%`
+                                  }}
+                                />
                               </div>
                               <div className={styles.financeBarTrack}>
-                                <div className={`${styles.financeBar} ${styles.financeBarPayout}`} style={{ width: `${(row.payoutAmount / financeChartRows.maxValue) * 100}%` }} />
+                                <div
+                                  className={`${styles.financeBar} ${styles.financeBarPayout}`}
+                                  style={{
+                                    width: `${(row.payoutAmount / financeChartRows.maxValue) * 100}%`
+                                  }}
+                                />
                               </div>
                               <div className={styles.financeBarTrack}>
-                                <div className={`${styles.financeBar} ${styles.financeBarFrozen}`} style={{ width: `${(row.frozenAmount / financeChartRows.maxValue) * 100}%` }} />
+                                <div
+                                  className={`${styles.financeBar} ${styles.financeBarFrozen}`}
+                                  style={{
+                                    width: `${(row.frozenAmount / financeChartRows.maxValue) * 100}%`
+                                  }}
+                                />
                               </div>
                             </div>
-                            <span className={styles.financeChartValue}>{formatMoney(row.orderAmount)}</span>
+                            <span className={styles.financeChartValue}>
+                              {formatMoney(row.orderAmount)}
+                            </span>
                           </div>
                         ))}
                       </div>
@@ -1436,22 +1744,46 @@ export const SellerDashboardPage = () => {
                     <div className={styles.financeInfoCard}>
                       <h3>Статусы операций</h3>
                       <ul className={styles.financeStatusList}>
-                        <li><strong>Доступно</strong><span>Средства, готовые к выводу/зачислению.</span></li>
-                        <li><strong>Заморожено</strong><span>Заказы в hold до завершения сценария доставки.</span></li>
-                        <li><strong>Выплачено</strong><span>Операции с подтвержденной выплатой продавцу.</span></li>
-                        <li><strong>В обработке</strong><span>Подготовленные backend-ом операции, ожидающие завершения.</span></li>
+                        <li>
+                          <strong>Доступно</strong>
+                          <span>Средства, готовые к выводу/зачислению.</span>
+                        </li>
+                        <li>
+                          <strong>Заморожено</strong>
+                          <span>
+                            Заказы в hold до завершения сценария доставки.
+                          </span>
+                        </li>
+                        <li>
+                          <strong>Выплачено</strong>
+                          <span>
+                            Операции с подтвержденной выплатой продавцу.
+                          </span>
+                        </li>
+                        <li>
+                          <strong>В обработке</strong>
+                          <span>
+                            Подготовленные backend-ом операции, ожидающие
+                            завершения.
+                          </span>
+                        </li>
                       </ul>
                     </div>
                   </div>
 
                   {paymentsLoading ? (
-                    <p className={styles.muted}>Загрузка финансовых операций...</p>
+                    <p className={styles.muted}>
+                      Загрузка финансовых операций...
+                    </p>
                   ) : paymentsError ? (
                     <p className={styles.error}>{paymentsError}</p>
                   ) : financeOperations.length === 0 ? (
                     <div className={styles.infoCard}>
                       <h3>История операций пока пуста</h3>
-                      <p className={styles.muted}>Как только появятся выплаты, холды или разблокировки, они будут показаны в этом разделе.</p>
+                      <p className={styles.muted}>
+                        Как только появятся выплаты, холды или разблокировки,
+                        они будут показаны в этом разделе.
+                      </p>
                     </div>
                   ) : (
                     <div className={styles.ordersTable}>
@@ -1464,11 +1796,18 @@ export const SellerDashboardPage = () => {
                       </div>
 
                       {financeOperations.map((operation) => (
-                        <div key={operation.id} className={styles.financeTableRow}>
+                        <div
+                          key={operation.id}
+                          className={styles.financeTableRow}
+                        >
                           <span>{formatDate(operation.date)}</span>
                           <span>{operation.type}</span>
-                          <span className={styles.cellTruncate}>№{operation.orderId}</span>
-                          <span>{formatMoney(operation.amount, operation.currency)}</span>
+                          <span className={styles.cellTruncate}>
+                            №{operation.orderId}
+                          </span>
+                          <span>
+                            {formatMoney(operation.amount, operation.currency)}
+                          </span>
                           <span>{operation.status}</span>
                         </div>
                       ))}
@@ -1483,7 +1822,8 @@ export const SellerDashboardPage = () => {
                     <div className={styles.supportHero}>
                       <h2>Поддержка продавцов</h2>
                       <p className={styles.muted}>
-                        Если нужна помощь по отгрузке, модерации или выплатам, откройте чат с поддержкой.
+                        Если нужна помощь по отгрузке, модерации или выплатам,
+                        откройте чат с поддержкой.
                       </p>
                     </div>
                     <div className={styles.supportActions}>
@@ -1496,7 +1836,8 @@ export const SellerDashboardPage = () => {
                         Открыть чат с поддержкой
                       </Button>
                       <p className={styles.helperText}>
-                        Чат откроется в разделе сообщений аккаунта без изменений backend-логики.
+                        Чат откроется в разделе сообщений аккаунта без изменений
+                        backend-логики.
                       </p>
                     </div>
                   </div>
@@ -1520,7 +1861,9 @@ export const SellerDashboardPage = () => {
                           placeholder="По умолчанию - ваше ФИО"
                           readOnly
                         />
-                        <span className={styles.helperText}>На витрине сейчас будет показано: {displayStoreName}</span>
+                        <span className={styles.helperText}>
+                          На витрине сейчас будет показано: {displayStoreName}
+                        </span>
                       </label>
                       <div>
                         <span className={styles.muted}>Тип продавца</span>
@@ -1547,7 +1890,12 @@ export const SellerDashboardPage = () => {
                   <div className={styles.settingsGrid}>
                     <div>
                       <span className={styles.muted}>Точка отгрузки</span>
-                      <p>{dropoffPvzAddress || (dropoffPvzId ? `Пункт ${dropoffPvzId}` : 'Пока не выбрана')}</p>
+                      <p>
+                        {dropoffPvzAddress ||
+                          (dropoffPvzId
+                            ? `Пункт ${dropoffPvzId}`
+                            : 'Пока не выбрана')}
+                      </p>
 
                       <div className={styles.inlineActions}>
                         <Button
@@ -1560,11 +1908,13 @@ export const SellerDashboardPage = () => {
                       </div>
 
                       {deliverySettingsError && (
-                        <p className={styles.error} style={{ marginTop: '0.5rem' }}>
+                        <p
+                          className={styles.error}
+                          style={{ marginTop: '0.5rem' }}
+                        >
                           {deliverySettingsError}
                         </p>
                       )}
-
                     </div>
                   </div>
 
@@ -1575,7 +1925,6 @@ export const SellerDashboardPage = () => {
                   >
                     Сохранить пункт приёма
                   </Button>
-
 
                   {deliverySettingsMessage && (
                     <p className={styles.muted}>{deliverySettingsMessage}</p>
