@@ -4,6 +4,7 @@ import { useAuthStore } from '../app/store/authStore';
 import { api } from '../shared/api';
 import type { SellerOnboardingPayload } from '../shared/api';
 import { Button } from '../shared/ui/Button';
+import { useSellerContext } from '../hooks/seller/useSellerContext';
 import { Role } from '../shared/types';
 import styles from './SellerOnboardingPage.module.css';
 import {
@@ -15,6 +16,15 @@ import {
 const steps = ['Контакты', 'Продавец', 'Логистика'] as const;
 const CONTACT_SUPPORT_TEXT =
   'Для смены контактной информации обратитесь в поддержку';
+
+const firstNonEmpty = (...values: Array<string | null | undefined>) => {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value;
+    }
+  }
+  return '';
+};
 
 const toOptionalString = (value: string) => {
   const trimmed = value.trim();
@@ -43,6 +53,7 @@ export const SellerOnboardingPage = () => {
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const setUser = useAuthStore((state) => state.setUser);
+  const { authStatus, context } = useSellerContext();
   const [step, setStep] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -57,6 +68,8 @@ export const SellerOnboardingPage = () => {
     storeName: '',
     city: ''
   });
+  const sellerProfile = context?.profile ?? null;
+
   const [touched, setTouched] = useState({
     name: false,
     phone: false,
@@ -67,15 +80,39 @@ export const SellerOnboardingPage = () => {
   });
 
   useEffect(() => {
-    if (user) {
-      setForm((prev) => ({
-        ...prev,
-        name: user.fullName?.trim() || prev.name || user.name,
-        phone: formatRuPhoneInput(user.phone ?? prev.phone ?? ''),
-        email: prev.email || (user.email ?? '')
-      }));
+    if (!user) return;
+
+    setForm((prev) => ({
+      ...prev,
+      name: firstNonEmpty(
+        sellerProfile?.contactName,
+        user.fullName,
+        prev.name,
+        user.name
+      ),
+      phone: formatRuPhoneInput(
+        firstNonEmpty(
+          sellerProfile?.contactPhone,
+          sellerProfile?.phone,
+          user.phone,
+          prev.phone
+        )
+      ),
+      email: firstNonEmpty(sellerProfile?.contactEmail, prev.email, user.email)
+    }));
+  }, [
+    sellerProfile?.contactEmail,
+    sellerProfile?.contactName,
+    sellerProfile?.contactPhone,
+    sellerProfile?.phone,
+    user
+  ]);
+
+  useEffect(() => {
+    if (authStatus === 'authorized' && sellerProfile) {
+      navigate('/seller', { replace: true });
     }
-  }, [user]);
+  }, [authStatus, navigate, sellerProfile]);
 
   useEffect(() => {
     let isMounted = true;
