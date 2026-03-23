@@ -218,6 +218,26 @@ const unwrapNestedData = <T>(payload: { data: unknown }): T => {
   }
   return outer as T;
 };
+const extractOtpRequestPayload = (
+  payload: unknown
+): OtpRequestResponse | null => {
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+
+  const envelope = payload as {
+    ok?: boolean;
+    data?: OtpRequestResponse;
+    delivery?: OtpRequestResponse;
+  };
+
+  if (envelope.data || envelope.delivery) {
+    return normalizeOtpRequest(envelope.data ?? envelope.delivery ?? null);
+  }
+
+  return normalizeOtpRequest(payload as OtpRequestResponse);
+};
+
 export const authApi = {
   login: async (phone: string, password: string): Promise<AuthResult> => {
     try {
@@ -319,21 +339,12 @@ export const authApi = {
     token?: string | null
   ): Promise<OtpRequestResponse | null> => {
     const response = await api.requestOtp(payload, token);
-    const raw = response.data as unknown as
-      | {
-          ok?: boolean;
-          data?: OtpRequestResponse;
-          delivery?: OtpRequestResponse;
-        }
-      | undefined;
-
-    return normalizeOtpRequest(raw?.data ?? raw?.delivery ?? null);
+    return extractOtpRequestPayload(response.data);
   },
 
   requestDeviceLoginOtp: async (payload: { phone: string }, tempToken: string) => {
     const response = await api.requestOtp(payload, tempToken);
-    const raw = response.data as unknown as { data?: OtpRequestResponse; delivery?: OtpRequestResponse } | undefined;
-    return normalizeOtpRequest(raw?.data ?? raw?.delivery ?? null);
+    return extractOtpRequestPayload(response.data);
   },
 
   checkOtpStatus: async (requestId: string, token?: string | null) => {
