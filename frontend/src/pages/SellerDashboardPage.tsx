@@ -22,6 +22,7 @@ import { SellerStatsCard } from '../components/seller/SellerStatsCard';
 import { BottomNav } from '../widgets/layout/BottomNav';
 import { CdekPvzPickerModal } from '../components/checkout/CdekPvzPickerModal';
 import { getExternalDeliveryStatusLabel } from '../shared/lib/deliveryStatus';
+import { normalizeSellerType } from '../shared/lib/sellerType';
 import {
   SellerProductModal,
   SellerProductPayload
@@ -198,12 +199,9 @@ export const SellerDashboardPage = () => {
 
   const hasDropoffPvz = Boolean(dropoffPvzId.trim());
 
-  const sellerType =
-    sellerProfile?.status === 'ООО' ||
-    sellerProfile?.status === 'ИП' ||
-    sellerProfile?.status === 'Самозанятый'
-      ? sellerProfile.status
-      : null;
+  const sellerType = normalizeSellerType(
+    sellerProfile?.status ?? sellerProfile?.legalType ?? null
+  );
 
   const requiredMerchantFieldsByStatus = {
     ООО: ['contactName', 'contactPhone', 'legalName', 'inn', 'ogrn'],
@@ -1033,13 +1031,13 @@ export const SellerDashboardPage = () => {
                             placeholder="+7 (999) 123-45-67"
                           />
                         </label>
-                        {(sellerProfile?.status === 'ООО' || sellerProfile?.status === 'Самозанятый') && (
+                        {(sellerType === 'ООО' || sellerType === 'Самозанятый') && (
                           <label className={styles.labelBlock}>
                             Официальное название
                             <input
                               value={merchantForm.legalName}
                               onChange={(e) => setMerchantForm((p) => ({ ...p, legalName: e.target.value }))}
-                              placeholder={sellerProfile?.status === 'Самозанятый' ? 'Самозанятый Иванов И. И.' : 'ООО «Название»'}
+                              placeholder={sellerType === 'Самозанятый' ? 'Самозанятый Иванов И. И.' : 'ООО «Название»'}
                             />
                           </label>
                         )}
@@ -1047,17 +1045,17 @@ export const SellerDashboardPage = () => {
                           ИНН
                           <input
                             value={merchantForm.inn}
-                            onChange={(e) => setMerchantForm((p) => ({ ...p, inn: e.target.value.replace(/\D/g, '').slice(0, sellerProfile?.status === 'ООО' ? 10 : 12) }))}
-                            placeholder={sellerProfile?.status === 'ООО' ? '10 цифр' : '12 цифр'}
+                            onChange={(e) => setMerchantForm((p) => ({ ...p, inn: e.target.value.replace(/\D/g, '').slice(0, sellerType === 'ООО' ? 10 : 12) }))}
+                            placeholder={sellerType === 'ООО' ? '10 цифр' : '12 цифр'}
                           />
                         </label>
-                        {(sellerProfile?.status === 'ООО' || sellerProfile?.status === 'ИП') && (
+                        {(sellerType === 'ООО' || sellerType === 'ИП') && (
                           <label className={styles.labelBlock}>
-                            ОГРН{sellerProfile?.status === 'ИП' ? 'ИП' : ''}
+                            ОГРН{sellerType === 'ИП' ? 'ИП' : ''}
                             <input
                               value={merchantForm.ogrn}
-                              onChange={(e) => setMerchantForm((p) => ({ ...p, ogrn: e.target.value.replace(/\D/g, '').slice(0, sellerProfile?.status === 'ИП' ? 15 : 13) }))}
-                              placeholder={sellerProfile?.status === 'ИП' ? '15 цифр' : '13 цифр'}
+                              onChange={(e) => setMerchantForm((p) => ({ ...p, ogrn: e.target.value.replace(/\D/g, '').slice(0, sellerType === 'ИП' ? 15 : 13) }))}
+                              placeholder={sellerType === 'ИП' ? '15 цифр' : '13 цифр'}
                             />
                           </label>
                         )}
@@ -1530,7 +1528,7 @@ export const SellerDashboardPage = () => {
                       </label>
                       <div>
                         <span className={styles.muted}>Статус</span>
-                        <p>{sellerProfile.status}</p>
+                        <p>{sellerType ?? sellerProfile.status}</p>
                       </div>
                       <div>
                         <span className={styles.muted}>Телефон</span>
