@@ -72,4 +72,45 @@ describe('AdminProductsPage', () => {
     expect(screen.getByDisplayValue('Needs review')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Одобрить' })).toBeInTheDocument();
   });
+
+  it('falls back to product list data when detail request fails', async () => {
+    vi.mocked(api.getAdminProducts).mockResolvedValue({
+      data: [
+        {
+          id: 'product-1',
+          title: 'List product',
+          category: 'Figurines',
+          price: 1500,
+          image: '',
+          description: 'List description',
+          material: 'PLA',
+          technology: 'FDM',
+          color: 'White',
+          sellerId: 'seller-1',
+          moderationStatus: 'PENDING',
+          moderationNotes: 'List note',
+          seller: {
+            id: 'seller-1',
+            name: 'Seller name',
+            email: 'seller@example.com'
+          }
+        }
+      ]
+    });
+
+    vi.mocked(api.getAdminProductById).mockRejectedValue(new Error('Cannot GET /admin/products/product-1'));
+
+    render(<AdminProductsPage />);
+
+    expect(await screen.findByText('List product')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Подробнее' }));
+
+    await waitFor(() => expect(api.getAdminProductById).toHaveBeenCalledWith('product-1'));
+
+    expect(await screen.findByText('List description')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('List note')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Одобрить' })).toBeInTheDocument();
+    expect(screen.queryByText('Не удалось загрузить карточку товара для модерации.')).not.toBeInTheDocument();
+  });
 });

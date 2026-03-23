@@ -52,7 +52,7 @@ export const AdminProductsPage = () => {
 
   const openDetails = async (product: AdminProduct) => {
     setSelectedId(product.id);
-    setSelected(null);
+    setSelected(product);
     setNotes(product.moderationNotes ?? '');
     setModalError('');
     setModalLoading(true);
@@ -63,7 +63,8 @@ export const AdminProductsPage = () => {
       setSelected(response.data as AdminProduct);
       setNotes(response.data.moderationNotes ?? '');
     } catch {
-      setModalError('Не удалось загрузить карточку товара для модерации.');
+      setSelected(product);
+      setNotes(product.moderationNotes ?? '');
     } finally {
       setModalLoading(false);
     }
