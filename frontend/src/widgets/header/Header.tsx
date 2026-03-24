@@ -1,10 +1,4 @@
-import {
-  FormEvent,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState
-} from 'react';
+import { FormEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useFilters } from '../../features/catalog/useFilters';
 import {
   Link,
@@ -23,6 +17,7 @@ import { ProfileMenu } from '../../shared/layout/ProfileMenu';
 import { useIsSeller } from '../../shared/lib/useIsSeller';
 import styles from '../layout/Layout.module.css';
 import { useBodyScrollLock } from '../../shared/lib/useBodyScrollLock';
+import { resolveMediaUrl } from '../../shared/lib/resolveMediaUrl';
 
 export const Header = () => {
   const mobileCategoriesMenuId = 'mobile-categories-menu';
@@ -70,14 +65,7 @@ export const Header = () => {
   const mobileCategoriesRef = useRef<HTMLDivElement | null>(null);
   const productBoardRef = useRef<HTMLDivElement | null>(null);
   const scrollStateRef = useRef({ lastY: 0, acc: 0, ticking: false });
-  const apiBaseUrl = import.meta.env.VITE_API_URL;
   const { categories } = useFilters();
-  const resolveImageUrl = (url?: string | null) => {
-    if (!url) return '';
-    if (url.startsWith('http')) return url;
-    if (url.startsWith('/')) return `${apiBaseUrl}${url}`;
-    return `${apiBaseUrl}/${url}`;
-  };
 
   useEffect(() => {
     if (!user) return;
@@ -283,7 +271,7 @@ export const Header = () => {
       <div className={`${styles.headerInner} ${styles.desktopHeader}`}>
         <div className={styles.brand}>
           <Link to="/" className={styles.logo}>
-          Print-Form
+            Print-Form
           </Link>
           <Link to="/catalog" className={styles.catalogButton}>
             Каталог
@@ -307,7 +295,9 @@ export const Header = () => {
           <button
             type="button"
             className={styles.mobileBurger}
-            onClick={isSellerPage ? toggleSellerMenu : toggleCategoriesMenuHandler}
+            onClick={
+              isSellerPage ? toggleSellerMenu : toggleCategoriesMenuHandler
+            }
             aria-label={
               isSellerPage
                 ? isSellerMenuOpen
@@ -378,7 +368,7 @@ export const Header = () => {
                 <>
                   <div className={styles.productBoardInfo}>
                     <img
-                      src={resolveImageUrl(productBoard.image)}
+                      src={resolveMediaUrl(productBoard.image) ?? ''}
                       alt={productBoard.title}
                     />
                     <div>
@@ -438,7 +428,9 @@ export const Header = () => {
               <div className={styles.mobileCategoriesTitleGroup}>
                 <span className={styles.mobileCategoriesEyebrow}>Каталог</span>
                 <span className={styles.mobileCategoriesTitle}>Категории</span>
-                <span className={styles.mobileCategoriesSubtitle}>Выберите раздел и перейдите к подборке товаров.</span>
+                <span className={styles.mobileCategoriesSubtitle}>
+                  Выберите раздел и перейдите к подборке товаров.
+                </span>
               </div>
               <button
                 type="button"

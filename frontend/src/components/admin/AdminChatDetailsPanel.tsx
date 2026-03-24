@@ -3,12 +3,17 @@ import { ChatMessage, ChatThread, ReturnStatus } from '../../shared/types';
 import { Button } from '../../shared/ui/Button';
 import { MessageComposer } from '../chats/MessageComposer';
 import styles from './AdminChatDetailsPanel.module.css';
+import { resolveMediaUrl } from '../../shared/lib/resolveMediaUrl';
+import { getProductMainImage } from '../../shared/lib/productMedia';
 
 interface AdminChatDetailsPanelProps {
   thread: ChatThread | null;
   messages: ChatMessage[];
   onSend: (text: string) => Promise<void> | void;
-  onUpdateReturnStatus: (status: ReturnStatus, comment?: string) => Promise<void> | void;
+  onUpdateReturnStatus: (
+    status: ReturnStatus,
+    comment?: string
+  ) => Promise<void> | void;
   onUpdateThreadStatus: (status: 'ACTIVE' | 'CLOSED') => Promise<void> | void;
 }
 
@@ -42,6 +47,7 @@ export const AdminChatDetailsPanel = ({
   const returnRequest = thread.returnRequest;
   const returnItem = returnRequest?.items?.[0]?.orderItem ?? null;
   const product = returnItem?.product ?? null;
+  const productImage = getProductMainImage(product ?? undefined);
 
   const handleUpdateReturn = () => {
     if (!returnRequest) return;
@@ -53,7 +59,10 @@ export const AdminChatDetailsPanel = ({
       {returnRequest && (
         <div className={styles.returnPanel}>
           <strong>Заявка на возврат</strong>
-          <p>Причина: {reasonLabels[returnRequest.reason] ?? returnRequest.reason}</p>
+          <p>
+            Причина:{' '}
+            {reasonLabels[returnRequest.reason] ?? returnRequest.reason}
+          </p>
           {returnRequest.comment && <p>Комментарий: {returnRequest.comment}</p>}
           <p>Статус: {returnRequest.status}</p>
           <p>
@@ -67,15 +76,27 @@ export const AdminChatDetailsPanel = ({
           {returnRequest.photos?.length > 0 && (
             <div className={styles.photos}>
               {returnRequest.photos.map((photo) => (
-                <a key={photo.id} href={photo.url} target="_blank" rel="noreferrer">
-                  <img src={photo.url} alt="Фото возврата" />
+                <a
+                  key={photo.id}
+                  href={resolveMediaUrl(photo.url) ?? '#'}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <img
+                    src={resolveMediaUrl(photo.url) ?? ''}
+                    alt="Фото возврата"
+                  />
                 </a>
               ))}
             </div>
           )}
           {product && (
             <div className={styles.returnProduct}>
-              <img src={product.image} alt={product.title} />
+              {productImage ? (
+                <img src={productImage} alt={product.title} />
+              ) : (
+                <div aria-hidden="true" />
+              )}
               <div>
                 <strong>{product.title}</strong>
                 <p>{product.price.toLocaleString('ru-RU')} ₽</p>
@@ -85,7 +106,12 @@ export const AdminChatDetailsPanel = ({
           <div className={styles.controls}>
             <label>
               Статус возврата
-              <select value={status} onChange={(event) => setStatus(event.target.value as ReturnStatus)}>
+              <select
+                value={status}
+                onChange={(event) =>
+                  setStatus(event.target.value as ReturnStatus)
+                }
+              >
                 <option value="CREATED">CREATED</option>
                 <option value="UNDER_REVIEW">UNDER_REVIEW</option>
                 <option value="APPROVED">APPROVED</option>
@@ -109,22 +135,35 @@ export const AdminChatDetailsPanel = ({
         <Button
           type="button"
           variant="secondary"
-          onClick={() => onUpdateThreadStatus(thread.status === 'ACTIVE' ? 'CLOSED' : 'ACTIVE')}
+          onClick={() =>
+            onUpdateThreadStatus(
+              thread.status === 'ACTIVE' ? 'CLOSED' : 'ACTIVE'
+            )
+          }
         >
           {thread.status === 'ACTIVE' ? 'Закрыть чат' : 'Открыть чат'}
         </Button>
       </div>
 
       <div className={styles.messages}>
-        {messages.length === 0 && <p className={styles.empty}>Нет сообщений.</p>}
+        {messages.length === 0 && (
+          <p className={styles.empty}>Нет сообщений.</p>
+        )}
         {messages.map((message) => (
           <div
             key={message.id}
-            className={message.authorRole === 'ADMIN' ? styles.messageAdmin : styles.messageUser}
+            className={
+              message.authorRole === 'ADMIN'
+                ? styles.messageAdmin
+                : styles.messageUser
+            }
           >
             <p>{message.text}</p>
             <span>
-              {new Date(message.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+              {new Date(message.createdAt).toLocaleTimeString('ru-RU', {
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
             </span>
           </div>
         ))}
