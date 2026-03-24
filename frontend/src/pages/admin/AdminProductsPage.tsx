@@ -316,11 +316,7 @@ export const AdminProductsPage = () => {
       ) : (
         <Table className={styles.table}>
           <div
-            className={styles.tableHeader}
-            style={{
-              gridTemplateColumns:
-                'minmax(200px, 1.6fr) 160px 160px 140px 160px'
-            }}
+            className={`${styles.tableHeader} ${styles.productsColumns}`}
           >
             <span>Товар</span>
             <span>Продавец</span>
@@ -331,11 +327,7 @@ export const AdminProductsPage = () => {
           {rows.map((product) => (
             <div
               key={product.id}
-              className={styles.tableRow}
-              style={{
-                gridTemplateColumns:
-                  'minmax(200px, 1.6fr) 160px 160px 140px 160px'
-              }}
+              className={`${styles.tableRow} ${styles.productsColumns}`}
             >
               <div>
                 <strong>{product.title}</strong>

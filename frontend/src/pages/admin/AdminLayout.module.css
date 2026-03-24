@@ -71,16 +71,45 @@
   display: grid;
   gap: 24px;
   background: var(--bg);
+  min-width: 0;
 }
 
 @media (max-width: 960px) {
   .shell {
     grid-template-columns: 1fr;
+    min-height: auto;
   }
 
   .sidebar {
-    position: sticky;
-    top: 0;
-    z-index: 20;
+    position: static;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding: 14px 12px;
+    gap: 10px;
+  }
+
+  .sidebarTitle {
+    font-size: 14px;
+  }
+
+  .nav {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .navLink,
+  .navLinkActive {
+    white-space: nowrap;
+    flex: 0 0 auto;
+  }
+
+  .navLinkActive::before {
+    display: none;
+  }
+
+  .content {
+    padding: 16px 12px 24px;
   }
 }

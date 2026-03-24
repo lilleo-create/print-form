@@ -114,8 +114,7 @@ export const AdminKycPage = () => {
       ) : (
         <Table className={styles.table}>
           <div
-            className={styles.tableHeader}
-            style={{ gridTemplateColumns: 'minmax(180px, 1.4fr) 140px 140px minmax(220px, 1.6fr) 220px' }}
+            className={`${styles.tableHeader} ${styles.kycColumns}`}
           >
             <span>Пользователь</span>
             <span>Создана</span>
@@ -126,8 +125,8 @@ export const AdminKycPage = () => {
           {rows.map((submission) => (
             <div
               key={submission.id}
-              className={styles.tableRow}
-              style={{ gridTemplateColumns: 'minmax(180px, 1.4fr) 140px 140px minmax(220px, 1.6fr) 220px', cursor: 'pointer' }}
+              className={`${styles.tableRow} ${styles.kycColumns}`}
+              style={{ cursor: 'pointer' }}
               onClick={() => openDetails(submission.id)}
               role="button"
               tabIndex={0}

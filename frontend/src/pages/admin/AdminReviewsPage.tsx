@@ -113,8 +113,7 @@ export const AdminReviewsPage = () => {
       ) : (
         <Table className={styles.table}>
           <div
-            className={styles.tableHeader}
-            style={{ gridTemplateColumns: 'minmax(200px, 1.6fr) 160px 80px 200px 140px' }}
+            className={`${styles.tableHeader} ${styles.reviewsColumns}`}
           >
             <span>Товар</span>
             <span>Автор</span>
@@ -125,8 +124,7 @@ export const AdminReviewsPage = () => {
           {rows.map((review) => (
             <div
               key={review.id}
-              className={styles.tableRow}
-              style={{ gridTemplateColumns: 'minmax(200px, 1.6fr) 160px 80px 200px 140px' }}
+              className={`${styles.tableRow} ${styles.reviewsColumns}`}
             >
               <div>
                 <strong>{review.product?.title ?? review.productId ?? '—'}</strong>
