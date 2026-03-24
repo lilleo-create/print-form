@@ -59,6 +59,50 @@
   margin: 0;
 }
 
+.variantHeaderRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.variantsList {
+  display: grid;
+  gap: 8px;
+}
+
+.variantCard {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--bg-1);
+  padding: 8px 10px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.variantCardActive {
+  border-color: var(--primary);
+  box-shadow: var(--focus-ring);
+}
+
+.variantSwitch {
+  border: none;
+  background: transparent;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.variantName {
+  font-weight: 600;
+  color: var(--text);
+}
+
 .inlineFields {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -110,6 +154,16 @@ textarea.inputError {
 .errorText {
   color: var(--danger);
   font-size: 12px;
+}
+
+.warningText {
+  color: var(--text-secondary);
+  background: var(--primary-soft);
+  border: 1px solid var(--primary-soft-strong);
+  border-radius: var(--radius-control);
+  padding: 8px 10px;
+  font-size: 12px;
+  margin: 0;
 }
 
 .colorHelperRow {
