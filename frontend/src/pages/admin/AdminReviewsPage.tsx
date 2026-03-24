@@ -4,6 +4,7 @@ import { api } from '../../shared/api';
 import { Review } from '../../shared/types';
 import { Button } from '../../shared/ui/Button';
 import { EmptyState } from '../../shared/ui/EmptyState';
+import { Modal } from '../../shared/ui/Modal';
 import { Table } from '../../shared/ui/Table';
 import { resolveImageUrl } from '../../shared/lib/resolveImageUrl';
 import styles from './AdminPage.module.css';
@@ -158,9 +159,9 @@ export const AdminReviewsPage = () => {
         </Table>
       )}
 
-      {selected && (
-        <div className={styles.modalOverlay}>
-          <div className={styles.modal}>
+      <Modal isOpen={Boolean(selected)} onClose={actionId ? undefined : () => setSelected(null)} className={styles.modal}>
+        {selected ? (
+          <>
             <h2>Отзыв</h2>
             <p>
               <strong>Товар:</strong> {selected.product?.title ?? selected.productId}
@@ -217,9 +218,9 @@ export const AdminReviewsPage = () => {
                 Закрыть
               </Button>
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        ) : null}
+      </Modal>
     </div>
   );
 };

@@ -3,6 +3,7 @@ import { api } from '../../shared/api';
 import { SellerKycSubmission } from '../../shared/types';
 import { Button } from '../../shared/ui/Button';
 import { EmptyState } from '../../shared/ui/EmptyState';
+import { Modal } from '../../shared/ui/Modal';
 import { Table } from '../../shared/ui/Table';
 import styles from './AdminPage.module.css';
 
@@ -161,66 +162,62 @@ export const AdminKycPage = () => {
       )}
       {downloadError && <p className={styles.errorText}>{downloadError}</p>}
 
-      {(selected || modalLoading) && (
-        <div className={styles.modalOverlay}>
-          <div className={styles.modal}>
-            {modalLoading || !selected ? (
-              <p className={styles.muted}>Загрузка заявки...</p>
-            ) : (
-              <>
-                <h2>KYC заявка</h2>
-                <p className={styles.muted}>ID: {selected.id}</p>
+      <Modal isOpen={Boolean(selected || modalLoading)} onClose={actionId ? undefined : closeDetails} className={styles.modal}>
+        {modalLoading || !selected ? (
+          <p className={styles.muted}>Загрузка заявки...</p>
+        ) : (
+          <>
+            <h2>KYC заявка</h2>
+            <p className={styles.muted}>ID: {selected.id}</p>
 
-                <h3>Merchant data</h3>
-                <pre>{JSON.stringify(selected.merchantData ?? {}, null, 2)}</pre>
+            <h3>Merchant data</h3>
+            <pre>{JSON.stringify(selected.merchantData ?? {}, null, 2)}</pre>
 
-                <h3>Dropoff PVZ</h3>
-                <p>dropoffPvzId: {selected.dropoffPvzId ?? '—'}</p>
-                <pre>{JSON.stringify(selected.dropoffPvzMeta ?? {}, null, 2)}</pre>
+            <h3>Dropoff PVZ</h3>
+            <p>dropoffPvzId: {selected.dropoffPvzId ?? '—'}</p>
+            <pre>{JSON.stringify(selected.dropoffPvzMeta ?? {}, null, 2)}</pre>
 
-                <h3>Документы</h3>
-                {selected.documents?.length ? (
-                  selected.documents.map((doc) => (
-                    <div key={doc.id} className={styles.previewRow}>
-                      <span>{doc.originalName}</span>
-                      <div className={styles.previewActions}>
-                        <Button type="button" onClick={() => handleDownload(doc.id, doc.originalName)}>
-                          Скачать
-                        </Button>
-                        <a className={styles.link} href={doc.url} target="_blank" rel="noreferrer">
-                          Открыть
-                        </a>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p className={styles.muted}>Документы не загружены.</p>
-                )}
-
-                <label>
-                  Комментарий администратора
-                  <textarea value={comment} onChange={(event) => setComment(event.target.value)} />
-                </label>
-
-                <div className={styles.modalActions}>
-                  <Button type="button" onClick={() => handleModeration('APPROVED')} disabled={actionId === selected.id}>
-                    APPROVED
-                  </Button>
-                  <Button type="button" onClick={() => handleModeration('REJECTED')} disabled={actionId === selected.id}>
-                    REJECTED
-                  </Button>
-                  <Button type="button" onClick={() => handleModeration('REVISION')} disabled={actionId === selected.id}>
-                    REVISION
-                  </Button>
-                  <Button type="button" onClick={closeDetails} disabled={actionId === selected.id}>
-                    Закрыть
-                  </Button>
+            <h3>Документы</h3>
+            {selected.documents?.length ? (
+              selected.documents.map((doc) => (
+                <div key={doc.id} className={styles.previewRow}>
+                  <span>{doc.originalName}</span>
+                  <div className={styles.previewActions}>
+                    <Button type="button" onClick={() => handleDownload(doc.id, doc.originalName)}>
+                      Скачать
+                    </Button>
+                    <a className={styles.link} href={doc.url} target="_blank" rel="noreferrer">
+                      Открыть
+                    </a>
+                  </div>
                 </div>
-              </>
+              ))
+            ) : (
+              <p className={styles.muted}>Документы не загружены.</p>
             )}
-          </div>
-        </div>
-      )}
+
+            <label>
+              Комментарий администратора
+              <textarea value={comment} onChange={(event) => setComment(event.target.value)} />
+            </label>
+
+            <div className={styles.modalActions}>
+              <Button type="button" onClick={() => handleModeration('APPROVED')} disabled={actionId === selected.id}>
+                APPROVED
+              </Button>
+              <Button type="button" onClick={() => handleModeration('REJECTED')} disabled={actionId === selected.id}>
+                REJECTED
+              </Button>
+              <Button type="button" onClick={() => handleModeration('REVISION')} disabled={actionId === selected.id}>
+                REVISION
+              </Button>
+              <Button type="button" onClick={closeDetails} disabled={actionId === selected.id}>
+                Закрыть
+              </Button>
+            </div>
+          </>
+        )}
+      </Modal>
     </div>
   );
 };

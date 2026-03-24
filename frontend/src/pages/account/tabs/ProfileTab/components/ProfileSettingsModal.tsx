@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Button } from '../../../../../shared/ui/Button';
+import { useBodyScrollLock } from '../../../../../shared/lib/useBodyScrollLock';
 import styles from './ProfileSettingsModal.module.css';
 
 interface ProfileSettingsModalProps {
@@ -13,16 +14,15 @@ export const ProfileSettingsModal = ({
   onClose,
   onEditProfile
 }: ProfileSettingsModalProps) => {
+  useBodyScrollLock(isOpen);
+
   useEffect(() => {
     if (!isOpen) return;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => {
-      document.body.style.overflow = prevOverflow;
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isOpen, onClose]);

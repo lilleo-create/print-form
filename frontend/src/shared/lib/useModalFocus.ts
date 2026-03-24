@@ -1,36 +1,5 @@
 import { useEffect } from 'react';
-
-let modalLockCount = 0;
-let originalOverflow = '';
-let originalPaddingRight = '';
-
-const lockBodyScroll = () => {
-  if (typeof document === 'undefined') return;
-
-  if (modalLockCount === 0) {
-    originalOverflow = document.body.style.overflow;
-    originalPaddingRight = document.body.style.paddingRight;
-
-    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
-    document.body.style.overflow = 'hidden';
-    if (scrollbarWidth > 0) {
-      document.body.style.paddingRight = `${scrollbarWidth}px`;
-    }
-  }
-
-  modalLockCount += 1;
-};
-
-const unlockBodyScroll = () => {
-  if (typeof document === 'undefined' || modalLockCount === 0) return;
-
-  modalLockCount -= 1;
-
-  if (modalLockCount === 0) {
-    document.body.style.overflow = originalOverflow;
-    document.body.style.paddingRight = originalPaddingRight;
-  }
-};
+import { lockBodyScroll, unlockBodyScroll } from './bodyScrollLockManager';
 
 export const useModalFocus = (
   isOpen: boolean,
