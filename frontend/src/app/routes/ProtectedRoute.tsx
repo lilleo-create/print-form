@@ -9,7 +9,13 @@ interface ProtectedRouteProps {
 
 export const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
   const user = useAuthStore((state) => state.user);
+  const isAuthInitialized = useAuthStore((state) => state.isAuthInitialized);
+  const isRestoringSession = useAuthStore((state) => state.isRestoringSession);
   const location = useLocation();
+
+  if (!isAuthInitialized || isRestoringSession) {
+    return <p className="container">Загрузка...</p>;
+  }
 
   if (!user) {
     const redirectTo = encodeURIComponent(location.pathname + location.search);

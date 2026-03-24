@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { authApi, getOtpPurposeForFlow, type OtpFlowState, type OtpFlowType, type RegistrationPurpose } from '../../shared/api/authApi';
+import { api } from '../../shared/api';
 import { loadFromStorage, removeFromStorage, saveToStorage, setAccessToken } from '../../shared/lib/storage';
 import { STORAGE_KEYS } from '../../shared/constants/storageKeys';
 import { User, Role } from '../../shared/types';
@@ -43,6 +44,9 @@ const isOtpRequired = (r: AuthResult): r is OtpRequiredResult => 'requiresOtp' i
 interface AuthState {
   user: User | null;
   token: string | null;
+  isAuthInitialized: boolean;
+  isRestoringSession: boolean;
+  isAuthenticated: boolean;
 
   otp: OtpFlowState & {
     required: boolean;
@@ -56,6 +60,7 @@ interface AuthState {
 
   setOtpState: (v: Partial<AuthState['otp']>) => void;
   clearOtp: () => void;
+  initializeAuth: () => Promise<void>;
 
   login: (phone: string, password: string) => Promise<
     | {
@@ -171,6 +176,9 @@ const emptyOtp: AuthState['otp'] = {
   updatedAt: null,
 };
 
+let initializeAuthPromise: Promise<void> | null = null;
+const IS_TEST_ENV = typeof import.meta !== 'undefined' && import.meta.env.MODE === 'test';
+
 export const useAuthStore = create<AuthState>((set, get) => {
   const storedUser = loadStoredUser();
   const storedToken = loadStoredToken();
@@ -178,6 +186,9 @@ export const useAuthStore = create<AuthState>((set, get) => {
   return {
     user: storedUser,
     token: storedToken,
+    isAuthInitialized: IS_TEST_ENV,
+    isRestoringSession: false,
+    isAuthenticated: Boolean(storedUser),
 
     otp: { ...emptyOtp },
 
@@ -187,6 +198,46 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
     clearOtp() {
       set({ otp: { ...emptyOtp } });
+    },
+
+    async initializeAuth() {
+      if (get().isAuthInitialized) {
+        return;
+      }
+
+      if (!initializeAuthPromise) {
+        set({ isRestoringSession: true });
+        initializeAuthPromise = (async () => {
+          try {
+            const response = await api.me();
+            const profile = response.data;
+            const user: User = {
+              ...profile,
+              name: profile.name ?? '',
+              role: (profile.role as Role) ?? 'buyer',
+            };
+            saveStoredUser(user);
+            set({
+              user,
+              isAuthenticated: true,
+            });
+          } catch {
+            removeFromStorage(STORAGE_KEYS.session);
+            setAccessToken(null);
+            set({
+              user: null,
+              token: null,
+              isAuthenticated: false,
+            });
+          } finally {
+            set({ isAuthInitialized: true, isRestoringSession: false });
+          }
+        })().finally(() => {
+          initializeAuthPromise = null;
+        });
+      }
+
+      await initializeAuthPromise;
     },
 
     async login(phone, password) {
@@ -238,7 +289,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
       saveStoredUser(result.user);
       setAccessToken(result.token);
-      set({ user: result.user, token: result.token });
+      set({ user: result.user, token: result.token, isAuthenticated: true, isAuthInitialized: true });
       return { requiresOtp: false, user: result.user, token: result.token };
     },
 
@@ -281,7 +332,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
       saveStoredUser(result.user);
       setAccessToken(result.token);
-      set({ user: result.user, token: result.token });
+      set({ user: result.user, token: result.token, isAuthenticated: true, isAuthInitialized: true });
       return { requiresOtp: false, user: result.user, token: result.token };
     },
 
@@ -319,6 +370,8 @@ export const useAuthStore = create<AuthState>((set, get) => {
         user: result.user,
         token: result.token,
         otp: { ...emptyOtp },
+        isAuthenticated: true,
+        isAuthInitialized: true,
       });
       saveStoredUser(result.user);
       setAccessToken(result.token);
@@ -334,6 +387,8 @@ export const useAuthStore = create<AuthState>((set, get) => {
         user: result.user,
         token: result.token,
         otp: { ...emptyOtp },
+        isAuthenticated: true,
+        isAuthInitialized: true,
       });
       saveStoredUser(result.user);
       setAccessToken(result.token);
@@ -347,7 +402,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
           ...result.user,
           role: result.user.role as Role,
         };
-        set({ user });
+        set({ user, isAuthenticated: true });
         saveStoredUser(user);
       }
     },
@@ -355,7 +410,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
     setUser(user) {
       authApi.setSessionUser?.(user);
       saveStoredUser(user);
-      set({ user });
+      set({ user, isAuthenticated: true, isAuthInitialized: true });
     },
 
     async logout() {
@@ -366,7 +421,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
       } finally {
         removeFromStorage(STORAGE_KEYS.session);
         setAccessToken(null);
-        set({ user: null, token: null, otp: { ...emptyOtp } });
+        set({ user: null, token: null, otp: { ...emptyOtp }, isAuthenticated: false, isAuthInitialized: true, isRestoringSession: false });
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new Event('auth:logout'));
         }
@@ -376,7 +431,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
     hydrate() {
       const user = loadStoredUser();
       const token = loadStoredToken();
-      set({ user, token });
+      set({ user, token, isAuthenticated: Boolean(user) });
     },
   };
 });
@@ -385,6 +440,6 @@ if (typeof window !== 'undefined') {
   window.addEventListener('auth:logout', () => {
     removeFromStorage(STORAGE_KEYS.session);
     setAccessToken(null);
-    useAuthStore.setState({ user: null, token: null, otp: { ...emptyOtp } });
+    useAuthStore.setState({ user: null, token: null, otp: { ...emptyOtp }, isAuthenticated: false, isRestoringSession: false, isAuthInitialized: true });
   });
 }

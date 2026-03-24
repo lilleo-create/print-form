@@ -27,10 +27,13 @@ import { ReturnsPage } from './pages/ReturnsPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { ShopPage } from './pages/ShopPage/ShopPage';
 import { CdekWidgetPage } from './pages/CdekWidgetPage';
+import { AuthBootstrap } from './app/providers/AuthBootstrap';
 
 const App = () => {
   return (
-    <Routes>
+    <>
+      <AuthBootstrap />
+      <Routes>
       <Route element={<Layout />}>
         <Route path="/" element={<LandingPage />} />
         <Route path="/catalog" element={<CatalogPage />} />
@@ -110,7 +113,8 @@ const App = () => {
       </Route>
 
       <Route path="/cdek-widget" element={<CdekWidgetPage />} />
-    </Routes>
+      </Routes>
+    </>
   );
 };
 

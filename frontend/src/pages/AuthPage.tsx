@@ -174,6 +174,8 @@ export const AuthPage = () => {
   const checkOtpStatus = useAuthStore((s) => s.checkOtpStatus);
   const setUser = useAuthStore((s) => s.setUser);
   const persistedOtp = useAuthStore((s) => s.otp);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const isAuthInitialized = useAuthStore((s) => s.isAuthInitialized);
 
   const redirectTo = useMemo(() => {
     const params = new URLSearchParams(location.search);
@@ -317,6 +319,14 @@ export const AuthPage = () => {
       setOtpRequest(persistedOtp.otpRequest);
     }
   }, [persistedOtp]);
+
+  useEffect(() => {
+    if (!isAuthInitialized || !isAuthenticated) {
+      return;
+    }
+
+    void handleRedirect();
+  }, [isAuthInitialized, isAuthenticated]);
 
   const onLogin = async (values: LoginValues) => {
     resetMessages();
