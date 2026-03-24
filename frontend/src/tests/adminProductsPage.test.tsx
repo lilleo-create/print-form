@@ -26,7 +26,7 @@ describe('AdminProductsPage', () => {
           title: 'Test product',
           category: 'Figurines',
           price: 1500,
-          image: '',
+          image: '/uploads/test.png',
           description: '',
           material: 'PLA',
           technology: 'FDM',
@@ -34,6 +34,7 @@ describe('AdminProductsPage', () => {
           sellerId: 'seller-1',
           moderationStatus: 'PENDING',
           moderationNotes: 'Needs review',
+          images: [{ id: 'img-1', url: '/uploads/test.png', sortOrder: 0 }],
           seller: {
             id: 'seller-1',
             name: 'Seller name',
@@ -49,10 +50,10 @@ describe('AdminProductsPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Подробнее' }));
 
-    expect(await screen.findByText('Описание не заполнено.')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Медиа' })).toBeInTheDocument();
     expect(screen.getByDisplayValue('Needs review')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Одобрить' })).toBeInTheDocument();
-    expect(screen.getAllByText('Test product')).toHaveLength(2);
+    expect(screen.getByRole('heading', { name: 'Test product' })).toBeInTheDocument();
     expect(api.getAdminProducts).toHaveBeenCalledTimes(1);
   });
 
@@ -97,14 +98,14 @@ describe('AdminProductsPage', () => {
     await waitFor(() => expect(api.approveAdminProduct).toHaveBeenCalledWith('product-1'));
 
     fireEvent.click(screen.getByRole('button', { name: 'Подробнее' }));
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Need updates' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Примечание модератора' }), { target: { value: 'Need updates' } });
     fireEvent.click(screen.getByRole('button', { name: 'Нужны правки' }));
     await waitFor(() =>
       expect(api.needsEditAdminProduct).toHaveBeenCalledWith('product-1', { notes: 'Need updates' })
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Подробнее' }));
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Reject reason' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Примечание модератора' }), { target: { value: 'Reject reason' } });
     fireEvent.click(screen.getByRole('button', { name: 'Отклонить' }));
     await waitFor(() =>
       expect(api.rejectAdminProduct).toHaveBeenCalledWith('product-1', { notes: 'Reject reason' })
