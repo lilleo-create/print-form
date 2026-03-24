@@ -1,6 +1,7 @@
 .page {
   display: grid;
   gap: 20px;
+  min-width: 0;
 }
 
 .header {
@@ -21,12 +22,19 @@
   align-items: center;
 }
 
+.filters label {
+  display: grid;
+  gap: 6px;
+}
+
 .select {
   padding: 8px 12px;
   border-radius: var(--radius-control);
   border: 1px solid var(--border);
   background: var(--bg-2);
   color: var(--text);
+  width: 100%;
+  min-width: 0;
 }
 
 .table {
@@ -37,6 +45,7 @@
   border: 1px solid var(--border);
   display: grid;
   gap: 12px;
+  min-width: 0;
 }
 
 .tableHeader,
@@ -44,11 +53,24 @@
   display: grid;
   gap: 12px;
   align-items: center;
+  min-width: 0;
 }
 
 .tableHeader > *,
 .tableRow > * {
   min-width: 0;
+}
+
+.productColumns {
+  grid-template-columns: minmax(200px, 1.6fr) 160px 160px 140px 160px;
+}
+
+.reviewColumns {
+  grid-template-columns: minmax(200px, 1.6fr) 160px 80px 200px 140px;
+}
+
+.kycColumns {
+  grid-template-columns: minmax(180px, 1.4fr) 140px 140px minmax(220px, 1.6fr) 220px;
 }
 
 .tableHeader {
@@ -81,6 +103,7 @@
   color: var(--primary);
   font-weight: 600;
   text-decoration: none;
+  overflow-wrap: anywhere;
 }
 
 .muted {
@@ -94,6 +117,18 @@
   white-space: nowrap;
 }
 
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  background: var(--overlay-strong);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
 .modal {
   width: min(1280px, 96vw);
   max-height: 92vh;
@@ -101,6 +136,34 @@
   grid-template-rows: auto minmax(0, 1fr) auto auto;
   overflow: hidden;
   gap: 16px;
+  background: var(--card);
+  border-radius: var(--radius-card);
+  border: 1px solid var(--border);
+  padding: 20px;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.modal pre {
+  margin: 0;
+  max-width: 100%;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--bg-2);
+  padding: 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.modal p,
+.modal h2,
+.modal h3,
+.modal h4,
+.modal label,
+.modal span,
+.modal strong {
+  overflow-wrap: anywhere;
 }
 
 .modalHeader h2 {
@@ -111,9 +174,10 @@
   min-height: 0;
   overflow: auto;
   display: grid;
-  grid-template-columns: minmax(340px, 1fr) minmax(420px, 1.2fr);
+  grid-template-columns: minmax(320px, 1fr) minmax(380px, 1.2fr);
   gap: 16px;
   padding-right: 4px;
+  min-width: 0;
 }
 
 .mediaSection,
@@ -121,12 +185,14 @@
   display: grid;
   gap: 12px;
   align-content: start;
+  min-width: 0;
 }
 
 .sectionCard,
 .mainMediaWrap,
 .videoCard,
-.imagePlaceholder {
+.imagePlaceholder,
+.previewRow {
   border: 1px solid var(--border);
   background: var(--bg-2);
   border-radius: var(--radius-control);
@@ -217,7 +283,7 @@
 
 .definitionRow {
   display: grid;
-  grid-template-columns: minmax(130px, 180px) 1fr;
+  grid-template-columns: minmax(120px, 180px) 1fr;
   gap: 12px;
 }
 
@@ -288,14 +354,57 @@
   resize: vertical;
   background: var(--bg-2);
   color: var(--text);
+  box-sizing: border-box;
 }
 
 .modalActions {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
-  padding-top: 6px;
+  padding-top: 8px;
   border-top: 1px solid var(--border);
+}
+
+.modalActions > * {
+  min-width: 0;
+}
+
+.previewList {
+  display: grid;
+  gap: 10px;
+}
+
+.previewRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px;
+  align-items: center;
+}
+
+.previewRow span {
+  overflow-wrap: anywhere;
+}
+
+.previewActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.previewLink {
+  width: 88px;
+  height: 88px;
+  border-radius: var(--radius-control);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.previewLink img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .errorText {
@@ -314,8 +423,91 @@
 }
 
 @media (max-width: 960px) {
-  .tableHeader,
+  .header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filters {
+    width: 100%;
+  }
+
+  .filters label {
+    width: 100%;
+  }
+
+  .table {
+    padding: 12px;
+  }
+
+  .tableHeader {
+    display: none;
+  }
+
   .tableRow {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-control);
+    padding: 10px;
+  }
+
+  .productColumns,
+  .reviewColumns,
+  .kycColumns {
+    grid-template-columns: 1fr;
+  }
+
+  .modalOverlay {
+    padding: 0;
+    align-items: stretch;
+    justify-content: stretch;
+  }
+
+  .modal {
+    width: 100%;
+    max-height: 100vh;
+    border-radius: 0;
+    padding: 14px;
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
+  }
+
+  .modalActions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .modalActions > * {
+    width: 100%;
+  }
+
+  .definitionRow {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .previewRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+@media (max-width: 640px) {
+  .modalContent {
+    padding-right: 0;
+    gap: 12px;
+  }
+
+  .cellTruncate {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: initial;
+    overflow-wrap: anywhere;
+  }
+
+  .modalActions {
     grid-template-columns: 1fr;
   }
 }

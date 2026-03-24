@@ -112,10 +112,7 @@ export const AdminReviewsPage = () => {
         <EmptyState title="Нет отзывов" description="Отзывы в выбранном статусе отсутствуют." />
       ) : (
         <Table className={styles.table}>
-          <div
-            className={styles.tableHeader}
-            style={{ gridTemplateColumns: 'minmax(200px, 1.6fr) 160px 80px 200px 140px' }}
-          >
+          <div className={`${styles.tableHeader} ${styles.reviewColumns}`}>
             <span>Товар</span>
             <span>Автор</span>
             <span>Рейтинг</span>
@@ -125,8 +122,7 @@ export const AdminReviewsPage = () => {
           {rows.map((review) => (
             <div
               key={review.id}
-              className={styles.tableRow}
-              style={{ gridTemplateColumns: 'minmax(200px, 1.6fr) 160px 80px 200px 140px' }}
+              className={`${styles.tableRow} ${styles.reviewColumns}`}
             >
               <div>
                 <strong>{review.product?.title ?? review.productId ?? '—'}</strong>
