@@ -4,6 +4,7 @@ import { api } from '../../shared/api';
 import { loadFromStorage, removeFromStorage, saveToStorage, setAccessToken } from '../../shared/lib/storage';
 import { STORAGE_KEYS } from '../../shared/constants/storageKeys';
 import { User, Role } from '../../shared/types';
+import { normalizeRole } from '../../shared/lib/authAccess';
 
 type DeviceVerificationChannel = 'PHONE_CALL' | 'SMS' | 'PUSH' | 'UNKNOWN';
 
@@ -214,7 +215,9 @@ export const useAuthStore = create<AuthState>((set, get) => {
             const user: User = {
               ...profile,
               name: profile.name ?? '',
-              role: (profile.role as Role) ?? 'buyer',
+              role: normalizeRole(profile.role),
+              roles: profile.roles ?? null,
+              capabilities: profile.capabilities ?? null,
             };
             saveStoredUser(user);
             set({
@@ -400,7 +403,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
       if (result?.user) {
         const user: User = {
           ...result.user,
-          role: result.user.role as Role,
+          role: normalizeRole(result.user.role),
         };
         set({ user, isAuthenticated: true });
         saveStoredUser(user);

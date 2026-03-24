@@ -799,6 +799,17 @@ export const api = {
       fullName?: string | null;
       role: string;
       email: string;
+      phone?: string | null;
+      address?: string | null;
+      roles?: {
+        isAdmin?: boolean;
+        isSeller?: boolean;
+        isBuyer?: boolean;
+      } | null;
+      capabilities?: {
+        canAccessAdmin?: boolean;
+        canAccessSeller?: boolean;
+      } | null;
     }>('/me');
   },
 

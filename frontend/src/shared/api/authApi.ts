@@ -4,6 +4,7 @@ import { STORAGE_KEYS } from '../constants/storageKeys';
 import { normalizeApiError } from './client';
 import { api } from './index';
 import { toCanonicalRuPhone } from '../lib/validation';
+import { normalizeRole } from '../lib/authAccess';
 
 interface StoredSession {
   user: User;
@@ -94,6 +95,15 @@ type RawUser = {
   phone?: string | null;
   address?: string | null;
   role?: string;
+  roles?: {
+    isAdmin?: boolean;
+    isSeller?: boolean;
+    isBuyer?: boolean;
+  } | null;
+  capabilities?: {
+    canAccessAdmin?: boolean;
+    canAccessSeller?: boolean;
+  } | null;
 };
 
 type RawDeviceVerification = {
@@ -124,13 +134,6 @@ type RawAuthData = {
   otp_request?: OtpRequestResponse;
 };
 
-const normalizeRole = (role?: string): Role => {
-  const r = (role ?? '').toLowerCase();
-  if (r === 'admin') return 'admin';
-  if (r === 'seller') return 'seller';
-  return 'buyer';
-};
-
 const normalizeUser = (u?: RawUser): User => ({
   id: u?.id ?? '',
   name: u?.name ?? '',
@@ -138,7 +141,9 @@ const normalizeUser = (u?: RawUser): User => ({
   fullName: u?.fullName ?? null,
   phone: u?.phone ?? null,
   address: u?.address ?? null,
-  role: normalizeRole(u?.role)
+  role: normalizeRole(u?.role),
+  roles: u?.roles ?? null,
+  capabilities: u?.capabilities ?? null
 });
 
 const normalizeVerificationChannel = (channel?: string): VerificationChannel => {
