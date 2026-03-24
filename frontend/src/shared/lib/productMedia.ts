@@ -1,32 +1,99 @@
 import type { Product, ProductImage } from '../types';
+import {
+  dedupeUrls,
+  resolveMediaUrl,
+  resolveMediaUrls
+} from './resolveMediaUrl';
 
-export const getProductImageCandidates = (product: Partial<Product> | null | undefined): string[] => {
+type ProductLike = Partial<Product> & {
+  photosUrls?: string[];
+  previewImage?: string;
+};
+
+export const getMediaArray = (
+  ...sources: Array<
+    Array<string | null | undefined> | string | null | undefined
+  >
+): string[] => {
+  const flat: Array<string | null | undefined> = [];
+
+  for (const source of sources) {
+    if (Array.isArray(source)) {
+      flat.push(...source);
+      continue;
+    }
+
+    flat.push(source);
+  }
+
+  return resolveMediaUrls(flat);
+};
+
+export const getProductImages = (
+  product: ProductLike | null | undefined
+): string[] => {
   if (!product) return [];
 
-  const fromImages = (product.images ?? [])
-    .map((image) => image?.url)
-    .filter((url): url is string => Boolean(url));
+  const fromImageObjects = (product.images ?? []).map((image) =>
+    typeof image === 'string' ? image : image?.url
+  );
+  const fromLegacy = product.photosUrls ?? [];
 
-  const fromImageUrls = (product.imageUrls ?? []).filter((url): url is string => Boolean(url));
-
-  const fromLegacy = (product as { photosUrls?: string[]; previewImage?: string }).photosUrls ?? [];
-  const previewImage = (product as { photosUrls?: string[]; previewImage?: string }).previewImage;
-
-  return [product.image, ...fromImages, ...fromImageUrls, ...fromLegacy, previewImage].filter(
-    (url): url is string => Boolean(url)
+  return getMediaArray(
+    fromImageObjects,
+    product.imageUrls,
+    product.image,
+    product.previewImage,
+    fromLegacy
   );
 };
 
-export const getProductMainImage = (product: Partial<Product> | null | undefined): string =>
-  getProductImageCandidates(product)[0] ?? '';
+export const getProductVideos = (
+  product: ProductLike | null | undefined
+): string[] => {
+  if (!product) return [];
 
-export const toProductImageList = (product: Partial<Product>): ProductImage[] => {
-  const images = (product.images ?? []).filter((image): image is ProductImage => Boolean(image?.url));
-  if (images.length > 0) {
-    return images;
+  return resolveMediaUrls(product.videoUrls ?? []);
+};
+
+export const getProductImageCandidates = (
+  product: ProductLike | null | undefined
+): string[] => getProductImages(product);
+
+export const getProductMainImage = (
+  product: ProductLike | null | undefined
+): string => getProductImages(product)[0] ?? '';
+
+export const toProductImageList = (product: ProductLike): ProductImage[] => {
+  const normalizedImages = (product.images ?? [])
+    .map((image, index) => {
+      if (!image) return null;
+
+      if (typeof image === 'string') {
+        const resolvedUrl = resolveMediaUrl(image);
+        if (!resolvedUrl) return null;
+        return {
+          id: `fallback-${index}`,
+          sortOrder: index,
+          url: resolvedUrl
+        } satisfies ProductImage;
+      }
+
+      const resolvedUrl = resolveMediaUrl(image.url);
+      if (!resolvedUrl) return null;
+
+      return {
+        ...image,
+        url: resolvedUrl
+      } satisfies ProductImage;
+    })
+    .filter((image): image is ProductImage => Boolean(image));
+
+  if (normalizedImages.length > 0) {
+    return normalizedImages;
   }
 
-  return getProductImageCandidates(product).map((url, index) => ({
+  return dedupeUrls(getProductImages(product)).map((url, index) => ({
     id: `fallback-${index}`,
     url,
     sortOrder: index

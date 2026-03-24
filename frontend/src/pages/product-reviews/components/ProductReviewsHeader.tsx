@@ -1,6 +1,7 @@
 import { Rating } from '../../../shared/ui/Rating';
 import type { Product } from '../../../shared/types';
 import styles from './ProductReviewsHeader.module.css';
+import { getProductMainImage } from '../../../shared/lib/productMedia';
 
 type ProductReviewsHeaderProps = {
   product: Product;
@@ -21,13 +22,23 @@ export const ProductReviewsHeader = ({
   onBuyNow,
   onAddToCart
 }: ProductReviewsHeaderProps) => {
+  const productImage = getProductMainImage(product);
+
   return (
     <section className={styles.header}>
       <button type="button" className={styles.backButton} onClick={onBack}>
         ← Назад
       </button>
       <div className={styles.product}>
-        <img src={product.image} alt={product.title} className={styles.productImage} />
+        {productImage ? (
+          <img
+            src={productImage}
+            alt={product.title}
+            className={styles.productImage}
+          />
+        ) : (
+          <div className={styles.productImage} aria-hidden="true" />
+        )}
         <div className={styles.productInfo}>
           <h1 className={styles.title}>{product.title}</h1>
           <div className={styles.ratingRow}>
@@ -40,14 +51,24 @@ export const ProductReviewsHeader = ({
         </div>
       </div>
       <div className={styles.actions}>
-        <div className={styles.price}>{product.price.toLocaleString('ru-RU')} ₽</div>
-        <button type="button" className={styles.favoriteButton} aria-label="Добавить в избранное">
+        <div className={styles.price}>
+          {product.price.toLocaleString('ru-RU')} ₽
+        </div>
+        <button
+          type="button"
+          className={styles.favoriteButton}
+          aria-label="Добавить в избранное"
+        >
           ❤
         </button>
         <button type="button" className={styles.buyNow} onClick={onBuyNow}>
           Купить сейчас
         </button>
-        <button type="button" className={styles.addToCart} onClick={onAddToCart}>
+        <button
+          type="button"
+          className={styles.addToCart}
+          onClick={onAddToCart}
+        >
           В корзину
         </button>
       </div>

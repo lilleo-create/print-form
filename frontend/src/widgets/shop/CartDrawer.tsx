@@ -12,6 +12,7 @@ import { api } from '../../shared/api';
 import { PaymentIntent } from '../../shared/types';
 import { Button } from '../../shared/ui/Button';
 import { useModalFocus } from '../../shared/lib/useModalFocus';
+import { getProductMainImage } from '../../shared/lib/productMedia';
 import styles from './CartDrawer.module.css';
 
 const checkoutSchema = z.object({
@@ -29,7 +30,9 @@ export const CartDrawer = () => {
   const createOrder = useOrdersStore((state) => state.createOrder);
   const user = useAuthStore((state) => state.user);
   const [submitted, setSubmitted] = useState(false);
-  const [paymentIntent, setPaymentIntent] = useState<PaymentIntent | null>(null);
+  const [paymentIntent, setPaymentIntent] = useState<PaymentIntent | null>(
+    null
+  );
   const drawerRef = useRef<HTMLDivElement>(null);
   const {
     register,
@@ -39,7 +42,8 @@ export const CartDrawer = () => {
   } = useForm<CheckoutFormValues>({ resolver: zodResolver(checkoutSchema) });
 
   const total = useMemo(
-    () => items.reduce((sum, item) => sum + item.product.price * item.quantity, 0),
+    () =>
+      items.reduce((sum, item) => sum + item.product.price * item.quantity, 0),
     [items]
   );
 
@@ -85,7 +89,7 @@ export const CartDrawer = () => {
       qty: item.quantity,
       sellerId: item.product.sellerId ?? 'platform',
       lineTotal: item.product.price * item.quantity,
-      image: item.product.image,
+      image: item.product.image
     }));
     const order = await createOrder({
       user,
@@ -105,45 +109,71 @@ export const CartDrawer = () => {
       setPaymentIntent(null);
     }
 
-
     setSubmitted(true);
   };
 
   return (
-    <div className={styles.overlay} role="dialog" aria-modal="true" onClick={closeCart}>
-      <div className={styles.drawer} ref={drawerRef} onClick={(event) => event.stopPropagation()}>
+    <div
+      className={styles.overlay}
+      role="dialog"
+      aria-modal="true"
+      onClick={closeCart}
+    >
+      <div
+        className={styles.drawer}
+        ref={drawerRef}
+        onClick={(event) => event.stopPropagation()}
+      >
         <div className={styles.header}>
           <h3>Корзина</h3>
-          <button className={styles.close} onClick={closeCart} aria-label="Закрыть корзину">
+          <button
+            className={styles.close}
+            onClick={closeCart}
+            aria-label="Закрыть корзину"
+          >
             ✕
           </button>
         </div>
         <div className={styles.body}>
           {items.length === 0 ? (
-            <p className={styles.empty}>Корзина пуста. Добавьте товар из каталога.</p>
+            <p className={styles.empty}>
+              Корзина пуста. Добавьте товар из каталога.
+            </p>
           ) : (
             <div className={styles.items}>
-              {items.map((item) => (
-                <div className={styles.item} key={item.product.id}>
-                  <img src={item.product.image} alt={item.product.title} />
-                  <div className={styles.itemInfo}>
-                    <h4>{item.product.title}</h4>
-                    <p>{item.product.price.toLocaleString('ru-RU')} ₽</p>
-                    <div className={styles.controls}>
-                      <input
-                        type="number"
-                        min={1}
-                        value={item.quantity}
-                        onChange={(event) =>
-                          updateQuantity(item.product.id, Number(event.target.value))
-                        }
-                        aria-label="Количество товара"
-                      />
-                      <button onClick={() => removeItem(item.product.id)}>Удалить</button>
+              {items.map((item) => {
+                const imageSrc = getProductMainImage(item.product);
+                return (
+                  <div className={styles.item} key={item.product.id}>
+                    {imageSrc ? (
+                      <img src={imageSrc} alt={item.product.title} />
+                    ) : (
+                      <div aria-hidden="true" />
+                    )}
+                    <div className={styles.itemInfo}>
+                      <h4>{item.product.title}</h4>
+                      <p>{item.product.price.toLocaleString('ru-RU')} ₽</p>
+                      <div className={styles.controls}>
+                        <input
+                          type="number"
+                          min={1}
+                          value={item.quantity}
+                          onChange={(event) =>
+                            updateQuantity(
+                              item.product.id,
+                              Number(event.target.value)
+                            )
+                          }
+                          aria-label="Количество товара"
+                        />
+                        <button onClick={() => removeItem(item.product.id)}>
+                          Удалить
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

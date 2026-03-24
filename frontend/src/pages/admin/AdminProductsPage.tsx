@@ -5,7 +5,10 @@ import { Button } from '../../shared/ui/Button';
 import { EmptyState } from '../../shared/ui/EmptyState';
 import { Modal } from '../../shared/ui/Modal';
 import { Table } from '../../shared/ui/Table';
-import { resolveMediaUrl } from '../../shared/lib/resolveMediaUrl';
+import {
+  getProductImages,
+  getProductVideos
+} from '../../shared/lib/productMedia';
 import styles from './AdminPage.module.css';
 
 type AdminProduct = Product & {
@@ -14,7 +17,13 @@ type AdminProduct = Product & {
 
 type ProductField = { label: string; value: string };
 
-const statusOptions = ['PENDING', 'NEEDS_EDIT', 'REJECTED', 'APPROVED', 'ARCHIVED'] as const;
+const statusOptions = [
+  'PENDING',
+  'NEEDS_EDIT',
+  'REJECTED',
+  'APPROVED',
+  'ARCHIVED'
+] as const;
 
 const formatDate = (value?: string | null) => {
   if (!value) return '—';
@@ -39,45 +48,22 @@ const formatPrice = (value?: number, currency?: string) => {
 const toDisplayValue = (value: unknown) => {
   if (value === null || value === undefined) return '—';
   if (typeof value === 'string') return value.trim() || '—';
-  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : '—';
+  if (typeof value === 'number')
+    return Number.isFinite(value) ? String(value) : '—';
   if (typeof value === 'boolean') return value ? 'Да' : 'Нет';
   return String(value);
 };
 
-const getProductImages = (product: AdminProduct | null): string[] => {
-  if (!product) return [];
-
-  const primarySource = product.images?.length
-    ? product.images.map((item) => item?.url)
-    : [product.image];
-
-  const unique = new Set<string>();
-  for (const raw of primarySource) {
-    const normalized = resolveMediaUrl(raw);
-    if (!normalized) continue;
-    unique.add(normalized);
-  }
-
-  return Array.from(unique);
-};
-
-const getProductVideos = (product: AdminProduct | null): string[] => {
-  if (!product) return [];
-
-  const unique = new Set<string>();
-  for (const raw of product.videoUrls ?? []) {
-    const normalized = resolveMediaUrl(raw);
-    if (!normalized) continue;
-    unique.add(normalized);
-  }
-
-  return Array.from(unique);
-};
-
 const getVisibleDescriptions = (product: AdminProduct): ProductField[] => {
   const descriptions: ProductField[] = [
-    { label: 'Краткое описание', value: toDisplayValue(product.descriptionShort) },
-    { label: 'Полное описание', value: toDisplayValue(product.descriptionFull) },
+    {
+      label: 'Краткое описание',
+      value: toDisplayValue(product.descriptionShort)
+    },
+    {
+      label: 'Полное описание',
+      value: toDisplayValue(product.descriptionFull)
+    },
     { label: 'Описание', value: toDisplayValue(product.description) }
   ];
 
@@ -85,10 +71,13 @@ const getVisibleDescriptions = (product: AdminProduct): ProductField[] => {
 };
 
 export const AdminProductsPage = () => {
-  const [status, setStatus] = useState<(typeof statusOptions)[number]>('PENDING');
+  const [status, setStatus] =
+    useState<(typeof statusOptions)[number]>('PENDING');
   const [products, setProducts] = useState<AdminProduct[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedProduct, setSelectedProduct] = useState<AdminProduct | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<AdminProduct | null>(
+    null
+  );
   const [notes, setNotes] = useState('');
   const [actionId, setActionId] = useState<string | null>(null);
   const [activeImage, setActiveImage] = useState<string | null>(null);
@@ -159,8 +148,14 @@ export const AdminProductsPage = () => {
   };
 
   const rows = useMemo(() => products, [products]);
-  const imageUrls = useMemo(() => getProductImages(selectedProduct), [selectedProduct]);
-  const videoUrls = useMemo(() => getProductVideos(selectedProduct), [selectedProduct]);
+  const imageUrls = useMemo(
+    () => getProductImages(selectedProduct),
+    [selectedProduct]
+  );
+  const videoUrls = useMemo(
+    () => getProductVideos(selectedProduct),
+    [selectedProduct]
+  );
 
   useEffect(() => {
     if (!imageUrls.length) {
@@ -173,17 +168,31 @@ export const AdminProductsPage = () => {
     }
   }, [imageUrls, activeImage]);
 
-  const visibleImageUrls = imageUrls.filter((url) => !brokenImages.includes(url));
-  const previewImage = activeImage && !brokenImages.includes(activeImage) ? activeImage : visibleImageUrls[0] ?? null;
+  const visibleImageUrls = imageUrls.filter(
+    (url) => !brokenImages.includes(url)
+  );
+  const previewImage =
+    activeImage && !brokenImages.includes(activeImage)
+      ? activeImage
+      : (visibleImageUrls[0] ?? null);
 
   const productMeta: ProductField[] = selectedProduct
     ? [
         { label: 'Название', value: toDisplayValue(selectedProduct.title) },
         { label: 'SKU', value: toDisplayValue(selectedProduct.sku) },
         { label: 'Категория', value: toDisplayValue(selectedProduct.category) },
-        { label: 'Цена', value: formatPrice(selectedProduct.price, selectedProduct.currency) },
-        { label: 'Валюта', value: toDisplayValue(selectedProduct.currency || 'RUB') },
-        { label: 'Статус', value: toDisplayValue(selectedProduct.moderationStatus || status) },
+        {
+          label: 'Цена',
+          value: formatPrice(selectedProduct.price, selectedProduct.currency)
+        },
+        {
+          label: 'Валюта',
+          value: toDisplayValue(selectedProduct.currency || 'RUB')
+        },
+        {
+          label: 'Статус',
+          value: toDisplayValue(selectedProduct.moderationStatus || status)
+        },
         { label: 'Создан', value: formatDate(selectedProduct.createdAt) },
         { label: 'Обновлён', value: formatDate(selectedProduct.updatedAt) },
         { label: 'Опубликован', value: formatDate(selectedProduct.publishedAt) }
@@ -192,9 +201,18 @@ export const AdminProductsPage = () => {
 
   const productSeller: ProductField[] = selectedProduct
     ? [
-        { label: 'Имя продавца', value: toDisplayValue(selectedProduct.seller?.name) },
-        { label: 'Email продавца', value: toDisplayValue(selectedProduct.seller?.email) },
-        { label: 'Seller.id', value: toDisplayValue(selectedProduct.seller?.id) },
+        {
+          label: 'Имя продавца',
+          value: toDisplayValue(selectedProduct.seller?.name)
+        },
+        {
+          label: 'Email продавца',
+          value: toDisplayValue(selectedProduct.seller?.email)
+        },
+        {
+          label: 'Seller.id',
+          value: toDisplayValue(selectedProduct.seller?.id)
+        },
         { label: 'sellerId', value: toDisplayValue(selectedProduct.sellerId) }
       ]
     : [];
@@ -202,29 +220,58 @@ export const AdminProductsPage = () => {
   const productSpecs: ProductField[] = selectedProduct
     ? [
         { label: 'Материал', value: toDisplayValue(selectedProduct.material) },
-        { label: 'Технология', value: toDisplayValue(selectedProduct.technology) },
+        {
+          label: 'Технология',
+          value: toDisplayValue(selectedProduct.technology)
+        },
         { label: 'Цвет', value: toDisplayValue(selectedProduct.color) },
-        { label: 'Время производства (ч)', value: toDisplayValue(selectedProduct.productionTimeHours) },
-        { label: 'Вес брутто (г)', value: toDisplayValue(selectedProduct.weightGrossG) },
+        {
+          label: 'Время производства (ч)',
+          value: toDisplayValue(selectedProduct.productionTimeHours)
+        },
+        {
+          label: 'Вес брутто (г)',
+          value: toDisplayValue(selectedProduct.weightGrossG)
+        },
         { label: 'Размер X (см)', value: toDisplayValue(selectedProduct.dxCm) },
         { label: 'Размер Y (см)', value: toDisplayValue(selectedProduct.dyCm) },
         { label: 'Размер Z (см)', value: toDisplayValue(selectedProduct.dzCm) },
-        { label: 'Средний рейтинг', value: toDisplayValue(selectedProduct.ratingAvg) },
-        { label: 'Кол-во оценок', value: toDisplayValue(selectedProduct.ratingCount) },
-        { label: 'Прогноз доставки', value: formatDate(selectedProduct.deliveryDateEstimated) }
+        {
+          label: 'Средний рейтинг',
+          value: toDisplayValue(selectedProduct.ratingAvg)
+        },
+        {
+          label: 'Кол-во оценок',
+          value: toDisplayValue(selectedProduct.ratingCount)
+        },
+        {
+          label: 'Прогноз доставки',
+          value: formatDate(selectedProduct.deliveryDateEstimated)
+        }
       ]
     : [];
 
   const moderationFields: ProductField[] = selectedProduct
     ? [
-        { label: 'Статус модерации', value: toDisplayValue(selectedProduct.moderationStatus) },
-        { label: 'Примечания модерации', value: toDisplayValue(selectedProduct.moderationNotes) },
+        {
+          label: 'Статус модерации',
+          value: toDisplayValue(selectedProduct.moderationStatus)
+        },
+        {
+          label: 'Примечания модерации',
+          value: toDisplayValue(selectedProduct.moderationNotes)
+        },
         { label: 'Проверен', value: formatDate(selectedProduct.moderatedAt) },
-        { label: 'Проверил (ID)', value: toDisplayValue(selectedProduct.moderatedById) }
+        {
+          label: 'Проверил (ID)',
+          value: toDisplayValue(selectedProduct.moderatedById)
+        }
       ]
     : [];
 
-  const descriptions = selectedProduct ? getVisibleDescriptions(selectedProduct) : [];
+  const descriptions = selectedProduct
+    ? getVisibleDescriptions(selectedProduct)
+    : [];
 
   const markImageBroken = (url: string) => {
     setBrokenImages((prev) => (prev.includes(url) ? prev : [...prev, url]));
@@ -235,7 +282,9 @@ export const AdminProductsPage = () => {
       <div className={styles.header}>
         <div>
           <h1>Модерация товаров</h1>
-          <p className={styles.muted}>Проверяйте карточки товаров перед публикацией.</p>
+          <p className={styles.muted}>
+            Проверяйте карточки товаров перед публикацией.
+          </p>
         </div>
         <div className={styles.filters}>
           <label>
@@ -243,7 +292,9 @@ export const AdminProductsPage = () => {
             <select
               className={styles.select}
               value={status}
-              onChange={(event) => setStatus(event.target.value as (typeof statusOptions)[number])}
+              onChange={(event) =>
+                setStatus(event.target.value as (typeof statusOptions)[number])
+              }
             >
               {statusOptions.map((option) => (
                 <option key={option} value={option}>
@@ -258,12 +309,18 @@ export const AdminProductsPage = () => {
       {loading ? (
         <p className={styles.muted}>Загрузка товаров...</p>
       ) : rows.length === 0 ? (
-        <EmptyState title="Нет товаров" description="В выбранном статусе ничего не найдено." />
+        <EmptyState
+          title="Нет товаров"
+          description="В выбранном статусе ничего не найдено."
+        />
       ) : (
         <Table className={styles.table}>
           <div
             className={styles.tableHeader}
-            style={{ gridTemplateColumns: 'minmax(200px, 1.6fr) 160px 160px 140px 160px' }}
+            style={{
+              gridTemplateColumns:
+                'minmax(200px, 1.6fr) 160px 160px 140px 160px'
+            }}
           >
             <span>Товар</span>
             <span>Продавец</span>
@@ -275,20 +332,34 @@ export const AdminProductsPage = () => {
             <div
               key={product.id}
               className={styles.tableRow}
-              style={{ gridTemplateColumns: 'minmax(200px, 1.6fr) 160px 160px 140px 160px' }}
+              style={{
+                gridTemplateColumns:
+                  'minmax(200px, 1.6fr) 160px 160px 140px 160px'
+              }}
             >
               <div>
                 <strong>{product.title}</strong>
-                <div className={styles.muted}>{formatDate(product.updatedAt ?? product.createdAt)}</div>
+                <div className={styles.muted}>
+                  {formatDate(product.updatedAt ?? product.createdAt)}
+                </div>
               </div>
               <div>
-                <div className={styles.cellTruncate}>{product.seller?.name ?? '—'}</div>
-                <div className={`${styles.muted} ${styles.cellTruncate}`}>{product.seller?.email ?? ''}</div>
+                <div className={styles.cellTruncate}>
+                  {product.seller?.name ?? '—'}
+                </div>
+                <div className={`${styles.muted} ${styles.cellTruncate}`}>
+                  {product.seller?.email ?? ''}
+                </div>
               </div>
               <span>{product.price.toLocaleString('ru-RU')} ₽</span>
-              <span className={styles.status}>{product.moderationStatus ?? status}</span>
+              <span className={styles.status}>
+                {product.moderationStatus ?? status}
+              </span>
               <div className={styles.actions}>
-                <Button type="button" onClick={() => openModerationModal(product)}>
+                <Button
+                  type="button"
+                  onClick={() => openModerationModal(product)}
+                >
                   Подробнее
                 </Button>
               </div>
@@ -297,7 +368,11 @@ export const AdminProductsPage = () => {
         </Table>
       )}
 
-      <Modal isOpen={Boolean(selectedProduct)} onClose={actionId ? undefined : closeModal} className={styles.modal}>
+      <Modal
+        isOpen={Boolean(selectedProduct)}
+        onClose={actionId ? undefined : closeModal}
+        className={styles.modal}
+      >
         {selectedProduct ? (
           <>
             <div className={styles.modalHeader}>
@@ -320,13 +395,20 @@ export const AdminProductsPage = () => {
                       <a href={previewImage} target="_blank" rel="noreferrer">
                         Открыть
                       </a>
-                      <a href={previewImage} download target="_blank" rel="noreferrer">
+                      <a
+                        href={previewImage}
+                        download
+                        target="_blank"
+                        rel="noreferrer"
+                      >
                         Скачать
                       </a>
                     </div>
                   </div>
                 ) : (
-                  <div className={styles.imagePlaceholder}>Изображения отсутствуют</div>
+                  <div className={styles.imagePlaceholder}>
+                    Изображения отсутствуют
+                  </div>
                 )}
 
                 {visibleImageUrls.length > 1 ? (
@@ -338,7 +420,11 @@ export const AdminProductsPage = () => {
                         className={`${styles.thumbButton} ${url === previewImage ? styles.thumbActive : ''}`}
                         onClick={() => setActiveImage(url)}
                       >
-                        <img src={url} alt="Миниатюра товара" onError={() => markImageBroken(url)} />
+                        <img
+                          src={url}
+                          alt="Миниатюра товара"
+                          onError={() => markImageBroken(url)}
+                        />
                       </button>
                     ))}
                   </div>
@@ -349,12 +435,22 @@ export const AdminProductsPage = () => {
                     <h4>Видео</h4>
                     {videoUrls.map((url) => (
                       <article key={url} className={styles.videoCard}>
-                        <video controls preload="metadata" src={url} className={styles.videoPlayer} />
+                        <video
+                          controls
+                          preload="metadata"
+                          src={url}
+                          className={styles.videoPlayer}
+                        />
                         <div className={styles.mediaActions}>
                           <a href={url} target="_blank" rel="noreferrer">
                             Открыть
                           </a>
-                          <a href={url} download target="_blank" rel="noreferrer">
+                          <a
+                            href={url}
+                            download
+                            target="_blank"
+                            rel="noreferrer"
+                          >
                             Скачать
                           </a>
                         </div>
@@ -394,7 +490,10 @@ export const AdminProductsPage = () => {
                     <h3>Описания</h3>
                     <div className={styles.descriptionList}>
                       {descriptions.map((field) => (
-                        <article key={field.label} className={styles.descriptionCard}>
+                        <article
+                          key={field.label}
+                          className={styles.descriptionCard}
+                        >
                           <h4>{field.label}</h4>
                           <p>{field.value}</p>
                         </article>
@@ -431,7 +530,10 @@ export const AdminProductsPage = () => {
 
             <label className={styles.notesField}>
               Примечание модератора
-              <textarea value={notes} onChange={(event) => setNotes(event.target.value)} />
+              <textarea
+                value={notes}
+                onChange={(event) => setNotes(event.target.value)}
+              />
             </label>
 
             <div className={styles.modalActions}>
@@ -463,7 +565,11 @@ export const AdminProductsPage = () => {
               >
                 Архивировать
               </Button>
-              <Button type="button" onClick={closeModal} disabled={actionId === selectedProduct.id}>
+              <Button
+                type="button"
+                onClick={closeModal}
+                disabled={actionId === selectedProduct.id}
+              >
                 Закрыть
               </Button>
             </div>

@@ -1,6 +1,8 @@
 import { ChatMessage, ChatThread } from '../../shared/types';
 import { MessageComposer } from './MessageComposer';
 import styles from './ChatWindow.module.css';
+import { resolveMediaUrl } from '../../shared/lib/resolveMediaUrl';
+import { getProductMainImage } from '../../shared/lib/productMedia';
 
 interface ChatWindowProps {
   thread: ChatThread | null;
@@ -43,6 +45,7 @@ export const ChatWindow = ({
 
   const returnItem = thread.returnRequest?.items?.[0]?.orderItem ?? null;
   const product = returnItem?.product ?? null;
+  const productImage = getProductMainImage(product ?? undefined);
 
   return (
     <div className={styles.window}>
@@ -81,18 +84,25 @@ export const ChatWindow = ({
               {thread.returnRequest.photos.map((photo) => (
                 <a
                   key={photo.id}
-                  href={photo.url}
+                  href={resolveMediaUrl(photo.url) ?? '#'}
                   target="_blank"
                   rel="noreferrer"
                 >
-                  <img src={photo.url} alt="Фото возврата" />
+                  <img
+                    src={resolveMediaUrl(photo.url) ?? ''}
+                    alt="Фото возврата"
+                  />
                 </a>
               ))}
             </div>
           )}
           {product && (
             <div className={styles.returnProduct}>
-              <img src={product.image} alt={product.title} />
+              {productImage ? (
+                <img src={productImage} alt={product.title} />
+              ) : (
+                <div aria-hidden="true" />
+              )}
               <div>
                 <strong>{product.title}</strong>
                 <p>{product.price.toLocaleString('ru-RU')} ₽</p>

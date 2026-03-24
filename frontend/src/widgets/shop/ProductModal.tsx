@@ -3,6 +3,7 @@ import { useCartStore } from '../../app/store/cartStore';
 import { useUiStore } from '../../app/store/uiStore';
 import { Button } from '../../shared/ui/Button';
 import { useModalFocus } from '../../shared/lib/useModalFocus';
+import { getProductMainImage } from '../../shared/lib/productMedia';
 import styles from './ProductModal.module.css';
 
 export const ProductModal = () => {
@@ -22,17 +23,42 @@ export const ProductModal = () => {
     return null;
   }
 
+  const productImage = getProductMainImage(product);
+
   return (
-    <div className={styles.overlay} role="dialog" aria-modal="true" onClick={close}>
-      <div className={styles.modal} ref={modalRef} onClick={(event) => event.stopPropagation()}>
-        <button className={styles.close} onClick={close} aria-label="Закрыть модальное окно">
+    <div
+      className={styles.overlay}
+      role="dialog"
+      aria-modal="true"
+      onClick={close}
+    >
+      <div
+        className={styles.modal}
+        ref={modalRef}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button
+          className={styles.close}
+          onClick={close}
+          aria-label="Закрыть модальное окно"
+        >
           ✕
         </button>
         <div className={styles.content}>
-          <img src={product.image} alt={product.title} className={styles.image} />
+          {productImage ? (
+            <img
+              src={productImage}
+              alt={product.title}
+              className={styles.image}
+            />
+          ) : (
+            <div className={styles.image} aria-hidden="true" />
+          )}
           <div className={styles.details}>
             <h2>{product.title}</h2>
-            <p className={styles.price}>{product.price.toLocaleString('ru-RU')} ₽</p>
+            <p className={styles.price}>
+              {product.price.toLocaleString('ru-RU')} ₽
+            </p>
             <p>{product.description}</p>
             <ul className={styles.specs}>
               <li>
@@ -54,7 +80,10 @@ export const ProductModal = () => {
               {product.dxCm && product.dyCm && product.dzCm ? (
                 <li>
                   <span>Габариты</span>
-                  <strong>{product.dxCm} × {product.dyCm} × {product.dzCm} см{product.weightGrossG ? `, ${product.weightGrossG} г` : ''}</strong>
+                  <strong>
+                    {product.dxCm} × {product.dyCm} × {product.dzCm} см
+                    {product.weightGrossG ? `, ${product.weightGrossG} г` : ''}
+                  </strong>
                 </li>
               ) : null}
             </ul>
