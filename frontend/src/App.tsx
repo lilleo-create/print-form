@@ -28,6 +28,7 @@ import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { ShopPage } from './pages/ShopPage/ShopPage';
 import { CdekWidgetPage } from './pages/CdekWidgetPage';
 import { AuthBootstrap } from './app/providers/AuthBootstrap';
+import { SellerProductDetailPage } from './pages/SellerProductDetailPage';
 
 const App = () => {
   return (
@@ -81,6 +82,14 @@ const App = () => {
           element={
             <ProtectedRoute>
               <SellerDashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/seller/products/:productId"
+          element={
+            <ProtectedRoute>
+              <SellerProductDetailPage />
             </ProtectedRoute>
           }
         />

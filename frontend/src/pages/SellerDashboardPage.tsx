@@ -1378,7 +1378,21 @@ export const SellerDashboardPage = () => {
                       ) : (
                         products.map((product) => (
                           <div key={product.id} className={styles.tableRow}>
-                            <span>{product.title}</span>
+                            <span>
+                              {product.moderationStatus === 'APPROVED' ? (
+                                <button
+                                  type="button"
+                                  className={styles.linkButton}
+                                  onClick={() =>
+                                    navigate(`/seller/products/${product.id}`)
+                                  }
+                                >
+                                  {product.title}
+                                </button>
+                              ) : (
+                                product.title
+                              )}
+                            </span>
                             <span>{formatCurrency(product.price)} ₽</span>
                             <span>{product.category}</span>
                             <span>
@@ -1394,11 +1408,17 @@ export const SellerDashboardPage = () => {
                               type="button"
                               className={styles.linkButton}
                               onClick={() => {
+                                if (product.moderationStatus === 'APPROVED') {
+                                  navigate(`/seller/products/${product.id}`);
+                                  return;
+                                }
                                 setActiveProduct(product);
                                 setIsModalOpen(true);
                               }}
                             >
-                              Редактировать
+                              {product.moderationStatus === 'APPROVED'
+                                ? 'Открыть'
+                                : 'Редактировать'}
                             </button>
                           </div>
                         ))
