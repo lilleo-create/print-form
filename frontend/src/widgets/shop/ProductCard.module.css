@@ -23,7 +23,8 @@
 .image {
   width: 100%;
   height: 260px;
-  object-fit: cover;
+  object-fit: contain;
+  background: var(--surface-ghost);
 }
 
 .body {
