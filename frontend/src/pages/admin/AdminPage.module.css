@@ -22,12 +22,19 @@
   align-items: center;
 }
 
+.filters label {
+  display: grid;
+  gap: 6px;
+}
+
 .select {
   padding: 8px 12px;
   border-radius: var(--radius-control);
   border: 1px solid var(--border);
   background: var(--bg-2);
   color: var(--text);
+  width: 100%;
+  min-width: 0;
 }
 
 .table {
@@ -47,11 +54,24 @@
   display: grid;
   gap: 12px;
   align-items: center;
+  min-width: 0;
 }
 
 .tableHeader > *,
 .tableRow > * {
   min-width: 0;
+}
+
+.productColumns {
+  grid-template-columns: minmax(200px, 1.6fr) 160px 160px 140px 160px;
+}
+
+.reviewColumns {
+  grid-template-columns: minmax(200px, 1.6fr) 160px 80px 200px 140px;
+}
+
+.kycColumns {
+  grid-template-columns: minmax(180px, 1.4fr) 140px 140px minmax(220px, 1.6fr) 220px;
 }
 
 .tableHeader {
@@ -98,6 +118,7 @@
   color: var(--primary);
   font-weight: 600;
   text-decoration: none;
+  overflow-wrap: anywhere;
 }
 
 .muted {
@@ -109,6 +130,18 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  background: var(--overlay-strong);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
 }
 
 .modal {
@@ -129,7 +162,7 @@
   min-height: 0;
   overflow: auto;
   display: grid;
-  grid-template-columns: minmax(340px, 1fr) minmax(420px, 1.2fr);
+  grid-template-columns: minmax(320px, 1fr) minmax(380px, 1.2fr);
   gap: 16px;
   padding-right: 4px;
   min-width: 0;
@@ -146,7 +179,8 @@
 .sectionCard,
 .mainMediaWrap,
 .videoCard,
-.imagePlaceholder {
+.imagePlaceholder,
+.previewRow {
   border: 1px solid var(--border);
   background: var(--bg-2);
   border-radius: var(--radius-control);
@@ -237,7 +271,7 @@
 
 .definitionRow {
   display: grid;
-  grid-template-columns: minmax(130px, 180px) 1fr;
+  grid-template-columns: minmax(120px, 180px) 1fr;
   gap: 12px;
 }
 
@@ -309,14 +343,57 @@
   resize: vertical;
   background: var(--bg-2);
   color: var(--text);
+  box-sizing: border-box;
 }
 
 .modalActions {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
-  padding-top: 6px;
+  padding-top: 8px;
   border-top: 1px solid var(--border);
+}
+
+.modalActions > * {
+  min-width: 0;
+}
+
+.previewList {
+  display: grid;
+  gap: 10px;
+}
+
+.previewRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px;
+  align-items: center;
+}
+
+.previewRow span {
+  overflow-wrap: anywhere;
+}
+
+.previewActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.previewLink {
+  width: 88px;
+  height: 88px;
+  border-radius: var(--radius-control);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.previewLink img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .errorText {

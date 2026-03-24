@@ -1,5 +1,6 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import { canAccessAdmin } from '../../shared/lib/authAccess';
 
 interface AdminRouteProps {
   children: JSX.Element;
@@ -20,7 +21,7 @@ export const AdminRoute = ({ children }: AdminRouteProps) => {
     return <Navigate to={`/auth/login?redirectTo=${redirectTo}`} replace />;
   }
 
-  if (user.role !== 'admin') {
+  if (!canAccessAdmin(user)) {
     return <Navigate to="/account" replace />;
   }
 

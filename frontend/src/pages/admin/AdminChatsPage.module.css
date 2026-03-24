@@ -5,7 +5,7 @@
 
 .layout {
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: minmax(240px, 280px) minmax(0, 1fr);
   gap: 20px;
   min-width: 0;
 }
@@ -23,6 +23,7 @@
   border: 1px solid var(--border);
   background: var(--bg-2);
   color: var(--text);
+  box-sizing: border-box;
 }
 
 .content {

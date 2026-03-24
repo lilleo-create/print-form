@@ -40,6 +40,7 @@
   height: 56px;
   border-radius: 8px;
   object-fit: cover;
+  flex: 0 0 auto;
 }
 
 .controls {
@@ -47,8 +48,15 @@
   gap: 8px;
 }
 
+.controls label {
+  display: grid;
+  gap: 6px;
+}
+
+.controls select,
 .controls textarea {
-  min-height: 70px;
+  width: 100%;
+  min-width: 0;
   border-radius: var(--radius-control);
   border: 1px solid var(--border);
   padding: 8px;
@@ -68,6 +76,7 @@
   gap: 8px;
   max-height: 360px;
   overflow: auto;
+  min-width: 0;
 }
 
 .messageAdmin {

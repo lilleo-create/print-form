@@ -19,6 +19,8 @@ import loginHero from '../shared/assets/login-hero.svg';
 
 import type { OtpFlowType, RegistrationPurpose } from '../shared/api/authApi';
 import { getOtpPurposeForFlow } from '../shared/api/authApi';
+import type { User } from '../shared/types';
+import { canAccessAdmin, normalizeRole } from '../shared/lib/authAccess';
 
 const isValidLoginPhone = (value: string) => {
   const digits = normalizePhone(value);
@@ -115,23 +117,23 @@ type LoginValues = z.infer<typeof loginSchema>;
 type RegisterValues = z.infer<typeof registerSchema>;
 
 const getRedirectPath = ({
-  role,
+  user,
   redirectTo,
   sellerOnboarded
 }: {
-  role?: string;
+  user?: User | null;
   redirectTo?: string | null;
   sellerOnboarded?: boolean;
 }) => {
   if (redirectTo) {
     return redirectTo;
   }
-  const normalizedRole = (role ?? '').toLowerCase();
+  if (canAccessAdmin(user)) {
+    return '/admin';
+  }
+  const normalizedRole = normalizeRole(user?.role);
   if (normalizedRole === 'seller') {
     return sellerOnboarded ? '/seller' : '/seller/onboarding';
-  }
-  if (normalizedRole === 'admin') {
-    return '/admin';
   }
   return '/account';
 };
@@ -217,29 +219,29 @@ export const AuthPage = () => {
       registerForm.formState.submitCount > 0 ||
       confirmPasswordValue.length > 0);
 
-  const resolveRedirectPath = async (role?: string) => {
+  const resolveRedirectPath = async (user?: User | null) => {
     if (redirectTo) {
       return redirectTo;
     }
-    const normalizedRole = (role ?? '').toLowerCase();
+    const normalizedRole = normalizeRole(user?.role);
     if (normalizedRole !== 'seller') {
-      return getRedirectPath({ role, redirectTo });
+      return getRedirectPath({ user, redirectTo });
     }
     try {
       const response = await api.getSellerContext();
       return getRedirectPath({
-        role,
+        user,
         redirectTo,
         sellerOnboarded: Boolean(response.data?.profile)
       });
     } catch {
-      return getRedirectPath({ role, redirectTo, sellerOnboarded: false });
+      return getRedirectPath({ user, redirectTo, sellerOnboarded: false });
     }
   };
 
   const handleRedirect = async () => {
     const currentUser = useAuthStore.getState().user;
-    const path = await resolveRedirectPath(currentUser?.role);
+    const path = await resolveRedirectPath(currentUser);
     queueMicrotask(() => navigate(path, { replace: true }));
   };
 
@@ -356,7 +358,7 @@ export const AuthPage = () => {
       if (nextUser) {
         setUser(nextUser);
       }
-      const path = await resolveRedirectPath(nextUser?.role);
+      const path = await resolveRedirectPath(nextUser);
       queueMicrotask(() => navigate(path, { replace: true }));
     } catch {
       setError('Неверный номер телефона или пароль.');
@@ -391,7 +393,7 @@ export const AuthPage = () => {
       if (nextUser) {
         setUser(nextUser);
       }
-      const path = await resolveRedirectPath(nextUser?.role);
+      const path = await resolveRedirectPath(nextUser);
       if (import.meta.env.DEV) {
         console.log('[auth] register ok', nextUser, 'redirect', path);
       }

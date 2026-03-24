@@ -313,7 +313,16 @@ export interface User {
   email: string;
   phone?: string | null;
   address?: string | null;
-  role: Role;
+  role: Role | string;
+  roles?: {
+    isAdmin?: boolean;
+    isSeller?: boolean;
+    isBuyer?: boolean;
+  } | null;
+  capabilities?: {
+    canAccessAdmin?: boolean;
+    canAccessSeller?: boolean;
+  } | null;
 }
 
 export interface Contact {

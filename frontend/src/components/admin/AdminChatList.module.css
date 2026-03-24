@@ -1,6 +1,7 @@
 .section {
   display: grid;
   gap: 12px;
+  min-width: 0;
 }
 
 .list {
@@ -8,27 +9,20 @@
   gap: 8px;
 }
 
-.item {
-  border: 1px solid var(--border);
+.item,
+.itemActive {
   border-radius: var(--radius-control);
   padding: 12px;
   text-align: left;
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  background: var(--card);
   cursor: pointer;
   min-width: 0;
 }
 
 .itemActive {
   border: 1px solid var(--primary);
-  border-radius: var(--radius-control);
-  padding: 12px;
-  text-align: left;
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
   background: var(--bg-2);
   cursor: pointer;
   min-width: 0;
@@ -48,8 +42,23 @@
 .badge {
   font-size: 11px;
   color: var(--muted);
+  overflow-wrap: anywhere;
+  text-align: right;
+  flex: 0 0 auto;
 }
 
 .empty {
   color: var(--muted);
+}
+
+@media (max-width: 640px) {
+  .item,
+  .itemActive {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .badge {
+    text-align: left;
+  }
 }
