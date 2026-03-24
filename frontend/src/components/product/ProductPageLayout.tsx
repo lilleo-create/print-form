@@ -51,8 +51,8 @@ type ProductPageLayoutProps = {
 };
 
 export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
-  const { data: product, status, error } = useProduct(productId, { keepPreviousData: true });
-  const { reviews, summary } = useProductReviews(productId, { keepPreviousData: true });
+  const { data: product, status, error } = useProduct(productId, { keepPreviousData: false });
+  const { reviews, summary } = useProductReviews(productId, { keepPreviousData: false });
 
   useProductBoard(product);
 

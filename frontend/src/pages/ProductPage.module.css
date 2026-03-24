@@ -96,6 +96,20 @@
   gap: 6px;
 }
 
+.variantSummary {
+  display: grid;
+  gap: 4px;
+}
+
+.variantTitle {
+  font-weight: 600;
+}
+
+.variantText {
+  color: var(--muted);
+  font-size: 15px;
+}
+
 .price {
   font-size: 32px;
   font-weight: 700;

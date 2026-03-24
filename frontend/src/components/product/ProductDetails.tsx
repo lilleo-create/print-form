@@ -28,20 +28,49 @@ export const ProductDetails = ({
     () => product.variants ?? [],
     [product.variants]
   );
-  const [selectedVariant, setSelectedVariant] = useState<string>('');
   const [isShareOpen, setIsShareOpen] = useState(false);
   const isFavorite = useFavoritesStore((state) => state.isFavorite(product.id));
   const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
   const fetchFavorites = useFavoritesStore((state) => state.fetchFavorites);
 
+  const activeVariant = useMemo(() => {
+    if (!variants.length) return undefined;
+    return (
+      variants.find((variant) => variant.productId === product.id) ??
+      variants.find((variant) => variant.id === product.id)
+    );
+  }, [product.id, variants]);
+
+  const activeVariantLabel = useMemo(() => {
+    if (!activeVariant) {
+      return {
+        key: 'Цвет товара',
+        value: product.color
+      };
+    }
+
+    const firstOption = Object.entries(activeVariant.options ?? {}).find(
+      ([key, values]) => key && Array.isArray(values) && values.length > 0 && values[0]
+    );
+
+    if (firstOption) {
+      return {
+        key: firstOption[0],
+        value: firstOption[1][0]
+      };
+    }
+
+    return {
+      key: 'Цвет товара',
+      value: activeVariant.name || product.color
+    };
+  }, [activeVariant, product.color]);
+
   useEffect(() => {
-    setSelectedVariant('');
     void fetchFavorites();
   }, [fetchFavorites, product.id]);
 
   const handleVariantChange = (variantId: string) => {
-    setSelectedVariant(variantId);
-
     const variant = variants.find((item) => item.id === variantId) as
       | ProductVariant
       | undefined;
@@ -93,6 +122,14 @@ export const ProductDetails = ({
       </div>
 
       <div className={styles.priceBlock}>
+        {variants.length > 0 ? (
+          <div className={styles.variantSummary}>
+            <span className={styles.variantTitle}>Вариант</span>
+            <span className={styles.variantText}>
+              {activeVariantLabel.key}: {activeVariantLabel.value}
+            </span>
+          </div>
+        ) : null}
         <span className={styles.price}>
           {Number((product as any).price ?? 0).toLocaleString('ru-RU')} ₽
         </span>
@@ -114,18 +151,19 @@ export const ProductDetails = ({
 
       {variants.length > 0 ? (
         <div className={styles.variantBlock}>
-          <span>Варианты</span>
+          <span>Выберите вариант</span>
           <div className={styles.variantList}>
             {variants.map((variant) => (
               <button
                 type="button"
                 key={variant.id}
                 className={
-                  selectedVariant === variant.id
+                  activeVariant?.id === variant.id
                     ? styles.variantActive
                     : styles.variantButton
                 }
                 onClick={() => handleVariantChange(variant.id)}
+                aria-pressed={activeVariant?.id === variant.id}
               >
                 {variant.name}
               </button>
