@@ -1,4 +1,4 @@
-import { HTMLAttributes } from 'react';
+import { HTMLAttributes, MouseEvent } from 'react';
 import { createPortal } from 'react-dom';
 import clsx from 'clsx';
 import styles from './Modal.module.css';
@@ -14,8 +14,14 @@ export const Modal = ({ isOpen, onClose, className, children, ...props }: ModalP
 
   if (!isOpen) return null;
 
+  const handleOverlayClick = (event: MouseEvent<HTMLDivElement>) => {
+    if (!onClose) return;
+    if (event.target !== event.currentTarget) return;
+    onClose();
+  };
+
   return createPortal(
-    <div className={styles.overlay} onClick={onClose}>
+    <div className={styles.overlay} onClick={handleOverlayClick}>
       <div
         className={clsx(styles.modal, className)}
         onClick={(event) => event.stopPropagation()}
