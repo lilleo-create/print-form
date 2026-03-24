@@ -55,6 +55,24 @@ type MediaItem = {
   remoteUrl?: string;
 };
 
+export interface SellerProductVariantDraft {
+  id: string;
+  name: string;
+  order: number;
+  isBase: boolean;
+  fields: ProductFormValues;
+  attributes: {
+    color: string;
+    size?: string;
+    other?: string;
+  };
+  media: {
+    imageUrls: string[];
+    videoUrls: string[];
+    pendingLocalFiles: string[];
+  };
+}
+
 export interface SellerProductPayload {
   id?: string;
   title: string;
@@ -71,6 +89,18 @@ export interface SellerProductPayload {
   dxCm?: number;
   dyCm?: number;
   dzCm?: number;
+  variantsDraft?: SellerProductVariantDraft[];
+}
+
+interface VariantDraft {
+  id: string;
+  name: string;
+  isBase: boolean;
+  order: number;
+  size: string;
+  otherAttribute: string;
+  form: ProductFormValues;
+  mediaItems: MediaItem[];
 }
 
 interface SellerProductModalProps {
@@ -111,67 +141,113 @@ const createExistingMediaItems = (product: Product | null): MediaItem[] => {
   return [...imageItems, ...videoItems];
 };
 
+const getDefaultFormValues = (): ProductFormValues => ({
+  title: '',
+  price: 0,
+  material: '',
+  category: '',
+  technology: '',
+  productionTimeHours: 24,
+  color: PRODUCT_COLOR_OPTIONS[0].label,
+  description: '',
+  weightGrossG: undefined,
+  dxCm: undefined,
+  dyCm: undefined,
+  dzCm: undefined,
+});
+
+const getProductFormValues = (product: Product): ProductFormValues => ({
+  title: product.title,
+  price: product.price,
+  material: product.material,
+  category: product.category,
+  technology: product.technology,
+  productionTimeHours: product.productionTimeHours ?? 24,
+  color: normalizeProductColor(product.color),
+  description: product.description,
+  weightGrossG: product.weightGrossG ?? undefined,
+  dxCm: product.dxCm ?? undefined,
+  dyCm: product.dyCm ?? undefined,
+  dzCm: product.dzCm ?? undefined,
+});
+
+const createVariantFromCurrent = (source: VariantDraft, count: number): VariantDraft => ({
+  id: `variant-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+  name: `Вариант ${count}`,
+  isBase: false,
+  order: count,
+  size: '',
+  otherAttribute: '',
+  form: {
+    ...source.form,
+    color: source.form.color
+  },
+  mediaItems: []
+});
+
+const revokeNewMediaUrls = (drafts: VariantDraft[]) => {
+  drafts.forEach((draft) => {
+    draft.mediaItems.forEach((item) => {
+      if (item.source === 'new') {
+        URL.revokeObjectURL(item.previewUrl);
+      }
+    });
+  });
+};
+
 export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProductModalProps) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const mediaItemsRef = useRef<MediaItem[]>([]);
-  const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [uploadError, setUploadError] = useState('');
   const [fileErrors, setFileErrors] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isDragActive, setIsDragActive] = useState(false);
   const [categories, setCategories] = useState<{ id: string; title: string }[]>([]);
   const [categoriesError, setCategoriesError] = useState('');
+  const [variantDrafts, setVariantDrafts] = useState<VariantDraft[]>([]);
+  const [activeVariantId, setActiveVariantId] = useState('');
+
   const {
     control,
     register,
     handleSubmit,
     reset,
     watch,
+    getValues,
     formState: { errors }
   } = useForm<ProductFormValues>({ resolver: zodResolver(productSchema) });
 
   useModalFocus(true, onClose, modalRef);
 
+  const activeVariant = useMemo(
+    () => variantDrafts.find((variant) => variant.id === activeVariantId) ?? null,
+    [variantDrafts, activeVariantId]
+  );
+
   const currentColor = watch('color');
   const selectedColorOption = useMemo(() => findColorOptionByLabel(currentColor ?? ''), [currentColor]);
 
   useEffect(() => {
-    const nextItems = createExistingMediaItems(product);
-    setMediaItems(nextItems);
+    const initialForm = product ? getProductFormValues(product) : getDefaultFormValues();
+    const initialDraft: VariantDraft = {
+      id: product?.id ? `base-${product.id}` : 'base-new',
+      name: 'Базовый товар',
+      isBase: true,
+      order: 1,
+      size: '',
+      otherAttribute: '',
+      form: initialForm,
+      mediaItems: createExistingMediaItems(product)
+    };
+
+    setVariantDrafts((prev) => {
+      revokeNewMediaUrls(prev);
+      return [initialDraft];
+    });
+    setActiveVariantId(initialDraft.id);
     setFileErrors([]);
     setUploadError('');
-    if (product) {
-      reset({
-        title: product.title,
-        price: product.price,
-        material: product.material,
-        category: product.category,
-        technology: product.technology,
-        productionTimeHours: product.productionTimeHours ?? 24,
-        color: normalizeProductColor(product.color),
-        description: product.description,
-        weightGrossG: product.weightGrossG ?? undefined,
-        dxCm: product.dxCm ?? undefined,
-        dyCm: product.dyCm ?? undefined,
-        dzCm: product.dzCm ?? undefined,
-      });
-    } else {
-      reset({
-        title: '',
-        price: 0,
-        material: '',
-        category: '',
-        technology: '',
-        productionTimeHours: 24,
-        color: PRODUCT_COLOR_OPTIONS[0].label,
-        description: '',
-        weightGrossG: undefined,
-        dxCm: undefined,
-        dyCm: undefined,
-        dzCm: undefined,
-      });
-    }
+    reset(initialForm);
   }, [product, reset]);
 
   useEffect(() => {
@@ -194,18 +270,41 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
   }, []);
 
   useEffect(() => {
-    mediaItemsRef.current = mediaItems;
-  }, [mediaItems]);
+    const subscription = watch((values) => {
+      if (!activeVariantId) return;
+      setVariantDrafts((prev) =>
+        prev.map((variant) =>
+          variant.id === activeVariantId
+            ? {
+                ...variant,
+                form: {
+                  ...variant.form,
+                  ...values,
+                }
+              }
+            : variant
+        )
+      );
+    });
+
+    return () => subscription.unsubscribe();
+  }, [watch, activeVariantId]);
+
+  useEffect(() => {
+    if (!activeVariant) return;
+    reset(activeVariant.form);
+  }, [activeVariant, reset]);
 
   useEffect(() => {
     return () => {
-      mediaItemsRef.current.forEach((item) => {
-        if (item.source === 'new') {
-          URL.revokeObjectURL(item.previewUrl);
-        }
-      });
+      revokeNewMediaUrls(variantDrafts);
     };
-  }, []);
+  }, [variantDrafts]);
+
+  const updateActiveVariant = (updater: (variant: VariantDraft) => VariantDraft) => {
+    if (!activeVariantId) return;
+    setVariantDrafts((prev) => prev.map((variant) => (variant.id === activeVariantId ? updater(variant) : variant)));
+  };
 
   const handleIncomingFiles = async (incoming: FileList | File[]) => {
     const nextErrors: string[] = [];
@@ -255,7 +354,10 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
     setUploadError('');
     setFileErrors(nextErrors);
     if (nextItems.length) {
-      setMediaItems((prev) => [...prev, ...nextItems]);
+      updateActiveVariant((variant) => ({
+        ...variant,
+        mediaItems: [...variant.mediaItems, ...nextItems]
+      }));
     }
   };
 
@@ -268,32 +370,94 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
   };
 
   const removeMediaItem = (itemId: string) => {
-    setMediaItems((prev) => {
-      const target = prev.find((item) => item.id === itemId);
+    updateActiveVariant((variant) => {
+      const target = variant.mediaItems.find((item) => item.id === itemId);
       if (target?.source === 'new') {
         URL.revokeObjectURL(target.previewUrl);
       }
-      return prev.filter((item) => item.id !== itemId);
+      return {
+        ...variant,
+        mediaItems: variant.mediaItems.filter((item) => item.id !== itemId)
+      };
     });
   };
 
   const moveMediaItem = (index: number, direction: -1 | 1) => {
-    setMediaItems((prev) => {
+    updateActiveVariant((variant) => {
       const nextIndex = index + direction;
-      if (nextIndex < 0 || nextIndex >= prev.length) {
-        return prev;
+      if (nextIndex < 0 || nextIndex >= variant.mediaItems.length) {
+        return variant;
       }
-      const next = [...prev];
-      const [item] = next.splice(index, 1);
-      next.splice(nextIndex, 0, item);
+      const nextItems = [...variant.mediaItems];
+      const [item] = nextItems.splice(index, 1);
+      nextItems.splice(nextIndex, 0, item);
+      return {
+        ...variant,
+        mediaItems: nextItems
+      };
+    });
+  };
+
+  const addVariant = () => {
+    const currentValues = getValues();
+    const source = activeVariant ?? variantDrafts[0];
+    if (!source) return;
+
+    const sourceWithCurrent: VariantDraft = {
+      ...source,
+      form: {
+        ...source.form,
+        ...currentValues
+      }
+    };
+
+    const nextVariant = createVariantFromCurrent(sourceWithCurrent, variantDrafts.length + 1);
+
+    setVariantDrafts((prev) => [...prev, nextVariant]);
+    setActiveVariantId(nextVariant.id);
+    reset(nextVariant.form);
+    setUploadError('');
+    setFileErrors([]);
+  };
+
+  const removeVariant = (variantId: string) => {
+    setVariantDrafts((prev) => {
+      const target = prev.find((variant) => variant.id === variantId);
+      if (!target || target.isBase) return prev;
+      target.mediaItems.forEach((item) => {
+        if (item.source === 'new') {
+          URL.revokeObjectURL(item.previewUrl);
+        }
+      });
+      const next = prev.filter((variant) => variant.id !== variantId).map((variant, index) => ({
+        ...variant,
+        order: index + 1,
+        name: variant.isBase ? 'Базовый товар' : `Вариант ${index + 1}`
+      }));
+      const fallback = next[0];
+      if (fallback) {
+        setActiveVariantId(fallback.id);
+        reset(fallback.form);
+      }
       return next;
     });
   };
 
+  const switchVariant = (variantId: string) => {
+    const next = variantDrafts.find((variant) => variant.id === variantId);
+    if (!next) return;
+    setActiveVariantId(variantId);
+    reset(next.form);
+    setUploadError('');
+    setFileErrors([]);
+  };
+
   const handleFormSubmit = async (values: ProductFormValues) => {
+    if (!activeVariant) return;
     setUploadError('');
 
-    const newItems = mediaItems.filter((item): item is MediaItem & { source: 'new'; file: File } => item.source === 'new' && Boolean(item.file));
+    const currentMediaItems = activeVariant.mediaItems;
+    const newItems = currentMediaItems.filter((item): item is MediaItem & { source: 'new'; file: File } => item.source === 'new' && Boolean(item.file));
     const uploadedById = new Map<string, string>();
 
     if (newItems.length > 0) {
@@ -315,7 +479,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
       }
     }
 
-    const resolvedMedia = mediaItems
+    const resolvedMedia = currentMediaItems
       .map((item) => {
         if (item.source === 'existing') {
           return {
@@ -341,6 +505,30 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
       return;
     }
 
+    const variantsDraft: SellerProductVariantDraft[] = variantDrafts.map((variant, index) => {
+      const knownMedia = variant.mediaItems
+        .map((item) => (item.source === 'existing' ? { kind: item.kind, url: item.remoteUrl ?? item.previewUrl } : null))
+        .filter((item): item is { kind: ProductMediaKind; url: string } => Boolean(item));
+
+      return {
+        id: variant.id,
+        name: variant.name,
+        order: index + 1,
+        isBase: variant.isBase,
+        fields: variant.form,
+        attributes: {
+          color: normalizeProductColor(variant.form.color),
+          size: variant.size || undefined,
+          other: variant.otherAttribute || undefined,
+        },
+        media: {
+          imageUrls: knownMedia.filter((item) => item.kind === 'image').map((item) => item.url),
+          videoUrls: knownMedia.filter((item) => item.kind === 'video').map((item) => item.url),
+          pendingLocalFiles: variant.mediaItems.filter((item) => item.source === 'new').map((item) => item.name)
+        }
+      };
+    });
+
     const payload: SellerProductPayload = {
       id: product?.id,
       title: values.title,
@@ -357,11 +545,14 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
       dxCm: values.dxCm,
       dyCm: values.dyCm,
       dzCm: values.dzCm,
+      variantsDraft,
     };
 
     await onSubmit(payload);
     onClose();
   };
+
+  const activeMediaItems = activeVariant?.mediaItems ?? [];
 
   return (
     <div className={styles.overlay} role="dialog" aria-modal="true" onClick={onClose}>
@@ -376,6 +567,43 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
             ✕
           </button>
         </div>
+
+        <section className={styles.section}>
+          <h4 className={styles.sectionTitle}>Объединение вариантов на одной карточке</h4>
+          <p className={styles.muted}>
+            Если товар выпускается в разных вариантах, например по цвету или размеру, объедините их в одну карточку.
+            Это позволит покупателю переключаться между вариантами внутри одной страницы товара.
+          </p>
+          <p className={styles.warningText}>
+            На текущем этапе backend не сохраняет variants: отправляется только активный вариант,
+            а структура вариантов хранится как интеграционный контракт на frontend.
+          </p>
+        </section>
+
+        <section className={styles.section}>
+          <div className={styles.variantHeaderRow}>
+            <h4 className={styles.sectionTitle}>Варианты товара</h4>
+            <Button type="button" variant="secondary" onClick={addVariant}>
+              Добавить вариант
+            </Button>
+          </div>
+          <div className={styles.variantsList}>
+            {variantDrafts.map((variant) => (
+              <div key={variant.id} className={`${styles.variantCard} ${variant.id === activeVariantId ? styles.variantCardActive : ''}`}>
+                <button type="button" className={styles.variantSwitch} onClick={() => switchVariant(variant.id)}>
+                  <span className={styles.variantName}>{variant.name}</span>
+                  <span className={styles.muted}>Цвет: {normalizeProductColor(variant.form.color)}</span>
+                </button>
+                {!variant.isBase ? (
+                  <button type="button" className={styles.removeFile} onClick={() => removeVariant(variant.id)}>
+                    Удалить
+                  </button>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </section>
+
         <form className={styles.form} onSubmit={handleSubmit(handleFormSubmit)}>
           <section className={styles.section}>
             <h4 className={styles.sectionTitle}>Главное о товаре</h4>
@@ -436,44 +664,68 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
                 {errors.price && <span className={styles.errorText}>{errors.price.message}</span>}
               </label>
             </div>
-            <label>
-              Цвет
-              <Controller
-                control={control}
-                name="color"
-                render={({ field }) => (
-                  <select
-                    className={errors.color ? styles.inputError : styles.input}
-                    value={field.value ?? ''}
-                    onChange={(event) => field.onChange(event.target.value)}
-                  >
-                    {PRODUCT_COLOR_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.label}>
-                        {option.label}
-                      </option>
-                    ))}
-                    {field.value && !findColorOptionByLabel(field.value) ? <option value={field.value}>Другое: {field.value}</option> : null}
-                  </select>
-                )}
-              />
-              <div className={styles.colorHelperRow}>
-                {selectedColorOption ? (
-                  <>
-                    <span
-                      className={styles.colorDot}
-                      style={{
-                        background: selectedColorOption.hex,
-                        borderColor: selectedColorOption.needsBorder ? 'var(--border)' : 'transparent'
-                      }}
-                    />
-                    <span className={styles.muted}>Выбран цвет: {selectedColorOption.label}</span>
-                  </>
-                ) : currentColor ? (
-                  <span className={styles.muted}>Старое значение: {currentColor}</span>
-                ) : null}
-              </div>
-              {errors.color && <span className={styles.errorText}>{errors.color.message}</span>}
-            </label>
+          </section>
+
+          <section className={styles.section}>
+            <h4 className={styles.sectionTitle}>Особенности варианта</h4>
+            <div className={styles.inlineFields}>
+              <label>
+                Цвет товара
+                <Controller
+                  control={control}
+                  name="color"
+                  render={({ field }) => (
+                    <select
+                      className={errors.color ? styles.inputError : styles.input}
+                      value={field.value ?? ''}
+                      onChange={(event) => field.onChange(event.target.value)}
+                    >
+                      {PRODUCT_COLOR_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.label}>
+                          {option.label}
+                        </option>
+                      ))}
+                      {field.value && !findColorOptionByLabel(field.value) ? <option value={field.value}>Другое: {field.value}</option> : null}
+                    </select>
+                  )}
+                />
+                <div className={styles.colorHelperRow}>
+                  {selectedColorOption ? (
+                    <>
+                      <span
+                        className={styles.colorDot}
+                        style={{
+                          background: selectedColorOption.hex,
+                          borderColor: selectedColorOption.needsBorder ? 'var(--border)' : 'transparent'
+                        }}
+                      />
+                      <span className={styles.muted}>Выбран цвет: {selectedColorOption.label}</span>
+                    </>
+                  ) : currentColor ? (
+                    <span className={styles.muted}>Старое значение: {currentColor}</span>
+                  ) : null}
+                </div>
+                {errors.color && <span className={styles.errorText}>{errors.color.message}</span>}
+              </label>
+              <label>
+                Размер (опционально)
+                <input
+                  className={styles.input}
+                  value={activeVariant?.size ?? ''}
+                  onChange={(event) => updateActiveVariant((variant) => ({ ...variant, size: event.target.value }))}
+                  placeholder="Например, M / 42"
+                />
+              </label>
+              <label>
+                Другое отличие (опционально)
+                <input
+                  className={styles.input}
+                  value={activeVariant?.otherAttribute ?? ''}
+                  onChange={(event) => updateActiveVariant((variant) => ({ ...variant, otherAttribute: event.target.value }))}
+                  placeholder="Например, матовый / глянец"
+                />
+              </label>
+            </div>
           </section>
 
           <section className={styles.section}>
@@ -512,7 +764,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
           </section>
 
           <section className={styles.section}>
-            <h4 className={styles.sectionTitle}>Изображения и видео</h4>
+            <h4 className={styles.sectionTitle}>Изображения и видео варианта</h4>
             <p className={styles.muted}>Поддержка: JPG, PNG, WEBP, HEIC/HEIF, MP4, MOV/QuickTime, WEBM. Лимиты: изображение до {formatSize(IMAGE_MAX_SIZE_BYTES)}, видео до {formatSize(VIDEO_MAX_SIZE_BYTES)} и до {VIDEO_MAX_DURATION_SECONDS} сек.</p>
             <div
               className={`${styles.dropzone} ${isDragActive ? styles.dropzoneActive : ''}`}
@@ -554,9 +806,9 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
               </div>
             </div>
 
-            {mediaItems.length > 0 && (
+            {activeMediaItems.length > 0 && (
               <div className={styles.fileList}>
-                {mediaItems.map((item, index) => (
+                {activeMediaItems.map((item, index) => (
                   <div key={item.id} className={styles.fileItem}>
                     {item.kind === 'image' ? (
                       <img src={item.previewUrl} alt={item.name} className={styles.filePreview} />
@@ -571,7 +823,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
                       <button type="button" className={styles.sortButton} disabled={index === 0} onClick={() => moveMediaItem(index, -1)}>
                         ↑
                       </button>
-                      <button type="button" className={styles.sortButton} disabled={index === mediaItems.length - 1} onClick={() => moveMediaItem(index, 1)}>
+                      <button type="button" className={styles.sortButton} disabled={index === activeMediaItems.length - 1} onClick={() => moveMediaItem(index, 1)}>
                         ↓
                       </button>
                       <button
