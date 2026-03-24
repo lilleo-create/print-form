@@ -2,6 +2,8 @@ import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import styles from '../../widgets/layout/Layout.module.css';
 import { useIsSeller } from '../lib/useIsSeller';
+import { useAuthStore } from '../../app/store/authStore';
+import { canAccessAdmin } from '../lib/authAccess';
 
 type Props = {
   isOpen: boolean;
@@ -23,6 +25,8 @@ export const ProfileMenu = ({
   onToggleTheme
 }: Props) => {
   const { isSeller, sellerCabinetLink, sellerShopLink } = useIsSeller();
+  const user = useAuthStore((state) => state.user);
+  const showAdminLink = canAccessAdmin(user);
 
   useEffect(() => {
     if (!isOpen || typeof window === 'undefined') return;
@@ -202,6 +206,19 @@ export const ProfileMenu = ({
                     <span className={styles.profileMenuText}>Ваш магазин</span>
                   </span>
                 )
+              ) : null}
+
+              {showAdminLink ? (
+                <Link
+                  to="/admin"
+                  className={`${styles.profileMenuItem} ${pathname.startsWith('/admin') ? styles.profileMenuItemActive : ''}`}
+                  onClick={onClose}
+                >
+                  <span className={styles.profileMenuIcon} aria-hidden>
+                    🛠️
+                  </span>
+                  <span className={styles.profileMenuText}>Админ-панель</span>
+                </Link>
               ) : null}
 
               <Link

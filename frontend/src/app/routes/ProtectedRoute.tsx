@@ -1,6 +1,7 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { Role } from '../../shared/types';
+import { hasRequiredRole } from '../../shared/lib/authAccess';
 
 interface ProtectedRouteProps {
   children: JSX.Element;
@@ -23,8 +24,7 @@ export const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) 
   }
 
   if (requiredRole) {
-    const allowed = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
-    if (!allowed.includes(user.role)) {
+    if (!hasRequiredRole(user, requiredRole)) {
       return <Navigate to="/account" replace />;
     }
   }
