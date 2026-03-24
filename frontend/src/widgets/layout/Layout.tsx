@@ -14,7 +14,7 @@ export const Layout = ({ showHeader = true }: LayoutProps) => {
   return (
     <div className={styles.app}>
       {showHeader ? <Header /> : null}
-      <main className={styles.main}>
+      <main className={styles.main} data-route-scroll-root>
         <Outlet />
       </main>
       <BottomNav />

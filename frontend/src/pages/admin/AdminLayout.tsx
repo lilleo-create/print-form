@@ -26,7 +26,7 @@ export const AdminLayout = () => {
             ))}
           </nav>
         </aside>
-        <div className={styles.content}>
+        <div className={styles.content} data-route-scroll-root>
           <Outlet />
         </div>
       </div>

@@ -28,12 +28,14 @@ import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { ShopPage } from './pages/ShopPage/ShopPage';
 import { CdekWidgetPage } from './pages/CdekWidgetPage';
 import { AuthBootstrap } from './app/providers/AuthBootstrap';
+import { RouteScrollManager } from './app/providers/RouteScrollManager';
 import { SellerProductDetailPage } from './pages/SellerProductDetailPage';
 
 const App = () => {
   return (
     <>
       <AuthBootstrap />
+      <RouteScrollManager />
       <Routes>
       <Route element={<Layout />}>
         <Route path="/" element={<LandingPage />} />
