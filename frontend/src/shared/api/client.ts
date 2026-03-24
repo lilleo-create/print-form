@@ -93,12 +93,11 @@ const readAccessToken = (payload: unknown): string | null => {
   return null;
 };
 
-const logoutAndRedirect = () => {
+const handleAuthInvalidation = () => {
   removeFromStorage(STORAGE_KEYS.session);
   setAccessToken(null);
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new Event('auth:logout'));
-    window.location.assign('/auth/login');
   }
 };
 
@@ -216,11 +215,11 @@ export function createFetchClient(baseUrl: string) {
         if (newToken) {
           return request<T>(path, { ...opts, token: newToken, retry: true });
         }
-        logoutAndRedirect();
+        handleAuthInvalidation();
       } catch (error) {
         const status = (error as { status?: number }).status;
         if (status === 401 || status === 403) {
-          logoutAndRedirect();
+          handleAuthInvalidation();
         }
         throw error;
       }
