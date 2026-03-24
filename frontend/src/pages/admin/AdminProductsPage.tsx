@@ -315,7 +315,9 @@ export const AdminProductsPage = () => {
         />
       ) : (
         <Table className={styles.table}>
-          <div className={`${styles.tableHeader} ${styles.productColumns}`}>
+          <div
+            className={`${styles.tableHeader} ${styles.productsColumns}`}
+          >
             <span>Товар</span>
             <span>Продавец</span>
             <span>Цена</span>
@@ -325,7 +327,7 @@ export const AdminProductsPage = () => {
           {rows.map((product) => (
             <div
               key={product.id}
-              className={`${styles.tableRow} ${styles.productColumns}`}
+              className={`${styles.tableRow} ${styles.productsColumns}`}
             >
               <div>
                 <strong>{product.title}</strong>

@@ -113,7 +113,9 @@ export const AdminKycPage = () => {
         <EmptyState title="Нет заявок" description="Заявки в выбранном статусе не найдены." />
       ) : (
         <Table className={styles.table}>
-          <div className={`${styles.tableHeader} ${styles.kycColumns}`}>
+          <div
+            className={`${styles.tableHeader} ${styles.kycColumns}`}
+          >
             <span>Пользователь</span>
             <span>Создана</span>
             <span>Статус</span>

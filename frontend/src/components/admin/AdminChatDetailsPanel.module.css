@@ -14,11 +14,6 @@
   min-width: 0;
 }
 
-.returnPanel p {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-
 .photos {
   display: flex;
   gap: 8px;
@@ -37,10 +32,6 @@
   gap: 12px;
   align-items: center;
   margin-top: 8px;
-  min-width: 0;
-}
-
-.returnProduct > div {
   min-width: 0;
 }
 
@@ -71,18 +62,13 @@
   padding: 8px;
   background: var(--bg-2);
   color: var(--text);
-  box-sizing: border-box;
-}
-
-.controls textarea {
-  min-height: 70px;
+  width: 100%;
 }
 
 .chatControls {
   display: flex;
   justify-content: flex-end;
   flex-wrap: wrap;
-  gap: 8px;
 }
 
 .messages {
@@ -123,17 +109,21 @@
   color: var(--muted);
 }
 
-@media (max-width: 640px) {
-  .returnProduct {
-    align-items: flex-start;
+@media (max-width: 900px) {
+  .chatControls {
+    justify-content: stretch;
   }
 
-  .chatControls > * {
+  .chatControls :global(button) {
     width: 100%;
   }
 
   .messageAdmin,
   .messageUser {
-    max-width: 92%;
+    max-width: 100%;
+  }
+
+  .returnProduct {
+    align-items: flex-start;
   }
 }

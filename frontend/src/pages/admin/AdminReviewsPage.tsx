@@ -112,7 +112,9 @@ export const AdminReviewsPage = () => {
         <EmptyState title="Нет отзывов" description="Отзывы в выбранном статусе отсутствуют." />
       ) : (
         <Table className={styles.table}>
-          <div className={`${styles.tableHeader} ${styles.reviewColumns}`}>
+          <div
+            className={`${styles.tableHeader} ${styles.reviewsColumns}`}
+          >
             <span>Товар</span>
             <span>Автор</span>
             <span>Рейтинг</span>
@@ -122,7 +124,7 @@ export const AdminReviewsPage = () => {
           {rows.map((review) => (
             <div
               key={review.id}
-              className={`${styles.tableRow} ${styles.reviewColumns}`}
+              className={`${styles.tableRow} ${styles.reviewsColumns}`}
             >
               <div>
                 <strong>{review.product?.title ?? review.productId ?? '—'}</strong>
