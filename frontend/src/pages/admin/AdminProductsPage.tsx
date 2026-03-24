@@ -22,7 +22,6 @@ export const AdminProductsPage = () => {
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selected, setSelected] = useState<AdminProduct | null>(null);
-  const [modalLoading, setModalLoading] = useState(false);
   const [modalError, setModalError] = useState('');
   const [notes, setNotes] = useState('');
   const [actionId, setActionId] = useState<string | null>(null);
@@ -55,19 +54,7 @@ export const AdminProductsPage = () => {
     setSelected(product);
     setNotes(product.moderationNotes ?? '');
     setModalError('');
-    setModalLoading(true);
     setIsPreviewBroken(false);
-
-    try {
-      const response = await api.getAdminProductById(product.id);
-      setSelected(response.data as AdminProduct);
-      setNotes(response.data.moderationNotes ?? '');
-    } catch {
-      setSelected(product);
-      setNotes(product.moderationNotes ?? '');
-    } finally {
-      setModalLoading(false);
-    }
   };
 
   const handleApprove = async (id: string) => {
@@ -180,9 +167,7 @@ export const AdminProductsPage = () => {
       )}
 
       <Modal isOpen={Boolean(selectedId)} onClose={actionId ? undefined : closeModal} className={styles.modal}>
-        {modalLoading ? (
-          <p className={styles.muted}>Загрузка карточки товара...</p>
-        ) : modalError ? (
+        {modalError ? (
           <>
             <p className={styles.errorText}>{modalError}</p>
             <div className={styles.modalActions}>
