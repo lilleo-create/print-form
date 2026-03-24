@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type DragEvent } from 'react';
-import { useForm } from 'react-hook-form';
+import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
+import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Product } from '../../shared/types';
@@ -7,6 +7,21 @@ import { Button } from '../../shared/ui/Button';
 import { useModalFocus } from '../../shared/lib/useModalFocus';
 import { api } from '../../shared/api';
 import styles from './SellerProductModal.module.css';
+import {
+  detectProductMediaKind,
+  formatSize,
+  getVideoDuration,
+  IMAGE_MAX_SIZE_BYTES,
+  PRODUCT_MEDIA_ACCEPT,
+  VIDEO_MAX_DURATION_SECONDS,
+  VIDEO_MAX_SIZE_BYTES,
+  type ProductMediaKind
+} from './productMedia';
+import {
+  findColorOptionByLabel,
+  normalizeProductColor,
+  PRODUCT_COLOR_OPTIONS
+} from './productColors';
 
 const productSchema = z.object({
   title: z.string().min(2, 'Введите название'),
@@ -20,7 +35,7 @@ const productSchema = z.object({
   category: z.string().min(1, 'Выберите категорию'),
   technology: z.string().min(2, 'Введите технологию'),
   productionTimeHours: z.number().int().min(1, 'Минимум 1 час').max(720, 'Максимум 720 часов'),
-  color: z.string().min(2, 'Введите цвет'),
+  color: z.string().min(2, 'Выберите цвет'),
   description: z.string().min(10, 'Добавьте описание'),
   weightGrossG: z.number().int().positive('Укажите вес (г)').optional(),
   dxCm: z.number().int().positive('Укажите длину (см)').optional(),
@@ -29,6 +44,16 @@ const productSchema = z.object({
 });
 
 type ProductFormValues = z.infer<typeof productSchema>;
+
+type MediaItem = {
+  id: string;
+  kind: ProductMediaKind;
+  source: 'existing' | 'new';
+  previewUrl: string;
+  name: string;
+  file?: File;
+  remoteUrl?: string;
+};
 
 export interface SellerProductPayload {
   id?: string;
@@ -54,10 +79,43 @@ interface SellerProductModalProps {
   onSubmit: (payload: SellerProductPayload) => Promise<void>;
 }
 
+const createExistingMediaItems = (product: Product | null): MediaItem[] => {
+  if (!product) return [];
+
+  const imageUrls = product.images?.length
+    ? [...product.images].sort((a, b) => a.sortOrder - b.sortOrder).map((image) => image.url)
+    : product.imageUrls?.length
+      ? product.imageUrls
+      : product.image
+        ? [product.image]
+        : [];
+
+  const imageItems = imageUrls.map((url, index) => ({
+    id: `existing-image-${index}`,
+    kind: 'image' as const,
+    source: 'existing' as const,
+    previewUrl: url,
+    remoteUrl: url,
+    name: `Изображение ${index + 1}`
+  }));
+
+  const videoItems = (product.videoUrls ?? []).map((url, index) => ({
+    id: `existing-video-${index}`,
+    kind: 'video' as const,
+    source: 'existing' as const,
+    previewUrl: url,
+    remoteUrl: url,
+    name: `Видео ${index + 1}`
+  }));
+
+  return [...imageItems, ...videoItems];
+};
+
 export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProductModalProps) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [files, setFiles] = useState<File[]>([]);
+  const mediaItemsRef = useRef<MediaItem[]>([]);
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [uploadError, setUploadError] = useState('');
   const [fileErrors, setFileErrors] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -65,6 +123,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
   const [categories, setCategories] = useState<{ id: string; title: string }[]>([]);
   const [categoriesError, setCategoriesError] = useState('');
   const {
+    control,
     register,
     handleSubmit,
     reset,
@@ -74,11 +133,12 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
 
   useModalFocus(true, onClose, modalRef);
 
-  const isImageFile = (file: File) => ['image/jpeg', 'image/png', 'image/webp'].includes(file.type);
-  const isVideoFile = (file: File) => ['video/mp4', 'video/webm'].includes(file.type);
+  const currentColor = watch('color');
+  const selectedColorOption = useMemo(() => findColorOptionByLabel(currentColor ?? ''), [currentColor]);
 
   useEffect(() => {
-    setFiles([]);
+    const nextItems = createExistingMediaItems(product);
+    setMediaItems(nextItems);
     setFileErrors([]);
     setUploadError('');
     if (product) {
@@ -89,7 +149,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
         category: product.category,
         technology: product.technology,
         productionTimeHours: product.productionTimeHours ?? 24,
-        color: product.color,
+        color: normalizeProductColor(product.color),
         description: product.description,
         weightGrossG: product.weightGrossG ?? undefined,
         dxCm: product.dxCm ?? undefined,
@@ -104,7 +164,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
         category: '',
         technology: '',
         productionTimeHours: 24,
-        color: '',
+        color: PRODUCT_COLOR_OPTIONS[0].label,
         description: '',
         weightGrossG: undefined,
         dxCm: undefined,
@@ -133,36 +193,69 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
     };
   }, []);
 
-  const handleIncomingFiles = (incoming: FileList | File[]) => {
+  useEffect(() => {
+    mediaItemsRef.current = mediaItems;
+  }, [mediaItems]);
+
+  useEffect(() => {
+    return () => {
+      mediaItemsRef.current.forEach((item) => {
+        if (item.source === 'new') {
+          URL.revokeObjectURL(item.previewUrl);
+        }
+      });
+    };
+  }, []);
+
+  const handleIncomingFiles = async (incoming: FileList | File[]) => {
     const nextErrors: string[] = [];
-    const nextFiles: File[] = [];
+    const nextItems: MediaItem[] = [];
 
-    Array.from(incoming).forEach((file) => {
-      const isImage = isImageFile(file);
-      const isVideo = isVideoFile(file);
+    for (const file of Array.from(incoming)) {
+      const kind = detectProductMediaKind(file);
 
-      if (!isImage && !isVideo) {
+      if (!kind) {
         nextErrors.push(`Файл ${file.name}: неподдерживаемый формат.`);
-        return;
+        continue;
       }
 
-      if (isImage && file.size > 10 * 1024 * 1024) {
-        nextErrors.push(`Файл ${file.name}: изображение больше 10 МБ.`);
-        return;
+      if (kind === 'image' && file.size > IMAGE_MAX_SIZE_BYTES) {
+        nextErrors.push(`Файл ${file.name}: изображение больше ${formatSize(IMAGE_MAX_SIZE_BYTES)}.`);
+        continue;
       }
 
-      if (isVideo && file.size > 100 * 1024 * 1024) {
-        nextErrors.push(`Файл ${file.name}: видео больше 100 МБ.`);
-        return;
+      if (kind === 'video' && file.size > VIDEO_MAX_SIZE_BYTES) {
+        nextErrors.push(`Файл ${file.name}: видео больше ${formatSize(VIDEO_MAX_SIZE_BYTES)}.`);
+        continue;
       }
 
-      nextFiles.push(file);
-    });
+      if (kind === 'video') {
+        try {
+          const duration = await getVideoDuration(file);
+          if (duration > VIDEO_MAX_DURATION_SECONDS) {
+            nextErrors.push(`Файл ${file.name}: длительность больше ${VIDEO_MAX_DURATION_SECONDS} сек.`);
+            continue;
+          }
+        } catch {
+          nextErrors.push(`Файл ${file.name}: не удалось прочитать длительность видео.`);
+          continue;
+        }
+      }
+
+      nextItems.push({
+        id: `${Date.now()}-${file.name}-${Math.random().toString(16).slice(2)}`,
+        kind,
+        source: 'new',
+        file,
+        name: file.name,
+        previewUrl: URL.createObjectURL(file)
+      });
+    }
 
     setUploadError('');
     setFileErrors(nextErrors);
-    if (nextFiles.length) {
-      setFiles((prev) => [...prev, ...nextFiles]);
+    if (nextItems.length) {
+      setMediaItems((prev) => [...prev, ...nextItems]);
     }
   };
 
@@ -170,37 +263,51 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
     event.preventDefault();
     setIsDragActive(false);
     if (event.dataTransfer.files?.length) {
-      handleIncomingFiles(event.dataTransfer.files);
+      void handleIncomingFiles(event.dataTransfer.files);
     }
+  };
+
+  const removeMediaItem = (itemId: string) => {
+    setMediaItems((prev) => {
+      const target = prev.find((item) => item.id === itemId);
+      if (target?.source === 'new') {
+        URL.revokeObjectURL(target.previewUrl);
+      }
+      return prev.filter((item) => item.id !== itemId);
+    });
+  };
+
+  const moveMediaItem = (index: number, direction: -1 | 1) => {
+    setMediaItems((prev) => {
+      const nextIndex = index + direction;
+      if (nextIndex < 0 || nextIndex >= prev.length) {
+        return prev;
+      }
+      const next = [...prev];
+      const [item] = next.splice(index, 1);
+      next.splice(nextIndex, 0, item);
+      return next;
+    });
   };
 
   const handleFormSubmit = async (values: ProductFormValues) => {
     setUploadError('');
-    const existingImageUrls =
-      product?.images?.map((image) => image.url) ?? (product?.image ? [product.image] : []);
-    const existingVideoUrls = product?.videoUrls ?? [];
-    let imageUrls = existingImageUrls;
-    let videoUrls = existingVideoUrls;
 
-    if (files.length > 0) {
+    const newItems = mediaItems.filter((item): item is MediaItem & { source: 'new'; file: File } => item.source === 'new' && Boolean(item.file));
+    const uploadedById = new Map<string, string>();
+
+    if (newItems.length > 0) {
       setIsUploading(true);
       try {
-        const result = await api.uploadSellerImages(files);
+        const uploadFiles = newItems.map((item) => item.file);
+        const result = await api.uploadSellerImages(uploadFiles);
         const urls = result.data.urls;
 
-        const uploadedImageUrls: string[] = [];
-        const uploadedVideoUrls: string[] = [];
-
-        urls.forEach((url, index) => {
-          const file = files[index];
-          if (!file) return;
-          if (isVideoFile(file)) uploadedVideoUrls.push(url);
-          else uploadedImageUrls.push(url);
+        newItems.forEach((item, index) => {
+          const url = urls[index];
+          if (url) uploadedById.set(item.id, url);
         });
-
-        imageUrls = uploadedImageUrls.length ? [...existingImageUrls, ...uploadedImageUrls] : existingImageUrls;
-        videoUrls = uploadedVideoUrls.length ? [...existingVideoUrls, ...uploadedVideoUrls] : existingVideoUrls;
-      } catch (_error) {
+      } catch {
         setUploadError('Не удалось загрузить файлы. Попробуйте снова.');
         return;
       } finally {
@@ -208,6 +315,26 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
       }
     }
 
+    const resolvedMedia = mediaItems
+      .map((item) => {
+        if (item.source === 'existing') {
+          return {
+            kind: item.kind,
+            url: item.remoteUrl ?? item.previewUrl
+          };
+        }
+
+        const uploadedUrl = uploadedById.get(item.id);
+        if (!uploadedUrl) return null;
+        return {
+          kind: item.kind,
+          url: uploadedUrl
+        };
+      })
+      .filter((item): item is { kind: ProductMediaKind; url: string } => Boolean(item));
+
+    const imageUrls = resolvedMedia.filter((item) => item.kind === 'image').map((item) => item.url);
+    const videoUrls = resolvedMedia.filter((item) => item.kind === 'video').map((item) => item.url);
 
     if (imageUrls.length === 0) {
       setUploadError('Добавьте хотя бы одно изображение.');
@@ -222,7 +349,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
       category: values.category,
       technology: values.technology,
       productionTimeHours: values.productionTimeHours,
-      color: values.color,
+      color: normalizeProductColor(values.color),
       description: values.description,
       imageUrls,
       videoUrls,
@@ -245,97 +372,148 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
       >
         <div className={styles.header}>
           <h3>{product ? 'Редактировать товар' : 'Добавить товар'}</h3>
-          <button className={styles.close} onClick={onClose} aria-label="Закрыть форму">
+          <button className={styles.close} onClick={onClose} aria-label="Закрыть форму" type="button">
             ✕
           </button>
         </div>
         <form className={styles.form} onSubmit={handleSubmit(handleFormSubmit)}>
-          <label>
-            Название
-            <input className={errors.title ? styles.inputError : styles.input} placeholder="Название товара" {...register('title')} />
-            {errors.title && <span className={styles.errorText}>{errors.title.message}</span>}
-          </label>
-          <label>
-            Цена
-            <input
-              type="number"
-              inputMode="numeric"
-              min={1}
-              className={errors.price ? styles.inputError : styles.input}
-              placeholder="Например, 1200"
-              {...register('price', { valueAsNumber: true })}
-            />
-            {errors.price && <span className={styles.errorText}>{errors.price.message}</span>}
-          </label>
-          <label>
-            Материал
-            <input className={errors.material ? styles.inputError : styles.input} placeholder="PLA" {...register('material')} />
-            {errors.material && <span className={styles.errorText}>{errors.material.message}</span>}
-          </label>
-          <label>
-            Категория
-            <select className={errors.category ? styles.inputError : styles.input} {...register('category')}>
-              <option value="">Выберите категорию</option>
-              {categories.map((category) => (
-                <option key={category.id} value={category.title}>
-                  {category.title}
-                </option>
-              ))}
-            </select>
-            {categoriesError && <span className={styles.errorText}>{categoriesError}</span>}
-            {errors.category && <span className={styles.errorText}>{errors.category.message}</span>}
-          </label>
-          <label>
-            Технология
-            <input className={errors.technology ? styles.inputError : styles.input} placeholder="FDM" {...register('technology')} />
-            {errors.technology && <span className={styles.errorText}>{errors.technology.message}</span>}
-          </label>
-          <label>
-            Время изготовления (часы)
-            <input type="number" min={1} max={720} className={errors.productionTimeHours ? styles.inputError : styles.input} placeholder="24" {...register('productionTimeHours', { valueAsNumber: true })} />
-            {errors.productionTimeHours && <span className={styles.errorText}>{errors.productionTimeHours.message}</span>}
-          </label>
-          <label>
-            Цвет
-            <input className={errors.color ? styles.inputError : styles.input} placeholder="Белый" {...register('color')} />
-            {errors.color && <span className={styles.errorText}>{errors.color.message}</span>}
-          </label>
-          <label>
-            Описание
-            <textarea
-              rows={4}
-              className={errors.description ? styles.inputError : styles.input}
-              placeholder="Расскажите о товаре"
-              {...register('description')}
-            />
-            {errors.description && <span className={styles.errorText}>{errors.description.message}</span>}
-          </label>
+          <section className={styles.section}>
+            <h4 className={styles.sectionTitle}>Главное о товаре</h4>
+            <label>
+              Название
+              <input className={errors.title ? styles.inputError : styles.input} placeholder="Название товара" {...register('title')} />
+              {errors.title && <span className={styles.errorText}>{errors.title.message}</span>}
+            </label>
+            <label>
+              Краткое описание
+              <input className={errors.material ? styles.inputError : styles.input} placeholder="Материал / ключевая особенность" {...register('material')} />
+              {errors.material && <span className={styles.errorText}>{errors.material.message}</span>}
+            </label>
+            <label>
+              Полное описание
+              <textarea
+                rows={4}
+                className={errors.description ? styles.inputError : styles.input}
+                placeholder="Расскажите о товаре"
+                {...register('description')}
+              />
+              {errors.description && <span className={styles.errorText}>{errors.description.message}</span>}
+            </label>
+            <label>
+              Категория
+              <select className={errors.category ? styles.inputError : styles.input} {...register('category')}>
+                <option value="">Выберите категорию</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.title}>
+                    {category.title}
+                  </option>
+                ))}
+              </select>
+              {categoriesError && <span className={styles.errorText}>{categoriesError}</span>}
+              {errors.category && <span className={styles.errorText}>{errors.category.message}</span>}
+            </label>
+            <div className={styles.inlineFields}>
+              <label>
+                Технология
+                <input className={errors.technology ? styles.inputError : styles.input} placeholder="FDM" {...register('technology')} />
+                {errors.technology && <span className={styles.errorText}>{errors.technology.message}</span>}
+              </label>
+              <label>
+                Срок изготовления (часы)
+                <input type="number" min={1} max={720} className={errors.productionTimeHours ? styles.inputError : styles.input} placeholder="24" {...register('productionTimeHours', { valueAsNumber: true })} />
+                {errors.productionTimeHours && <span className={styles.errorText}>{errors.productionTimeHours.message}</span>}
+              </label>
+              <label>
+                Цена
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  className={errors.price ? styles.inputError : styles.input}
+                  placeholder="Например, 1200"
+                  {...register('price', { valueAsNumber: true })}
+                />
+                {errors.price && <span className={styles.errorText}>{errors.price.message}</span>}
+              </label>
+            </div>
+            <label>
+              Цвет
+              <Controller
+                control={control}
+                name="color"
+                render={({ field }) => (
+                  <select
+                    className={errors.color ? styles.inputError : styles.input}
+                    value={field.value ?? ''}
+                    onChange={(event) => field.onChange(event.target.value)}
+                  >
+                    {PRODUCT_COLOR_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.label}>
+                        {option.label}
+                      </option>
+                    ))}
+                    {field.value && !findColorOptionByLabel(field.value) ? <option value={field.value}>Другое: {field.value}</option> : null}
+                  </select>
+                )}
+              />
+              <div className={styles.colorHelperRow}>
+                {selectedColorOption ? (
+                  <>
+                    <span
+                      className={styles.colorDot}
+                      style={{
+                        background: selectedColorOption.hex,
+                        borderColor: selectedColorOption.needsBorder ? 'var(--border)' : 'transparent'
+                      }}
+                    />
+                    <span className={styles.muted}>Выбран цвет: {selectedColorOption.label}</span>
+                  </>
+                ) : currentColor ? (
+                  <span className={styles.muted}>Старое значение: {currentColor}</span>
+                ) : null}
+              </div>
+              {errors.color && <span className={styles.errorText}>{errors.color.message}</span>}
+            </label>
+          </section>
 
-          <div>
-            <h4>Характеристики</h4>
-          </div>
-          <label>
-            Вес брутто (г)
-            <input type="number" min={1} className={errors.weightGrossG ? styles.inputError : styles.input} {...register('weightGrossG', { setValueAs: (value) => (value === '' ? undefined : Number(value)) })} />
-            {errors.weightGrossG && <span className={styles.errorText}>{errors.weightGrossG.message}</span>}
-          </label>
-          <label>
-            Длина (см)
-            <input type="number" min={1} className={errors.dxCm ? styles.inputError : styles.input} {...register('dxCm', { setValueAs: (value) => (value === '' ? undefined : Number(value)) })} />
-            {errors.dxCm && <span className={styles.errorText}>{errors.dxCm.message}</span>}
-          </label>
-          <label>
-            Ширина (см)
-            <input type="number" min={1} className={errors.dyCm ? styles.inputError : styles.input} {...register('dyCm', { setValueAs: (value) => (value === '' ? undefined : Number(value)) })} />
-            {errors.dyCm && <span className={styles.errorText}>{errors.dyCm.message}</span>}
-          </label>
-          <label>
-            Высота (см)
-            <input type="number" min={1} className={errors.dzCm ? styles.inputError : styles.input} {...register('dzCm', { setValueAs: (value) => (value === '' ? undefined : Number(value)) })} />
-            {errors.dzCm && <span className={styles.errorText}>{errors.dzCm.message}</span>}
-          </label>
-          <label>
-            Медиа товара
+          <section className={styles.section}>
+            <h4 className={styles.sectionTitle}>Вес и габариты с упаковкой</h4>
+            <div className={styles.inlineFields}>
+              <label>
+                Вес брутто (г)
+                <input type="number" min={1} className={errors.weightGrossG ? styles.inputError : styles.input} {...register('weightGrossG', { setValueAs: (value) => (value === '' ? undefined : Number(value)) })} />
+                {errors.weightGrossG && <span className={styles.errorText}>{errors.weightGrossG.message}</span>}
+              </label>
+              <label>
+                Длина (см)
+                <input type="number" min={1} className={errors.dxCm ? styles.inputError : styles.input} {...register('dxCm', { setValueAs: (value) => (value === '' ? undefined : Number(value)) })} />
+                {errors.dxCm && <span className={styles.errorText}>{errors.dxCm.message}</span>}
+              </label>
+              <label>
+                Ширина (см)
+                <input type="number" min={1} className={errors.dyCm ? styles.inputError : styles.input} {...register('dyCm', { setValueAs: (value) => (value === '' ? undefined : Number(value)) })} />
+                {errors.dyCm && <span className={styles.errorText}>{errors.dyCm.message}</span>}
+              </label>
+              <label>
+                Высота (см)
+                <input type="number" min={1} className={errors.dzCm ? styles.inputError : styles.input} {...register('dzCm', { setValueAs: (value) => (value === '' ? undefined : Number(value)) })} />
+                {errors.dzCm && <span className={styles.errorText}>{errors.dzCm.message}</span>}
+              </label>
+            </div>
+
+            {(() => {
+              const dx = watch('dxCm');
+              const dy = watch('dyCm');
+              const dz = watch('dzCm');
+              const weight = watch('weightGrossG');
+              if (!dx || !dy || !dz) return null;
+              return <p className={styles.muted}>Размер: {dx}×{dy}×{dz} см{weight ? `, вес: ${weight} г` : ''}</p>;
+            })()}
+          </section>
+
+          <section className={styles.section}>
+            <h4 className={styles.sectionTitle}>Изображения и видео</h4>
+            <p className={styles.muted}>Поддержка: JPG, PNG, WEBP, HEIC/HEIF, MP4, MOV/QuickTime, WEBM. Лимиты: изображение до {formatSize(IMAGE_MAX_SIZE_BYTES)}, видео до {formatSize(VIDEO_MAX_SIZE_BYTES)} и до {VIDEO_MAX_DURATION_SECONDS} сек.</p>
             <div
               className={`${styles.dropzone} ${isDragActive ? styles.dropzoneActive : ''}`}
               onDragOver={(event) => {
@@ -357,12 +535,12 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".jpg,.jpeg,.png,.webp,.mp4,.webm"
+                accept={PRODUCT_MEDIA_ACCEPT}
                 multiple
                 className={styles.fileInput}
                 onChange={(event) => {
                   if (event.target.files?.length) {
-                    handleIncomingFiles(event.target.files);
+                    void handleIncomingFiles(event.target.files);
                   }
                   event.target.value = '';
                 }}
@@ -370,33 +548,40 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
               <div className={styles.dropzoneContent}>
                 <span className={styles.dropzoneIcon}>⬆️</span>
                 <div>
-                  <p>Загрузка файлов</p>
+                  <p>Загрузка медиа</p>
                   <p className={styles.dropzoneHint}>Перетащите файлы сюда или нажмите для выбора</p>
                 </div>
               </div>
             </div>
-            {files.length > 0 && (
+
+            {mediaItems.length > 0 && (
               <div className={styles.fileList}>
-                {files.map((file, index) => (
-                  <div key={`${file.name}-${index}`} className={styles.fileItem}>
-                    {isImageFile(file) ? (
-                      <img
-                        src={URL.createObjectURL(file)}
-                        alt={file.name}
-                        className={styles.filePreview}
-                        onLoad={(event) => URL.revokeObjectURL((event.target as HTMLImageElement).src)}
-                      />
+                {mediaItems.map((item, index) => (
+                  <div key={item.id} className={styles.fileItem}>
+                    {item.kind === 'image' ? (
+                      <img src={item.previewUrl} alt={item.name} className={styles.filePreview} />
                     ) : (
-                      <span className={styles.videoIcon}>▶</span>
+                      <video src={item.previewUrl} className={styles.filePreview} muted playsInline preload="metadata" />
                     )}
-                    <span className={styles.fileName}>{file.name}</span>
-                    <button
-                      type="button"
-                      className={styles.removeFile}
-                      onClick={() => setFiles((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}
-                    >
-                      Удалить
-                    </button>
+                    <div className={styles.fileMeta}>
+                      <span className={styles.fileName}>{item.name}</span>
+                      <span className={styles.fileType}>{item.kind === 'image' ? 'Фото' : 'Видео'}{index === 0 ? ' • Главное медиа' : ''}</span>
+                    </div>
+                    <div className={styles.fileActions}>
+                      <button type="button" className={styles.sortButton} disabled={index === 0} onClick={() => moveMediaItem(index, -1)}>
+                        ↑
+                      </button>
+                      <button type="button" className={styles.sortButton} disabled={index === mediaItems.length - 1} onClick={() => moveMediaItem(index, 1)}>
+                        ↓
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.removeFile}
+                        onClick={() => removeMediaItem(item.id)}
+                      >
+                        Удалить
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -409,16 +594,8 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
               </ul>
             )}
             {uploadError && <span className={styles.errorText}>{uploadError}</span>}
-          </label>
+          </section>
 
-          {(() => {
-            const dx = watch('dxCm');
-            const dy = watch('dyCm');
-            const dz = watch('dzCm');
-            const weight = watch('weightGrossG');
-            if (!dx || !dy || !dz) return null;
-            return <p className={styles.muted}>Размер: {dx}×{dy}×{dz} см{weight ? `, вес: ${weight} г` : ''}</p>;
-          })()}
           <div className={styles.actions}>
             <Button type="submit" disabled={isUploading}>
               {isUploading ? 'Загрузка…' : 'Сохранить'}
