@@ -20,9 +20,7 @@ export const AdminProductsPage = () => {
   const [status, setStatus] = useState<(typeof statusOptions)[number]>('PENDING');
   const [products, setProducts] = useState<AdminProduct[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [selected, setSelected] = useState<AdminProduct | null>(null);
-  const [modalError, setModalError] = useState('');
+  const [selectedProduct, setSelectedProduct] = useState<AdminProduct | null>(null);
   const [notes, setNotes] = useState('');
   const [actionId, setActionId] = useState<string | null>(null);
   const [isPreviewBroken, setIsPreviewBroken] = useState(false);
@@ -42,18 +40,14 @@ export const AdminProductsPage = () => {
   }, [status]);
 
   const closeModal = () => {
-    setSelectedId(null);
-    setSelected(null);
+    setSelectedProduct(null);
     setNotes('');
-    setModalError('');
     setIsPreviewBroken(false);
   };
 
-  const openDetails = async (product: AdminProduct) => {
-    setSelectedId(product.id);
-    setSelected(product);
+  const openModerationModal = (product: AdminProduct) => {
+    setSelectedProduct(product);
     setNotes(product.moderationNotes ?? '');
-    setModalError('');
     setIsPreviewBroken(false);
   };
 
@@ -156,7 +150,7 @@ export const AdminProductsPage = () => {
               <div className={styles.actions}>
                 <Button
                   type="button"
-                  onClick={() => openDetails(product)}
+                  onClick={() => openModerationModal(product)}
                 >
                   Подробнее
                 </Button>
@@ -166,36 +160,30 @@ export const AdminProductsPage = () => {
         </Table>
       )}
 
-      <Modal isOpen={Boolean(selectedId)} onClose={actionId ? undefined : closeModal} className={styles.modal}>
-        {modalError ? (
+      <Modal isOpen={Boolean(selectedProduct)} onClose={actionId ? undefined : closeModal} className={styles.modal}>
+        {selectedProduct ? (
           <>
-            <p className={styles.errorText}>{modalError}</p>
-            <div className={styles.modalActions}>
-              <Button type="button" onClick={closeModal}>
-                Закрыть
-              </Button>
-            </div>
-          </>
-        ) : selected ? (
-          <>
-            <h2>{selected.title}</h2>
-            <p className={styles.muted}>{selected.description || 'Описание не заполнено.'}</p>
+            <h2>{selectedProduct.title}</h2>
+            <p className={styles.muted}>{selectedProduct.description || 'Описание не заполнено.'}</p>
             <div>
-              <strong>Продавец:</strong> {selected.seller?.name ?? '—'} {selected.seller?.email ? `(${selected.seller.email})` : ''}
+              <strong>Продавец:</strong> {selectedProduct.seller?.name ?? '—'}{' '}
+              {selectedProduct.seller?.email ? `(${selectedProduct.seller.email})` : ''}
             </div>
             <div>
-              <strong>Цена:</strong> {selected.price.toLocaleString('ru-RU')} ₽
+              <strong>Цена:</strong> {selectedProduct.price.toLocaleString('ru-RU')} ₽
             </div>
             <div>
-              <strong>Категория:</strong> {String(selected.category || '—')}
+              <strong>Категория:</strong> {String(selectedProduct.category || '—')}
             </div>
             <div className={styles.previewList}>
               {(() => {
-                const mainImage = resolveImageUrl(getProductMainImage(selected));
+                const mainImage = resolveImageUrl(getProductMainImage(selectedProduct));
                 if (!mainImage || isPreviewBroken) {
                   return <div className={styles.imagePlaceholder}>Нет изображения</div>;
                 }
-                return <img src={mainImage} alt={selected.title} onError={() => setIsPreviewBroken(true)} />;
+                return (
+                  <img src={mainImage} alt={selectedProduct.title} onError={() => setIsPreviewBroken(true)} />
+                );
               })()}
             </div>
             <label>
@@ -203,23 +191,35 @@ export const AdminProductsPage = () => {
               <textarea value={notes} onChange={(event) => setNotes(event.target.value)} />
             </label>
             <div className={styles.modalActions}>
-              <Button type="button" onClick={() => handleApprove(selected.id)} disabled={actionId === selected.id}>
+              <Button
+                type="button"
+                onClick={() => handleApprove(selectedProduct.id)}
+                disabled={actionId === selectedProduct.id}
+              >
                 Одобрить
               </Button>
               <Button
                 type="button"
-                onClick={() => handleReject(selected.id, 'needs-edit')}
-                disabled={actionId === selected.id}
+                onClick={() => handleReject(selectedProduct.id, 'needs-edit')}
+                disabled={actionId === selectedProduct.id}
               >
                 Нужны правки
               </Button>
-              <Button type="button" onClick={() => handleReject(selected.id, 'reject')} disabled={actionId === selected.id}>
+              <Button
+                type="button"
+                onClick={() => handleReject(selectedProduct.id, 'reject')}
+                disabled={actionId === selectedProduct.id}
+              >
                 Отклонить
               </Button>
-              <Button type="button" onClick={() => handleArchive(selected.id)} disabled={actionId === selected.id}>
+              <Button
+                type="button"
+                onClick={() => handleArchive(selectedProduct.id)}
+                disabled={actionId === selectedProduct.id}
+              >
                 Архивировать
               </Button>
-              <Button type="button" onClick={closeModal} disabled={actionId === selected.id}>
+              <Button type="button" onClick={closeModal} disabled={actionId === selectedProduct.id}>
                 Закрыть
               </Button>
             </div>
