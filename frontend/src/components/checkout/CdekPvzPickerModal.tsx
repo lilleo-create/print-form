@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useBodyScrollLock } from '../../shared/lib/useBodyScrollLock';
 import styles from './CdekPvzPickerModal.module.css';
 
 export type CdekPvzSelection = {
@@ -39,22 +40,7 @@ export function CdekPvzPickerModal({
   const [iframeToken, setIframeToken] = useState(0);
 
   const iframeSrc = useMemo(() => `/cdek-widget?city=${encodeURIComponent(city)}`, [city]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const scrollY = window.scrollY;
-    document.body.style.overflow = 'hidden';
-    document.body.style.position = 'fixed';
-    document.body.style.top = `-${scrollY}px`;
-    document.body.style.width = '100%';
-    return () => {
-      document.body.style.overflow = '';
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.width = '';
-      window.scrollTo(0, scrollY);
-    };
-  }, [isOpen]);
+  useBodyScrollLock(isOpen);
 
   useEffect(() => {
     if (!isOpen) return;
