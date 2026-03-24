@@ -2,8 +2,10 @@ import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { createPortal } from 'react-dom';
 import { Product } from '../../shared/types';
 import { Button } from '../../shared/ui/Button';
+import { useBodyScrollLock } from '../../shared/lib/useBodyScrollLock';
 import { useModalFocus } from '../../shared/lib/useModalFocus';
 import { api } from '../../shared/api';
 import styles from './SellerProductModal.module.css';
@@ -218,6 +220,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
   } = useForm<ProductFormValues>({ resolver: zodResolver(productSchema) });
 
   useModalFocus(true, onClose, modalRef);
+  useBodyScrollLock(true);
 
   const activeVariant = useMemo(
     () => variantDrafts.find((variant) => variant.id === activeVariantId) ?? null,
@@ -554,7 +557,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
 
   const activeMediaItems = activeVariant?.mediaItems ?? [];
 
-  return (
+  return createPortal(
     <div className={styles.overlay} role="dialog" aria-modal="true" onClick={onClose}>
       <div
         className={styles.modal}
@@ -858,6 +861,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
