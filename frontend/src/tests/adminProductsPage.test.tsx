@@ -52,6 +52,8 @@ describe('AdminProductsPage', () => {
     expect(await screen.findByText('Описание не заполнено.')).toBeInTheDocument();
     expect(screen.getByDisplayValue('Needs review')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Одобрить' })).toBeInTheDocument();
+    expect(screen.getAllByText('Test product')).toHaveLength(2);
+    expect(api.getAdminProducts).toHaveBeenCalledTimes(1);
   });
 
   it('sends moderation actions using selected product id from list', async () => {
