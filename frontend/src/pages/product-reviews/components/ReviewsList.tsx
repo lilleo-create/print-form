@@ -31,6 +31,7 @@ export const ReviewsList = ({
   const [replyComposerOpen, setReplyComposerOpen] = useState<Record<string, boolean>>({});
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [replySubmitting, setReplySubmitting] = useState<Record<string, boolean>>({});
+  const [reactionErrors, setReactionErrors] = useState<Record<string, string>>({});
 
   const mergedReviews = useMemo(
     () => reviews.map((review) => localReviews[review.id] ?? review),
@@ -49,6 +50,13 @@ export const ReviewsList = ({
   const handleReaction = async (review: Review, reaction: 'LIKE' | 'DISLIKE') => {
     const productId = review.productId;
     if (!productId) return;
+
+    setReactionErrors((prev) => {
+      if (!prev[review.id]) return prev;
+      const next = { ...prev };
+      delete next[review.id];
+      return next;
+    });
 
     const currentReaction = review.currentUserReaction ?? null;
     const nextReaction = currentReaction === reaction ? null : reaction;
@@ -91,7 +99,7 @@ export const ReviewsList = ({
         currentUserReaction: payload.currentUserReaction ?? nextReaction,
         reactions: payload.reactions ?? item.reactions
       }));
-    } catch {
+    } catch (error) {
       updateReview(review.id, (item) => ({
         ...item,
         currentUserReaction: currentReaction,
@@ -99,6 +107,30 @@ export const ReviewsList = ({
           likes: currentLikes,
           dislikes: currentDislikes
         }
+      }));
+
+      const status =
+        typeof error === 'object' &&
+        error !== null &&
+        'status' in error &&
+        typeof (error as { status?: unknown }).status === 'number'
+          ? (error as { status: number }).status
+          : undefined;
+
+      const message =
+        status === 401
+          ? 'Чтобы оценить отзыв, нужно войти в аккаунт.'
+          : status === 403
+            ? 'У вас нет прав на эту реакцию.'
+            : status === 404
+              ? 'Отзыв не найден или endpoint реакций недоступен.'
+              : status === 405
+                ? 'Метод реакции не поддерживается сервером.'
+                : 'Не удалось сохранить реакцию. Попробуйте ещё раз.';
+
+      setReactionErrors((prev) => ({
+        ...prev,
+        [review.id]: message
       }));
     }
   };
@@ -249,6 +281,10 @@ export const ReviewsList = ({
                 </button>
               </div>
             </div>
+
+            {reactionErrors[review.id] && (
+              <p className={styles.repliesLoading}>{reactionErrors[review.id]}</p>
+            )}
 
             {replyComposerOpen[review.id] && (
               <div className={styles.replyComposer}>
