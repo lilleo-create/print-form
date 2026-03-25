@@ -5,6 +5,7 @@ type ProductLike = Partial<Product> & {
   imageUrl?: string | null;
   imageUrls?: Array<string | null | undefined>;
   images?: Array<{ url?: string | null } | string | null> | null;
+  specs?: ProductSpec[] | null;
   characteristics?: ProductSpec[] | null;
   variants?: ProductVariant[] | null;
 };

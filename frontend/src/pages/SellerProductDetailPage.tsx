@@ -6,6 +6,7 @@ import { Product } from '../shared/types';
 import { Button } from '../shared/ui/Button';
 import { SellerProductModal, SellerProductPayload } from '../widgets/seller/SellerProductModal';
 import styles from './SellerProductDetailPage.module.css';
+import { toEditableProduct } from '../shared/lib/editableProduct'
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('ru-RU', {
