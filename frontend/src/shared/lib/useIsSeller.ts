@@ -8,6 +8,11 @@ type UserWithShop = {
   shopId?: string | null;
 };
 
+type SellerProfileWithUserId = {
+  id?: string | null;
+  userId?: string | null;
+};
+
 export const useIsSeller = () => {
   const user = useAuthStore((state) => state.user) as UserWithShop | null;
   const { authStatus, context } = useSellerContext();
@@ -16,7 +21,11 @@ export const useIsSeller = () => {
     const hasSellerProfile = Boolean(context?.profile);
     const normalizedRole = user?.role?.toLowerCase() ?? null;
     const isSeller = hasSellerProfile || normalizedRole === 'seller';
-    const shopId = context?.profile?.id ?? user?.shopId ?? user?.id ?? null;
+    const profile = (context?.profile ?? null) as SellerProfileWithUserId | null;
+
+    // Public shop endpoints expect seller USER id.
+    // sellerProfile.id is a separate entity id and may return NOT_FOUND on /shops/:shopId.
+    const shopId = user?.id ?? user?.shopId ?? profile?.userId ?? profile?.id ?? null;
     const sellerCabinetLink = isSeller ? '/seller' : '/seller/onboarding';
 
     return {
