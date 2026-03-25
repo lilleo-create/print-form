@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Product } from '../../shared/types';
 import styles from '../../pages/ProductPage.module.css';
 import { useProduct } from '../../hooks/useProduct';
@@ -13,6 +13,8 @@ import {
   ProductSpecs,
   type SpecItem
 } from '../../pages/ProductPage/components/ProductSpecs/ProductSpecs';
+import { api } from '../../shared/api';
+import { getProductGroupKey, getProductVariants } from '../../shared/lib/productGrouping';
 
 const normalizeProductSpecs = (product: Product | null): SpecItem[] => {
   if (!product) return [];
@@ -52,11 +54,48 @@ type ProductPageLayoutProps = {
 
 export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
   const { data: product, status, error } = useProduct(productId, { keepPreviousData: false });
-  const { reviews, summary } = useProductReviews(productId, { keepPreviousData: false });
+  const [variantProducts, setVariantProducts] = useState<Product[]>([]);
+  const [activeVariantId, setActiveVariantId] = useState<string>(productId);
 
-  useProductBoard(product);
+  useEffect(() => {
+    setActiveVariantId(productId);
+  }, [productId]);
 
-  const specs = useMemo(() => normalizeProductSpecs(product), [product]);
+  useEffect(() => {
+    if (!product || !product.sellerId || !getProductGroupKey(product)) {
+      setVariantProducts([]);
+      return;
+    }
+
+    let isMounted = true;
+    api
+      .getProducts({ shopId: product.sellerId, limit: 200, sort: 'createdAt', order: 'desc' })
+      .then((response) => {
+        if (!isMounted) return;
+        const list = response.data ?? [];
+        setVariantProducts(getProductVariants(product, [product, ...list]));
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setVariantProducts([product]);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [product]);
+
+  const activeProduct = useMemo(() => {
+    if (!product) return null;
+    if (!variantProducts.length) return product;
+    return variantProducts.find((item) => item.id === activeVariantId) ?? product;
+  }, [activeVariantId, product, variantProducts]);
+
+  const { reviews, summary } = useProductReviews(activeProduct?.id ?? productId, { keepPreviousData: false });
+
+  useProductBoard(activeProduct);
+
+  const specs = useMemo(() => normalizeProductSpecs(activeProduct), [activeProduct]);
 
   if (status === 'loading' && !product) {
     return (
@@ -68,7 +107,7 @@ export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
     );
   }
 
-  if (!product) {
+  if (!activeProduct) {
     return (
       <section className={styles.page}>
         <div className={styles.container}>
@@ -78,33 +117,41 @@ export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
     );
   }
 
-  const productImages = toProductImageList(product);
+  const productImages = toProductImageList(activeProduct);
   const reviewsCount = summary?.total ?? 0;
-  const ratingCount = product.ratingCount ?? reviewsCount;
+  const ratingCount = activeProduct.ratingCount ?? reviewsCount;
 
   return (
     <section className={styles.page}>
       <div className={styles.container}>
         <div className={styles.hero}>
           <div className={styles.leftCol}>
-            <ProductGallery images={productImages} title={product.title} />
+            <ProductGallery images={productImages} title={activeProduct.title} />
           </div>
           <div className={styles.rightCol}>
-            <ProductDetails product={product} ratingCount={ratingCount} reviewsCount={reviewsCount} />
+            <ProductDetails
+              product={activeProduct}
+              baseProductId={product?.id ?? activeProduct.id}
+              variantProducts={variantProducts}
+              activeVariantId={activeVariantId}
+              onVariantChange={setActiveVariantId}
+              ratingCount={ratingCount}
+              reviewsCount={reviewsCount}
+            />
           </div>
         </div>
 
         <div className={styles.sections}>
           <div className={styles.description}>
             <h2>Описание</h2>
-            <p>{product.descriptionFull ?? product.description}</p>
+            <p>{activeProduct.descriptionFull ?? activeProduct.description}</p>
           </div>
           <ProductSpecs items={specs} isLoading={status === 'loading'} />
         </div>
 
-        <ProductReviewsPreview productId={product.id} product={product} reviews={reviews} summary={summary} />
+        <ProductReviewsPreview productId={activeProduct.id} product={activeProduct} reviews={reviews} summary={summary} />
 
-        <ProductFeed productId={product.id} />
+        <ProductFeed productId={activeProduct.id} />
       </div>
     </section>
   );

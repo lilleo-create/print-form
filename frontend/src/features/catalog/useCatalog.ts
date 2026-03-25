@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../shared/api';
 import { Product } from '../../shared/types';
+import { groupCatalogProducts } from '../../shared/lib/productGrouping';
 
 export interface CatalogFilters {
   category?: string;
@@ -53,7 +54,7 @@ export const useCatalog = (filters: CatalogFilters, enabled = true) => {
     entry.promise
       .then((data) => {
         if (!isMounted) return;
-        setProducts(data);
+        setProducts(groupCatalogProducts(data));
         setError(null);
       })
       .catch((err) => {

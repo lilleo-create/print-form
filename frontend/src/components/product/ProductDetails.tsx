@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import type { Product, ProductVariant } from '../../shared/types';
+import type { Product } from '../../shared/types';
 import { Rating } from '../../shared/ui/Rating';
 import { Button } from '../../shared/ui/Button';
 import { useCartStore } from '../../app/store/cartStore';
@@ -12,74 +12,43 @@ import { formatReadyToShipLabel } from '../../shared/lib/dateLabels';
 
 type ProductDetailsProps = {
   product: Product;
+  baseProductId: string;
+  variantProducts: Product[];
+  activeVariantId: string;
+  onVariantChange: (variantId: string) => void;
   ratingCount: number;
   reviewsCount: number;
 };
 
 export const ProductDetails = ({
   product,
+  baseProductId,
+  variantProducts,
+  activeVariantId,
+  onVariantChange,
   ratingCount,
   reviewsCount
 }: ProductDetailsProps) => {
   const navigate = useNavigate();
   const addItem = useCartStore((state) => state.addItem);
 
-  const variants = useMemo<ProductVariant[]>(
-    () => product.variants ?? [],
-    [product.variants]
-  );
   const [isShareOpen, setIsShareOpen] = useState(false);
   const isFavorite = useFavoritesStore((state) => state.isFavorite(product.id));
   const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
   const fetchFavorites = useFavoritesStore((state) => state.fetchFavorites);
 
-  const activeVariant = useMemo(() => {
-    if (!variants.length) return undefined;
-    return (
-      variants.find((variant) => variant.productId === product.id) ??
-      variants.find((variant) => variant.id === product.id)
-    );
-  }, [product.id, variants]);
-
-  const activeVariantLabel = useMemo(() => {
-    if (!activeVariant) {
-      return {
-        key: 'Цвет товара',
-        value: product.color
-      };
-    }
-
-    const firstOption = Object.entries(activeVariant.options ?? {}).find(
-      ([key, values]) => key && Array.isArray(values) && values.length > 0 && values[0]
-    );
-
-    if (firstOption) {
-      return {
-        key: firstOption[0],
-        value: firstOption[1][0]
-      };
-    }
-
-    return {
+  const hasGroupedVariants = variantProducts.length > 1;
+  const activeVariantLabel = useMemo(
+    () => ({
       key: 'Цвет товара',
-      value: activeVariant.name || product.color
-    };
-  }, [activeVariant, product.color]);
+      value: product.color
+    }),
+    [product.color]
+  );
 
   useEffect(() => {
     void fetchFavorites();
   }, [fetchFavorites, product.id]);
-
-  const handleVariantChange = (variantId: string) => {
-    const variant = variants.find((item) => item.id === variantId) as
-      | ProductVariant
-      | undefined;
-    const nextProductId = variant?.productId ?? variantId;
-
-    if (nextProductId && nextProductId !== product.id) {
-      navigate(`/product/${nextProductId}`);
-    }
-  };
 
   const openShareModal = () => {
     setIsShareOpen(true);
@@ -113,7 +82,7 @@ export const ProductDetails = ({
             size="md"
           />
           <Link
-            to={`/product/${product.id}/reviews`}
+            to={`/product/${baseProductId}/reviews`}
             className={styles.reviewLink}
           >
             {ratingCount} оценки · {reviewsCount} отзывов
@@ -122,7 +91,7 @@ export const ProductDetails = ({
       </div>
 
       <div className={styles.priceBlock}>
-        {variants.length > 0 ? (
+        {hasGroupedVariants ? (
           <div className={styles.variantSummary}>
             <span className={styles.variantTitle}>Вариант</span>
             <span className={styles.variantText}>
@@ -137,6 +106,9 @@ export const ProductDetails = ({
           Готово к отправке: {readyToShipLabel}
         </span>
         <span className={styles.delivery}>СДЭК: уточняется при оформлении</span>
+        {'stock' in product && typeof (product as Product & { stock?: number }).stock === 'number' ? (
+          <span className={styles.delivery}>В наличии: {(product as Product & { stock?: number }).stock} шт.</span>
+        ) : null}
         {product.dxCm && product.dyCm && product.dzCm ? (
           <span className={styles.delivery}>
             Размер: {product.dxCm} × {product.dyCm} × {product.dzCm} см
@@ -149,23 +121,23 @@ export const ProductDetails = ({
 
       <div className={styles.sku}>Артикул: {(product as any).sku ?? '—'}</div>
 
-      {variants.length > 0 ? (
+      {hasGroupedVariants ? (
         <div className={styles.variantBlock}>
           <span>Выберите вариант</span>
           <div className={styles.variantList}>
-            {variants.map((variant) => (
+            {variantProducts.map((variant) => (
               <button
                 type="button"
                 key={variant.id}
                 className={
-                  activeVariant?.id === variant.id
+                  activeVariantId === variant.id
                     ? styles.variantActive
                     : styles.variantButton
                 }
-                onClick={() => handleVariantChange(variant.id)}
-                aria-pressed={activeVariant?.id === variant.id}
+                onClick={() => onVariantChange(variant.id)}
+                aria-pressed={activeVariantId === variant.id}
               >
-                {variant.name}
+                {variant.color || variant.title}
               </button>
             ))}
           </div>
