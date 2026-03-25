@@ -9,7 +9,7 @@ import { Button } from '../../shared/ui/Button';
 import { useBodyScrollLock } from '../../shared/lib/useBodyScrollLock';
 import { useModalFocus } from '../../shared/lib/useModalFocus';
 import { useOverlayClose } from '../../shared/lib/useOverlayClose';
-import { getProductImages, getProductVideos } from '../../shared/lib/productMedia';
+import { toEditableProduct } from '../../shared/lib/editableProduct';
 import { api } from '../../shared/api';
 import { sellerProductVariantsService } from '../../shared/api/sellerProductVariantsService';
 import styles from './SellerProductModal.module.css';
@@ -175,9 +175,10 @@ const fromPersistedVariantDraft = (variant: PersistedVariantDraft): VariantDraft
 });
 
 const createExistingMediaItems = (product: Product | null): MediaItem[] => {
-  if (!product) return [];
+  const editableProduct = toEditableProduct(product);
+  if (!editableProduct) return [];
 
-  const imageUrls = getProductImages(product);
+  const imageUrls = editableProduct.imageUrls;
 
   const imageItems = imageUrls.map((url, index) => ({
     id: `existing-image-${index}`,
@@ -188,7 +189,7 @@ const createExistingMediaItems = (product: Product | null): MediaItem[] => {
     name: `Изображение ${index + 1}`
   }));
 
-  const videoItems = getProductVideos(product).map((url, index) => ({
+  const videoItems = editableProduct.videoUrls.map((url, index) => ({
     id: `existing-video-${index}`,
     kind: 'video' as const,
     source: 'existing' as const,
@@ -218,23 +219,26 @@ const getDefaultFormValues = (): ProductFormValues => ({
   dzCm: undefined,
 });
 
-const getProductFormValues = (product: Product): ProductFormValues => ({
-  title: product.title,
-  descriptionShort: product.descriptionShort ?? product.description,
-  description: product.description,
-  descriptionFull: product.descriptionFull ?? product.description,
-  sku: product.sku ?? '',
-  price: product.price,
-  material: product.material,
-  category: product.category,
-  technology: product.technology,
-  productionTimeHours: product.productionTimeHours ?? 24,
-  color: normalizeProductColor(product.color),
-  weightGrossG: product.weightGrossG ?? undefined,
-  dxCm: product.dxCm ?? undefined,
-  dyCm: product.dyCm ?? undefined,
-  dzCm: product.dzCm ?? undefined,
-});
+const getProductFormValues = (product: Product): ProductFormValues => {
+  const editableProduct = toEditableProduct(product);
+  return {
+    title: editableProduct?.title ?? '',
+    descriptionShort: editableProduct?.descriptionShort ?? '',
+    description: editableProduct?.description ?? '',
+    descriptionFull: editableProduct?.descriptionFull ?? '',
+    sku: editableProduct?.sku ?? '',
+    price: editableProduct?.price ?? 0,
+    material: editableProduct?.material ?? '',
+    category: editableProduct?.category ?? '',
+    technology: editableProduct?.technology ?? '',
+    productionTimeHours: editableProduct?.productionTimeHours ?? 24,
+    color: normalizeProductColor(editableProduct?.color ?? ''),
+    weightGrossG: editableProduct?.weightGrossG,
+    dxCm: editableProduct?.dxCm,
+    dyCm: editableProduct?.dyCm,
+    dzCm: editableProduct?.dzCm
+  } satisfies ProductFormValues;
+};
 
 const revokeNewMediaUrls = (drafts: VariantDraft[]) => {
   drafts.forEach((draft) => {
