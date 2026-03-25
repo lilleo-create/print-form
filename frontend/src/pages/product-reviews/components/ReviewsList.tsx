@@ -4,6 +4,7 @@ import { api } from '../../../shared/api';
 import { normalizeApiError } from '../../../shared/api/client';
 import { Rating } from '../../../shared/ui/Rating';
 import { resolveImageUrl } from '../../../shared/lib/resolveImageUrl';
+import { getReplyAuthorName, getReviewAuthorName, normalizeReviewPhotoUrl } from '../../../shared/lib/reviews';
 import styles from './ReviewsList.module.css';
 
 type ReviewsListProps = {
@@ -198,7 +199,16 @@ export const ReviewsList = ({
       const replyId = typeof reply?.id === 'string' ? reply.id : `${review.id}-${Date.now()}`;
       updateReview(review.id, (item) => ({
         ...item,
-        replies: [...(item.replies ?? []).filter((itemReply) => itemReply.id !== replyId), { ...reply, id: replyId }],
+        replies: [
+          ...(item.replies ?? []).filter((itemReply) => itemReply.id !== replyId),
+          {
+            ...reply,
+            id: replyId,
+            reviewId: reply?.reviewId ?? review.id,
+            text: reply?.text ?? (reply as { message?: string })?.message ?? text,
+            createdAt: reply?.createdAt ?? new Date().toISOString()
+          }
+        ],
         repliesCount: Math.max((item.repliesCount ?? item.replies?.length ?? 0) + 1, (item.replies?.length ?? 0) + 1)
       }));
       setReplyDrafts((prev) => ({ ...prev, [review.id]: '' }));
@@ -209,13 +219,13 @@ export const ReviewsList = ({
       const readableError =
         status === 401
           ? 'Чтобы отвечать на отзывы, нужно войти в аккаунт.'
-          : status === 403
-            ? 'У вас нет прав для ответа на этот отзыв.'
-            : status === 404
+          : status === 404
               ? 'Отзыв не найден. Обновите страницу и попробуйте снова.'
               : status === 422 || normalized.code === 'VALIDATION_ERROR'
                 ? 'Ответ не прошёл проверку. Измените текст и попробуйте ещё раз.'
-              : 'Не удалось отправить ответ. Попробуйте позже.';
+              : normalized.message && normalized.message !== normalized.code
+                ? normalized.message
+                : 'Не удалось отправить ответ. Попробуйте позже.';
       setReplyErrors((prev) => ({ ...prev, [review.id]: readableError }));
     } finally {
       setReplySubmitting((prev) => ({ ...prev, [review.id]: false }));
@@ -237,7 +247,9 @@ export const ReviewsList = ({
   return (
     <div className={styles.list}>
       {mergedReviews.map((review) => {
-        const reviewPhotos = review.photos ?? [];
+        const reviewPhotos = (review.photos ?? [])
+          .map((photo) => normalizeReviewPhotoUrl(photo))
+          .filter(Boolean);
         const replies = review.replies ?? [];
         const sellerReply = replies.find((reply) => reply.isCurrentStoreReply);
         const visibleReplies = expandedReplies[review.id]
@@ -249,7 +261,7 @@ export const ReviewsList = ({
         const hasReplies = totalRepliesCount > 0;
         const likes = review.reactions?.likes ?? review.likesCount ?? 0;
         const dislikes = review.reactions?.dislikes ?? review.dislikesCount ?? 0;
-        const buyerName = review.buyerNickname ?? review.user?.name ?? 'Покупатель';
+        const buyerName = getReviewAuthorName(review);
 
         return (
           <article key={review.id} className={styles.card}>
@@ -370,11 +382,7 @@ export const ReviewsList = ({
                 {visibleReplies.map((reply) => (
                   <article key={reply.id} className={styles.replyCard}>
                     <header className={styles.replyHeader}>
-                      <strong>
-                        {reply.authorType === 'SELLER'
-                          ? reply.storeName ?? 'Магазин'
-                          : reply.buyerNickname ?? 'Покупатель'}
-                      </strong>
+                      <strong>{getReplyAuthorName(reply)}</strong>
                       <span className={styles.date}>{formatReviewDate(reply.createdAt)}</span>
                     </header>
                     <p>{reply.text}</p>

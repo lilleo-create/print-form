@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Review } from '../../../shared/types';
+import type { Review, ReviewReply } from '../../../shared/types';
 import { api } from '../../../shared/api';
+import { normalizeReviewPhotoUrl, type ReviewPhotoLike } from '../../../shared/lib/reviews';
 
 export type ReviewFilters = {
   helpful: boolean;
@@ -61,6 +62,17 @@ const getSort = (filters: ReviewFilters) => {
   return 'new';
 };
 
+const normalizeReview = (review: Review): Review => ({
+  ...review,
+  photos: (((review as Review & { photos?: ReviewPhotoLike[] }).photos ?? []) as ReviewPhotoLike[])
+    .map((photo) => normalizeReviewPhotoUrl(photo))
+    .filter(Boolean),
+  replies: review.replies?.map((reply) => ({
+    ...reply,
+    text: reply.text || (reply as ReviewReply & { message?: string }).message || ''
+  }))
+});
+
 export const useProductReviews = (productId: string | undefined, options: Options) => {
   const { filters, scope, productIds, pageSize = 6 } = options;
 
@@ -109,7 +121,7 @@ export const useProductReviews = (productId: string | undefined, options: Option
         if (requestId !== requestRef.current) return;
 
         const payload = unwrap<Review[]>(response);
-        const list = Array.isArray(payload) ? payload : [];
+        const list = Array.isArray(payload) ? payload.map((review) => normalizeReview(review)) : [];
 
         setReviews((prev) => (reset ? list : [...prev, ...list]));
         setHasMore(list.length === pageSize);

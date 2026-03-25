@@ -11,8 +11,8 @@
 
 .container {
   position: relative;
-  width: min(1040px, 100%);
-  max-height: min(90vh, 920px);
+  width: min(1320px, 100%);
+  max-height: 94vh;
   background: color-mix(in srgb, var(--bg) 80%, black 20%);
   border: 1px solid var(--border);
   border-radius: 20px;
@@ -40,8 +40,8 @@
   position: relative;
   display: grid;
   place-items: center;
-  min-height: clamp(320px, 62vh, 860px);
-  height: min(78vh, 860px);
+  min-height: clamp(360px, 74vh, 94vh);
+  height: min(84vh, 94vh);
   padding: 0 56px;
   touch-action: pan-y;
 }
@@ -49,8 +49,8 @@
 .image {
   width: auto;
   height: auto;
-  max-width: min(92vw, 980px);
-  max-height: min(72vh, 860px);
+  max-width: min(96vw, 1240px);
+  max-height: min(82vh, 90vh);
   object-fit: contain;
   border-radius: 14px;
   background: var(--surface-ghost);
@@ -119,7 +119,7 @@
   }
 
   .viewer {
-    height: min(66vh, 700px);
+    height: min(78vh, 860px);
     min-height: 260px;
     padding: 0 44px;
   }

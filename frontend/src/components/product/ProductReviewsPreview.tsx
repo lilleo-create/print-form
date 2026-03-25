@@ -9,6 +9,7 @@ import styles from '../../pages/ProductPage.module.css';
 import { formatReviewDate } from './utils';
 import { resolveImageUrl } from '../../shared/lib/resolveImageUrl';
 import { getProductPrimaryImage } from '../../shared/lib/getProductPrimaryImage';
+import { getReviewAuthorName, normalizeReviewPhotoUrl, type ReviewPhotoLike } from '../../shared/lib/reviews';
 
 type ProductReviewsPreviewProps = {
   productId: string;
@@ -119,11 +120,19 @@ export const ProductReviewsPreview = ({ productId, product, reviews, summary }: 
           {reviews.length === 0 ? (
             <p className={styles.reviewsEmpty}>Пока нет отзывов.</p>
           ) : (
-            reviews.map((review) => (
-              <article key={review.id} className={styles.reviewCard}>
+            reviews.map((review) => {
+              const reviewData = review as Review & {
+                pros?: string;
+                cons?: string;
+                comment?: string;
+                photos?: ReviewPhotoLike[];
+              };
+
+              return (
+                <article key={review.id} className={styles.reviewCard}>
                 <div className={styles.reviewTop}>
                   <div>
-                    <strong>{review.buyerNickname ?? review.user?.name ?? 'Покупатель'}</strong>
+                    <strong>{getReviewAuthorName(review)}</strong>
                     <span className={styles.reviewDate}>{formatReviewDate(review.createdAt)}</span>
                   </div>
                   <Rating value={review.rating} count={0} />
@@ -131,29 +140,33 @@ export const ProductReviewsPreview = ({ productId, product, reviews, summary }: 
 
                 <div className={styles.reviewBody}>
                   <p>
-                    <strong>Достоинства:</strong> {(review as any).pros}
+                    <strong>Достоинства:</strong> {reviewData.pros}
                   </p>
                   <p>
-                    <strong>Недостатки:</strong> {(review as any).cons}
+                    <strong>Недостатки:</strong> {reviewData.cons}
                   </p>
                   <p>
-                    <strong>Комментарий:</strong> {(review as any).comment}
+                    <strong>Комментарий:</strong> {reviewData.comment}
                   </p>
                 </div>
 
-                {(((review as any).photos?.length ?? 0) > 0) ? (
+                {(reviewData.photos?.length ?? 0) > 0 ? (
                   <div className={styles.reviewPhotos}>
-                    {(review as any).photos!.map((photo: string, index: number) => (
-                      <img
-                        src={resolveImageUrl(photo)}
-                        alt={`Фото отзыва ${index + 1}`}
-                        key={`${photo}-${index}`}
-                      />
-                    ))}
+                    {reviewData.photos!
+                      .map((photo: ReviewPhotoLike) => normalizeReviewPhotoUrl(photo))
+                      .filter(Boolean)
+                      .map((photo: string, index: number) => (
+                        <img
+                          src={resolveImageUrl(photo)}
+                          alt={`Фото отзыва ${index + 1}`}
+                          key={`${photo}-${index}`}
+                        />
+                      ))}
                   </div>
                 ) : null}
-              </article>
-            ))
+                </article>
+              );
+            })
           )}
         </div>
       </div>

@@ -43,11 +43,15 @@ export const normalizeApiError = (error: unknown): NormalizedApiError => {
         'code' in inner && typeof inner.code === 'string'
           ? inner.code
           : undefined;
+      const message =
+        'message' in inner && typeof inner.message === 'string'
+          ? inner.message
+          : undefined;
       const issues =
         'issues' in inner && Array.isArray(inner.issues)
           ? (inner.issues as { path: string[]; message: string }[])
           : undefined;
-      return { code, issues, message: code ?? fallback.message, status };
+      return { code, issues, message: message ?? code ?? fallback.message, status };
     }
   }
 
