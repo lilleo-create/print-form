@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../shared/api';
+import { getProductImages } from '../shared/lib/productMedia';
 import { Product, ProductVariant } from '../shared/types';
 import { Button } from '../shared/ui/Button';
 import { SellerProductModal, SellerProductPayload } from '../widgets/seller/SellerProductModal';
@@ -13,21 +14,6 @@ const formatCurrency = (value: number) =>
     currency: 'RUB',
     maximumFractionDigits: 0
   }).format(value);
-
-const getProductImages = (product: Product) => {
-  const byEntities = product.images?.length
-    ? [...product.images]
-      .sort((a, b) => a.sortOrder - b.sortOrder)
-      .map((item) => item.url)
-    : [];
-  const variants = [
-    ...byEntities,
-    ...(product.imageUrls ?? []),
-    product.imageUrl ?? '',
-    product.image ?? ''
-  ];
-  return [...new Set(variants.map((value) => value.trim()).filter(Boolean))];
-};
 
 const extractVariantColor = (variant: ProductVariant) => {
   const colorOption = variant.options?.color?.[0];
@@ -93,7 +79,11 @@ export const SellerProductDetailPage = () => {
     void loadProduct();
   }, [productId]);
 
-  const images = useMemo(() => (product ? getProductImages(product) : []), [product]);
+  const images = useMemo(() => getProductImages(product), [product]);
+  useEffect(() => {
+    setBrokenImages({});
+  }, [images]);
+
   const activeVariant = useMemo(
     () => variants.find((variant) => variant.id === activeVariantId) ?? null,
     [variants, activeVariantId]
@@ -353,7 +343,7 @@ export const SellerProductDetailPage = () => {
           {images.length ? (
             <div className={styles.imagesGrid}>
               {images.map((url, index) => (
-                brokenImages[`gallery-${index}`] ? (
+                brokenImages[url] ? (
                   <div key={`${url}-${index}`} className={styles.imagePlaceholder}>
                     Нет изображения
                   </div>
@@ -363,7 +353,7 @@ export const SellerProductDetailPage = () => {
                     src={url}
                     alt={`${product.title} ${index + 1}`}
                     onError={() =>
-                      setBrokenImages((prev) => ({ ...prev, [`gallery-${index}`]: true }))
+                      setBrokenImages((prev) => ({ ...prev, [url]: true }))
                     }
                   />
                 )

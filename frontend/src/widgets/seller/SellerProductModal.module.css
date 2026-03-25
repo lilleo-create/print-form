@@ -243,6 +243,21 @@ textarea.inputError {
   background: var(--surface-ghost);
 }
 
+.filePreviewPlaceholder {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-control);
+  border: 1px dashed var(--border);
+  background: var(--surface-ghost);
+  color: var(--text-secondary);
+  font-size: 10px;
+  text-align: center;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .fileMeta {
   display: flex;
   flex-direction: column;

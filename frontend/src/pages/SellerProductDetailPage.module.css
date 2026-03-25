@@ -170,6 +170,18 @@
   background: var(--surface-ghost);
 }
 
+.imagePlaceholder {
+  min-height: 100px;
+  border-radius: 12px;
+  border: 1px dashed var(--border);
+  background: var(--surface-ghost);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+}
+
 .footerActions {
   display: flex;
   justify-content: flex-end;
