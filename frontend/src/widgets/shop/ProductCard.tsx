@@ -5,7 +5,7 @@ import { Product } from '../../shared/types';
 import { useCartStore } from '../../app/store/cartStore';
 import { Button } from '../../shared/ui/Button';
 import { Rating } from '../../shared/ui/Rating';
-import { resolveImageUrl } from '../../shared/lib/resolveImageUrl'; // <-- поправь путь под свой проект
+import { resolveImageUrl } from '../../shared/lib/resolveImageUrl';
 import styles from './ProductCard.module.css';
 import { formatEtaDays } from '../../shared/lib/deliveryEta';
 import { useEffect } from 'react';
@@ -40,9 +40,10 @@ export const ProductCard = ({ product }: ProductCardProps) => {
       handleOpen();
     }
   };
-useEffect(() => {
-  setImgBroken(false);
-}, [imageSrc]);
+
+  useEffect(() => {
+    setImgBroken(false);
+  }, [imageSrc]);
   return (
     <article
       className={styles.card}
@@ -51,18 +52,20 @@ useEffect(() => {
       onClick={handleOpen}
       onKeyDown={handleKeyDown}
     >
-      {imageSrc && !imgBroken ? (
-        <img
-          src={imageSrc}
-          alt={product.title}
-          className={styles.image}
-          loading="lazy"
-          onError={() => setImgBroken(true)}
-          onLoad={() => setImgBroken(false)}
-        />
-      ) : (
-        <div className={styles.imagePlaceholder}>Нет изображения</div>
-      )}
+      <div className={styles.imageFrame}>
+        {imageSrc && !imgBroken ? (
+          <img
+            src={imageSrc}
+            alt={product.title}
+            className={styles.image}
+            loading="lazy"
+            onError={() => setImgBroken(true)}
+            onLoad={() => setImgBroken(false)}
+          />
+        ) : (
+          <div className={styles.imagePlaceholder}>Нет изображения</div>
+        )}
+      </div>
 
       <div className={styles.body}>
         <div className={styles.meta}>
@@ -93,36 +96,38 @@ useEffect(() => {
           </div>
         ) : null}
 
-        <div className={styles.summary}>
-          <Rating value={product.ratingAvg} count={product.ratingCount} />
-          <p className={styles.price}>{product.price.toLocaleString('ru-RU')} ₽</p>
-        </div>
-
         <p className={styles.deliveryMeta}>
           Доставка СДЭК:{' '}
           {formatEtaDays(product.deliveryDaysMin ?? null, product.deliveryDaysMax ?? null) ?? 'Срок уточняется'}
         </p>
 
-        <div className={styles.actions}>
-          <Button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleOpen();
-            }}
-            aria-label={`Открыть ${product.title}`}
-          >
-            Подробнее
-          </Button>
+        <div className={styles.footer}>
+          <div className={styles.summary}>
+            <Rating value={product.ratingAvg} count={product.ratingCount} />
+            <p className={styles.price}>{product.price.toLocaleString('ru-RU')} ₽</p>
+          </div>
 
-          <Button
-            variant="secondary"
-            onClick={(event) => {
-              event.stopPropagation();
-              addItem(product, 1);
-            }}
-          >
-            В корзину
-          </Button>
+          <div className={styles.actions}>
+            <Button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOpen();
+              }}
+              aria-label={`Открыть ${product.title}`}
+            >
+              Подробнее
+            </Button>
+
+            <Button
+              variant="secondary"
+              onClick={(event) => {
+                event.stopPropagation();
+                addItem(product, 1);
+              }}
+            >
+              В корзину
+            </Button>
+          </div>
         </div>
       </div>
     </article>

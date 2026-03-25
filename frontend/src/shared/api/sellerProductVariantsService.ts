@@ -18,13 +18,19 @@ const normalizeSku = (sku: unknown) => {
 export const sanitizeVariantPayload = <T extends Partial<SellerProductVariantInput>>(
   payload: T
 ) => {
-  const { sku, ...rest } = payload;
+  const { sku, options, ...rest } = payload;
   const normalizedSku = normalizeSku(sku);
+  const normalizedOptions =
+    options && Object.keys(options).length > 0 ? options : undefined;
+  const compactRest = Object.fromEntries(
+    Object.entries(rest).filter(([, value]) => value !== undefined)
+  ) as Omit<T, 'sku' | 'options'>;
 
   return {
-    ...rest,
+    ...compactRest,
+    ...(normalizedOptions ? { options: normalizedOptions } : {}),
     ...(normalizedSku ? { sku: normalizedSku } : {}),
-  } as Omit<T, 'sku'> & { sku?: string };
+  } as Omit<T, 'sku' | 'options'> & { sku?: string; options?: Record<string, string[]> };
 };
 
 export const sellerProductVariantsService = {
