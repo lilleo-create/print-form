@@ -44,7 +44,7 @@ export const ProductGallery = ({ images, title }: ProductGalleryProps) => {
         onClick={() => openLightbox(activeIndex)}
         aria-label={`Открыть увеличенное изображение ${title}`}
       >
-        <img src={activeImage} alt={title} className={styles.mainImage} />
+        <img src={activeImage} alt={title} className={styles.mainImage} loading="eager" decoding="async" />
       </button>
 
       <div className={styles.thumbs}>
@@ -56,7 +56,7 @@ export const ProductGallery = ({ images, title }: ProductGalleryProps) => {
             aria-label={`Показать изображение ${title}`}
             type="button"
           >
-            <img src={image.resolvedUrl} alt={title} />
+            <img src={image.resolvedUrl} alt={title} loading="lazy" decoding="async" />
           </button>
         ))}
       </div>
@@ -64,7 +64,12 @@ export const ProductGallery = ({ images, title }: ProductGalleryProps) => {
       <ImageLightbox
         isOpen={isLightboxOpen}
         onClose={() => setLightboxOpen(false)}
-        images={resolvedImages.map((image) => ({ id: image.id, src: image.resolvedUrl, alt: title }))}
+        images={resolvedImages.map((image) => ({
+          id: image.id,
+          src: image.resolvedUrl,
+          thumbSrc: image.resolvedUrl,
+          alt: title
+        }))}
         initialIndex={activeIndex}
         title={title}
       />

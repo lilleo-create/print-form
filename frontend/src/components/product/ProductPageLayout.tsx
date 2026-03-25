@@ -27,6 +27,13 @@ const normalizeProductSpecs = (product: Product | null): SpecItem[] => {
     return specs.filter((item) => item.name && item.value);
   }
 
+  const characteristicList = (product as Product & { characteristics?: Array<{ key?: string; name?: string; value?: string }> }).characteristics;
+  if (Array.isArray(characteristicList) && characteristicList.length > 0) {
+    return characteristicList
+      .map((item) => ({ name: item.name ?? item.key ?? '', value: item.value ?? '' }))
+      .filter((item) => item.name && item.value);
+  }
+
   const attributes = (product as Product & { attributes?: Array<{ key?: string; name?: string; value?: string }> }).attributes;
   if (Array.isArray(attributes) && attributes.length > 0) {
     return attributes
