@@ -764,23 +764,58 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
                 <div className={styles.variantEditor}>
                   <label>
                     Название
-                    <input className={styles.input} value={variantForm.name} onChange={(event) => setVariantForm((prev) => ({ ...prev, name: event.target.value }))} />
+                    <input
+                      className={styles.input}
+                      value={variantForm.name}
+                      onChange={(event) => {
+                        setVariantError(null);
+                        setVariantForm((prev) => ({ ...prev, name: event.target.value }));
+                      }}
+                    />
                   </label>
                   <label>
                     Цвет
-                    <input className={styles.input} value={variantForm.color} onChange={(event) => setVariantForm((prev) => ({ ...prev, color: event.target.value }))} />
+                    <input
+                      className={styles.input}
+                      value={variantForm.color}
+                      onChange={(event) => {
+                        setVariantError(null);
+                        setVariantForm((prev) => ({ ...prev, color: event.target.value }));
+                      }}
+                    />
                   </label>
                   <label>
-                    SKU
-                    <input className={styles.input} value={variantForm.sku} onChange={(event) => setVariantForm((prev) => ({ ...prev, sku: event.target.value }))} />
+                    SKU (необязательно)
+                    <input
+                      className={styles.input}
+                      value={variantForm.sku}
+                      onChange={(event) => {
+                        setVariantError(null);
+                        setVariantForm((prev) => ({ ...prev, sku: event.target.value }));
+                      }}
+                    />
                   </label>
                   <label>
                     Остаток
-                    <input className={styles.input} value={variantForm.stock} onChange={(event) => setVariantForm((prev) => ({ ...prev, stock: event.target.value }))} />
+                    <input
+                      className={styles.input}
+                      value={variantForm.stock}
+                      onChange={(event) => {
+                        setVariantError(null);
+                        setVariantForm((prev) => ({ ...prev, stock: event.target.value }));
+                      }}
+                    />
                   </label>
                   <label>
                     Δ цены
-                    <input className={styles.input} value={variantForm.priceDelta} onChange={(event) => setVariantForm((prev) => ({ ...prev, priceDelta: event.target.value }))} />
+                    <input
+                      className={styles.input}
+                      value={variantForm.priceDelta}
+                      onChange={(event) => {
+                        setVariantError(null);
+                        setVariantForm((prev) => ({ ...prev, priceDelta: event.target.value }));
+                      }}
+                    />
                   </label>
                   <div className={styles.variantActions}>
                     <Button type="button" onClick={handleSaveVariant} disabled={isVariantBusy}>
