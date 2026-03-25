@@ -4,13 +4,14 @@ import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createPortal } from 'react-dom';
-import { Product } from '../../shared/types';
+import { Product, ProductVariant } from '../../shared/types';
 import { Button } from '../../shared/ui/Button';
 import { useBodyScrollLock } from '../../shared/lib/useBodyScrollLock';
 import { useModalFocus } from '../../shared/lib/useModalFocus';
 import { useOverlayClose } from '../../shared/lib/useOverlayClose';
 import { getProductImages, getProductVideos } from '../../shared/lib/productMedia';
 import { api } from '../../shared/api';
+import { sellerProductVariantsService } from '../../shared/api/sellerProductVariantsService';
 import styles from './SellerProductModal.module.css';
 import {
   detectProductMediaKind,
@@ -254,6 +255,17 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
   const [isDragActive, setIsDragActive] = useState(false);
   const [categories, setCategories] = useState<{ id: string; title: string }[]>([]);
   const [categoriesError, setCategoriesError] = useState('');
+  const [productVariants, setProductVariants] = useState<ProductVariant[]>([]);
+  const [activeProductVariantId, setActiveProductVariantId] = useState<string>('base');
+  const [variantForm, setVariantForm] = useState({
+    name: '',
+    color: '',
+    sku: '',
+    stock: '',
+    priceDelta: '',
+  });
+  const [variantError, setVariantError] = useState<string | null>(null);
+  const [isVariantBusy, setIsVariantBusy] = useState(false);
   const [variantDrafts, setVariantDrafts] = useState<VariantDraft[]>([]);
   const [activeVariantId, setActiveVariantId] = useState('');
   const [brokenMedia, setBrokenMedia] = useState<Record<string, boolean>>({});
@@ -292,6 +304,10 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
   const activeVariant = useMemo(
     () => variantDrafts.find((variant) => variant.id === activeVariantId) ?? null,
     [variantDrafts, activeVariantId]
+  );
+  const activeProductVariant = useMemo(
+    () => productVariants.find((variant) => variant.id === activeProductVariantId) ?? null,
+    [productVariants, activeProductVariantId]
   );
 
   const currentColor = watch('color');
@@ -349,6 +365,33 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
   }, [draftKey]);
 
   useEffect(() => {
+    if (!product?.id) {
+      setProductVariants([]);
+      setActiveProductVariantId('base');
+      setVariantError(null);
+      return;
+    }
+
+    let isMounted = true;
+    sellerProductVariantsService
+      .list(product.id)
+      .then((response) => {
+        if (!isMounted) return;
+        setProductVariants(response.data);
+        setActiveProductVariantId('base');
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setProductVariants([]);
+        setVariantError('Не удалось загрузить варианты товара.');
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [product?.id]);
+
+  useEffect(() => {
     let isMounted = true;
     api
       .getReferenceCategories()
@@ -392,6 +435,28 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
     if (!activeVariant) return;
     reset(activeVariant.form);
   }, [activeVariant, reset]);
+
+  useEffect(() => {
+    if (!activeProductVariant) {
+      setVariantForm({
+        name: '',
+        color: '',
+        sku: '',
+        stock: '',
+        priceDelta: '',
+      });
+      return;
+    }
+
+    setVariantForm({
+      name: activeProductVariant.name,
+      color: activeProductVariant.options?.color?.[0] ?? 'Без цвета',
+      sku: activeProductVariant.sku ?? '',
+      stock: activeProductVariant.stock !== undefined ? String(activeProductVariant.stock) : '',
+      priceDelta:
+        activeProductVariant.priceDelta !== undefined ? String(activeProductVariant.priceDelta) : '',
+    });
+  }, [activeProductVariant]);
 
   useEffect(() => {
     return () => {
@@ -494,6 +559,67 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
         mediaItems: nextItems
       };
     });
+  };
+
+  const reloadProductVariants = async () => {
+    if (!product?.id) return;
+    const response = await sellerProductVariantsService.list(product.id);
+    setProductVariants(response.data);
+  };
+
+  const handleAddVariant = async () => {
+    if (!product?.id) return;
+    setVariantError(null);
+    setIsVariantBusy(true);
+    try {
+      const created = await sellerProductVariantsService.create(product.id, {
+        name: `Вариант ${productVariants.length + 1}`,
+        options: { color: [product.color] },
+      });
+      await reloadProductVariants();
+      setActiveProductVariantId(created.data.id);
+    } catch {
+      setVariantError('Не удалось добавить вариант.');
+    } finally {
+      setIsVariantBusy(false);
+    }
+  };
+
+  const handleSaveVariant = async () => {
+    if (!product?.id || !activeProductVariant) return;
+    setVariantError(null);
+    setIsVariantBusy(true);
+    try {
+      await sellerProductVariantsService.update(product.id, activeProductVariant.id, {
+        name: variantForm.name.trim() || activeProductVariant.name,
+        sku: variantForm.sku.trim() || undefined,
+        stock: variantForm.stock.trim() ? Number(variantForm.stock) : undefined,
+        priceDelta: variantForm.priceDelta.trim() ? Number(variantForm.priceDelta) : undefined,
+        options: variantForm.color.trim()
+          ? { ...(activeProductVariant.options ?? {}), color: [variantForm.color.trim()] }
+          : activeProductVariant.options,
+      });
+      await reloadProductVariants();
+    } catch {
+      setVariantError('Не удалось сохранить вариант.');
+    } finally {
+      setIsVariantBusy(false);
+    }
+  };
+
+  const handleDeleteVariant = async () => {
+    if (!product?.id || !activeProductVariant) return;
+    setVariantError(null);
+    setIsVariantBusy(true);
+    try {
+      await sellerProductVariantsService.remove(product.id, activeProductVariant.id);
+      await reloadProductVariants();
+      setActiveProductVariantId('base');
+    } catch {
+      setVariantError('Не удалось удалить вариант.');
+    } finally {
+      setIsVariantBusy(false);
+    }
   };
 
   const handleFormSubmit = async (values: ProductFormValues) => {
@@ -599,6 +725,75 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
 
 
         <form className={styles.form} onSubmit={handleSubmit(handleFormSubmit)}>
+          {product ? (
+            <section className={styles.section}>
+              <div className={styles.variantHeaderRow}>
+                <h4 className={styles.sectionTitle}>Варианты товара</h4>
+                <Button type="button" variant="secondary" onClick={handleAddVariant} disabled={isVariantBusy}>
+                  Добавить вариант
+                </Button>
+              </div>
+              <p className={styles.muted}>
+                Если товар выпускается в нескольких вариантах, например по цвету или размеру, вы можете объединить их в одну карточку.
+                Покупатель будет переключаться между вариантами на странице товара.
+              </p>
+              <div className={styles.variantsRow}>
+                <button
+                  type="button"
+                  className={`${styles.variantPill} ${activeProductVariantId === 'base' ? styles.variantPillActive : ''}`}
+                  onClick={() => setActiveProductVariantId('base')}
+                >
+                  Базовый товар
+                </button>
+                {productVariants.map((variant) => (
+                  <button
+                    key={variant.id}
+                    type="button"
+                    className={`${styles.variantPill} ${activeProductVariantId === variant.id ? styles.variantPillActive : ''}`}
+                    onClick={() => setActiveProductVariantId(variant.id)}
+                  >
+                    {variant.name}
+                  </button>
+                ))}
+              </div>
+              {activeProductVariant ? (
+                <div className={styles.variantEditor}>
+                  <label>
+                    Название
+                    <input className={styles.input} value={variantForm.name} onChange={(event) => setVariantForm((prev) => ({ ...prev, name: event.target.value }))} />
+                  </label>
+                  <label>
+                    Цвет
+                    <input className={styles.input} value={variantForm.color} onChange={(event) => setVariantForm((prev) => ({ ...prev, color: event.target.value }))} />
+                  </label>
+                  <label>
+                    SKU
+                    <input className={styles.input} value={variantForm.sku} onChange={(event) => setVariantForm((prev) => ({ ...prev, sku: event.target.value }))} />
+                  </label>
+                  <label>
+                    Остаток
+                    <input className={styles.input} value={variantForm.stock} onChange={(event) => setVariantForm((prev) => ({ ...prev, stock: event.target.value }))} />
+                  </label>
+                  <label>
+                    Δ цены
+                    <input className={styles.input} value={variantForm.priceDelta} onChange={(event) => setVariantForm((prev) => ({ ...prev, priceDelta: event.target.value }))} />
+                  </label>
+                  <div className={styles.variantActions}>
+                    <Button type="button" onClick={handleSaveVariant} disabled={isVariantBusy}>
+                      Сохранить вариант
+                    </Button>
+                    <Button type="button" variant="secondary" onClick={handleDeleteVariant} disabled={isVariantBusy}>
+                      Удалить вариант
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <p className={styles.muted}>Выбран базовый товар. Для него варианты не редактируются.</p>
+              )}
+              {variantError ? <p className={styles.errorText}>{variantError}</p> : null}
+            </section>
+          ) : null}
+
           <section className={styles.section}>
             <h4 className={styles.sectionTitle}>Главное о товаре</h4>
             <label>

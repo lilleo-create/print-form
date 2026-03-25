@@ -5,7 +5,6 @@ import { getProductImages } from '../shared/lib/productMedia';
 import { Product, ProductVariant } from '../shared/types';
 import { Button } from '../shared/ui/Button';
 import { SellerProductModal, SellerProductPayload } from '../widgets/seller/SellerProductModal';
-import { sellerProductVariantsService } from '../shared/api/sellerProductVariantsService';
 import styles from './SellerProductDetailPage.module.css';
 
 const formatCurrency = (value: number) =>
@@ -31,17 +30,6 @@ export const SellerProductDetailPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [variants, setVariants] = useState<ProductVariant[]>([]);
-  const [activeVariantId, setActiveVariantId] = useState<string>('base');
-  const [variantForm, setVariantForm] = useState({
-    name: '',
-    color: '',
-    sku: '',
-    stock: '',
-    priceDelta: '',
-  });
-  const [variantError, setVariantError] = useState<string | null>(null);
-  const [isVariantBusy, setIsVariantBusy] = useState(false);
   const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({});
 
   const loadProduct = async () => {
@@ -64,8 +52,6 @@ export const SellerProductDetailPage = () => {
         setError('Товар не найден в кабинете продавца.');
       } else {
         setProduct(matched);
-        setVariants(matched.variants ?? []);
-        setActiveVariantId('base');
       }
     } catch {
       setError('Не удалось загрузить товар. Попробуйте обновить страницу.');
@@ -127,63 +113,6 @@ export const SellerProductDetailPage = () => {
     await loadProduct();
   };
 
-  const handleAddVariant = async () => {
-    if (!product?.id) return;
-    setVariantError(null);
-    setIsVariantBusy(true);
-    try {
-      const created = await sellerProductVariantsService.create(product.id, {
-        name: `Вариант ${variants.length + 1}`,
-        options: { color: [product.color] },
-      });
-      await reloadVariants();
-      setActiveVariantId(created.data.id);
-    } catch {
-      setVariantError('Не удалось добавить вариант. Проверьте готовность backend API.');
-    } finally {
-      setIsVariantBusy(false);
-    }
-  };
-
-  const handleSaveVariant = async () => {
-    if (!product?.id || !activeVariant) return;
-    setVariantError(null);
-    setIsVariantBusy(true);
-    try {
-      await sellerProductVariantsService.update(product.id, activeVariant.id, {
-        name: variantForm.name.trim() || activeVariant.name,
-        sku: variantForm.sku.trim() || undefined,
-        stock: variantForm.stock.trim() ? Number(variantForm.stock) : undefined,
-        priceDelta: variantForm.priceDelta.trim()
-          ? Number(variantForm.priceDelta)
-          : undefined,
-        options: variantForm.color.trim()
-          ? { ...(activeVariant.options ?? {}), color: [variantForm.color.trim()] }
-          : activeVariant.options,
-      });
-      await reloadVariants();
-    } catch {
-      setVariantError('Не удалось сохранить вариант.');
-    } finally {
-      setIsVariantBusy(false);
-    }
-  };
-
-  const handleDeleteVariant = async () => {
-    if (!product?.id || !activeVariant) return;
-    setVariantError(null);
-    setIsVariantBusy(true);
-    try {
-      await sellerProductVariantsService.remove(product.id, activeVariant.id);
-      await reloadVariants();
-      setActiveVariantId('base');
-    } catch {
-      setVariantError('Не удалось удалить вариант.');
-    } finally {
-      setIsVariantBusy(false);
-    }
-  };
-
   if (isLoading) {
     return (
       <section className={styles.page}>
@@ -215,71 +144,6 @@ export const SellerProductDetailPage = () => {
         </Link>
         <span className={styles.status}>{product.moderationStatus ?? '—'}</span>
       </div>
-
-      {isVariantEditable(product) ? (
-        <div className={styles.variantsBlock}>
-          <div className={styles.variantsHeader}>
-            <h2>Варианты товара</h2>
-            <Button type="button" variant="secondary" onClick={handleAddVariant} disabled={isVariantBusy}>
-              Добавить вариант
-            </Button>
-          </div>
-          <div className={styles.variantsRow}>
-            <button
-              type="button"
-              className={`${styles.variantPill} ${activeVariantId === 'base' ? styles.variantPillActive : ''}`}
-              onClick={() => setActiveVariantId('base')}
-            >
-              Базовый товар
-            </button>
-            {variants.map((variant) => (
-              <button
-                key={variant.id}
-                type="button"
-                className={`${styles.variantPill} ${activeVariantId === variant.id ? styles.variantPillActive : ''}`}
-                onClick={() => setActiveVariantId(variant.id)}
-              >
-                {variant.name}
-              </button>
-            ))}
-          </div>
-          {activeVariant ? (
-            <div className={styles.variantEditor}>
-              <label>
-                Название
-                <input value={variantForm.name} onChange={(event) => setVariantForm((prev) => ({ ...prev, name: event.target.value }))} />
-              </label>
-              <label>
-                Цвет
-                <input value={variantForm.color} onChange={(event) => setVariantForm((prev) => ({ ...prev, color: event.target.value }))} />
-              </label>
-              <label>
-                SKU
-                <input value={variantForm.sku} onChange={(event) => setVariantForm((prev) => ({ ...prev, sku: event.target.value }))} />
-              </label>
-              <label>
-                Остаток
-                <input value={variantForm.stock} onChange={(event) => setVariantForm((prev) => ({ ...prev, stock: event.target.value }))} />
-              </label>
-              <label>
-                Δ цены
-                <input value={variantForm.priceDelta} onChange={(event) => setVariantForm((prev) => ({ ...prev, priceDelta: event.target.value }))} />
-              </label>
-              <div className={styles.variantActions}>
-                <Button type="button" onClick={handleSaveVariant} disabled={isVariantBusy}>
-                  Сохранить вариант
-                </Button>
-                <Button type="button" variant="secondary" onClick={handleDeleteVariant} disabled={isVariantBusy}>
-                  Удалить вариант
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <p className={styles.muted}>Выбран базовый товар. Для него варианты не редактируются.</p>
-          )}
-          {variantError ? <p className={styles.error}>{variantError}</p> : null}
-        </div>
-      ) : null}
 
       <div className={styles.layout}>
         <div className={styles.mainInfo}>
