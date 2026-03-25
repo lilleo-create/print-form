@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
+import { usePersistedForm } from '../../hooks/usePersistedForm';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -111,6 +112,83 @@ interface SellerProductModalProps {
   onSubmit: (payload: SellerProductPayload) => Promise<void>;
 }
 
+interface PersistedVariantDraft {
+  id: string;
+  name: string;
+  isBase: boolean;
+  order: number;
+  size: string;
+  otherAttribute: string;
+  form: ProductFormValues;
+  mediaItems: Array<{
+    id: string;
+    kind: ProductMediaKind;
+    source: 'existing';
+    previewUrl: string;
+    name: string;
+    remoteUrl?: string;
+  }>;
+  pendingLocalFiles: string[];
+}
+
+interface PersistedSellerProductDraft {
+  activeVariantId: string;
+  variantDrafts: PersistedVariantDraft[];
+}
+
+const SELLER_PRODUCT_DRAFT_PREFIX = 'pf_seller_product_form';
+
+const getSellerProductDraftKey = (product: Product | null) =>
+  `${SELLER_PRODUCT_DRAFT_PREFIX}:${product ? `edit:${product.id}` : 'create:new'}`;
+
+const sanitizeFormValues = (form?: Partial<ProductFormValues>): ProductFormValues => ({
+  ...getDefaultFormValues(),
+  ...form,
+  productionTimeHours: form?.productionTimeHours ?? 24,
+  price: form?.price ?? 0
+});
+
+const toPersistedVariantDraft = (variant: VariantDraft): PersistedVariantDraft => ({
+  id: variant.id,
+  name: variant.name,
+  isBase: variant.isBase,
+  order: variant.order,
+  size: variant.size,
+  otherAttribute: variant.otherAttribute,
+  form: sanitizeFormValues(variant.form),
+  mediaItems: variant.mediaItems
+    .filter((item) => item.source === 'existing')
+    .map((item) => ({
+      id: item.id,
+      kind: item.kind,
+      source: 'existing' as const,
+      previewUrl: item.previewUrl,
+      remoteUrl: item.remoteUrl,
+      name: item.name
+    })),
+  pendingLocalFiles: variant.mediaItems
+    .filter((item) => item.source === 'new')
+    .map((item) => item.name)
+});
+
+const fromPersistedVariantDraft = (variant: PersistedVariantDraft): VariantDraft => ({
+  id: variant.id,
+  name: variant.name,
+  isBase: variant.isBase,
+  order: variant.order,
+  size: variant.size,
+  otherAttribute: variant.otherAttribute,
+  form: sanitizeFormValues(variant.form),
+  mediaItems: variant.mediaItems.map((item) => ({
+    id: item.id,
+    kind: item.kind,
+    source: 'existing' as const,
+    previewUrl: item.previewUrl,
+    remoteUrl: item.remoteUrl,
+    name: item.name
+  }))
+});
+
 const createExistingMediaItems = (product: Product | null): MediaItem[] => {
   if (!product) return [];
 
@@ -208,6 +286,24 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
   const [categoriesError, setCategoriesError] = useState('');
   const [variantDrafts, setVariantDrafts] = useState<VariantDraft[]>([]);
   const [activeVariantId, setActiveVariantId] = useState('');
+  const draftRestoreHandledRef = useRef(false);
+  const draftKey = useMemo(() => getSellerProductDraftKey(product), [product]);
+  const persistedPayload = useMemo<PersistedSellerProductDraft | null>(
+    () =>
+      variantDrafts.length
+        ? {
+            activeVariantId,
+            variantDrafts: variantDrafts.map(toPersistedVariantDraft)
+          }
+        : null,
+    [variantDrafts, activeVariantId]
+  );
+  const { hydratedDraft, clearDraft } = usePersistedForm<PersistedSellerProductDraft>({
+    storageKey: draftKey,
+    data: persistedPayload,
+    enabled: true,
+    debounceMs: 300
+  });
 
   const {
     control,
@@ -243,15 +339,45 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
       mediaItems: createExistingMediaItems(product)
     };
 
+    let nextDrafts: VariantDraft[] = [initialDraft];
+    let nextActiveVariantId = initialDraft.id;
+
+    const persisted = hydratedDraft?.data;
+    const canRestoreDraft = Boolean(
+      persisted?.variantDrafts?.length && (!product || !draftRestoreHandledRef.current)
+    );
+
+    if (canRestoreDraft) {
+      const shouldRestore = !product
+        ? true
+        : window.confirm('Найден локальный черновик редактирования. Восстановить его поверх данных с сервера?');
+
+      draftRestoreHandledRef.current = true;
+
+      if (shouldRestore && persisted) {
+        nextDrafts = persisted.variantDrafts.map(fromPersistedVariantDraft);
+        nextActiveVariantId =
+          nextDrafts.find((variant) => variant.id === persisted.activeVariantId)?.id ??
+          nextDrafts[0]?.id ??
+          initialDraft.id;
+      }
+    }
+
     setVariantDrafts((prev) => {
       revokeNewMediaUrls(prev);
-      return [initialDraft];
+      return nextDrafts;
     });
-    setActiveVariantId(initialDraft.id);
+    setActiveVariantId(nextActiveVariantId);
     setFileErrors([]);
     setUploadError('');
-    reset(initialForm);
-  }, [product, reset]);
+
+    const activeDraft = nextDrafts.find((variant) => variant.id === nextActiveVariantId) ?? nextDrafts[0] ?? initialDraft;
+    reset(activeDraft.form);
+  }, [product, reset, hydratedDraft]);
+
+  useEffect(() => {
+    draftRestoreHandledRef.current = false;
+  }, [draftKey]);
 
   useEffect(() => {
     let isMounted = true;
@@ -552,6 +678,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
     };
 
     await onSubmit(payload);
+    clearDraft();
     onClose();
   };
 
