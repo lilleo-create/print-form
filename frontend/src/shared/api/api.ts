@@ -257,6 +257,7 @@ try {
     body: requestPayload
   });
 }
+  },
 
   async getReviewReplies(
     productId: string,
