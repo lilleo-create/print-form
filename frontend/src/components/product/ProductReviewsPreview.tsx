@@ -123,7 +123,7 @@ export const ProductReviewsPreview = ({ productId, product, reviews, summary }: 
               <article key={review.id} className={styles.reviewCard}>
                 <div className={styles.reviewTop}>
                   <div>
-                    <strong>{(review as any).user?.name ?? 'Имя скрыто'}</strong>
+                    <strong>{review.buyerNickname ?? review.user?.name ?? 'Покупатель'}</strong>
                     <span className={styles.reviewDate}>{formatReviewDate(review.createdAt)}</span>
                   </div>
                   <Rating value={review.rating} count={0} />
