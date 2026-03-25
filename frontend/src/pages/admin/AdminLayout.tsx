@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { Link, NavLink, Outlet } from 'react-router-dom';
 import styles from './AdminLayout.module.css';
 
 const navItems = [
@@ -13,7 +13,12 @@ export const AdminLayout = () => {
     <section className={styles.page}>
       <div className={styles.shell}>
         <aside className={styles.sidebar}>
-          <h2 className={styles.sidebarTitle}>Админ-панель</h2>
+          <div className={styles.sidebarHeader}>
+            <h2 className={styles.sidebarTitle}>Админ-панель</h2>
+            <Link to="/" className={styles.homeLink}>
+              Вернуться на главную
+            </Link>
+          </div>
           <nav className={styles.nav}>
             {navItems.map((item) => (
               <NavLink

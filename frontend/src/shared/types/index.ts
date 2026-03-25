@@ -41,6 +41,7 @@ export interface Product {
   category: string;
   price: number;
   image: string;
+  imageUrl?: string;
   description: string;
   descriptionShort?: string;
   descriptionFull?: string;
@@ -61,6 +62,13 @@ export interface Product {
   updatedAt?: string;
   images?: ProductImage[];
   variants?: ProductVariant[];
+  variantGroupId?: string;
+  parentProductId?: string;
+  baseProductId?: string;
+  isVariant?: boolean;
+  isBaseProduct?: boolean;
+  stock?: number;
+  variantProducts?: Product[];
   specs?: ProductSpec[];
   imageUrls?: string[];
   videoUrls?: string[];

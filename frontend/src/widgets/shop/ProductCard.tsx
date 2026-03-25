@@ -1,4 +1,5 @@
 import { KeyboardEvent, useMemo, useState } from 'react';
+import { getProductGroupKey, getProductVariants } from '../../shared/lib/productGrouping';
 import { useNavigate } from 'react-router-dom';
 import { Product } from '../../shared/types';
 import { useCartStore } from '../../app/store/cartStore';
@@ -19,6 +20,15 @@ export const ProductCard = ({ product }: ProductCardProps) => {
   const [imgBroken, setImgBroken] = useState(false);
 
   const imageSrc = useMemo(() => resolveImageUrl(product.image), [product.image]);
+
+  const groupKey = useMemo(() => getProductGroupKey(product), [product]);
+  const variantProducts = useMemo(() => {
+    const pool = (product as Product & { variantProducts?: Product[] }).variantProducts;
+    if (Array.isArray(pool) && pool.length) {
+      return getProductVariants(product, pool);
+    }
+    return [product];
+  }, [product]);
 
   const handleOpen = () => {
     navigate(`/product/${product.id}`);
@@ -65,6 +75,21 @@ useEffect(() => {
         <h3 className={styles.title} title={product.title}>
           {product.title}
         </h3>
+
+        {groupKey && variantProducts.length > 1 ? (
+          <div className={styles.variantChips} onClick={(event) => event.stopPropagation()}>
+            {variantProducts.slice(0, 4).map((variant) => (
+              <button
+                key={variant.id}
+                type="button"
+                className={variant.id === product.id ? styles.variantChipActive : styles.variantChip}
+                onClick={() => navigate(`/product/${variant.id}`)}
+              >
+                {variant.color || variant.title}
+              </button>
+            ))}
+          </div>
+        ) : null}
 
         <Rating value={product.ratingAvg} count={product.ratingCount} />
 

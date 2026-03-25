@@ -15,17 +15,18 @@ const formatCurrency = (value: number) =>
   }).format(value);
 
 const getProductImages = (product: Product) => {
-  if (product.images?.length) {
-    return [...product.images]
+  const byEntities = product.images?.length
+    ? [...product.images]
       .sort((a, b) => a.sortOrder - b.sortOrder)
-      .map((item) => item.url);
-  }
-
-  if (product.imageUrls?.length) {
-    return product.imageUrls;
-  }
-
-  return product.image ? [product.image] : [];
+      .map((item) => item.url)
+    : [];
+  const variants = [
+    ...byEntities,
+    ...(product.imageUrls ?? []),
+    product.imageUrl ?? '',
+    product.image ?? ''
+  ];
+  return [...new Set(variants.map((value) => value.trim()).filter(Boolean))];
 };
 
 const extractVariantColor = (variant: ProductVariant) => {
@@ -57,6 +58,13 @@ export const SellerProductDetailPage = () => {
   const [isVariantBusy, setIsVariantBusy] = useState(false);
 
   const loadProduct = async () => {
+    if (!productId) {
+      setProduct(null);
+      setError('Некорректная ссылка: productId не указан.');
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
@@ -186,7 +194,15 @@ export const SellerProductDetailPage = () => {
   };
 
   if (isLoading) {
-    return <section className={styles.page}>Загрузка товара…</section>;
+    return (
+      <section className={styles.page}>
+        <div className={`${styles.skeleton} ${styles.skeletonTitle}`} />
+        <div className={styles.skeletonGrid}>
+          <div className={`${styles.skeleton} ${styles.skeletonCard}`} />
+          <div className={`${styles.skeleton} ${styles.skeletonCard}`} />
+        </div>
+      </section>
+    );
   }
 
   if (error || !product) {
@@ -336,7 +352,20 @@ export const SellerProductDetailPage = () => {
           {images.length ? (
             <div className={styles.imagesGrid}>
               {images.map((url, index) => (
-                <img key={`${url}-${index}`} src={url} alt={`${product.title} ${index + 1}`} />
+                brokenImages[`gallery-${index}`] ? (
+                  <div key={`${url}-${index}`} className={styles.imagePlaceholder}>
+                    Нет изображения
+                  </div>
+                ) : (
+                  <img
+                    key={`${url}-${index}`}
+                    src={url}
+                    alt={`${product.title} ${index + 1}`}
+                    onError={() =>
+                      setBrokenImages((prev) => ({ ...prev, [`gallery-${index}`]: true }))
+                    }
+                  />
+                )
               ))}
             </div>
           ) : (

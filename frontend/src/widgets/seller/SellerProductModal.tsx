@@ -27,6 +27,13 @@ import {
 
 const productSchema = z.object({
   title: z.string().min(2, 'Введите название'),
+  descriptionShort: z.string().min(5, 'Добавьте краткое описание'),
+  description: z.string().min(10, 'Добавьте описание'),
+  descriptionFull: z.string().min(10, 'Добавьте полное описание'),
+  sku: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.string().min(3, 'Минимум 3 символа').optional()
+  ),
   price: z.preprocess(
     (value) => (typeof value === 'string' && value.trim() === '' ? NaN : value),
     z
@@ -38,7 +45,6 @@ const productSchema = z.object({
   technology: z.string().min(2, 'Введите технологию'),
   productionTimeHours: z.number().int().min(1, 'Минимум 1 час').max(720, 'Максимум 720 часов'),
   color: z.string().min(2, 'Выберите цвет'),
-  description: z.string().min(10, 'Добавьте описание'),
   weightGrossG: z.number().int().positive('Укажите вес (г)').optional(),
   dxCm: z.number().int().positive('Укажите длину (см)').optional(),
   dyCm: z.number().int().positive('Укажите ширину (см)').optional(),
@@ -66,7 +72,10 @@ export interface SellerProductPayload {
   technology: string;
   productionTimeHours: number;
   color: string;
+  descriptionShort: string;
   description: string;
+  descriptionFull: string;
+  sku?: string;
   imageUrls: string[];
   videoUrls: string[];
   weightGrossG?: number;
@@ -97,6 +106,8 @@ const createExistingMediaItems = (product: Product | null): MediaItem[] => {
     ? [...product.images].sort((a, b) => a.sortOrder - b.sortOrder).map((image) => image.url)
     : product.imageUrls?.length
       ? product.imageUrls
+      : product.imageUrl
+        ? [product.imageUrl]
       : product.image
         ? [product.image]
         : [];
@@ -124,13 +135,16 @@ const createExistingMediaItems = (product: Product | null): MediaItem[] => {
 
 const getDefaultFormValues = (): ProductFormValues => ({
   title: '',
+  descriptionShort: '',
+  description: '',
+  descriptionFull: '',
+  sku: '',
   price: 0,
   material: '',
   category: '',
   technology: '',
   productionTimeHours: 24,
   color: PRODUCT_COLOR_OPTIONS[0].label,
-  description: '',
   weightGrossG: undefined,
   dxCm: undefined,
   dyCm: undefined,
@@ -139,13 +153,16 @@ const getDefaultFormValues = (): ProductFormValues => ({
 
 const getProductFormValues = (product: Product): ProductFormValues => ({
   title: product.title,
+  descriptionShort: product.descriptionShort ?? product.description,
+  description: product.description,
+  descriptionFull: product.descriptionFull ?? product.description,
+  sku: product.sku ?? '',
   price: product.price,
   material: product.material,
   category: product.category,
   technology: product.technology,
   productionTimeHours: product.productionTimeHours ?? 24,
   color: normalizeProductColor(product.color),
-  description: product.description,
   weightGrossG: product.weightGrossG ?? undefined,
   dxCm: product.dxCm ?? undefined,
   dyCm: product.dyCm ?? undefined,
@@ -426,7 +443,10 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
       technology: values.technology,
       productionTimeHours: values.productionTimeHours,
       color: normalizeProductColor(values.color),
+      descriptionShort: values.descriptionShort,
       description: values.description,
+      descriptionFull: values.descriptionFull,
+      sku: values.sku?.trim() || undefined,
       imageUrls,
       videoUrls,
       weightGrossG: values.weightGrossG,
@@ -466,9 +486,14 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
               {errors.title && <span className={styles.errorText}>{errors.title.message}</span>}
             </label>
             <label>
-              Краткое описание
+              Материал
               <input className={errors.material ? styles.inputError : styles.input} placeholder="Материал / ключевая особенность" {...register('material')} />
               {errors.material && <span className={styles.errorText}>{errors.material.message}</span>}
+            </label>
+            <label>
+              Краткое описание
+              <input className={errors.descriptionShort ? styles.inputError : styles.input} placeholder="Коротко о товаре" {...register('descriptionShort')} />
+              {errors.descriptionShort && <span className={styles.errorText}>{errors.descriptionShort.message}</span>}
             </label>
             <label>
               Полное описание
@@ -479,6 +504,21 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
                 {...register('description')}
               />
               {errors.description && <span className={styles.errorText}>{errors.description.message}</span>}
+            </label>
+            <label>
+              Расширенное описание
+              <textarea
+                rows={4}
+                className={errors.descriptionFull ? styles.inputError : styles.input}
+                placeholder="Подробное описание товара"
+                {...register('descriptionFull')}
+              />
+              {errors.descriptionFull && <span className={styles.errorText}>{errors.descriptionFull.message}</span>}
+            </label>
+            <label>
+              SKU
+              <input className={errors.sku ? styles.inputError : styles.input} placeholder="SKU-0001" {...register('sku')} />
+              {errors.sku && <span className={styles.errorText}>{errors.sku.message}</span>}
             </label>
             <label>
               Категория
@@ -516,6 +556,12 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
                 />
                 {errors.price && <span className={styles.errorText}>{errors.price.message}</span>}
               </label>
+              {product ? (
+                <label>
+                  Статус модерации
+                  <input className={styles.input} value={product.moderationStatus ?? '—'} readOnly />
+                </label>
+              ) : null}
             </div>
           </section>
 
