@@ -131,7 +131,7 @@ export interface Review {
   };
   repliesCount?: number;
   replies?: ReviewReply[];
-  user?: { id: string; name: string } | null;
+  user?: { id: string; name: string; nickname?: string | null; fullName?: string | null } | null;
   product?: { id: string; title: string; image?: string };
 }
 
@@ -143,6 +143,8 @@ export interface ReviewReply {
   authorType: 'BUYER' | 'SELLER';
   buyerNickname?: string | null;
   storeName?: string | null;
+  user?: { id?: string | null; name?: string | null; nickname?: string | null; fullName?: string | null } | null;
+  author?: { id?: string | null; name?: string | null; nickname?: string | null; fullName?: string | null } | null;
   isCurrentStoreReply?: boolean;
 }
 

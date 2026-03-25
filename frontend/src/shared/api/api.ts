@@ -241,16 +241,16 @@ export const api = {
     reaction: 'LIKE' | 'DISLIKE' | null
   ) {
     const requestPayload = { reaction, type: reaction };
-    const responseShape = {
+    type ReactionResponse = {
       data: {
-        reviewId: '',
-        currentUserReaction: null as 'LIKE' | 'DISLIKE' | null,
-        reactions: { likes: 0, dislikes: 0 }
-      }
+        reviewId: string;
+        currentUserReaction: 'LIKE' | 'DISLIKE' | null;
+        reactions: { likes: number; dislikes: number };
+      };
     };
 
     const sendByProductPath = () =>
-      apiClient.request<typeof responseShape>(
+      apiClient.request<ReactionResponse>(
         `/products/${productId}/reviews/${reviewId}/reaction`,
         {
           method: 'PATCH',
@@ -259,7 +259,7 @@ export const api = {
       );
 
     const sendByReviewPath = () =>
-      apiClient.request<typeof responseShape>(`/reviews/${reviewId}/reaction`, {
+      apiClient.request<ReactionResponse>(`/reviews/${reviewId}/reaction`, {
         method: 'PATCH',
         body: requestPayload
       });
@@ -310,36 +310,42 @@ export const api = {
   async createReviewReply(productId: string, reviewId: string, text: string) {
     const primaryPayload = { text, body: text };
     const fallbackPayload = { message: text };
-
-    try {
-      return await apiClient.request<{ data: ReviewReply }>(
+    const sendByProductPath = (body: typeof primaryPayload | typeof fallbackPayload) =>
+      apiClient.request<{ data: ReviewReply }>(
         `/products/${productId}/reviews/${reviewId}/replies`,
         {
           method: 'POST',
-          body: primaryPayload
+          body
         }
       );
+    const sendByReviewPath = (body: typeof primaryPayload | typeof fallbackPayload) =>
+      apiClient.request<{ data: ReviewReply }>(`/reviews/${reviewId}/replies`, {
+        method: 'POST',
+        body
+      });
+
+    try {
+      return await sendByProductPath(primaryPayload);
     } catch (error) {
       const { status, code } = getErrorMeta(error);
 
       if (status === 422 || code === 'VALIDATION_ERROR') {
-        return apiClient.request<{ data: ReviewReply }>(
-          `/products/${productId}/reviews/${reviewId}/replies`,
-          {
-            method: 'POST',
-            body: fallbackPayload
-          }
-        );
+        return sendByProductPath(fallbackPayload);
       }
 
-      if (status !== 404 && status !== 405 && code !== 'ROUTE_NOT_FOUND') {
+      if (status !== 403 && status !== 404 && status !== 405 && code !== 'ROUTE_NOT_FOUND') {
         throw error;
       }
 
-      return apiClient.request<{ data: ReviewReply }>(`/reviews/${reviewId}/replies`, {
-        method: 'POST',
-        body: primaryPayload
-      });
+      try {
+        return await sendByReviewPath(primaryPayload);
+      } catch (fallbackError) {
+        const fallbackMeta = getErrorMeta(fallbackError);
+        if (fallbackMeta.status === 422 || fallbackMeta.code === 'VALIDATION_ERROR') {
+          return sendByReviewPath(fallbackPayload);
+        }
+        throw fallbackError;
+      }
     }
   },
 

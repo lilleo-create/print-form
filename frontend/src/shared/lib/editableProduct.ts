@@ -1,5 +1,6 @@
 import type { Product, ProductSpec, ProductVariant } from '../types';
 import { getProductImages, getProductVideos } from './productMedia';
+import { normalizeProductSpecs } from './productSpecs';
 
 type ProductLike = Partial<Product> & {
   imageUrl?: string | null;
@@ -48,6 +49,13 @@ export const toEditableProduct = (
   const descriptionShort = toText(product.descriptionShort) || description;
   const descriptionFull = toText(product.descriptionFull) || description;
 
+  const normalizedSpecs = normalizeProductSpecs(product as Product).map((spec, index) => ({
+    id: `${product.id}-spec-${index}`,
+    key: spec.name,
+    value: spec.value,
+    sortOrder: index
+  }));
+
   return {
     id: product.id,
     title: toText(product.title),
@@ -63,7 +71,7 @@ export const toEditableProduct = (
     productionTimeHours: toNumber(product.productionTimeHours, 24),
     imageUrls: getProductImages(product),
     videoUrls: getProductVideos(product),
-    characteristics: product.specs ?? product.characteristics ?? [],
+    characteristics: normalizedSpecs,
     variants: product.variants ?? [],
     weightGrossG:
       typeof product.weightGrossG === 'number' ? product.weightGrossG : undefined,

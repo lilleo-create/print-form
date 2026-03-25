@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Review } from '../shared/types';
 import { api } from '../shared/api';
 import { ApiError } from '../shared/api/client';
+import { normalizeReviewPhotoUrl, type ReviewPhotoLike } from '../shared/lib/reviews';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -18,6 +19,14 @@ type Options = {
 };
 
 const reviewsCache = new Map<string, { ts: number; reviews: Review[]; summary: ReviewSummary | null }>();
+
+const normalizeReview = (review: Review): Review => {
+  const rawPhotos = ((review as Review & { photos?: ReviewPhotoLike[] }).photos ?? []) as ReviewPhotoLike[];
+  return {
+    ...review,
+    photos: rawPhotos.map((photo) => normalizeReviewPhotoUrl(photo)).filter(Boolean)
+  };
+};
 
 export function useProductReviews(productId: string, opts?: Options) {
   const ttlMs = opts?.ttlMs ?? 30_000;
@@ -71,7 +80,10 @@ export function useProductReviews(productId: string, opts?: Options) {
         if (reqId !== reqIdRef.current) return;
         if (controller.signal.aborted) return;
 
-        const nextReviews = Array.isArray(r1?.data) ? r1.data : (r1?.data?.data ?? r1?.data ?? []);
+        const nextReviewsRaw = Array.isArray(r1?.data) ? r1.data : (r1?.data?.data ?? r1?.data ?? []);
+        const nextReviews = Array.isArray(nextReviewsRaw)
+          ? nextReviewsRaw.map((review) => normalizeReview(review as Review))
+          : [];
         const nextSummary = (r2?.data?.data ?? r2?.data ?? r2 ?? null) as ReviewSummary | null;
 
         setReviews(nextReviews);

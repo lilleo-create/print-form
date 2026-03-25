@@ -15,45 +15,7 @@ import {
 } from '../../pages/ProductPage/components/ProductSpecs/ProductSpecs';
 import { api } from '../../shared/api';
 import { getProductGroupKey, getProductVariants } from '../../shared/lib/productGrouping';
-
-const normalizeProductSpecs = (product: Product | null): SpecItem[] => {
-  if (!product) return [];
-
-  const specs = product.specs?.length
-    ? product.specs.map((spec) => ({ name: spec.key, value: spec.value }))
-    : [];
-
-  if (specs.length > 0) {
-    return specs.filter((item) => item.name && item.value);
-  }
-
-  const characteristicList = (product as Product & { characteristics?: Array<{ key?: string; name?: string; value?: string }> }).characteristics;
-  if (Array.isArray(characteristicList) && characteristicList.length > 0) {
-    return characteristicList
-      .map((item) => ({ name: item.name ?? item.key ?? '', value: item.value ?? '' }))
-      .filter((item) => item.name && item.value);
-  }
-
-  const attributes = (product as Product & { attributes?: Array<{ key?: string; name?: string; value?: string }> }).attributes;
-  if (Array.isArray(attributes) && attributes.length > 0) {
-    return attributes
-      .map((item) => ({ name: item.name ?? item.key ?? '', value: item.value ?? '' }))
-      .filter((item) => item.name && item.value);
-  }
-
-  const characteristics = (product as Product & { characteristics?: Record<string, string> }).characteristics;
-  if (characteristics && typeof characteristics === 'object') {
-    return Object.entries(characteristics)
-      .map(([name, value]) => ({ name, value }))
-      .filter((item) => item.name && item.value);
-  }
-
-  return [
-    { name: 'Материал', value: (product as { material?: string }).material ?? '' },
-    { name: 'Технология', value: (product as { technology?: string }).technology ?? '' },
-    { name: 'Цвет', value: (product as { color?: string }).color ?? '' }
-  ].filter((item) => item.value);
-};
+import { normalizeProductSpecs } from '../../shared/lib/productSpecs';
 
 type ProductPageLayoutProps = {
   productId: string;
@@ -102,7 +64,7 @@ export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
 
   useProductBoard(activeProduct);
 
-  const specs = useMemo(() => normalizeProductSpecs(activeProduct), [activeProduct]);
+  const specs = useMemo<SpecItem[]>(() => normalizeProductSpecs(activeProduct), [activeProduct]);
 
   if (status === 'loading' && !product) {
     return (
