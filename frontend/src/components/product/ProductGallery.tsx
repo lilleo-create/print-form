@@ -52,7 +52,7 @@ export const ProductGallery = ({ images, title }: ProductGalleryProps) => {
           <button
             key={image.id}
             className={activeIndex === index ? `${styles.thumb} ${styles.thumbActive}` : styles.thumb}
-            onClick={() => openLightbox(index)}
+            onClick={() => setActiveIndex(index)}
             aria-label={`Показать изображение ${title}`}
             type="button"
           >
