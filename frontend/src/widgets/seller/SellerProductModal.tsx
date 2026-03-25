@@ -57,24 +57,6 @@ type MediaItem = {
   remoteUrl?: string;
 };
 
-export interface SellerProductVariantDraft {
-  id: string;
-  name: string;
-  order: number;
-  isBase: boolean;
-  fields: ProductFormValues;
-  attributes: {
-    color: string;
-    size?: string;
-    other?: string;
-  };
-  media: {
-    imageUrls: string[];
-    videoUrls: string[];
-    pendingLocalFiles: string[];
-  };
-}
-
 export interface SellerProductPayload {
   id?: string;
   title: string;
@@ -91,7 +73,6 @@ export interface SellerProductPayload {
   dxCm?: number;
   dyCm?: number;
   dzCm?: number;
-  variantsDraft?: SellerProductVariantDraft[];
 }
 
 interface VariantDraft {
@@ -99,8 +80,6 @@ interface VariantDraft {
   name: string;
   isBase: boolean;
   order: number;
-  size: string;
-  otherAttribute: string;
   form: ProductFormValues;
   mediaItems: MediaItem[];
 }
@@ -173,20 +152,6 @@ const getProductFormValues = (product: Product): ProductFormValues => ({
   dzCm: product.dzCm ?? undefined,
 });
 
-const createVariantFromCurrent = (source: VariantDraft, count: number): VariantDraft => ({
-  id: `variant-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-  name: `Вариант ${count}`,
-  isBase: false,
-  order: count,
-  size: '',
-  otherAttribute: '',
-  form: {
-    ...source.form,
-    color: source.form.color
-  },
-  mediaItems: []
-});
-
 const revokeNewMediaUrls = (drafts: VariantDraft[]) => {
   drafts.forEach((draft) => {
     draft.mediaItems.forEach((item) => {
@@ -215,7 +180,6 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
     handleSubmit,
     reset,
     watch,
-    getValues,
     formState: { errors }
   } = useForm<ProductFormValues>({ resolver: zodResolver(productSchema) });
 
@@ -237,8 +201,6 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
       name: 'Базовый товар',
       isBase: true,
       order: 1,
-      size: '',
-      otherAttribute: '',
       form: initialForm,
       mediaItems: createExistingMediaItems(product)
     };
@@ -401,60 +363,6 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
     });
   };
 
-  const addVariant = () => {
-    const currentValues = getValues();
-    const source = activeVariant ?? variantDrafts[0];
-    if (!source) return;
-
-    const sourceWithCurrent: VariantDraft = {
-      ...source,
-      form: {
-        ...source.form,
-        ...currentValues
-      }
-    };
-
-    const nextVariant = createVariantFromCurrent(sourceWithCurrent, variantDrafts.length + 1);
-
-    setVariantDrafts((prev) => [...prev, nextVariant]);
-    setActiveVariantId(nextVariant.id);
-    reset(nextVariant.form);
-    setUploadError('');
-    setFileErrors([]);
-  };
-
-  const removeVariant = (variantId: string) => {
-    setVariantDrafts((prev) => {
-      const target = prev.find((variant) => variant.id === variantId);
-      if (!target || target.isBase) return prev;
-      target.mediaItems.forEach((item) => {
-        if (item.source === 'new') {
-          URL.revokeObjectURL(item.previewUrl);
-        }
-      });
-      const next = prev.filter((variant) => variant.id !== variantId).map((variant, index) => ({
-        ...variant,
-        order: index + 1,
-        name: variant.isBase ? 'Базовый товар' : `Вариант ${index + 1}`
-      }));
-      const fallback = next[0];
-      if (fallback) {
-        setActiveVariantId(fallback.id);
-        reset(fallback.form);
-      }
-      return next;
-    });
-  };
-
-  const switchVariant = (variantId: string) => {
-    const next = variantDrafts.find((variant) => variant.id === variantId);
-    if (!next) return;
-    setActiveVariantId(variantId);
-    reset(next.form);
-    setUploadError('');
-    setFileErrors([]);
-  };
-
   const handleFormSubmit = async (values: ProductFormValues) => {
     if (!activeVariant) return;
     setUploadError('');
@@ -508,29 +416,6 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
       return;
     }
 
-    const variantsDraft: SellerProductVariantDraft[] = variantDrafts.map((variant, index) => {
-      const knownMedia = variant.mediaItems
-        .map((item) => (item.source === 'existing' ? { kind: item.kind, url: item.remoteUrl ?? item.previewUrl } : null))
-        .filter((item): item is { kind: ProductMediaKind; url: string } => Boolean(item));
-
-      return {
-        id: variant.id,
-        name: variant.name,
-        order: index + 1,
-        isBase: variant.isBase,
-        fields: variant.form,
-        attributes: {
-          color: normalizeProductColor(variant.form.color),
-          size: variant.size || undefined,
-          other: variant.otherAttribute || undefined,
-        },
-        media: {
-          imageUrls: knownMedia.filter((item) => item.kind === 'image').map((item) => item.url),
-          videoUrls: knownMedia.filter((item) => item.kind === 'video').map((item) => item.url),
-          pendingLocalFiles: variant.mediaItems.filter((item) => item.source === 'new').map((item) => item.name)
-        }
-      };
-    });
 
     const payload: SellerProductPayload = {
       id: product?.id,
@@ -548,7 +433,6 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
       dxCm: values.dxCm,
       dyCm: values.dyCm,
       dzCm: values.dzCm,
-      variantsDraft,
     };
 
     await onSubmit(payload);
@@ -571,41 +455,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
           </button>
         </div>
 
-        <section className={styles.section}>
-          <h4 className={styles.sectionTitle}>Объединение вариантов на одной карточке</h4>
-          <p className={styles.muted}>
-            Если товар выпускается в разных вариантах, например по цвету или размеру, объедините их в одну карточку.
-            Это позволит покупателю переключаться между вариантами внутри одной страницы товара.
-          </p>
-          <p className={styles.warningText}>
-            На текущем этапе backend не сохраняет variants: отправляется только активный вариант,
-            а структура вариантов хранится как интеграционный контракт на frontend.
-          </p>
-        </section>
 
-        <section className={styles.section}>
-          <div className={styles.variantHeaderRow}>
-            <h4 className={styles.sectionTitle}>Варианты товара</h4>
-            <Button type="button" variant="secondary" onClick={addVariant}>
-              Добавить вариант
-            </Button>
-          </div>
-          <div className={styles.variantsList}>
-            {variantDrafts.map((variant) => (
-              <div key={variant.id} className={`${styles.variantCard} ${variant.id === activeVariantId ? styles.variantCardActive : ''}`}>
-                <button type="button" className={styles.variantSwitch} onClick={() => switchVariant(variant.id)}>
-                  <span className={styles.variantName}>{variant.name}</span>
-                  <span className={styles.muted}>Цвет: {normalizeProductColor(variant.form.color)}</span>
-                </button>
-                {!variant.isBase ? (
-                  <button type="button" className={styles.removeFile} onClick={() => removeVariant(variant.id)}>
-                    Удалить
-                  </button>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        </section>
 
         <form className={styles.form} onSubmit={handleSubmit(handleFormSubmit)}>
           <section className={styles.section}>
@@ -670,7 +520,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
           </section>
 
           <section className={styles.section}>
-            <h4 className={styles.sectionTitle}>Особенности варианта</h4>
+            <h4 className={styles.sectionTitle}>Параметры товара</h4>
             <div className={styles.inlineFields}>
               <label>
                 Цвет товара
@@ -709,24 +559,6 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
                   ) : null}
                 </div>
                 {errors.color && <span className={styles.errorText}>{errors.color.message}</span>}
-              </label>
-              <label>
-                Размер (опционально)
-                <input
-                  className={styles.input}
-                  value={activeVariant?.size ?? ''}
-                  onChange={(event) => updateActiveVariant((variant) => ({ ...variant, size: event.target.value }))}
-                  placeholder="Например, M / 42"
-                />
-              </label>
-              <label>
-                Другое отличие (опционально)
-                <input
-                  className={styles.input}
-                  value={activeVariant?.otherAttribute ?? ''}
-                  onChange={(event) => updateActiveVariant((variant) => ({ ...variant, otherAttribute: event.target.value }))}
-                  placeholder="Например, матовый / глянец"
-                />
               </label>
             </div>
           </section>
@@ -767,7 +599,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
           </section>
 
           <section className={styles.section}>
-            <h4 className={styles.sectionTitle}>Изображения и видео варианта</h4>
+            <h4 className={styles.sectionTitle}>Изображения и видео товара</h4>
             <p className={styles.muted}>Поддержка: JPG, PNG, WEBP, HEIC/HEIF, MP4, MOV/QuickTime, WEBM. Лимиты: изображение до {formatSize(IMAGE_MAX_SIZE_BYTES)}, видео до {formatSize(VIDEO_MAX_SIZE_BYTES)} и до {VIDEO_MAX_DURATION_SECONDS} сек.</p>
             <div
               className={`${styles.dropzone} ${isDragActive ? styles.dropzoneActive : ''}`}

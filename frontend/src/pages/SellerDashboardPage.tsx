@@ -571,12 +571,10 @@ export const SellerDashboardPage = () => {
     setProductsError(null);
 
     try {
-      const { variantsDraft: _variantsDraft, ...legacyPayload } = payload;
-
       if (payload.id) {
-        await api.updateSellerProduct(payload.id, legacyPayload);
+        await api.updateSellerProduct(payload.id, payload);
       } else {
-        await api.createSellerProduct(legacyPayload);
+        await api.createSellerProduct(payload);
       }
 
       setIsModalOpen(false);
