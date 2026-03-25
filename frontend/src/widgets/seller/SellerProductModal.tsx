@@ -9,6 +9,7 @@ import { Button } from '../../shared/ui/Button';
 import { useBodyScrollLock } from '../../shared/lib/useBodyScrollLock';
 import { useModalFocus } from '../../shared/lib/useModalFocus';
 import { useOverlayClose } from '../../shared/lib/useOverlayClose';
+import { getProductImages, getProductVideos } from '../../shared/lib/productMedia';
 import { api } from '../../shared/api';
 import { sellerProductVariantsService } from '../../shared/api/sellerProductVariantsService';
 import styles from './SellerProductModal.module.css';
@@ -176,15 +177,7 @@ const fromPersistedVariantDraft = (variant: PersistedVariantDraft): VariantDraft
 const createExistingMediaItems = (product: Product | null): MediaItem[] => {
   if (!product) return [];
 
-  const imageUrls = product.images?.length
-    ? [...product.images].sort((a, b) => a.sortOrder - b.sortOrder).map((image) => image.url)
-    : product.imageUrls?.length
-      ? product.imageUrls
-      : product.imageUrl
-        ? [product.imageUrl]
-      : product.image
-        ? [product.image]
-        : [];
+  const imageUrls = getProductImages(product);
 
   const imageItems = imageUrls.map((url, index) => ({
     id: `existing-image-${index}`,
@@ -195,7 +188,7 @@ const createExistingMediaItems = (product: Product | null): MediaItem[] => {
     name: `Изображение ${index + 1}`
   }));
 
-  const videoItems = (product.videoUrls ?? []).map((url, index) => ({
+  const videoItems = getProductVideos(product).map((url, index) => ({
     id: `existing-video-${index}`,
     kind: 'video' as const,
     source: 'existing' as const,
@@ -275,6 +268,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
   const [isVariantBusy, setIsVariantBusy] = useState(false);
   const [variantDrafts, setVariantDrafts] = useState<VariantDraft[]>([]);
   const [activeVariantId, setActiveVariantId] = useState('');
+  const [brokenMedia, setBrokenMedia] = useState<Record<string, boolean>>({});
   const draftRestoreHandledRef = useRef(false);
   const draftKey = useMemo(() => getSellerProductDraftKey(product), [product]);
   const persistedPayload = useMemo<PersistedSellerProductDraft | null>(
@@ -710,6 +704,10 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
 
   const activeMediaItems = activeVariant?.mediaItems ?? [];
 
+  useEffect(() => {
+    setBrokenMedia({});
+  }, [activeVariantId, activeMediaItems.length]);
+
   return createPortal(
     <div className={styles.overlay} role="dialog" aria-modal="true" onPointerDown={handlePointerDown} onClick={handleClick}>
       <div
@@ -1009,10 +1007,30 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
               <div className={styles.fileList}>
                 {activeMediaItems.map((item, index) => (
                   <div key={item.id} className={styles.fileItem}>
-                    {item.kind === 'image' ? (
-                      <img src={item.previewUrl} alt={item.name} className={styles.filePreview} />
+                    {brokenMedia[item.id] ? (
+                      <div className={styles.filePreviewPlaceholder}>
+                        {item.kind === 'image' ? 'Фото недоступно' : 'Видео недоступно'}
+                      </div>
+                    ) : item.kind === 'image' ? (
+                      <img
+                        src={item.previewUrl}
+                        alt={item.name}
+                        className={styles.filePreview}
+                        onError={() =>
+                          setBrokenMedia((prev) => ({ ...prev, [item.id]: true }))
+                        }
+                      />
                     ) : (
-                      <video src={item.previewUrl} className={styles.filePreview} muted playsInline preload="metadata" />
+                      <video
+                        src={item.previewUrl}
+                        className={styles.filePreview}
+                        muted
+                        playsInline
+                        preload="metadata"
+                        onError={() =>
+                          setBrokenMedia((prev) => ({ ...prev, [item.id]: true }))
+                        }
+                      />
                     )}
                     <div className={styles.fileMeta}>
                       <span className={styles.fileName}>{item.name}</span>
