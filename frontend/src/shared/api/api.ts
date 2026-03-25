@@ -7,6 +7,7 @@ import type {
   PaymentIntent,
   Product,
   Review,
+  ReviewReply,
   ReturnRequest,
   ReturnReason,
   ReturnStatus,
@@ -209,6 +210,54 @@ export const api = {
       method: 'POST',
       body: payload
     });
+  },
+
+  async setReviewReaction(
+    productId: string,
+    reviewId: string,
+    reaction: 'LIKE' | 'DISLIKE' | null
+  ) {
+    return apiClient.request<{
+      data: {
+        reviewId: string;
+        currentUserReaction: 'LIKE' | 'DISLIKE' | null;
+        reactions: { likes: number; dislikes: number };
+      };
+    }>(`/products/${productId}/reviews/${reviewId}/reaction`, {
+      method: 'POST',
+      body: { reaction }
+    });
+  },
+
+  async getReviewReplies(
+    productId: string,
+    reviewId: string,
+    opts?: {
+      page?: number;
+      limit?: number;
+    }
+  ) {
+    const params = new URLSearchParams();
+    if (typeof opts?.page === 'number') {
+      params.set('page', String(opts.page));
+    }
+    if (typeof opts?.limit === 'number') {
+      params.set('limit', String(opts.limit));
+    }
+    const qs = params.toString();
+    return apiClient.request<{ data: ReviewReply[]; meta?: { total?: number } }>(
+      `/products/${productId}/reviews/${reviewId}/replies${qs ? `?${qs}` : ''}`
+    );
+  },
+
+  async createReviewReply(productId: string, reviewId: string, text: string) {
+    return apiClient.request<{ data: ReviewReply }>(
+      `/products/${productId}/reviews/${reviewId}/replies`,
+      {
+        method: 'POST',
+        body: { text }
+      }
+    );
   },
 
   async getReviewSummary(
