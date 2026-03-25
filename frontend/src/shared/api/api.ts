@@ -40,6 +40,29 @@ export interface ApiError {
   details?: unknown;
 }
 
+const getErrorMeta = (error: unknown): { status?: number; code?: string } => {
+  if (!error || typeof error !== 'object') return {};
+
+  const status =
+    'status' in error && typeof (error as { status?: unknown }).status === 'number'
+      ? (error as { status: number }).status
+      : undefined;
+
+  const payload =
+    'payload' in error ? (error as { payload?: unknown }).payload : undefined;
+  const code =
+    payload &&
+    typeof payload === 'object' &&
+    'error' in payload &&
+    (payload as { error?: unknown }).error &&
+    typeof (payload as { error?: unknown }).error === 'object' &&
+    'code' in ((payload as { error?: { code?: unknown } }).error ?? {})
+      ? String((payload as { error?: { code?: string } }).error?.code ?? '')
+      : undefined;
+
+  return { status, code: code || undefined };
+};
+
 const baseUrl = import.meta.env.VITE_API_URL?.trim() || '/api';
 export const apiClient = createFetchClient(baseUrl);
 
@@ -217,7 +240,7 @@ export const api = {
     reviewId: string,
     reaction: 'LIKE' | 'DISLIKE' | null
   ) {
-    const requestPayload = { reaction };
+    const requestPayload = { reaction, type: reaction };
     const responseShape = {
       data: {
         reviewId: '',
@@ -226,34 +249,29 @@ export const api = {
       }
     };
 
-    try {
-      return await apiClient.request<typeof responseShape>(
+    const sendByProductPath = () =>
+      apiClient.request<typeof responseShape>(
         `/products/${productId}/reviews/${reviewId}/reaction`,
         {
           method: 'PATCH',
           body: requestPayload
         }
       );
-    } catch (error) {
-      const status =
-        typeof error === 'object' &&
-        error !== null &&
-        'status' in error &&
-        typeof (error as { status?: unknown }).status === 'number'
-          ? (error as { status: number }).status
-          : undefined;
 
-      if (status !== 404 && status !== 405) {
+    const sendByReviewPath = () =>
+      apiClient.request<typeof responseShape>(`/reviews/${reviewId}/reaction`, {
+        method: 'PATCH',
+        body: requestPayload
+      });
+
+    try {
+      return await sendByProductPath();
+    } catch (error) {
+      const { status, code } = getErrorMeta(error);
+      if (status !== 404 && status !== 405 && code !== 'ROUTE_NOT_FOUND') {
         throw error;
       }
-
-      return apiClient.request<typeof responseShape>(
-        `/reviews/${reviewId}/reaction`,
-        {
-          method: 'PATCH',
-          body: requestPayload
-        }
-      );
+      return sendByReviewPath();
     }
   },
 
@@ -273,36 +291,54 @@ export const api = {
       params.set('limit', String(opts.limit));
     }
     const qs = params.toString();
-    return apiClient.request<{ data: ReviewReply[]; meta?: { total?: number } }>(
-      `/products/${productId}/reviews/${reviewId}/replies${qs ? `?${qs}` : ''}`
-    );
+    try {
+      return await apiClient.request<{ data: ReviewReply[]; meta?: { total?: number } }>(
+        `/products/${productId}/reviews/${reviewId}/replies${qs ? `?${qs}` : ''}`
+      );
+    } catch (error) {
+      const { status, code } = getErrorMeta(error);
+      if (status !== 404 && status !== 405 && code !== 'ROUTE_NOT_FOUND') {
+        throw error;
+      }
+
+      return apiClient.request<{ data: ReviewReply[]; meta?: { total?: number } }>(
+        `/reviews/${reviewId}/replies${qs ? `?${qs}` : ''}`
+      );
+    }
   },
 
   async createReviewReply(productId: string, reviewId: string, text: string) {
+    const primaryPayload = { text, body: text };
+    const fallbackPayload = { message: text };
+
     try {
       return await apiClient.request<{ data: ReviewReply }>(
         `/products/${productId}/reviews/${reviewId}/replies`,
         {
           method: 'POST',
-          body: { text }
+          body: primaryPayload
         }
       );
     } catch (error) {
-      const status =
-        typeof error === 'object' &&
-        error !== null &&
-        'status' in error &&
-        typeof (error as { status?: unknown }).status === 'number'
-          ? (error as { status: number }).status
-          : undefined;
+      const { status, code } = getErrorMeta(error);
 
-      if (status !== 404 && status !== 405) {
+      if (status === 422 || code === 'VALIDATION_ERROR') {
+        return apiClient.request<{ data: ReviewReply }>(
+          `/products/${productId}/reviews/${reviewId}/replies`,
+          {
+            method: 'POST',
+            body: fallbackPayload
+          }
+        );
+      }
+
+      if (status !== 404 && status !== 405 && code !== 'ROUTE_NOT_FOUND') {
         throw error;
       }
 
       return apiClient.request<{ data: ReviewReply }>(`/reviews/${reviewId}/replies`, {
         method: 'POST',
-        body: { text }
+        body: primaryPayload
       });
     }
   },

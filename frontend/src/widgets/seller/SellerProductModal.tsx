@@ -12,6 +12,7 @@ import { useOverlayClose } from '../../shared/lib/useOverlayClose';
 import { toEditableProduct } from '../../shared/lib/editableProduct';
 import { api } from '../../shared/api';
 import { sellerProductVariantsService } from '../../shared/api/sellerProductVariantsService';
+import { normalizeApiError } from '../../shared/api/client';
 import styles from './SellerProductModal.module.css';
 import {
   detectProductMediaKind,
@@ -270,6 +271,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
   });
   const [variantError, setVariantError] = useState<string | null>(null);
   const [isVariantBusy, setIsVariantBusy] = useState(false);
+  const [isVariantRouteUnavailable, setIsVariantRouteUnavailable] = useState(false);
   const [variantDrafts, setVariantDrafts] = useState<VariantDraft[]>([]);
   const [activeVariantId, setActiveVariantId] = useState('');
   const [brokenMedia, setBrokenMedia] = useState<Record<string, boolean>>({});
@@ -373,8 +375,14 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
       setProductVariants([]);
       setActiveProductVariantId('base');
       setVariantError(null);
+      setIsVariantRouteUnavailable(false);
       return;
     }
+
+    const localVariants = Array.isArray(product.variants) ? product.variants : [];
+    setProductVariants(localVariants);
+    setActiveProductVariantId('base');
+    setVariantError(null);
 
     let isMounted = true;
     sellerProductVariantsService
@@ -383,11 +391,25 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
         if (!isMounted) return;
         setProductVariants(response.data);
         setActiveProductVariantId('base');
+        setIsVariantRouteUnavailable(false);
+        setVariantError(null);
       })
-      .catch(() => {
+      .catch((error) => {
         if (!isMounted) return;
-        setProductVariants([]);
-        setVariantError('Не удалось загрузить варианты товара.');
+        const normalized = normalizeApiError(error);
+        const isRouteIssue =
+          normalized.status === 404 ||
+          normalized.code === 'ROUTE_NOT_FOUND' ||
+          normalized.message.includes('404');
+        setIsVariantRouteUnavailable(isRouteIssue);
+        setProductVariants(localVariants);
+        setVariantError(
+          isRouteIssue
+            ? localVariants.length
+              ? 'Отдельный endpoint вариантов недоступен. Показаны варианты из карточки товара.'
+              : 'Варианты доступны только в карточке товара: отдельный endpoint сейчас недоступен.'
+            : 'Не удалось загрузить варианты товара.'
+        );
       });
 
     return () => {
@@ -567,12 +589,17 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
 
   const reloadProductVariants = async () => {
     if (!product?.id) return;
+    if (isVariantRouteUnavailable) return;
     const response = await sellerProductVariantsService.list(product.id);
     setProductVariants(response.data);
   };
 
   const handleAddVariant = async () => {
     if (!product?.id) return;
+    if (isVariantRouteUnavailable) {
+      setVariantError('Сейчас нельзя добавить вариант: endpoint вариантов недоступен.');
+      return;
+    }
     setVariantError(null);
     setIsVariantBusy(true);
     try {
@@ -590,6 +617,10 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
 
   const handleSaveVariant = async () => {
     if (!product?.id || !activeProductVariant) return;
+    if (isVariantRouteUnavailable) {
+      setVariantError('Сейчас нельзя сохранить вариант: endpoint вариантов недоступен.');
+      return;
+    }
     setVariantError(null);
     setIsVariantBusy(true);
     try {
@@ -618,6 +649,10 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
 
   const handleDeleteVariant = async () => {
     if (!product?.id || !activeProductVariant) return;
+    if (isVariantRouteUnavailable) {
+      setVariantError('Сейчас нельзя удалить вариант: endpoint вариантов недоступен.');
+      return;
+    }
     setVariantError(null);
     setIsVariantBusy(true);
     try {
@@ -738,7 +773,12 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
             <section className={styles.section}>
               <div className={styles.variantHeaderRow}>
                 <h4 className={styles.sectionTitle}>Варианты товара</h4>
-                <Button type="button" variant="secondary" onClick={handleAddVariant} disabled={isVariantBusy}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={handleAddVariant}
+                  disabled={isVariantBusy || isVariantRouteUnavailable}
+                >
                   Добавить вариант
                 </Button>
               </div>
@@ -823,10 +863,10 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
                     />
                   </label>
                   <div className={styles.variantActions}>
-                    <Button type="button" onClick={handleSaveVariant} disabled={isVariantBusy}>
+                    <Button type="button" onClick={handleSaveVariant} disabled={isVariantBusy || isVariantRouteUnavailable}>
                       Сохранить вариант
                     </Button>
-                    <Button type="button" variant="secondary" onClick={handleDeleteVariant} disabled={isVariantBusy}>
+                    <Button type="button" variant="secondary" onClick={handleDeleteVariant} disabled={isVariantBusy || isVariantRouteUnavailable}>
                       Удалить вариант
                     </Button>
                   </div>
@@ -878,6 +918,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
             <label>
               SKU
               <input className={errors.sku ? styles.inputError : styles.input} placeholder="SKU-0001" {...register('sku')} />
+              <span className={styles.muted}>SKU — внутренний артикул товара. Поле необязательное.</span>
               {errors.sku && <span className={styles.errorText}>{errors.sku.message}</span>}
             </label>
             <label>

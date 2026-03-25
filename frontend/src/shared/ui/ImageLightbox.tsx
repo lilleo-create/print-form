@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { TouchEvent, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import clsx from 'clsx';
 import { useBodyScrollLock } from '../lib/useBodyScrollLock';
@@ -8,6 +8,7 @@ import styles from './ImageLightbox.module.css';
 export type LightboxImage = {
   id?: string;
   src: string;
+  thumbSrc?: string;
   alt?: string;
 };
 
@@ -22,6 +23,7 @@ type ImageLightboxProps = {
 export const ImageLightbox = ({ isOpen, images, initialIndex = 0, onClose, title }: ImageLightboxProps) => {
   const normalizedImages = useMemo(() => images.filter((image) => Boolean(image.src)), [images]);
   const [activeIndex, setActiveIndex] = useState(initialIndex);
+  const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -76,6 +78,34 @@ export const ImageLightbox = ({ isOpen, images, initialIndex = 0, onClose, title
     setActiveIndex((prev) => (prev + 1) % normalizedImages.length);
   };
 
+  const handleTouchStart = (event: TouchEvent<HTMLDivElement>) => {
+    const touch = event.touches[0];
+    if (!touch) return;
+    setTouchStart({ x: touch.clientX, y: touch.clientY });
+  };
+
+  const handleTouchEnd = (event: TouchEvent<HTMLDivElement>) => {
+    if (!touchStart) return;
+    const touch = event.changedTouches[0];
+    if (!touch) return;
+
+    const deltaX = touch.clientX - touchStart.x;
+    const deltaY = touch.clientY - touchStart.y;
+    setTouchStart(null);
+
+    if (Math.abs(deltaY) > Math.abs(deltaX) && deltaY > 90) {
+      onClose();
+      return;
+    }
+
+    if (normalizedImages.length <= 1 || Math.abs(deltaX) < 60) return;
+    if (deltaX > 0) {
+      selectPrevious();
+      return;
+    }
+    selectNext();
+  };
+
   return createPortal(
     <div className={styles.overlay} onPointerDown={handlePointerDown} onClick={handleClick} role="presentation">
       <div className={styles.container} onClick={(event) => event.stopPropagation()}>
@@ -83,7 +113,7 @@ export const ImageLightbox = ({ isOpen, images, initialIndex = 0, onClose, title
           ✕
         </button>
 
-        <div className={styles.viewer}>
+        <div className={styles.viewer} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
           {normalizedImages.length > 1 && (
             <button type="button" className={clsx(styles.arrow, styles.arrowLeft)} onClick={selectPrevious} aria-label="Предыдущее изображение">
               ‹
@@ -94,8 +124,9 @@ export const ImageLightbox = ({ isOpen, images, initialIndex = 0, onClose, title
             src={activeImage.src}
             alt={activeImage.alt ?? title ?? 'Увеличенное изображение товара'}
             className={styles.image}
+            loading="eager"
+            decoding="async"
           />
-
           {normalizedImages.length > 1 && (
             <button type="button" className={clsx(styles.arrow, styles.arrowRight)} onClick={selectNext} aria-label="Следующее изображение">
               ›
@@ -113,7 +144,12 @@ export const ImageLightbox = ({ isOpen, images, initialIndex = 0, onClose, title
                 onClick={() => setActiveIndex(index)}
                 aria-label={`Открыть изображение ${index + 1}`}
               >
-                <img src={image.src} alt={image.alt ?? title ?? `Изображение ${index + 1}`} />
+                <img
+                  src={image.thumbSrc ?? image.src}
+                  alt={image.alt ?? title ?? `Изображение ${index + 1}`}
+                  loading="lazy"
+                  decoding="async"
+                />
               </button>
             ))}
           </div>

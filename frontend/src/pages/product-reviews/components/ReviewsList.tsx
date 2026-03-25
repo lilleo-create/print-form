@@ -10,7 +10,7 @@ type ReviewsListProps = {
   reviews: Review[];
   status: 'idle' | 'loading' | 'success' | 'error';
   error: string | null;
-  onPhotoClick: (photo: string) => void;
+  onPhotoClick: (photos: string[], index: number) => void;
 };
 
 const formatReviewDate = (value: string) =>
@@ -106,11 +106,21 @@ export const ReviewsList = ({
       setReactionSubmitting((prev) => ({ ...prev, [review.id]: true }));
       setReactionErrors((prev) => ({ ...prev, [review.id]: '' }));
       const response = await api.setReviewReaction(productId, review.id, nextReaction);
-      const payload = response.data?.data ?? response.data;
+      const payload = (response.data?.data ?? response.data) as {
+        currentUserReaction?: 'LIKE' | 'DISLIKE' | null;
+        reactions?: { likes: number; dislikes: number };
+        likesCount?: number;
+        dislikesCount?: number;
+      };
+      const nextLikes = payload.reactions?.likes ?? payload.likesCount;
+      const nextDislikes = payload.reactions?.dislikes ?? payload.dislikesCount;
       updateReview(review.id, (item) => ({
         ...item,
         currentUserReaction: payload.currentUserReaction ?? nextReaction,
-        reactions: payload.reactions ?? item.reactions
+        reactions:
+          typeof nextLikes === 'number' && typeof nextDislikes === 'number'
+            ? { likes: nextLikes, dislikes: nextDislikes }
+            : payload.reactions ?? item.reactions
       }));
     } catch (error) {
       const normalized = normalizeApiError(error);
@@ -122,6 +132,8 @@ export const ReviewsList = ({
             ? 'У вас нет доступа к изменению реакции на этот отзыв.'
             : status === 404
               ? 'Отзыв не найден. Обновите страницу и попробуйте ещё раз.'
+              : status === 422 || normalized.code === 'VALIDATION_ERROR'
+                ? 'Не удалось применить реакцию: сервер отклонил данные.'
               : status === 405
                 ? 'Метод запроса не поддерживается сервером.'
                 : 'Не удалось сохранить реакцию. Попробуйте позже.';
@@ -183,10 +195,11 @@ export const ReviewsList = ({
     try {
       const response = await api.createReviewReply(review.productId, review.id, text);
       const reply = response.data?.data ?? response.data;
+      const replyId = typeof reply?.id === 'string' ? reply.id : `${review.id}-${Date.now()}`;
       updateReview(review.id, (item) => ({
         ...item,
-        replies: [...(item.replies ?? []), reply],
-        repliesCount: (item.repliesCount ?? item.replies?.length ?? 0) + 1
+        replies: [...(item.replies ?? []).filter((itemReply) => itemReply.id !== replyId), { ...reply, id: replyId }],
+        repliesCount: Math.max((item.repliesCount ?? item.replies?.length ?? 0) + 1, (item.replies?.length ?? 0) + 1)
       }));
       setReplyDrafts((prev) => ({ ...prev, [review.id]: '' }));
       setExpandedReplies((prev) => ({ ...prev, [review.id]: true }));
@@ -200,6 +213,8 @@ export const ReviewsList = ({
             ? 'У вас нет прав для ответа на этот отзыв.'
             : status === 404
               ? 'Отзыв не найден. Обновите страницу и попробуйте снова.'
+              : status === 422 || normalized.code === 'VALIDATION_ERROR'
+                ? 'Ответ не прошёл проверку. Измените текст и попробуйте ещё раз.'
               : 'Не удалось отправить ответ. Попробуйте позже.';
       setReplyErrors((prev) => ({ ...prev, [review.id]: readableError }));
     } finally {
@@ -262,16 +277,18 @@ export const ReviewsList = ({
 
             {reviewPhotos.length > 0 && (
               <div className={styles.photos}>
-                {reviewPhotos.map((photo) => (
+                {reviewPhotos.map((photo, index) => (
                   <button
-                    key={photo}
+                    key={`${photo}-${index}`}
                     type="button"
                     className={styles.photoButton}
-                    onClick={() => onPhotoClick(photo)}
+                    onClick={() => onPhotoClick(reviewPhotos, index)}
                   >
                     <img
                       src={resolveImageUrl(photo)}
                       alt="Фото отзыва"
+                      loading="lazy"
+                      decoding="async"
                     />
                   </button>
                 ))}

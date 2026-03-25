@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { TouchEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../app/store/authStore';
 import { api } from '../shared/api';
@@ -145,6 +145,8 @@ export const SellerDashboardPage = () => {
     useState<(typeof menuItems)[number]>('Сводка');
   const isMenuOpen = useHeaderMenuStore((state) => state.isSellerMenuOpen);
   const closeSellerMenu = useHeaderMenuStore((state) => state.closeSellerMenu);
+  const toggleSellerMenu = useHeaderMenuStore((state) => state.toggleSellerMenu);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const [products, setProducts] = useState<Product[]>([]);
   const [isProductsLoading, setIsProductsLoading] = useState(true);
@@ -997,8 +999,45 @@ export const SellerDashboardPage = () => {
     sellerContextError.status !== 403 &&
     sellerContextError.code !== 'FORBIDDEN';
 
+  const handleShellTouchStart = (event: TouchEvent<HTMLElement>) => {
+    const touch = event.touches[0];
+    if (!touch) return;
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+  };
+
+  const handleShellTouchEnd = (event: TouchEvent<HTMLElement>) => {
+    const start = touchStartRef.current;
+    touchStartRef.current = null;
+    if (!start) return;
+
+    const touch = event.changedTouches[0];
+    if (!touch) return;
+
+    const deltaX = touch.clientX - start.x;
+    const deltaY = touch.clientY - start.y;
+    const isMostlyHorizontal = Math.abs(deltaX) > Math.abs(deltaY) * 1.2;
+    if (!isMostlyHorizontal) return;
+
+    const isMobileViewport =
+      typeof window !== 'undefined' && window.matchMedia('(max-width: 960px)').matches;
+    if (!isMobileViewport) return;
+
+    if (!isMenuOpen && start.x <= 20 && deltaX > 70) {
+      toggleSellerMenu();
+      return;
+    }
+
+    if (isMenuOpen && deltaX < -70) {
+      closeSellerMenu();
+    }
+  };
+
   return (
-    <section className={styles.page}>
+    <section
+      className={styles.page}
+      onTouchStart={handleShellTouchStart}
+      onTouchEnd={handleShellTouchEnd}
+    >
       <div className={styles.shell}>
         {isMenuOpen && (
           <button

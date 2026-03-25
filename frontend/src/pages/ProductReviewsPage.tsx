@@ -6,6 +6,7 @@ import { useCartStore } from '../app/store/cartStore';
 import { useAuthStore } from '../app/store/authStore';
 import { useProductBoardStore } from '../app/store/productBoardStore';
 import { resolveImageUrl } from '../shared/lib/resolveImageUrl';
+import { ImageLightbox } from '../shared/ui/ImageLightbox';
 
 import { ProductReviewsHeader } from './product-reviews/components/ProductReviewsHeader';
 import { ReviewsSummary } from './product-reviews/components/ReviewsSummary';
@@ -39,7 +40,7 @@ export const ProductReviewsPage = () => {
   const setProductBoard = useProductBoardStore((s) => s.setProduct);
 
   const [product, setProduct] = useState<Product | null>(null);
-  const [activePhoto, setActivePhoto] = useState<string | null>(null);
+  const [photoViewer, setPhotoViewer] = useState<{ photos: string[]; initialIndex: number } | null>(null);
 
   const [scope, setScope] = useState<ReviewScope>('all');
   const [filters, setFilters] = useState<ReviewFilters>(DEFAULT_FILTERS);
@@ -183,7 +184,7 @@ export const ProductReviewsPage = () => {
               reviews={reviews}
               status={status}
               error={error}
-              onPhotoClick={setActivePhoto}
+              onPhotoClick={(photos, initialIndex) => setPhotoViewer({ photos, initialIndex })}
             />
 
             {hasMore && (
@@ -206,11 +207,17 @@ export const ProductReviewsPage = () => {
         fieldErrors={{}}
       />
 
-      {activePhoto && (
-        <div className={styles.photoModal} onClick={() => setActivePhoto(null)}>
-          <img src={resolveImageUrl(activePhoto)} alt="Фото отзыва" />
-        </div>
-      )}
+      <ImageLightbox
+        isOpen={Boolean(photoViewer)}
+        onClose={() => setPhotoViewer(null)}
+        initialIndex={photoViewer?.initialIndex ?? 0}
+        title="Фото отзыва"
+        images={(photoViewer?.photos ?? []).map((photo, index) => ({
+          id: `${photo}-${index}`,
+          src: resolveImageUrl(photo),
+          alt: `Фото отзыва ${index + 1}`
+        }))}
+      />
     </section>
   );
 };
