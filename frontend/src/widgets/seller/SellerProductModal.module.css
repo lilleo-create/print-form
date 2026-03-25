@@ -106,6 +106,41 @@
   color: var(--text);
 }
 
+.variantsRow {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.variantPill {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-1);
+  color: var(--text);
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.variantPillActive {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.variantEditor {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.variantActions {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+  grid-column: 1 / -1;
+}
+
 .inlineFields {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
