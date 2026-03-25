@@ -1,8 +1,9 @@
-import { HTMLAttributes, MouseEvent } from 'react';
+import { HTMLAttributes } from 'react';
 import { createPortal } from 'react-dom';
 import clsx from 'clsx';
 import styles from './Modal.module.css';
 import { useBodyScrollLock } from '../lib/useBodyScrollLock';
+import { useOverlayClose } from '../lib/useOverlayClose';
 
 interface ModalProps extends HTMLAttributes<HTMLDivElement> {
   isOpen: boolean;
@@ -11,17 +12,12 @@ interface ModalProps extends HTMLAttributes<HTMLDivElement> {
 
 export const Modal = ({ isOpen, onClose, className, children, ...props }: ModalProps) => {
   useBodyScrollLock(isOpen);
+  const { handlePointerDown, handleClick } = useOverlayClose(onClose);
 
   if (!isOpen) return null;
 
-  const handleOverlayClick = (event: MouseEvent<HTMLDivElement>) => {
-    if (!onClose) return;
-    if (event.target !== event.currentTarget) return;
-    onClose();
-  };
-
   return createPortal(
-    <div className={styles.overlay} onClick={handleOverlayClick}>
+    <div className={styles.overlay} onPointerDown={handlePointerDown} onClick={handleClick}>
       <div
         className={clsx(styles.modal, className)}
         onClick={(event) => event.stopPropagation()}

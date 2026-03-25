@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useBodyScrollLock } from '../../shared/lib/useBodyScrollLock';
+import { useOverlayClose } from '../../shared/lib/useOverlayClose';
 import styles from './CdekPvzPickerModal.module.css';
 
 export type CdekPvzSelection = {
@@ -42,6 +43,8 @@ export function CdekPvzPickerModal({
   const iframeSrc = useMemo(() => `/cdek-widget?city=${encodeURIComponent(city)}`, [city]);
   useBodyScrollLock(isOpen);
 
+  const { handlePointerDown, handleClick } = useOverlayClose(onClose);
+
   useEffect(() => {
     if (!isOpen) return;
     const handler = (event: KeyboardEvent) => {
@@ -82,7 +85,7 @@ export function CdekPvzPickerModal({
   if (!isOpen) return null;
 
   return (
-    <div className={styles.overlay} onClick={onClose}>
+    <div className={styles.overlay} onPointerDown={handlePointerDown} onClick={handleClick}>
       <div
         className={styles.modal}
         style={{ maxWidth: '900px', width: '95vw' }}

@@ -5,6 +5,7 @@ import { ReturnPhotoUploader } from '../../../components/returns/ReturnPhotoUplo
 import { resolveImageUrl } from '../../../shared/lib/resolveImageUrl';
 import { getProductPrimaryImage } from '../../../shared/lib/getProductPrimaryImage';
 import { useBodyScrollLock } from '../../../shared/lib/useBodyScrollLock';
+import { useOverlayClose } from '../../../shared/lib/useOverlayClose';
 import styles from './ReviewFormModal.module.css';
 
 export type ReviewFormValues = {
@@ -67,6 +68,8 @@ export const ReviewFormModal = ({
 
   useBodyScrollLock(isOpen);
 
+  const { handlePointerDown, handleClick } = useOverlayClose(onClose);
+
 
   const ratingLabel = useMemo(() => ratingLabels[rating - 1] ?? '', [rating]);
   const [productImageError, setProductImageError] = useState(false);
@@ -82,7 +85,7 @@ export const ReviewFormModal = ({
   };
 
   return (
-    <div className={styles.overlay} onClick={onClose}>
+    <div className={styles.overlay} onPointerDown={handlePointerDown} onClick={handleClick}>
       <div className={styles.modal} onClick={(event) => event.stopPropagation()}>
         <header className={styles.header}>
           <h2>Как вам товар?</h2>
