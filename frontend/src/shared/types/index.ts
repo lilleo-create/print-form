@@ -123,8 +123,27 @@ export interface Review {
   moderatedAt?: string | null;
   moderatedById?: string | null;
   createdAt: string;
+  buyerNickname?: string | null;
+  currentUserReaction?: 'LIKE' | 'DISLIKE' | null;
+  reactions?: {
+    likes: number;
+    dislikes: number;
+  };
+  repliesCount?: number;
+  replies?: ReviewReply[];
   user?: { id: string; name: string } | null;
   product?: { id: string; title: string; image?: string };
+}
+
+export interface ReviewReply {
+  id: string;
+  reviewId: string;
+  text: string;
+  createdAt: string;
+  authorType: 'BUYER' | 'SELLER';
+  buyerNickname?: string | null;
+  storeName?: string | null;
+  isCurrentStoreReply?: boolean;
 }
 
 export interface CartItem {
