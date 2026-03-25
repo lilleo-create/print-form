@@ -59,6 +59,13 @@ export const ReviewsList = ({
       return;
     }
 
+    setReactionErrors((prev) => {
+      if (!prev[review.id]) return prev;
+      const next = { ...prev };
+      delete next[review.id];
+      return next;
+    });
+
     const currentReaction = review.currentUserReaction ?? null;
     const nextReaction = currentReaction === reaction ? null : reaction;
 

@@ -217,17 +217,46 @@ export const api = {
     reviewId: string,
     reaction: 'LIKE' | 'DISLIKE' | null
   ) {
-    return apiClient.request<{
-      data: {
-        reviewId: string;
-        currentUserReaction: 'LIKE' | 'DISLIKE' | null;
-        reactions: { likes: number; dislikes: number };
-      };
-    }>(`/products/${productId}/reviews/${reviewId}/reaction`, {
-      method: 'PATCH',
-      body: { reaction }
-    });
-  },
+    const requestPayload = {
+  reaction,
+  productId
+};
+
+try {
+  return await apiClient.request<{
+    data: {
+      reviewId: string;
+      currentUserReaction: 'LIKE' | 'DISLIKE' | null;
+      reactions: { likes: number; dislikes: number };
+    };
+  }>(`/reviews/${reviewId}/reaction`, {
+    method: 'PATCH',
+    body: requestPayload
+  });
+} catch (error) {
+  const status =
+    typeof error === 'object' &&
+    error !== null &&
+    'status' in error &&
+    typeof (error as { status?: unknown }).status === 'number'
+      ? (error as { status: number }).status
+      : undefined;
+
+  if (status !== 404 && status !== 405) {
+    throw error;
+  }
+
+  return apiClient.request<{
+    data: {
+      reviewId: string;
+      currentUserReaction: 'LIKE' | 'DISLIKE' | null;
+      reactions: { likes: number; dislikes: number };
+    };
+  }>(`/products/${productId}/reviews/${reviewId}/reaction`, {
+    method: 'PATCH',
+    body: requestPayload
+  });
+}
 
   async getReviewReplies(
     productId: string,
