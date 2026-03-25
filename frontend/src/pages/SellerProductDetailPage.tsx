@@ -58,6 +58,7 @@ export const SellerProductDetailPage = () => {
   }, [productId]);
 
   const images = useMemo(() => getProductImages(product), [product]);
+  const editableProduct = useMemo(() => toEditableProduct(product), [product]);
   useEffect(() => {
     setBrokenImages({});
   }, [images]);
@@ -104,29 +105,29 @@ export const SellerProductDetailPage = () => {
 
       <div className={styles.layout}>
         <div className={styles.mainInfo}>
-          <h1>{product.title}</h1>
-          <p className={styles.description}>{product.description}</p>
+          <h1>{editableProduct?.title ?? product.title}</h1>
+          <p className={styles.description}>{editableProduct?.description ?? product.description}</p>
 
           <div className={styles.fieldsGrid}>
             <label>
               <span>Категория</span>
-              <input value={product.category} readOnly />
+              <input value={editableProduct?.category ?? product.category} readOnly />
             </label>
             <label>
               <span>Материал</span>
-              <input value={product.material} readOnly />
+              <input value={editableProduct?.material ?? product.material} readOnly />
             </label>
             <label>
               <span>Технология</span>
-              <input value={product.technology} readOnly />
+              <input value={editableProduct?.technology ?? product.technology} readOnly />
             </label>
             <label>
               <span>Цвет</span>
-              <input value={product.color} readOnly />
+              <input value={editableProduct?.color ?? product.color} readOnly />
             </label>
             <label>
               <span>Цена</span>
-              <input value={formatCurrency(product.price)} readOnly />
+              <input value={formatCurrency(editableProduct?.price ?? product.price)} readOnly />
             </label>
             <label>
               <span>Статус</span>
@@ -134,7 +135,7 @@ export const SellerProductDetailPage = () => {
             </label>
             <label>
               <span>SKU</span>
-              <input value={product.sku ?? '—'} readOnly />
+              <input value={editableProduct?.sku || product.sku || '—'} readOnly />
             </label>
             <label>
               <span>ID продавца</span>
@@ -142,11 +143,11 @@ export const SellerProductDetailPage = () => {
             </label>
           </div>
 
-          {product.specs?.length ? (
+          {editableProduct?.characteristics?.length ? (
             <div className={styles.specs}>
               <h3>Характеристики</h3>
               <ul>
-                {product.specs.map((spec) => (
+                {editableProduct.characteristics.map((spec) => (
                   <li key={spec.id}>
                     <span>{spec.key}</span>
                     <strong>{spec.value}</strong>
