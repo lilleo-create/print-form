@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../shared/api';
 import { getProductImages } from '../shared/lib/productMedia';
-import { toEditableProduct } from '../shared/lib/editableProduct';
 import { Product } from '../shared/types';
 import { Button } from '../shared/ui/Button';
 import { SellerProductModal, SellerProductPayload } from '../widgets/seller/SellerProductModal';
