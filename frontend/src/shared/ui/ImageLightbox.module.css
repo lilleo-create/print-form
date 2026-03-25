@@ -1,0 +1,123 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay-strong);
+  backdrop-filter: blur(4px);
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.container {
+  position: relative;
+  width: min(1040px, 100%);
+  max-height: min(90vh, 920px);
+  background: color-mix(in srgb, var(--bg) 80%, black 20%);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: var(--shadow-card);
+  padding: 20px;
+  display: grid;
+  gap: 16px;
+}
+
+.closeButton {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--card) 88%, black 12%);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.viewer {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 280px;
+}
+
+.image {
+  max-width: 100%;
+  max-height: min(72vh, 760px);
+  object-fit: contain;
+  border-radius: 14px;
+  background: var(--surface-ghost);
+}
+
+.arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--card) 90%, black 10%);
+  color: var(--text);
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 28px;
+  line-height: 1;
+}
+
+.arrowLeft {
+  left: 8px;
+}
+
+.arrowRight {
+  right: 8px;
+}
+
+.thumbs {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.thumb {
+  border: 1px solid transparent;
+  border-radius: 12px;
+  padding: 3px;
+  background: transparent;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.thumb img {
+  width: 68px;
+  height: 68px;
+  object-fit: contain;
+  border-radius: 10px;
+  background: var(--surface-ghost);
+}
+
+.thumbActive {
+  border-color: var(--primary);
+}
+
+@media (max-width: 768px) {
+  .overlay {
+    padding: 12px;
+  }
+
+  .container {
+    padding: 14px;
+    width: 100%;
+    border-radius: 16px;
+  }
+
+  .image {
+    max-height: 64vh;
+  }
+
+  .arrow {
+    width: 36px;
+    height: 36px;
+  }
+}
