@@ -280,6 +280,9 @@ export const api = {
     productionTimeHours?: number;
     color: string;
     description: string;
+    descriptionShort?: string;
+    descriptionFull?: string;
+    sku?: string;
     weightGrossG?: number;
     dxCm?: number;
     dyCm?: number;
@@ -304,6 +307,9 @@ export const api = {
       productionTimeHours?: number;
       color?: string;
       description?: string;
+      descriptionShort?: string;
+      descriptionFull?: string;
+      sku?: string;
       weightGrossG?: number;
       dxCm?: number;
       dyCm?: number;
