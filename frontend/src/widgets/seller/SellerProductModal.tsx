@@ -577,8 +577,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
     setIsVariantBusy(true);
     try {
       const created = await sellerProductVariantsService.create(product.id, {
-        name: `Вариант ${productVariants.length + 1}`,
-        options: { color: [product.color] },
+        name: `Вариант ${productVariants.length + 1}`
       });
       await reloadProductVariants();
       setActiveProductVariantId(created.data.id);
@@ -594,13 +593,19 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
     setVariantError(null);
     setIsVariantBusy(true);
     try {
+      const nextStock = variantForm.stock.trim();
+      const nextPriceDelta = variantForm.priceDelta.trim();
+      const nextColor = variantForm.color.trim();
       await sellerProductVariantsService.update(product.id, activeProductVariant.id, {
         name: variantForm.name.trim() || activeProductVariant.name,
         sku: variantForm.sku.trim() || undefined,
-        stock: variantForm.stock.trim() ? Number(variantForm.stock) : undefined,
-        priceDelta: variantForm.priceDelta.trim() ? Number(variantForm.priceDelta) : undefined,
-        options: variantForm.color.trim()
-          ? { ...(activeProductVariant.options ?? {}), color: [variantForm.color.trim()] }
+        stock: nextStock && !Number.isNaN(Number(nextStock)) ? Number(nextStock) : undefined,
+        priceDelta:
+          nextPriceDelta && !Number.isNaN(Number(nextPriceDelta))
+            ? Number(nextPriceDelta)
+            : undefined,
+        options: nextColor
+          ? { ...(activeProductVariant.options ?? {}), color: [nextColor] }
           : activeProductVariant.options,
       });
       await reloadProductVariants();

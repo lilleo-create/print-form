@@ -32,6 +32,7 @@ export const ReviewsList = ({
   const [replyComposerOpen, setReplyComposerOpen] = useState<Record<string, boolean>>({});
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [replySubmitting, setReplySubmitting] = useState<Record<string, boolean>>({});
+  const [replyErrors, setReplyErrors] = useState<Record<string, string>>({});
   const [reactionSubmitting, setReactionSubmitting] = useState<Record<string, boolean>>({});
   const [reactionErrors, setReactionErrors] = useState<Record<string, string>>({});
 
@@ -49,7 +50,9 @@ export const ReviewsList = ({
     }));
   };
 
-  const handleReaction = async (review: Review, reaction: 'LIKE' | 'DISLIKE') => {
+  const handleReaction = async (reviewId: string, reaction: 'LIKE' | 'DISLIKE') => {
+    const review = mergedReviews.find((item) => item.id === reviewId);
+    if (!review) return;
     const productId = review.productId;
     if (!productId) {
       setReactionErrors((prev) => ({
@@ -163,9 +166,18 @@ export const ReviewsList = ({
     setExpandedReplies((prev) => ({ ...prev, [review.id]: !isExpanded }));
   };
 
-  const submitReply = async (review: Review) => {
+  const submitReply = async (reviewId: string) => {
+    const review = mergedReviews.find((item) => item.id === reviewId);
+    if (!review) return;
     const text = (replyDrafts[review.id] ?? '').trim();
     if (!text || !review.productId) return;
+
+    setReplyErrors((prev) => {
+      if (!prev[review.id]) return prev;
+      const next = { ...prev };
+      delete next[review.id];
+      return next;
+    });
 
     setReplySubmitting((prev) => ({ ...prev, [review.id]: true }));
     try {
@@ -178,6 +190,18 @@ export const ReviewsList = ({
       }));
       setReplyDrafts((prev) => ({ ...prev, [review.id]: '' }));
       setExpandedReplies((prev) => ({ ...prev, [review.id]: true }));
+    } catch (error) {
+      const normalized = normalizeApiError(error);
+      const status = normalized.status;
+      const readableError =
+        status === 401
+          ? 'Чтобы отвечать на отзывы, нужно войти в аккаунт.'
+          : status === 403
+            ? 'У вас нет прав для ответа на этот отзыв.'
+            : status === 404
+              ? 'Отзыв не найден. Обновите страницу и попробуйте снова.'
+              : 'Не удалось отправить ответ. Попробуйте позже.';
+      setReplyErrors((prev) => ({ ...prev, [review.id]: readableError }));
     } finally {
       setReplySubmitting((prev) => ({ ...prev, [review.id]: false }));
     }
@@ -270,7 +294,7 @@ export const ReviewsList = ({
                 <button
                   type="button"
                   className={review.currentUserReaction === 'LIKE' ? styles.reactionActive : ''}
-                  onClick={() => handleReaction(review, 'LIKE')}
+                  onClick={() => handleReaction(review.id, 'LIKE')}
                   disabled={reactionSubmitting[review.id]}
                 >
                   👍 {likes}
@@ -278,7 +302,7 @@ export const ReviewsList = ({
                 <button
                   type="button"
                   className={review.currentUserReaction === 'DISLIKE' ? styles.reactionActive : ''}
-                  onClick={() => handleReaction(review, 'DISLIKE')}
+                  onClick={() => handleReaction(review.id, 'DISLIKE')}
                   disabled={reactionSubmitting[review.id]}
                 >
                   👎 {dislikes}
@@ -304,13 +328,15 @@ export const ReviewsList = ({
                 />
                 <button
                   type="button"
-                  onClick={() => submitReply(review)}
+                  onClick={() => submitReply(review.id)}
                   disabled={replySubmitting[review.id] || (replyDrafts[review.id] ?? '').trim().length < 2}
                 >
                   {replySubmitting[review.id] ? 'Отправляем…' : 'Отправить ответ'}
                 </button>
               </div>
             )}
+
+            {replyErrors[review.id] && <p className={styles.replyError}>{replyErrors[review.id]}</p>}
 
             {hasReplies && (
               <button type="button" className={styles.toggleReplies} onClick={() => toggleReplies(review)}>

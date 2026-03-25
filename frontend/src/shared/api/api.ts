@@ -217,46 +217,44 @@ export const api = {
     reviewId: string,
     reaction: 'LIKE' | 'DISLIKE' | null
   ) {
-    const requestPayload = {
-  reaction,
-  productId
-};
-
-try {
-  return await apiClient.request<{
-    data: {
-      reviewId: string;
-      currentUserReaction: 'LIKE' | 'DISLIKE' | null;
-      reactions: { likes: number; dislikes: number };
+    const requestPayload = { reaction };
+    const responseShape = {
+      data: {
+        reviewId: '',
+        currentUserReaction: null as 'LIKE' | 'DISLIKE' | null,
+        reactions: { likes: 0, dislikes: 0 }
+      }
     };
-  }>(`/reviews/${reviewId}/reaction`, {
-    method: 'PATCH',
-    body: requestPayload
-  });
-} catch (error) {
-  const status =
-    typeof error === 'object' &&
-    error !== null &&
-    'status' in error &&
-    typeof (error as { status?: unknown }).status === 'number'
-      ? (error as { status: number }).status
-      : undefined;
 
-  if (status !== 404 && status !== 405) {
-    throw error;
-  }
+    try {
+      return await apiClient.request<typeof responseShape>(
+        `/products/${productId}/reviews/${reviewId}/reaction`,
+        {
+          method: 'PATCH',
+          body: requestPayload
+        }
+      );
+    } catch (error) {
+      const status =
+        typeof error === 'object' &&
+        error !== null &&
+        'status' in error &&
+        typeof (error as { status?: unknown }).status === 'number'
+          ? (error as { status: number }).status
+          : undefined;
 
-  return apiClient.request<{
-    data: {
-      reviewId: string;
-      currentUserReaction: 'LIKE' | 'DISLIKE' | null;
-      reactions: { likes: number; dislikes: number };
-    };
-  }>(`/products/${productId}/reviews/${reviewId}/reaction`, {
-    method: 'PATCH',
-    body: requestPayload
-  });
-}
+      if (status !== 404 && status !== 405) {
+        throw error;
+      }
+
+      return apiClient.request<typeof responseShape>(
+        `/reviews/${reviewId}/reaction`,
+        {
+          method: 'PATCH',
+          body: requestPayload
+        }
+      );
+    }
   },
 
   async getReviewReplies(
@@ -281,13 +279,32 @@ try {
   },
 
   async createReviewReply(productId: string, reviewId: string, text: string) {
-    return apiClient.request<{ data: ReviewReply }>(
-      `/products/${productId}/reviews/${reviewId}/replies`,
-      {
+    try {
+      return await apiClient.request<{ data: ReviewReply }>(
+        `/products/${productId}/reviews/${reviewId}/replies`,
+        {
+          method: 'POST',
+          body: { text }
+        }
+      );
+    } catch (error) {
+      const status =
+        typeof error === 'object' &&
+        error !== null &&
+        'status' in error &&
+        typeof (error as { status?: unknown }).status === 'number'
+          ? (error as { status: number }).status
+          : undefined;
+
+      if (status !== 404 && status !== 405) {
+        throw error;
+      }
+
+      return apiClient.request<{ data: ReviewReply }>(`/reviews/${reviewId}/replies`, {
         method: 'POST',
         body: { text }
-      }
-    );
+      });
+    }
   },
 
   async getReviewSummary(

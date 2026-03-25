@@ -92,6 +92,12 @@
   font-size: 13px;
 }
 
+.replyError {
+  margin: 0;
+  color: #d14343;
+  font-size: 13px;
+}
+
 .replyComposer {
   display: grid;
   gap: 8px;
