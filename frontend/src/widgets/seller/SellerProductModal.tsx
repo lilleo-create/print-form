@@ -106,8 +106,6 @@ interface PersistedVariantDraft {
   name: string;
   isBase: boolean;
   order: number;
-  size: string;
-  otherAttribute: string;
   form: ProductFormValues;
   mediaItems: Array<{
     id: string;
@@ -142,8 +140,6 @@ const toPersistedVariantDraft = (variant: VariantDraft): PersistedVariantDraft =
   name: variant.name,
   isBase: variant.isBase,
   order: variant.order,
-  size: variant.size,
-  otherAttribute: variant.otherAttribute,
   form: sanitizeFormValues(variant.form),
   mediaItems: variant.mediaItems
     .filter((item) => item.source === 'existing')
@@ -165,8 +161,6 @@ const fromPersistedVariantDraft = (variant: PersistedVariantDraft): VariantDraft
   name: variant.name,
   isBase: variant.isBase,
   order: variant.order,
-  size: variant.size,
-  otherAttribute: variant.otherAttribute,
   form: sanitizeFormValues(variant.form),
   mediaItems: variant.mediaItems.map((item) => ({
     id: item.id,
