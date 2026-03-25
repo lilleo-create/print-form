@@ -88,7 +88,14 @@ export const ShopHeader = ({
               {loading ? (
                 <Skeleton className={styles.titleSkeleton} />
               ) : (
-                <h1 className={styles.title}>{shop?.title ?? 'Магазин'}</h1>
+                <>
+                  <h1 className={styles.title}>{shop?.title ?? 'Магазин'}</h1>
+                  {shop?.publicationStatusLabel ? (
+                    <p className={styles.publicationStatus}>
+                      {shop.publicationStatusLabel}
+                    </p>
+                  ) : null}
+                </>
               )}
               {loading ? (
                 <Skeleton className={styles.ratingSkeleton} />

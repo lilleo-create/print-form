@@ -13,6 +13,7 @@ export interface Shop {
   id: string;
   title: string;
   avatarUrl?: string | null;
+  publicationStatusLabel?: string | null;
   rating?: number | null;
   reviewsCount?: number | null;
   subscribersCount?: number | null;

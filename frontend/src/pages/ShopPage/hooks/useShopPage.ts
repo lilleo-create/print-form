@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../../../shared/api';
+import { normalizeApiError } from '../../../shared/api/client';
 import type { Product, Shop } from '../../../shared/types';
 
 type SortKey = 'popular' | 'new' | 'cheap' | 'expensive';
@@ -59,6 +60,7 @@ export const useShopPage = (shopId?: string) => {
   const queryParam = searchParams.get('q') ?? '';
 
   const [searchValue, setSearchValue] = useState(queryParam);
+  const [isOwnerView, setIsOwnerView] = useState(false);
 
   useEffect(() => {
     setSearchValue(queryParam);
@@ -150,17 +152,66 @@ export const useShopPage = (shopId?: string) => {
     if (!shopId) return;
     const controller = new AbortController();
     setShopLoading(true);
-    api
-      .getShop(shopId, { signal: controller.signal })
-      .then((response) => {
+
+    const loadShop = async () => {
+      try {
+        let ownerView = false;
+        try {
+          const meResponse = await api.me();
+          ownerView = meResponse.data.id === shopId;
+        } catch {
+          ownerView = false;
+        }
+        setIsOwnerView(ownerView);
+
+        if (ownerView) {
+          const contextResponse = await api.getSellerContext(controller.signal);
+          const profile = contextResponse.data.profile;
+          const canSell = Boolean(contextResponse.data.canSell);
+          setShop({
+            id: shopId,
+            title: profile?.storeName?.trim() || 'Ваш магазин',
+            avatarUrl: null,
+            publicationStatusLabel: canSell
+              ? 'Опубликован'
+              : 'Черновик (публикация недоступна)',
+            rating: null,
+            reviewsCount: 0,
+            subscribersCount: null,
+            ordersCount: null,
+            addressSlug: shopId,
+            legalInfo: {
+              name: profile?.storeName ?? undefined,
+              status: profile?.status ?? undefined,
+              phone: profile?.phone ?? undefined,
+              city: profile?.city ?? undefined,
+              referenceCategory: profile?.referenceCategory ?? undefined,
+              catalogPosition: profile?.catalogPosition ?? undefined,
+              inn: profile?.inn ?? undefined,
+              ogrn: profile?.ogrn ?? undefined
+            }
+          });
+          setShopError(null);
+          return;
+        }
+
+        const response = await api.getShop(shopId, { signal: controller.signal });
         setShop(response.data);
         setShopError(null);
-      })
-      .catch((err) => {
+      } catch (err) {
         if ((err as { name?: string })?.name === 'AbortError') return;
-        setShopError(err instanceof Error ? err.message : 'Не удалось загрузить магазин');
-      })
-      .finally(() => setShopLoading(false));
+        const normalizedError = normalizeApiError(err);
+        if (normalizedError.code === 'STORE_NOT_PUBLIC') {
+          setShopError('Магазин еще не опубликован для публичного просмотра.');
+          return;
+        }
+        setShopError(normalizedError.message || 'Не удалось загрузить магазин');
+      } finally {
+        setShopLoading(false);
+      }
+    };
+
+    void loadShop();
     return () => controller.abort();
   }, [shopId, shopReloadToken]);
 
@@ -168,19 +219,45 @@ export const useShopPage = (shopId?: string) => {
     if (!shopId) return;
     const controller = new AbortController();
     setFiltersLoading(true);
-    api
-      .getShopFilters(shopId, { signal: controller.signal })
-      .then((response) => {
+
+    const loadFilters = async () => {
+      try {
+        if (isOwnerView) {
+          const response = await api.getSellerProducts();
+          const ownProducts = response.data;
+          const categories = Array.from(
+            new Set(
+              ownProducts
+                .map((product) => product.category)
+                .filter((category): category is string => Boolean(category))
+            )
+          ).sort();
+          const materials = Array.from(
+            new Set(
+              ownProducts
+                .map((product) => product.material)
+                .filter(Boolean)
+            )
+          ).sort();
+          setFilterOptions({ categories, materials });
+          setFiltersError(null);
+          return;
+        }
+        const response = await api.getShopFilters(shopId, { signal: controller.signal });
         setFilterOptions(response.data);
         setFiltersError(null);
-      })
-      .catch((err) => {
+      } catch (err) {
         if ((err as { name?: string })?.name === 'AbortError') return;
-        setFiltersError(err instanceof Error ? err.message : 'Не удалось загрузить фильтры');
-      })
-      .finally(() => setFiltersLoading(false));
+        const normalizedError = normalizeApiError(err);
+        setFiltersError(normalizedError.message || 'Не удалось загрузить фильтры');
+      } finally {
+        setFiltersLoading(false);
+      }
+    };
+
+    void loadFilters();
     return () => controller.abort();
-  }, [shopId, filtersReloadToken]);
+  }, [shopId, filtersReloadToken, isOwnerView]);
 
   const requestKey = useMemo(
     () =>
@@ -202,33 +279,85 @@ export const useShopPage = (shopId?: string) => {
   useEffect(() => {
     if (!shopId) return;
     const controller = new AbortController();
-    const { sort, order } = sortMap[sortKey];
     setProductsLoading(true);
-    api
-      .getProducts(
-        {
-          shopId,
-          category: filters.category || undefined,
-          material: filters.material || undefined,
-          price: filters.price || undefined,
-          q: queryParam || undefined,
-          sort,
-          order,
-          page,
-          limit: DEFAULT_LIMIT
-        },
-        { signal: controller.signal }
-      )
-      .then((response) => {
+    const { sort, order } = sortMap[sortKey];
+
+    const loadProducts = async () => {
+      try {
+        if (isOwnerView) {
+          const response = await api.getSellerProducts();
+          let filteredProducts = response.data;
+          if (filters.category) {
+            filteredProducts = filteredProducts.filter((item) => item.category === filters.category);
+          }
+          if (filters.material) {
+            filteredProducts = filteredProducts.filter((item) => item.material === filters.material);
+          }
+          if (filters.price) {
+            const [minRaw, maxRaw] = filters.price.split('-');
+            const min = Number(minRaw);
+            const max = Number(maxRaw);
+            if (!Number.isNaN(min)) {
+              filteredProducts = filteredProducts.filter((item) => item.price >= min);
+            }
+            if (!Number.isNaN(max)) {
+              filteredProducts = filteredProducts.filter((item) => item.price <= max);
+            }
+          }
+          if (queryParam) {
+            const query = queryParam.toLowerCase();
+            filteredProducts = filteredProducts.filter((item) =>
+              item.title.toLowerCase().includes(query)
+            );
+          }
+          filteredProducts = [...filteredProducts].sort((left, right) => {
+            if (sort === 'price') {
+              return order === 'asc' ? left.price - right.price : right.price - left.price;
+            }
+            if (sort === 'rating') {
+              const leftValue = left.ratingAvg ?? 0;
+              const rightValue = right.ratingAvg ?? 0;
+              return order === 'asc' ? leftValue - rightValue : rightValue - leftValue;
+            }
+            const leftTime = new Date(left.createdAt ?? 0).getTime();
+            const rightTime = new Date(right.createdAt ?? 0).getTime();
+            return order === 'asc' ? leftTime - rightTime : rightTime - leftTime;
+          });
+          const offset = (page - 1) * DEFAULT_LIMIT;
+          const pagedProducts = filteredProducts.slice(offset, offset + DEFAULT_LIMIT);
+          setProducts((prev) => (page === 1 ? pagedProducts : [...prev, ...pagedProducts]));
+          setHasMore(offset + DEFAULT_LIMIT < filteredProducts.length);
+          setProductsError(null);
+          return;
+        }
+
+        const response = await api.getProducts(
+          {
+            shopId,
+            category: filters.category || undefined,
+            material: filters.material || undefined,
+            price: filters.price || undefined,
+            q: queryParam || undefined,
+            sort,
+            order,
+            page,
+            limit: DEFAULT_LIMIT
+          },
+          { signal: controller.signal }
+        );
         setProducts((prev) => (page === 1 ? response.data : [...prev, ...response.data]));
         setHasMore(response.data.length === DEFAULT_LIMIT);
         setProductsError(null);
-      })
-      .catch((err) => {
+      } catch (err) {
         if ((err as { name?: string })?.name === 'AbortError') return;
-        setProductsError(err instanceof Error ? err.message : 'Не удалось загрузить товары');
-      })
-      .finally(() => setProductsLoading(false));
+        const normalizedError = normalizeApiError(err);
+        setProductsError(normalizedError.message || 'Не удалось загрузить товары');
+      } finally {
+        setProductsLoading(false);
+      }
+    };
+
+    void loadProducts();
     return () => controller.abort();
   }, [
     filters.category,
@@ -238,7 +367,8 @@ export const useShopPage = (shopId?: string) => {
     queryParam,
     shopId,
     sortKey,
-    productsReloadToken
+    productsReloadToken,
+    isOwnerView
   ]);
 
   const loadMore = useCallback(() => {
