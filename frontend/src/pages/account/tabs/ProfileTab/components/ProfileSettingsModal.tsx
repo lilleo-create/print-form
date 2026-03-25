@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Button } from '../../../../../shared/ui/Button';
 import { useBodyScrollLock } from '../../../../../shared/lib/useBodyScrollLock';
+import { useOverlayClose } from '../../../../../shared/lib/useOverlayClose';
 import styles from './ProfileSettingsModal.module.css';
 
 interface ProfileSettingsModalProps {
@@ -16,6 +17,8 @@ export const ProfileSettingsModal = ({
 }: ProfileSettingsModalProps) => {
   useBodyScrollLock(isOpen);
 
+  const { handlePointerDown, handleClick } = useOverlayClose(onClose);
+
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -30,7 +33,7 @@ export const ProfileSettingsModal = ({
   if (!isOpen) return null;
 
   return (
-    <div className={styles.overlay} onClick={onClose} role="dialog" aria-modal="true">
+    <div className={styles.overlay} onPointerDown={handlePointerDown} onClick={handleClick} role="dialog" aria-modal="true">
       <div className={styles.modal} onClick={(event) => event.stopPropagation()}>
         <header className={styles.header}>
           <h2>Настройки</h2>

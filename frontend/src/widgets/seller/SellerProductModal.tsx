@@ -7,6 +7,7 @@ import { Product } from '../../shared/types';
 import { Button } from '../../shared/ui/Button';
 import { useBodyScrollLock } from '../../shared/lib/useBodyScrollLock';
 import { useModalFocus } from '../../shared/lib/useModalFocus';
+import { useOverlayClose } from '../../shared/lib/useOverlayClose';
 import { api } from '../../shared/api';
 import styles from './SellerProductModal.module.css';
 import {
@@ -220,6 +221,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
   } = useForm<ProductFormValues>({ resolver: zodResolver(productSchema) });
 
   useModalFocus(true, onClose, modalRef);
+  const { handlePointerDown, handleClick } = useOverlayClose(onClose);
   useBodyScrollLock(true);
 
   const activeVariant = useMemo(
@@ -558,7 +560,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
   const activeMediaItems = activeVariant?.mediaItems ?? [];
 
   return createPortal(
-    <div className={styles.overlay} role="dialog" aria-modal="true" onClick={onClose}>
+    <div className={styles.overlay} role="dialog" aria-modal="true" onPointerDown={handlePointerDown} onClick={handleClick}>
       <div
         className={styles.modal}
         ref={modalRef}

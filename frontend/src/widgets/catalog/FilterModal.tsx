@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { Button } from '../../shared/ui/Button';
 import { useModalFocus } from '../../shared/lib/useModalFocus';
 import { useBodyScrollLock } from '../../shared/lib/useBodyScrollLock';
+import { useOverlayClose } from '../../shared/lib/useOverlayClose';
 import styles from './FilterModal.module.css';
 
 interface FilterModalProps {
@@ -32,12 +33,14 @@ export const FilterModal = ({
   useModalFocus(isOpen, onClose, modalRef);
   useBodyScrollLock(isOpen);
 
+  const { handlePointerDown, handleClick } = useOverlayClose(onClose);
+
   if (!isOpen) {
     return null;
   }
 
   return (
-    <div className={styles.overlay} role="dialog" aria-modal="true" onClick={onClose}>
+    <div className={styles.overlay} role="dialog" aria-modal="true" onPointerDown={handlePointerDown} onClick={handleClick}>
       <div className={styles.modal} ref={modalRef} onClick={(event) => event.stopPropagation()}>
         <header className={styles.header}>
           <h2>Фильтр</h2>

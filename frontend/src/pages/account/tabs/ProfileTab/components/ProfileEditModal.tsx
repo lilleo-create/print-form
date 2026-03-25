@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useAuthStore } from '../../../../../app/store/authStore';
 import { Button } from '../../../../../shared/ui/Button';
 import { useBodyScrollLock } from '../../../../../shared/lib/useBodyScrollLock';
+import { useOverlayClose } from '../../../../../shared/lib/useOverlayClose';
 import styles from './ProfileEditModal.module.css';
 
 interface ProfileEditModalProps {
@@ -37,6 +38,8 @@ export const ProfileEditModal = ({ isOpen, onClose, onSaved }: ProfileEditModalP
 
   useBodyScrollLock(isOpen);
 
+  const { handlePointerDown, handleClick } = useOverlayClose(onClose);
+
 
   if (!isOpen) return null;
 
@@ -58,7 +61,7 @@ export const ProfileEditModal = ({ isOpen, onClose, onSaved }: ProfileEditModalP
   };
 
   return (
-    <div className={styles.overlay} onClick={onClose} role="dialog" aria-modal="true">
+    <div className={styles.overlay} onPointerDown={handlePointerDown} onClick={handleClick} role="dialog" aria-modal="true">
       <div className={styles.modal} onClick={(event) => event.stopPropagation()}>
         <header className={styles.header}>
           <h2>Профиль</h2>
