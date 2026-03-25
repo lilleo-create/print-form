@@ -66,10 +66,12 @@ useEffect(() => {
 
       <div className={styles.body}>
         <div className={styles.meta}>
-          <span>{product.category}</span>
-          <span>{product.material}</span>
-          <span>Изготовление: {product.productionTimeHours ?? 24} ч</span>
-          {product.dxCm && product.dyCm && product.dzCm ? <span>Размер: {product.dxCm} × {product.dyCm} × {product.dzCm} см</span> : null}
+          <span className={styles.metaItem}>{product.category}</span>
+          <span className={styles.metaItem}>{product.material}</span>
+          <span className={styles.metaItem}>Изготовление: {product.productionTimeHours ?? 24} ч</span>
+          {product.dxCm && product.dyCm && product.dzCm ? (
+            <span className={styles.metaItem}>Размер: {product.dxCm} × {product.dyCm} × {product.dzCm} см</span>
+          ) : null}
         </div>
 
         <h3 className={styles.title} title={product.title}>
@@ -91,10 +93,15 @@ useEffect(() => {
           </div>
         ) : null}
 
-        <Rating value={product.ratingAvg} count={product.ratingCount} />
+        <div className={styles.summary}>
+          <Rating value={product.ratingAvg} count={product.ratingCount} />
+          <p className={styles.price}>{product.price.toLocaleString('ru-RU')} ₽</p>
+        </div>
 
-        <p className={styles.price}>{product.price.toLocaleString('ru-RU')} ₽</p>
-        <p className={styles.meta}>Доставка СДЭК: {formatEtaDays(product.deliveryDaysMin ?? null, product.deliveryDaysMax ?? null) ?? 'Срок уточняется'}</p>
+        <p className={styles.deliveryMeta}>
+          Доставка СДЭК:{' '}
+          {formatEtaDays(product.deliveryDaysMin ?? null, product.deliveryDaysMax ?? null) ?? 'Срок уточняется'}
+        </p>
 
         <div className={styles.actions}>
           <Button
