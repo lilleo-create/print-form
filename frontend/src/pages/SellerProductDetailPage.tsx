@@ -56,6 +56,7 @@ export const SellerProductDetailPage = () => {
   });
   const [variantError, setVariantError] = useState<string | null>(null);
   const [isVariantBusy, setIsVariantBusy] = useState(false);
+  const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({});
 
   const loadProduct = async () => {
     if (!productId) {
