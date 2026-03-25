@@ -224,7 +224,7 @@ export const api = {
         reactions: { likes: number; dislikes: number };
       };
     }>(`/products/${productId}/reviews/${reviewId}/reaction`, {
-      method: 'POST',
+      method: 'PATCH',
       body: { reaction }
     });
   },

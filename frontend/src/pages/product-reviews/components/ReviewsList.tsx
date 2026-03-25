@@ -1,6 +1,7 @@
 import type { Review } from '../../../shared/types';
 import { useMemo, useState } from 'react';
 import { api } from '../../../shared/api';
+import { normalizeApiError } from '../../../shared/api/client';
 import { Rating } from '../../../shared/ui/Rating';
 import { resolveImageUrl } from '../../../shared/lib/resolveImageUrl';
 import styles from './ReviewsList.module.css';
@@ -31,6 +32,8 @@ export const ReviewsList = ({
   const [replyComposerOpen, setReplyComposerOpen] = useState<Record<string, boolean>>({});
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [replySubmitting, setReplySubmitting] = useState<Record<string, boolean>>({});
+  const [reactionSubmitting, setReactionSubmitting] = useState<Record<string, boolean>>({});
+  const [reactionErrors, setReactionErrors] = useState<Record<string, string>>({});
 
   const mergedReviews = useMemo(
     () => reviews.map((review) => localReviews[review.id] ?? review),
@@ -48,7 +51,13 @@ export const ReviewsList = ({
 
   const handleReaction = async (review: Review, reaction: 'LIKE' | 'DISLIKE') => {
     const productId = review.productId;
-    if (!productId) return;
+    if (!productId) {
+      setReactionErrors((prev) => ({
+        ...prev,
+        [review.id]: 'Не удалось отправить реакцию: не найден productId.'
+      }));
+      return;
+    }
 
     const currentReaction = review.currentUserReaction ?? null;
     const nextReaction = currentReaction === reaction ? null : reaction;
@@ -84,6 +93,8 @@ export const ReviewsList = ({
     }));
 
     try {
+      setReactionSubmitting((prev) => ({ ...prev, [review.id]: true }));
+      setReactionErrors((prev) => ({ ...prev, [review.id]: '' }));
       const response = await api.setReviewReaction(productId, review.id, nextReaction);
       const payload = response.data?.data ?? response.data;
       updateReview(review.id, (item) => ({
@@ -91,7 +102,21 @@ export const ReviewsList = ({
         currentUserReaction: payload.currentUserReaction ?? nextReaction,
         reactions: payload.reactions ?? item.reactions
       }));
-    } catch {
+    } catch (error) {
+      const normalized = normalizeApiError(error);
+      const status = normalized.status;
+      const readableError =
+        status === 401
+          ? 'Поставить реакцию могут только авторизованные пользователи.'
+          : status === 403
+            ? 'У вас нет доступа к изменению реакции на этот отзыв.'
+            : status === 404
+              ? 'Отзыв не найден. Обновите страницу и попробуйте ещё раз.'
+              : status === 405
+                ? 'Метод запроса не поддерживается сервером.'
+                : 'Не удалось сохранить реакцию. Попробуйте позже.';
+
+      setReactionErrors((prev) => ({ ...prev, [review.id]: readableError }));
       updateReview(review.id, (item) => ({
         ...item,
         currentUserReaction: currentReaction,
@@ -100,6 +125,8 @@ export const ReviewsList = ({
           dislikes: currentDislikes
         }
       }));
+    } finally {
+      setReactionSubmitting((prev) => ({ ...prev, [review.id]: false }));
     }
   };
 
@@ -237,6 +264,7 @@ export const ReviewsList = ({
                   type="button"
                   className={review.currentUserReaction === 'LIKE' ? styles.reactionActive : ''}
                   onClick={() => handleReaction(review, 'LIKE')}
+                  disabled={reactionSubmitting[review.id]}
                 >
                   👍 {likes}
                 </button>
@@ -244,11 +272,16 @@ export const ReviewsList = ({
                   type="button"
                   className={review.currentUserReaction === 'DISLIKE' ? styles.reactionActive : ''}
                   onClick={() => handleReaction(review, 'DISLIKE')}
+                  disabled={reactionSubmitting[review.id]}
                 >
                   👎 {dislikes}
                 </button>
               </div>
             </div>
+
+            {reactionErrors[review.id] && (
+              <p className={styles.reactionError}>{reactionErrors[review.id]}</p>
+            )}
 
             {replyComposerOpen[review.id] && (
               <div className={styles.replyComposer}>
