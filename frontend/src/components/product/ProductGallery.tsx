@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ProductImage } from '../../shared/types';
 import styles from '../../pages/ProductPage.module.css';
 import { resolveImageUrl } from '../../shared/lib/resolveImageUrl';
+import { ImageLightbox } from '../../shared/ui/ImageLightbox';
 
 type ProductGalleryProps = {
   images: ProductImage[];
@@ -14,28 +15,44 @@ export const ProductGallery = ({ images, title }: ProductGalleryProps) => {
     [images]
   );
 
-  const [activeImage, setActiveImage] = useState<string>(resolvedImages[0]?.resolvedUrl ?? '');
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [isLightboxOpen, setLightboxOpen] = useState(false);
 
   useEffect(() => {
     if (!resolvedImages.length) {
-      setActiveImage('');
+      setActiveIndex(0);
       return;
     }
-    const currentExists = resolvedImages.some((image) => image.resolvedUrl === activeImage);
-    if (!currentExists) {
-      setActiveImage(resolvedImages[0].resolvedUrl);
+
+    if (activeIndex >= resolvedImages.length) {
+      setActiveIndex(0);
     }
-  }, [resolvedImages, activeImage]);
+  }, [resolvedImages, activeIndex]);
+
+  const activeImage = resolvedImages[activeIndex]?.resolvedUrl ?? '';
+
+  const openLightbox = (index: number) => {
+    setActiveIndex(index);
+    setLightboxOpen(true);
+  };
 
   return (
     <div className={styles.gallery}>
-      <img src={activeImage} alt={title} className={styles.mainImage} />
+      <button
+        type="button"
+        className={styles.mainImageButton}
+        onClick={() => openLightbox(activeIndex)}
+        aria-label={`Открыть увеличенное изображение ${title}`}
+      >
+        <img src={activeImage} alt={title} className={styles.mainImage} />
+      </button>
+
       <div className={styles.thumbs}>
-        {resolvedImages.map((image) => (
+        {resolvedImages.map((image, index) => (
           <button
             key={image.id}
-            className={activeImage === image.resolvedUrl ? `${styles.thumb} ${styles.thumbActive}` : styles.thumb}
-            onClick={() => setActiveImage(image.resolvedUrl)}
+            className={activeIndex === index ? `${styles.thumb} ${styles.thumbActive}` : styles.thumb}
+            onClick={() => openLightbox(index)}
             aria-label={`Показать изображение ${title}`}
             type="button"
           >
@@ -43,6 +60,14 @@ export const ProductGallery = ({ images, title }: ProductGalleryProps) => {
           </button>
         ))}
       </div>
+
+      <ImageLightbox
+        isOpen={isLightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+        images={resolvedImages.map((image) => ({ id: image.id, src: image.resolvedUrl, alt: title }))}
+        initialIndex={activeIndex}
+        title={title}
+      />
     </div>
   );
 };

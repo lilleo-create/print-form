@@ -30,6 +30,14 @@
   min-width: 0;
 }
 
+.mainImageButton {
+  border: 0;
+  padding: 0;
+  cursor: zoom-in;
+  background: transparent;
+  border-radius: 24px;
+}
+
 .mainImage {
   width: 100%;
   border-radius: 24px;
