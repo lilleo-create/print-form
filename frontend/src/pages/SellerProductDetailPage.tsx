@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../shared/api';
 import { getProductImages } from '../shared/lib/productMedia';
-import { Product, ProductVariant } from '../shared/types';
+import { Product } from '../shared/types';
 import { Button } from '../shared/ui/Button';
 import { SellerProductModal, SellerProductPayload } from '../widgets/seller/SellerProductModal';
 import styles from './SellerProductDetailPage.module.css';
@@ -13,14 +13,6 @@ const formatCurrency = (value: number) =>
     currency: 'RUB',
     maximumFractionDigits: 0
   }).format(value);
-
-const extractVariantColor = (variant: ProductVariant) => {
-  const colorOption = variant.options?.color?.[0];
-  return colorOption ?? 'Без цвета';
-};
-
-const isVariantEditable = (product: Product) =>
-  Boolean(product.id) && (product.moderationStatus === 'APPROVED' || Boolean(product.publishedAt));
 
 export const SellerProductDetailPage = () => {
   const { productId = '' } = useParams();
@@ -69,41 +61,6 @@ export const SellerProductDetailPage = () => {
   useEffect(() => {
     setBrokenImages({});
   }, [images]);
-
-  const activeVariant = useMemo(
-    () => variants.find((variant) => variant.id === activeVariantId) ?? null,
-    [variants, activeVariantId]
-  );
-
-  useEffect(() => {
-    if (!activeVariant) {
-      setVariantForm({
-        name: '',
-        color: '',
-        sku: '',
-        stock: '',
-        priceDelta: '',
-      });
-      return;
-    }
-
-    setVariantForm({
-      name: activeVariant.name,
-      color: extractVariantColor(activeVariant),
-      sku: activeVariant.sku ?? '',
-      stock: activeVariant.stock !== undefined ? String(activeVariant.stock) : '',
-      priceDelta:
-        activeVariant.priceDelta !== undefined
-          ? String(activeVariant.priceDelta)
-          : '',
-    });
-  }, [activeVariant]);
-
-  const reloadVariants = async () => {
-    if (!product?.id) return;
-    const response = await sellerProductVariantsService.list(product.id);
-    setVariants(response.data);
-  };
 
   const handleSaveProduct = async (payload: SellerProductPayload) => {
     if (!product?.id) return;
