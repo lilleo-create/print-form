@@ -216,10 +216,14 @@ export function createFetchClient(baseUrl: string) {
           });
         }
         const newToken = await refreshPromise;
-        if (newToken) {
-          return request<T>(path, { ...opts, token: newToken, retry: true });
+        if (!newToken) {
+          setAccessToken(null);
         }
-        handleAuthInvalidation();
+        return request<T>(path, {
+          ...opts,
+          token: newToken ?? undefined,
+          retry: true
+        });
       } catch (error) {
         const status = (error as { status?: number }).status;
         if (status === 401 || status === 403) {
