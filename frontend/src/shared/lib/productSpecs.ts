@@ -1,6 +1,7 @@
 import type { Product } from '../types';
+import { buildFallbackProductSpecs, normalizeProductDto, type ProductSpecLike } from './normalizeProductDto';
 
-type RawSpec = { key?: string; name?: string; title?: string; label?: string; value?: string | number | null };
+type RawSpec = ProductSpecLike;
 
 const takeText = (value: unknown): string =>
   typeof value === 'string' ? value.trim() : typeof value === 'number' ? String(value) : '';
@@ -13,33 +14,34 @@ const mapPairs = (list: RawSpec[]) =>
     }))
     .filter((item) => item.name && item.value);
 
+const dedupeByNameValue = (list: Array<{ name: string; value: string }>) => {
+  const seen = new Set<string>();
+  return list.filter((item) => {
+    const key = `${item.name.toLowerCase()}::${item.value.toLowerCase()}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
 export const normalizeProductSpecs = (product: Product | null): Array<{ name: string; value: string }> => {
   if (!product) return [];
 
-  const fromSpecs = Array.isArray(product.specs)
-    ? mapPairs(product.specs.map((spec) => ({ key: spec.key, value: spec.value })))
-    : [];
-  if (fromSpecs.length > 0) return fromSpecs;
+  const normalized = normalizeProductDto(product);
+  if (!normalized) return [];
 
-  const fromCharacteristics = (product as Product & { characteristics?: RawSpec[] | Record<string, unknown> }).characteristics;
-  if (Array.isArray(fromCharacteristics)) {
-    const list = mapPairs(fromCharacteristics);
-    if (list.length > 0) return list;
-  }
+  const fromSpecs = mapPairs(normalized.specs);
+  if (fromSpecs.length > 0) return dedupeByNameValue(fromSpecs);
 
-  if (fromCharacteristics && typeof fromCharacteristics === 'object') {
-    const list = Object.entries(fromCharacteristics)
-      .map(([name, value]) => ({ name: takeText(name), value: takeText(value) }))
-      .filter((item) => item.name && item.value);
-    if (list.length > 0) return list;
-  }
+  const fromSpecifications = mapPairs(normalized.specifications);
+  if (fromSpecifications.length > 0) return dedupeByNameValue(fromSpecifications);
 
-  const fromAttributes = (product as Product & { attributes?: RawSpec[] }).attributes;
-  if (Array.isArray(fromAttributes)) {
-    const list = mapPairs(fromAttributes);
-    if (list.length > 0) return list;
-  }
+  const fromCharacteristics = mapPairs(normalized.characteristics);
+  if (fromCharacteristics.length > 0) return dedupeByNameValue(fromCharacteristics);
 
-  return [];
+  const fromFallback = normalized.derivedCharacteristics.length
+    ? normalized.derivedCharacteristics
+    : buildFallbackProductSpecs(normalized);
+
+  return dedupeByNameValue(fromFallback);
 };
-

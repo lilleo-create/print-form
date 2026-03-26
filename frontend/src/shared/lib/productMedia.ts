@@ -4,6 +4,7 @@ import {
   resolveMediaUrl,
   resolveMediaUrls
 } from './resolveMediaUrl';
+import { normalizeProductDto } from './normalizeProductDto';
 
 type ProductLike = Partial<Product> & {
   photosUrls?: string[];
@@ -34,14 +35,17 @@ export const getProductImages = (
 ): string[] => {
   if (!product) return [];
 
-  const fromImageObjects = (product.images ?? []).map((image) =>
-    typeof image === 'string' ? image : image?.url
-  );
-  const fromLegacy = product.photosUrls ?? [];
+  const normalized = normalizeProductDto(product as Product);
+  if (!normalized) return [];
+
+  const fromImageObjects = normalized.images.map((image) => image.url);
+  const fromLegacy = Array.isArray(product.photosUrls) ? product.photosUrls : [];
 
   return getMediaArray(
     fromImageObjects,
-    product.imageUrls,
+    normalized.imageUrls,
+    normalized.gallery,
+    normalized.media,
     product.image,
     product.previewImage,
     fromLegacy
@@ -53,7 +57,8 @@ export const getProductVideos = (
 ): string[] => {
   if (!product) return [];
 
-  return resolveMediaUrls(product.videoUrls ?? []);
+  const list = Array.isArray(product.videoUrls) ? product.videoUrls : [];
+  return resolveMediaUrls(list);
 };
 
 export const getProductImageCandidates = (
@@ -65,26 +70,17 @@ export const getProductMainImage = (
 ): string => getProductImages(product)[0] ?? '';
 
 export const toProductImageList = (product: ProductLike): ProductImage[] => {
-  const normalizedImages = (product.images ?? [])
+  const normalized = normalizeProductDto(product as Product);
+  const normalizedImages = (normalized?.images ?? [])
     .map((image, index) => {
-      if (!image) return null;
-
-      if (typeof image === 'string') {
-        const resolvedUrl = resolveMediaUrl(image);
-        if (!resolvedUrl) return null;
-        return {
-          id: `fallback-${index}`,
-          sortOrder: index,
-          url: resolvedUrl
-        } satisfies ProductImage;
-      }
-
       const resolvedUrl = resolveMediaUrl(image.url);
       if (!resolvedUrl) return null;
 
       return {
         ...image,
-        url: resolvedUrl
+        id: image.id || `fallback-${index}`,
+        url: resolvedUrl,
+        sortOrder: typeof image.sortOrder === 'number' ? image.sortOrder : index
       } satisfies ProductImage;
     })
     .filter((image): image is ProductImage => Boolean(image));

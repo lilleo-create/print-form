@@ -5,7 +5,8 @@ import { Product } from '../../shared/types';
 import { useCartStore } from '../../app/store/cartStore';
 import { Button } from '../../shared/ui/Button';
 import { Rating } from '../../shared/ui/Rating';
-import { resolveImageUrl } from '../../shared/lib/resolveImageUrl';
+import { resolveMediaUrl } from '../../shared/lib/resolveMediaUrl';
+import { getProductMainImage } from '../../shared/lib/productMedia';
 import styles from './ProductCard.module.css';
 import { formatEtaDays } from '../../shared/lib/deliveryEta';
 import { useEffect } from 'react';
@@ -19,7 +20,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
 
   const [imgBroken, setImgBroken] = useState(false);
 
-  const imageSrc = useMemo(() => resolveImageUrl(product.image), [product.image]);
+  const imageSrc = useMemo(() => resolveMediaUrl(getProductMainImage(product)) ?? '', [product]);
 
   const groupKey = useMemo(() => getProductGroupKey(product), [product]);
   const variantProducts = useMemo(() => {

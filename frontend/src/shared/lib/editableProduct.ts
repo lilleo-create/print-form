@@ -72,7 +72,7 @@ export const toEditableProduct = (
     imageUrls: getProductImages(product),
     videoUrls: getProductVideos(product),
     characteristics: normalizedSpecs,
-    variants: product.variants ?? [],
+    variants: Array.isArray(product.variants) ? product.variants : [],
     weightGrossG:
       typeof product.weightGrossG === 'number' ? product.weightGrossG : undefined,
     dxCm: typeof product.dxCm === 'number' ? product.dxCm : undefined,

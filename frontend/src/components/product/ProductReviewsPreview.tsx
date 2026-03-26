@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { api } from '../../shared/api';
+import { normalizeApiError } from '../../shared/api/client';
 import type { Product, Shop } from '../../shared/types';
 import type { Review } from '../../shared/types';
 import type { ReviewSummary } from '../../hooks/useProductReviews';
@@ -23,17 +24,20 @@ const shopCache = new Map<string, Shop>();
 export const ProductReviewsPreview = ({ productId, product, reviews, summary }: ProductReviewsPreviewProps) => {
   const reviewsCount = summary?.total ?? 0;
   const [shop, setShop] = useState<Shop | null>(null);
+  const [isShopHidden, setIsShopHidden] = useState(false);
   const shopId = product.sellerId;
   const productImageSrc = resolveImageUrl(getProductPrimaryImage(product));
 
   useEffect(() => {
     if (!shopId) {
       setShop(null);
+      setIsShopHidden(false);
       return;
     }
     const cached = shopCache.get(shopId);
     if (cached) {
       setShop(cached);
+      setIsShopHidden(false);
       return;
     }
     const controller = new AbortController();
@@ -42,8 +46,18 @@ export const ProductReviewsPreview = ({ productId, product, reviews, summary }: 
       .then((response) => {
         shopCache.set(shopId, response.data);
         setShop(response.data);
+        setIsShopHidden(false);
       })
-      .catch(() => undefined);
+      .catch((error) => {
+        const normalizedError = normalizeApiError(error);
+        if (normalizedError.code === 'STORE_NOT_PUBLIC') {
+          setIsShopHidden(true);
+          setShop(null);
+          return;
+        }
+
+        setShop(null);
+      });
 
     return () => controller.abort();
   }, [shopId]);
@@ -94,7 +108,7 @@ export const ProductReviewsPreview = ({ productId, product, reviews, summary }: 
             ))}
           </ul>
 
-          {shopId ? (
+          {shopId && !isShopHidden ? (
             <Link to={`/shop/${shopId}`} className={styles.shopBadge}>
               {shop?.avatarUrl ? (
                 <img src={resolveImageUrl(shop.avatarUrl)} alt={shop.title} className={styles.shopBadgeAvatar} />
