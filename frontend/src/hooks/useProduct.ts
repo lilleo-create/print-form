@@ -2,7 +2,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Product } from '../shared/types';
 import { api } from '../shared/api';
-import { ApiError } from '../shared/api/client'; // путь подстрой
+import { ApiError } from '../shared/api/client';
+import { normalizeProductDto } from '../shared/lib/normalizeProductDto';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -51,7 +52,8 @@ export function useProduct(productId: string, opts?: Options) {
       .getProduct(productId, { signal: controller.signal })
       .then((res: any) => {
         if (reqId !== reqIdRef.current) return;
-        const product = res?.data ?? res ?? null;
+        const rawProduct = res?.data ?? res ?? null;
+        const product = normalizeProductDto(rawProduct as Product | null);
         setData(product);
         productCache.set(productId, { ts: Date.now(), data: product });
         setStatus(product ? 'success' : 'error');

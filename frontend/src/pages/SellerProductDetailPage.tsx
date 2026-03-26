@@ -6,7 +6,8 @@ import { Product } from '../shared/types';
 import { Button } from '../shared/ui/Button';
 import { SellerProductModal, SellerProductPayload } from '../widgets/seller/SellerProductModal';
 import styles from './SellerProductDetailPage.module.css';
-import { toEditableProduct } from '../shared/lib/editableProduct'
+import { toEditableProduct } from '../shared/lib/editableProduct';
+import { normalizeProductDtoList } from '../shared/lib/normalizeProductDto';
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('ru-RU', {
@@ -38,7 +39,8 @@ export const SellerProductDetailPage = () => {
 
     try {
       const response = await api.getSellerProducts();
-      const matched = response.data.find((item) => item.id === productId) ?? null;
+      const normalizedProducts = normalizeProductDtoList(response.data);
+      const matched = normalizedProducts.find((item) => item.id === productId) ?? null;
 
       if (!matched) {
         setProduct(null);

@@ -16,6 +16,7 @@ import {
 import { api } from '../../shared/api';
 import { getProductGroupKey, getProductVariants } from '../../shared/lib/productGrouping';
 import { normalizeProductSpecs } from '../../shared/lib/productSpecs';
+import { normalizeProductDtoList } from '../../shared/lib/normalizeProductDto';
 
 type ProductPageLayoutProps = {
   productId: string;
@@ -41,7 +42,7 @@ export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
       .getProducts({ shopId: product.sellerId, limit: 200, sort: 'createdAt', order: 'desc' })
       .then((response) => {
         if (!isMounted) return;
-        const list = response.data ?? [];
+        const list = normalizeProductDtoList(response.data);
         setVariantProducts(getProductVariants(product, [product, ...list]));
       })
       .catch(() => {
