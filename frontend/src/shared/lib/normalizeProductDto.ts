@@ -1,4 +1,4 @@
-import type { Product, ProductImage, ProductSpec } from '../types';
+import type { Product, ProductImage, ProductSpec, ProductVariant } from '../types';
 
 export type ProductSpecLike = ProductSpec & {
   name?: string;
@@ -11,6 +11,8 @@ type ProductWithLegacyFields = Product & {
   gallery?: unknown;
   characteristics?: unknown;
   specifications?: unknown;
+  variants?: unknown;
+  variantAttributes?: unknown;
   dimensions?: unknown;
   photosUrls?: unknown;
   previewImage?: unknown;
@@ -83,6 +85,56 @@ const normalizeSpecsArray = (value: unknown): ProductSpecLike[] => {
       name: toText(record.name) || undefined,
       title: toText(record.title) || undefined,
       label: toText(record.label) || undefined
+    });
+  });
+
+  return normalized;
+};
+
+const normalizeVariantOptions = (value: unknown): Record<string, string[]> => {
+  const record = toObjectRecord(value);
+  if (!record) return {};
+
+  const normalized = Object.entries(record).reduce<Record<string, string[]>>((acc, [key, optionValue]) => {
+    const values = toArray<unknown>(optionValue)
+      .map((item) => toText(item))
+      .filter(Boolean);
+    if (values.length > 0) {
+      acc[key] = values;
+    }
+    return acc;
+  }, {});
+
+  return normalized;
+};
+
+const normalizeVariants = (value: unknown): Product['variants'] => {
+  const list = toArray<unknown>(value);
+  const normalized: ProductVariant[] = [];
+
+  list.forEach((entry, index) => {
+    const record = toObjectRecord(entry);
+    if (!record) return;
+
+    const id = toText(record.id);
+    const name = toText(record.name) || `Вариант ${index + 1}`;
+    if (!id) return;
+
+    const optionsFromRecord = normalizeVariantOptions(record.options);
+    const optionsFromVariantAttributes = normalizeVariantOptions(record.variantAttributes);
+    const options =
+      Object.keys(optionsFromRecord).length > 0
+        ? optionsFromRecord
+        : optionsFromVariantAttributes;
+
+    normalized.push({
+      id,
+      productId: toText(record.productId) || undefined,
+      name,
+      options,
+      priceDelta: toFiniteNumber(record.priceDelta) ?? undefined,
+      sku: toText(record.sku) || undefined,
+      stock: toFiniteNumber(record.stock) ?? undefined
     });
   });
 
@@ -191,7 +243,7 @@ export const normalizeProductDto = (
     characteristics: normalizedCharacteristics,
     specifications: normalizedSpecifications,
     specs: normalizedSpecs,
-    variants: Array.isArray(product.variants) ? product.variants : [],
+    variants: normalizeVariants(product.variants),
     dimensions: dx !== null && dy !== null && dz !== null ? { dxCm: dx, dyCm: dy, dzCm: dz } : null,
     derivedCharacteristics
   };

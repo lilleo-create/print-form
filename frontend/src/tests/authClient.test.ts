@@ -81,4 +81,36 @@ describe('auth client refresh guards', () => {
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it('retries protected request after successful refresh response without access token payload', async () => {
+    window.localStorage.setItem(STORAGE_KEYS.accessToken, JSON.stringify('stale-token'));
+
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ message: 'Unauthorized' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: 'user-1' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      );
+
+    const client = createFetchClient('https://example.test');
+    const result = await client.request<{ id: string }>('/auth/me');
+
+    expect(result.data).toEqual({ id: 'user-1' });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('https://example.test/auth/refresh');
+
+    const [, retriedInit] = fetchMock.mock.calls[2] ?? [];
+    expect((retriedInit as RequestInit | undefined)?.headers).not.toMatchObject({
+      Authorization: 'Bearer stale-token'
+    });
+  });
 });

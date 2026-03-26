@@ -30,6 +30,8 @@ import {
   PRODUCT_COLOR_OPTIONS
 } from './productColors';
 
+const ENABLE_PRODUCT_EDIT_DRAFT = false;
+
 const productSchema = z.object({
   title: z.string().min(2, 'Введите название'),
   descriptionShort: z.string().min(5, 'Добавьте краткое описание'),
@@ -159,22 +161,6 @@ const toPersistedVariantDraft = (variant: VariantDraft): PersistedVariantDraft =
     .map((item) => item.name)
 });
 
-const fromPersistedVariantDraft = (variant: PersistedVariantDraft): VariantDraft => ({
-  id: variant.id,
-  name: variant.name,
-  isBase: variant.isBase,
-  order: variant.order,
-  form: sanitizeFormValues(variant.form),
-  mediaItems: variant.mediaItems.map((item) => ({
-    id: item.id,
-    kind: item.kind,
-    source: 'existing' as const,
-    previewUrl: item.previewUrl,
-    remoteUrl: item.remoteUrl,
-    name: item.name
-  }))
-});
-
 const createExistingMediaItems = (product: Product | null): MediaItem[] => {
   const editableProduct = toEditableProduct(product);
   if (!editableProduct) return [];
@@ -251,6 +237,8 @@ const revokeNewMediaUrls = (drafts: VariantDraft[]) => {
   });
 };
 
+const toArray = <T,>(value: unknown): T[] => (Array.isArray(value) ? value as T[] : []);
+
 export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProductModalProps) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -275,11 +263,10 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
   const [variantDrafts, setVariantDrafts] = useState<VariantDraft[]>([]);
   const [activeVariantId, setActiveVariantId] = useState('');
   const [brokenMedia, setBrokenMedia] = useState<Record<string, boolean>>({});
-  const draftRestoreHandledRef = useRef(false);
   const draftKey = useMemo(() => getSellerProductDraftKey(product), [product]);
   const persistedPayload = useMemo<PersistedSellerProductDraft | null>(
     () =>
-      variantDrafts.length
+      ENABLE_PRODUCT_EDIT_DRAFT && variantDrafts.length
         ? {
             activeVariantId,
             variantDrafts: variantDrafts.map(toPersistedVariantDraft)
@@ -287,10 +274,10 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
         : null,
     [variantDrafts, activeVariantId]
   );
-  const { hydratedDraft, clearDraft } = usePersistedForm<PersistedSellerProductDraft>({
+  const { clearDraft } = usePersistedForm<PersistedSellerProductDraft>({
     storageKey: draftKey,
     data: persistedPayload,
-    enabled: true,
+    enabled: ENABLE_PRODUCT_EDIT_DRAFT,
     debounceMs: 300
   });
 
@@ -330,29 +317,8 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
       mediaItems: createExistingMediaItems(product)
     };
 
-    let nextDrafts: VariantDraft[] = [initialDraft];
-    let nextActiveVariantId = initialDraft.id;
-
-    const persisted = hydratedDraft?.data;
-    const canRestoreDraft = Boolean(
-      persisted?.variantDrafts?.length && (!product || !draftRestoreHandledRef.current)
-    );
-
-    if (canRestoreDraft) {
-      const shouldRestore = !product
-        ? true
-        : window.confirm('Найден локальный черновик редактирования. Восстановить его поверх данных с сервера?');
-
-      draftRestoreHandledRef.current = true;
-
-      if (shouldRestore && persisted) {
-        nextDrafts = persisted.variantDrafts.map(fromPersistedVariantDraft);
-        nextActiveVariantId =
-          nextDrafts.find((variant) => variant.id === persisted.activeVariantId)?.id ??
-          nextDrafts[0]?.id ??
-          initialDraft.id;
-      }
-    }
+    const nextDrafts: VariantDraft[] = [initialDraft];
+    const nextActiveVariantId = initialDraft.id;
 
     setVariantDrafts((prev) => {
       revokeNewMediaUrls(prev);
@@ -364,11 +330,13 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
 
     const activeDraft = nextDrafts.find((variant) => variant.id === nextActiveVariantId) ?? nextDrafts[0] ?? initialDraft;
     reset(activeDraft.form);
-  }, [product, reset, hydratedDraft]);
+  }, [product, reset]);
 
   useEffect(() => {
-    draftRestoreHandledRef.current = false;
-  }, [draftKey]);
+    if (!ENABLE_PRODUCT_EDIT_DRAFT) {
+      clearDraft();
+    }
+  }, [clearDraft, draftKey]);
 
   useEffect(() => {
     if (!product?.id) {
@@ -379,7 +347,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
       return;
     }
 
-    const localVariants = Array.isArray(product.variants) ? product.variants : [];
+    const localVariants = toArray<ProductVariant>(product.variants);
     setProductVariants(localVariants);
     setActiveProductVariantId('base');
     setVariantError(null);
@@ -389,7 +357,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
       .list(product.id)
       .then((response) => {
         if (!isMounted) return;
-        setProductVariants(response.data);
+        setProductVariants(toArray<ProductVariant>(response.data));
         setActiveProductVariantId('base');
         setIsVariantRouteUnavailable(false);
         setVariantError(null);
@@ -423,7 +391,12 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
       .getReferenceCategories()
       .then((response) => {
         if (!isMounted) return;
-        setCategories(response.data.map((item) => ({ id: item.id, title: item.title })));
+        setCategories(
+          toArray<{ id: string; title: string }>(response.data).map((item) => ({
+            id: item.id,
+            title: item.title
+          }))
+        );
         setCategoriesError('');
       })
       .catch(() => {
@@ -591,7 +564,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
     if (!product?.id) return;
     if (isVariantRouteUnavailable) return;
     const response = await sellerProductVariantsService.list(product.id);
-    setProductVariants(response.data);
+    setProductVariants(toArray<ProductVariant>(response.data));
   };
 
   const handleAddVariant = async () => {
@@ -670,7 +643,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
     if (!activeVariant) return;
     setUploadError('');
 
-    const currentMediaItems = activeVariant.mediaItems;
+    const currentMediaItems = toArray<MediaItem>(activeVariant.mediaItems);
     const newItems = currentMediaItems.filter((item): item is MediaItem & { source: 'new'; file: File } => item.source === 'new' && Boolean(item.file));
     const uploadedById = new Map<string, string>();
 
@@ -742,7 +715,9 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
     };
 
     await onSubmit(payload);
-    clearDraft();
+    if (ENABLE_PRODUCT_EDIT_DRAFT) {
+      clearDraft();
+    }
     onClose();
   };
 
