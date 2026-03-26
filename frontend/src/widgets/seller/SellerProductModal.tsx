@@ -239,6 +239,64 @@ const revokeNewMediaUrls = (drafts: VariantDraft[]) => {
 
 const toArray = <T,>(value: unknown): T[] => (Array.isArray(value) ? value as T[] : []);
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const normalizeVariantOptions = (value: unknown): Record<string, string[]> => {
+  if (!isRecord(value)) return {};
+
+  return Object.entries(value).reduce<Record<string, string[]>>((acc, [key, optionValue]) => {
+    if (Array.isArray(optionValue)) {
+      const nextValues = optionValue.filter((entry): entry is string => typeof entry === 'string');
+      if (nextValues.length > 0) {
+        acc[key] = nextValues;
+      }
+      return acc;
+    }
+
+    if (typeof optionValue === 'string' && optionValue.trim().length > 0) {
+      acc[key] = [optionValue];
+    }
+
+    return acc;
+  }, {});
+};
+
+const normalizeVariant = (value: unknown): ProductVariant | null => {
+  if (!isRecord(value) || typeof value.id !== 'string') return null;
+
+  return {
+    id: value.id,
+    name: typeof value.name === 'string' && value.name.trim().length > 0 ? value.name : 'Новый вариант',
+    options: normalizeVariantOptions(value.options),
+    sku: typeof value.sku === 'string' ? value.sku : undefined,
+    stock: typeof value.stock === 'number' ? value.stock : undefined,
+    priceDelta: typeof value.priceDelta === 'number' ? value.priceDelta : undefined,
+    productId: typeof value.productId === 'string' ? value.productId : undefined
+  };
+};
+
+const parseProductVariants = (payload: unknown): ProductVariant[] => {
+  if (Array.isArray(payload)) {
+    return payload.map(normalizeVariant).filter((variant): variant is ProductVariant => Boolean(variant));
+  }
+
+  if (!isRecord(payload)) {
+    return [];
+  }
+
+  if (Array.isArray(payload.variants)) {
+    return parseProductVariants(payload.variants);
+  }
+
+  if (Array.isArray(payload.items)) {
+    return parseProductVariants(payload.items);
+  }
+
+  const singleVariant = normalizeVariant(payload);
+  return singleVariant ? [singleVariant] : [];
+};
+
 export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProductModalProps) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -347,7 +405,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
       return;
     }
 
-    const localVariants = toArray<ProductVariant>(product.variants);
+    const localVariants = parseProductVariants(product.variants);
     setProductVariants(localVariants);
     setActiveProductVariantId('base');
     setVariantError(null);
@@ -357,7 +415,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
       .list(product.id)
       .then((response) => {
         if (!isMounted) return;
-        setProductVariants(toArray<ProductVariant>(response.data));
+        setProductVariants(parseProductVariants(response.data));
         setActiveProductVariantId('base');
         setIsVariantRouteUnavailable(false);
         setVariantError(null);
@@ -564,7 +622,9 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
     if (!product?.id) return;
     if (isVariantRouteUnavailable) return;
     const response = await sellerProductVariantsService.list(product.id);
-    setProductVariants(toArray<ProductVariant>(response.data));
+    const nextVariants = parseProductVariants(response.data);
+    setProductVariants(nextVariants);
+    return nextVariants;
   };
 
   const handleAddVariant = async () => {
@@ -579,8 +639,16 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
       const created = await sellerProductVariantsService.create(product.id, {
         name: `Вариант ${productVariants.length + 1}`
       });
-      await reloadProductVariants();
-      setActiveProductVariantId(created.data.id);
+      const createdVariant = parseProductVariants(created.data)[0] ?? null;
+      const nextVariants = await reloadProductVariants();
+
+      if (createdVariant && !nextVariants?.some((variant) => variant.id === createdVariant.id)) {
+        setProductVariants((prev) => [...prev, createdVariant]);
+      }
+
+      if (createdVariant?.id) {
+        setActiveProductVariantId(createdVariant.id);
+      }
     } catch {
       setVariantError('Не удалось добавить вариант.');
     } finally {
