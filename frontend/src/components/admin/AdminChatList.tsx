@@ -1,4 +1,5 @@
 import { ChatThread } from '../../shared/types';
+import { getChatThreadStatusLabel } from '../../shared/lib/adminStatusLabels';
 import styles from './AdminChatList.module.css';
 
 interface AdminChatListProps {
@@ -39,7 +40,9 @@ export const AdminChatList = ({ title, threads, activeId, onSelect, onDelete }: 
                     Удалить
                   </button>
                 ) : null}
-                <span className={styles.badge}>{thread.status}</span>
+                <span className={styles.badge}>
+                  {getChatThreadStatusLabel(thread.status, thread.statusLabelRu)}
+                </span>
               </div>
             </div>
           ))}

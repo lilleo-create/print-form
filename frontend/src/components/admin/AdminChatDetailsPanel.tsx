@@ -5,6 +5,7 @@ import { MessageComposer } from '../chats/MessageComposer';
 import styles from './AdminChatDetailsPanel.module.css';
 import { resolveMediaUrl } from '../../shared/lib/resolveMediaUrl';
 import { getProductMainImage } from '../../shared/lib/productMedia';
+import { getChatThreadStatusLabel, getReturnStatusLabel } from '../../shared/lib/adminStatusLabels';
 
 interface AdminChatDetailsPanelProps {
   thread: ChatThread | null;
@@ -64,7 +65,7 @@ export const AdminChatDetailsPanel = ({
             {reasonLabels[returnRequest.reason] ?? returnRequest.reason}
           </p>
           {returnRequest.comment && <p>Комментарий: {returnRequest.comment}</p>}
-          <p>Статус: {returnRequest.status}</p>
+          <p>Статус: {getReturnStatusLabel(returnRequest.status, returnRequest.statusLabelRu)}</p>
           <p>
             Дата:{' '}
             {new Date(returnRequest.createdAt).toLocaleDateString('ru-RU', {
@@ -112,11 +113,11 @@ export const AdminChatDetailsPanel = ({
                   setStatus(event.target.value as ReturnStatus)
                 }
               >
-                <option value="CREATED">CREATED</option>
-                <option value="UNDER_REVIEW">UNDER_REVIEW</option>
-                <option value="APPROVED">APPROVED</option>
-                <option value="REJECTED">REJECTED</option>
-                <option value="REFUNDED">REFUNDED</option>
+                <option value="CREATED">{getReturnStatusLabel('CREATED')}</option>
+                <option value="UNDER_REVIEW">{getReturnStatusLabel('UNDER_REVIEW')}</option>
+                <option value="APPROVED">{getReturnStatusLabel('APPROVED')}</option>
+                <option value="REJECTED">{getReturnStatusLabel('REJECTED')}</option>
+                <option value="REFUNDED">{getReturnStatusLabel('REFUNDED')}</option>
               </select>
             </label>
             <textarea
@@ -142,6 +143,7 @@ export const AdminChatDetailsPanel = ({
           }
         >
           {thread.status === 'ACTIVE' ? 'Закрыть чат' : 'Открыть чат'}
+          {` (${getChatThreadStatusLabel(thread.status, thread.statusLabelRu)})`}
         </Button>
       </div>
 

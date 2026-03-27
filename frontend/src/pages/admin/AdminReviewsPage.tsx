@@ -7,6 +7,7 @@ import { EmptyState } from '../../shared/ui/EmptyState';
 import { Modal } from '../../shared/ui/Modal';
 import { Table } from '../../shared/ui/Table';
 import { resolveImageUrl } from '../../shared/lib/resolveImageUrl';
+import { getReviewStatusLabel, getReviewStatusOptions } from '../../shared/lib/adminStatusLabels';
 import styles from './AdminPage.module.css';
 
 type AdminReview = Review & {
@@ -17,6 +18,7 @@ type AdminReview = Review & {
 };
 
 const statusOptions = ['PENDING', 'NEEDS_EDIT', 'REJECTED', 'APPROVED'] as const;
+const reviewStatusOptions = getReviewStatusOptions(statusOptions);
 
 export const AdminReviewsPage = () => {
   const [status, setStatus] = useState<(typeof statusOptions)[number]>('PENDING');
@@ -97,9 +99,9 @@ export const AdminReviewsPage = () => {
               value={status}
               onChange={(event) => setStatus(event.target.value as (typeof statusOptions)[number])}
             >
-              {statusOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option}
+              {reviewStatusOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
                 </option>
               ))}
             </select>
@@ -141,7 +143,11 @@ export const AdminReviewsPage = () => {
                 <div className={`${styles.muted} ${styles.cellTruncate}`}>{review.user?.email ?? ''}</div>
               </div>
               <span>{review.rating}</span>
-              <span className={styles.muted}>{review.comment.slice(0, 60)}...</span>
+              <span className={styles.muted}>
+                {getReviewStatusLabel(review.moderationStatus, review.moderationStatusLabelRu)}
+                {' · '}
+                {review.comment.slice(0, 60)}...
+              </span>
               <div className={styles.actions}>
                 <Button
                   type="button"

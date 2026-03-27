@@ -5,9 +5,11 @@ import { Button } from '../../shared/ui/Button';
 import { EmptyState } from '../../shared/ui/EmptyState';
 import { Modal } from '../../shared/ui/Modal';
 import { Table } from '../../shared/ui/Table';
+import { getKycStatusLabel, getKycStatusOptions } from '../../shared/lib/adminStatusLabels';
 import styles from './AdminPage.module.css';
 
 const statusOptions = ['PENDING', 'APPROVED', 'REJECTED', 'REVISION'] as const;
+const kycStatusOptions = getKycStatusOptions(statusOptions);
 
 type KycModerationStatus = 'APPROVED' | 'REJECTED' | 'REVISION';
 
@@ -87,7 +89,7 @@ export const AdminKycPage = () => {
     <div className={styles.page}>
       <div className={styles.header}>
         <div>
-          <h1>KYC модерация</h1>
+          <h1>Проверка продавцов</h1>
           <p className={styles.muted}>Управляйте заявками на верификацию продавцов.</p>
         </div>
         <div className={styles.filters}>
@@ -98,9 +100,9 @@ export const AdminKycPage = () => {
               value={status}
               onChange={(event) => setStatus(event.target.value as (typeof statusOptions)[number])}
             >
-              {statusOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option}
+              {kycStatusOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
                 </option>
               ))}
             </select>
@@ -143,7 +145,9 @@ export const AdminKycPage = () => {
                 <div className={`${styles.muted} ${styles.cellTruncate}`}>{submission.user?.email ?? '—'}</div>
               </div>
               <span>{new Date(submission.createdAt).toLocaleDateString('ru-RU')}</span>
-              <span className={styles.status}>{submission.status}</span>
+              <span className={styles.status}>
+                {getKycStatusLabel(submission.status, submission.statusLabelRu)}
+              </span>
               <div className={styles.previewList}>
                 {submission.documents?.length ? (
                   <span>{submission.documents.length} файл(ов)</span>
@@ -167,7 +171,7 @@ export const AdminKycPage = () => {
           <p className={styles.muted}>Загрузка заявки...</p>
         ) : (
           <>
-            <h2>KYC заявка</h2>
+            <h2>Заявка на проверку продавца</h2>
             <p className={styles.muted}>ID: {selected.id}</p>
 
             <h3>Merchant data</h3>
@@ -203,13 +207,13 @@ export const AdminKycPage = () => {
 
             <div className={styles.modalActions}>
               <Button type="button" onClick={() => handleModeration('APPROVED')} disabled={actionId === selected.id}>
-                APPROVED
+                {getKycStatusLabel('APPROVED')}
               </Button>
               <Button type="button" onClick={() => handleModeration('REJECTED')} disabled={actionId === selected.id}>
-                REJECTED
+                {getKycStatusLabel('REJECTED')}
               </Button>
               <Button type="button" onClick={() => handleModeration('REVISION')} disabled={actionId === selected.id}>
-                REVISION
+                {getKycStatusLabel('REVISION')}
               </Button>
               <Button type="button" onClick={closeDetails} disabled={actionId === selected.id}>
                 Закрыть

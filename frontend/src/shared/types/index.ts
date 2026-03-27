@@ -120,6 +120,7 @@ export interface Review {
   dislikesCount?: number;
   isPublic?: boolean;
   moderationStatus?: ReviewModerationStatus;
+  moderationStatusLabelRu?: string | null;
   moderationNotes?: string | null;
   moderatedAt?: string | null;
   moderatedById?: string | null;
@@ -134,6 +135,7 @@ export interface Review {
   replies?: ReviewReply[];
   canEdit?: boolean;
   canDelete?: boolean;
+  isOwn?: boolean;
   user?: { id: string; name: string; nickname?: string | null; fullName?: string | null } | null;
   product?: { id: string; title: string; image?: string };
 }
@@ -151,6 +153,7 @@ export interface ReviewReply {
   isCurrentStoreReply?: boolean;
   canEdit?: boolean;
   canDelete?: boolean;
+  isOwn?: boolean;
 }
 
 export interface CartItem {
@@ -198,6 +201,7 @@ export interface ReturnRequest {
   id: string;
   userId?: string;
   status: ReturnStatus;
+  statusLabelRu?: string | null;
   reason: ReturnReason;
   comment?: string | null;
   adminComment?: string | null;
@@ -222,6 +226,7 @@ export interface ChatThread {
   kind: ChatThreadKind;
   userId: string;
   status: ChatThreadStatus;
+  statusLabelRu?: string | null;
   returnRequestId?: string | null;
   sellerId?: string | null;
   sellerShopName?: string | null;
@@ -438,6 +443,7 @@ export interface SellerKycSubmission {
   id: string;
   userId: string;
   status: KycStatus;
+  statusLabelRu?: string | null;
   merchantData?: Record<string, unknown> | null;
   dropoffPvzId?: string | null;
   dropoffPvzMeta?: Record<string, unknown> | null;

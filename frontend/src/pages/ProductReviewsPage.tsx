@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../shared/api';
-import type { Product } from '../shared/types';
+import type { Product, Review } from '../shared/types';
 import { useCartStore } from '../app/store/cartStore';
 import { useAuthStore } from '../app/store/authStore';
 import { useProductBoardStore } from '../app/store/productBoardStore';
@@ -29,6 +29,14 @@ const DEFAULT_FILTERS: ReviewFilters = {
   high: false,
   low: false,
   new: true
+};
+
+const unwrapPayload = <T,>(payload: unknown): T | null => {
+  if (payload == null) return null;
+  if (typeof payload === 'object' && 'data' in payload) {
+    return (payload as { data?: T }).data ?? null;
+  }
+  return payload as T;
 };
 
 export const ProductReviewsPage = () => {
@@ -72,7 +80,8 @@ export const ProductReviewsPage = () => {
     error,
     hasMore,
     loadMore,
-    refresh
+    refresh,
+    upsertReview
   } = useProductReviews(productId, {
     productIds,
     filters,
@@ -100,39 +109,48 @@ export const ProductReviewsPage = () => {
   }, [navigate]);
 
   const handleReviewSubmit = useCallback(
-    async (payload: ReviewFormValues) => {
+    async (values: ReviewFormValues) => {
       if (!productId || !user) return;
 
       try {
         let uploadedPhotos: string[] = [];
 
-        if (payload.files.length) {
-          const res = await api.returns.uploadPhotos(payload.files);
+        if (values.files.length) {
+          const res = await api.returns.uploadPhotos(values.files);
           uploadedPhotos = res.data.urls ?? [];
         }
 
         const photos = Array.from(
-          new Set([...(payload.existingPhotos ?? []), ...uploadedPhotos])
+          new Set([...(values.existingPhotos ?? []), ...uploadedPhotos])
         );
 
-        await api.createReview(productId, {
-          rating: payload.rating,
-          pros: payload.pros,
-          cons: payload.cons,
-          comment: payload.comment,
+        const requestPayload = {
+          rating: values.rating,
+          pros: values.pros,
+          cons: values.cons,
+          comment: values.comment,
           photos: photos.length ? photos : undefined
-        });
+        };
 
-        await refresh();
+        const response = myReview
+          ? await api.updateReview(myReview.id, requestPayload)
+          : await api.createReview(productId, requestPayload);
+
+        const review = unwrapPayload<Review>(unwrapPayload<unknown>(response));
+        if (review?.id) {
+          upsertReview(review, { prepend: true });
+        } else {
+          await refresh();
+        }
         await refreshMyReview();
 
         setIsReviewModalOpen(false);
-        setToastMessage('Отзыв отправлен на модерацию');
+        setToastMessage(myReview ? 'Отзыв обновлён' : 'Отзыв отправлен на модерацию');
       } catch {
         setToastMessage('Не удалось отправить отзыв');
       }
     },
-    [productId, user, refresh, refreshMyReview]
+    [myReview, productId, user, refresh, refreshMyReview, upsertReview]
   );
 
   if (!product) {
