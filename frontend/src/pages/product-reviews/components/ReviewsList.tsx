@@ -21,6 +21,27 @@ const formatReviewDate = (value: string) =>
     year: 'numeric'
   });
 
+const getReplyActionErrorMessage = (error: unknown, fallback: string) => {
+  const normalized = normalizeApiError(error);
+  const status = normalized.status;
+  if (status === 401) {
+    return 'Чтобы изменить ответ, нужно войти в аккаунт.';
+  }
+  if (status === 403) {
+    return 'У вас нет доступа к изменению этого ответа.';
+  }
+  if (status === 404) {
+    return 'Ответ не найден. Обновите страницу и попробуйте снова.';
+  }
+  if (status === 422 || normalized.code === 'VALIDATION_ERROR') {
+    return 'Не удалось сохранить ответ: проверьте текст и попробуйте снова.';
+  }
+  if (normalized.message && normalized.message !== normalized.code) {
+    return normalized.message;
+  }
+  return fallback;
+};
+
 export const ReviewsList = ({
   reviews,
   status,
@@ -278,24 +299,60 @@ export const ReviewsList = ({
   const saveReplyEdit = async (review: Review, replyId: string) => {
     const nextText = editDraft.trim();
     if (!nextText) return;
-    await api.updateReviewReply(replyId, { text: nextText });
-    updateReview(review.id, (item) => ({
-      ...item,
-      replies: (item.replies ?? []).map((reply) =>
-        reply.id === replyId ? { ...reply, text: nextText } : reply
-      )
-    }));
-    setEditingReplyId(null);
+
+    setReplyErrors((prev) => {
+      if (!prev[review.id]) return prev;
+      const next = { ...prev };
+      delete next[review.id];
+      return next;
+    });
+
+    try {
+      await api.updateReviewReply(replyId, { text: nextText });
+      updateReview(review.id, (item) => ({
+        ...item,
+        replies: (item.replies ?? []).map((reply) =>
+          reply.id === replyId ? { ...reply, text: nextText } : reply
+        )
+      }));
+      setEditingReplyId(null);
+    } catch (error) {
+      setReplyErrors((prev) => ({
+        ...prev,
+        [review.id]: getReplyActionErrorMessage(
+          error,
+          'Не удалось сохранить ответ. Попробуйте позже.'
+        )
+      }));
+    }
   };
 
   const deleteReply = async (review: Review, replyId: string) => {
     if (!window.confirm('Удалить ответ?')) return;
-    await api.deleteReviewReply(replyId);
-    updateReview(review.id, (item) => ({
-      ...item,
-      replies: (item.replies ?? []).filter((reply) => reply.id !== replyId)
-    }));
-    setOpenedMenuId(null);
+
+    setReplyErrors((prev) => {
+      if (!prev[review.id]) return prev;
+      const next = { ...prev };
+      delete next[review.id];
+      return next;
+    });
+
+    try {
+      await api.deleteReviewReply(replyId);
+      updateReview(review.id, (item) => ({
+        ...item,
+        replies: (item.replies ?? []).filter((reply) => reply.id !== replyId)
+      }));
+      setOpenedMenuId(null);
+    } catch (error) {
+      setReplyErrors((prev) => ({
+        ...prev,
+        [review.id]: getReplyActionErrorMessage(
+          error,
+          'Не удалось удалить ответ. Попробуйте позже.'
+        )
+      }));
+    }
   };
 
   if (error) {
