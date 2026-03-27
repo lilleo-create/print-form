@@ -94,6 +94,36 @@ export const requireSeller = async (req: AuthRequest, res: Response, next: NextF
 
 export const authenticate = requireAuth;
 
+export const optionalAuth = async (req: AuthRequest, _res: Response, next: NextFunction) => {
+  const header = req.headers.authorization;
+  const cookieToken = typeof req.cookies?.accessToken === 'string' ? req.cookies.accessToken : null;
+  const token = header?.replace('Bearer ', '') || cookieToken;
+
+  if (!token) {
+    return next();
+  }
+
+  try {
+    const decoded = jwt.verify(token, env.jwtSecret) as {
+      userId: string;
+      role: Role;
+      scope?: string;
+    };
+    if (decoded.scope && decoded.scope !== 'access') {
+      return next();
+    }
+    const role = await loadUserRole(decoded.userId);
+    if (!role) {
+      return next();
+    }
+    req.user = { userId: decoded.userId, role };
+  } catch {
+    // Не прерываем public endpoint при битом токене.
+  }
+
+  return next();
+};
+
 export const authorize = (roles: Role[]) => {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     if (!req.user || !roles.includes(req.user.role)) {

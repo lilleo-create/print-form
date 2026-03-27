@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Review, ReviewReply } from '../../../shared/types';
 import { api } from '../../../shared/api';
+import { normalizeApiError } from '../../../shared/api/client';
 import { normalizeReviewPhotoUrl, type ReviewPhotoLike } from '../../../shared/lib/reviews';
 
 export type ReviewFilters = {
@@ -30,17 +31,17 @@ type Options = {
 };
 
 // Нормализация ответов: поддерживаем {data: ...} и {data: {data: ...}}
-function unwrap<T>(res: any): T | null {
-  const d = res?.data;
+function unwrap<T>(res: unknown): T | null {
+  const d = (res as { data?: unknown } | null | undefined)?.data;
   if (d == null) return null;
-  if (typeof d === 'object' && 'data' in d) return (d as any).data as T;
+  if (typeof d === 'object' && 'data' in d) {
+    return (d as { data?: T }).data ?? null;
+  }
   return d as T;
 }
 
 const applyFilters = (reviews: Review[], filters: ReviewFilters) => {
   let next = [...reviews];
-
-  next = next.filter((review) => !(review.moderationStatus === 'PENDING' && review.isOwn === false));
 
   if (filters.withMedia) {
     next = next.filter((review) => (review.photos?.length ?? 0) > 0);
@@ -54,14 +55,7 @@ const applyFilters = (reviews: Review[], filters: ReviewFilters) => {
     next = next.filter((review) => review.rating <= 3);
   }
 
-  return next.sort((a, b) => {
-    const ownA = a.isOwn === true ? 1 : 0;
-    const ownB = b.isOwn === true ? 1 : 0;
-    if (ownA !== ownB) {
-      return ownB - ownA;
-    }
-    return 0;
-  });
+  return next;
 };
 
 const getSort = (filters: ReviewFilters) => {
@@ -139,11 +133,12 @@ export const useProductReviews = (productId: string | undefined, options: Option
         setReviews((prev) => (reset ? list : [...prev, ...list]));
         setHasMore(list.length === pageSize);
         setStatus('success');
-      } catch {
+      } catch (apiError) {
         if (requestId !== requestRef.current) return;
 
+        const normalized = normalizeApiError(apiError);
         setStatus('error');
-        setError('Не удалось загрузить отзывы.');
+        setError(normalized.message || 'Не удалось загрузить отзывы.');
 
         if (reset) setReviews([]);
         setHasMore(false);

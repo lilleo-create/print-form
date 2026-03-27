@@ -237,6 +237,9 @@ export const ProductReviewsPage = () => {
               reviews={reviews}
               status={status}
               error={error}
+              onRetry={() => {
+                refresh().catch(() => undefined);
+              }}
               onPhotoClick={(photos, initialIndex) => setPhotoViewer({ photos, initialIndex })}
             />
 
