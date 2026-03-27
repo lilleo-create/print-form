@@ -5,6 +5,7 @@ import { CatalogBoot } from '../features/catalog/CatalogBoot';
 import { FilterModal } from '../widgets/catalog/FilterModal';
 import { CatalogHeader } from '../widgets/catalog/CatalogHeader';
 import { Button } from '../shared/ui/Button';
+import { Skeleton } from '../shared/ui/Skeleton';
 import styles from './CatalogPage.module.css';
 
 const sortOptions = {
@@ -100,7 +101,16 @@ export const CatalogPage = () => {
                 </div>
               </div>
               {loading ? (
-                <p className={styles.loading}>Загрузка...</p>
+                <div className={styles.grid}>
+                  {Array.from({ length: 8 }).map((_, index) => (
+                    <div key={index} className={styles.cardSkeleton}>
+                      <Skeleton className={styles.cardSkeletonMedia} />
+                      <Skeleton className={styles.cardSkeletonTitle} />
+                      <Skeleton className={styles.cardSkeletonPrice} />
+                      <Skeleton className={styles.cardSkeletonMeta} />
+                    </div>
+                  ))}
+                </div>
               ) : error ? (
                 <p className={styles.loading}>Не удалось загрузить каталог.</p>
               ) : (

@@ -1,9 +1,19 @@
 .skeleton {
-  background: var(--skeleton-bg);
-  background-size: 200% 100%;
-  animation: shimmer 1.6s infinite;
+  position: relative;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--surface-ghost-strong) 48%, transparent);
   border-radius: var(--radius-control);
   min-height: 16px;
+  isolation: isolate;
+}
+
+.skeleton::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--skeleton-bg);
+  background-size: 220% 100%;
+  animation: shimmer 1.35s ease-in-out infinite;
 }
 
 .circle {
@@ -12,9 +22,16 @@
 
 @keyframes shimmer {
   0% {
-    background-position: 200% 0;
+    background-position: 180% 0;
   }
   100% {
-    background-position: -200% 0;
+    background-position: -40% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::before {
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
   }
 }

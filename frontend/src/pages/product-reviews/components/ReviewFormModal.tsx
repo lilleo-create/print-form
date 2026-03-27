@@ -184,7 +184,7 @@ export const ReviewFormModal = ({
 
           {error && <p className={styles.error}>{error}</p>}
 
-          <Button type="submit" disabled={submitting || comment.trim().length < 10}>
+          <Button type="submit" isLoading={submitting} disabled={comment.trim().length < 10}>
             {submitting ? 'Отправляем...' : 'Отправить'}
           </Button>
         </form>

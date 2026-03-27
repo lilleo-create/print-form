@@ -47,6 +47,35 @@
   height: 100%;
 }
 
+.cardSkeleton {
+  display: grid;
+  gap: 12px;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  padding: 14px;
+}
+
+.cardSkeletonMedia {
+  min-height: 180px;
+  border-radius: calc(var(--radius-card) - 4px);
+}
+
+.cardSkeletonTitle {
+  min-height: 22px;
+  width: 82%;
+}
+
+.cardSkeletonPrice {
+  min-height: 18px;
+  width: 42%;
+}
+
+.cardSkeletonMeta {
+  min-height: 16px;
+  width: 65%;
+}
+
 .loading {
   padding: 20px 0;
   color: var(--muted);

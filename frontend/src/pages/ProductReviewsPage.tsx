@@ -55,6 +55,7 @@ export const ProductReviewsPage = () => {
   const [filters, setFilters] = useState<ReviewFilters>(DEFAULT_FILTERS);
 
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   /* ---------- product ---------- */
@@ -144,6 +145,7 @@ export const ProductReviewsPage = () => {
       if (!productId || !user) return;
 
       try {
+        setIsSubmittingReview(true);
         let uploadedPhotos: string[] = [];
 
         if (values.files.length) {
@@ -179,6 +181,8 @@ export const ProductReviewsPage = () => {
         setToastMessage(myReview ? 'Отзыв обновлён' : 'Отзыв отправлен на модерацию');
       } catch {
         setToastMessage('Не удалось отправить отзыв');
+      } finally {
+        setIsSubmittingReview(false);
       }
     },
     [myReview, productId, user, refresh, refreshMyReview, upsertReview]
@@ -258,7 +262,7 @@ export const ProductReviewsPage = () => {
         product={product}
         initialReview={myReview ?? null}
         onSubmit={handleReviewSubmit}
-        submitting={false}
+        submitting={isSubmittingReview}
         error={null}
         fieldErrors={{}}
       />

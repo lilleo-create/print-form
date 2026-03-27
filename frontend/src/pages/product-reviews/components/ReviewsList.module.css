@@ -236,3 +236,47 @@
 .empty {
   color: var(--muted);
 }
+
+.skeletonTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.skeletonName {
+  min-height: 18px;
+  width: 140px;
+  margin-bottom: 8px;
+}
+
+.skeletonDate {
+  min-height: 14px;
+  width: 100px;
+}
+
+.skeletonRating {
+  min-height: 18px;
+  width: 96px;
+}
+
+.skeletonLine {
+  min-height: 14px;
+  width: 100%;
+}
+
+.skeletonLineShort {
+  min-height: 14px;
+  width: 72%;
+}
+
+.skeletonPhotos {
+  display: flex;
+  gap: 10px;
+}
+
+.skeletonPhoto {
+  width: 96px;
+  min-height: 96px;
+  border-radius: 12px;
+}

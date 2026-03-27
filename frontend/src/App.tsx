@@ -29,6 +29,7 @@ import { ShopPage } from './pages/ShopPage/ShopPage';
 import { CdekWidgetPage } from './pages/CdekWidgetPage';
 import { AuthBootstrap } from './app/providers/AuthBootstrap';
 import { RouteScrollManager } from './app/providers/RouteScrollManager';
+import { RouteProgressBar } from './app/providers/RouteProgressBar';
 import { SellerProductDetailPage } from './pages/SellerProductDetailPage';
 
 const App = () => {
@@ -36,6 +37,7 @@ const App = () => {
     <>
       <AuthBootstrap />
       <RouteScrollManager />
+      <RouteProgressBar />
       <Routes>
       <Route element={<Layout />}>
         <Route path="/" element={<LandingPage />} />
