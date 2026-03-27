@@ -124,7 +124,9 @@ export const ProductReviewsPreview = ({ productId, product, reviews, summary }: 
             <div className={`${styles.shopBadge} ${styles.shopBadgeDisabled}`}>
               <div className={styles.shopBadgeAvatar}>🏪</div>
               <div>
-                <p className={styles.shopBadgeTitle}>Магазин недоступен</p>
+                <p className={styles.shopBadgeTitle}>
+                  Информация о магазине временно недоступна
+                </p>
               </div>
             </div>
           )}

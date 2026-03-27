@@ -1,5 +1,5 @@
 import type { Review } from '../../../shared/types';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../../shared/api';
 import { normalizeApiError } from '../../../shared/api/client';
 import { Rating } from '../../../shared/ui/Rating';
@@ -36,6 +36,17 @@ export const ReviewsList = ({
   const [replyErrors, setReplyErrors] = useState<Record<string, string>>({});
   const [reactionSubmitting, setReactionSubmitting] = useState<Record<string, boolean>>({});
   const [reactionErrors, setReactionErrors] = useState<Record<string, string>>({});
+  const [openedMenuId, setOpenedMenuId] = useState<string | null>(null);
+  const [editingReviewId, setEditingReviewId] = useState<string | null>(null);
+  const [editingReplyId, setEditingReplyId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState('');
+
+  useEffect(() => {
+    if (!openedMenuId) return;
+    const handler = () => setOpenedMenuId(null);
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
+  }, [openedMenuId]);
 
   const mergedReviews = useMemo(
     () => reviews.map((review) => localReviews[review.id] ?? review),
@@ -232,6 +243,61 @@ export const ReviewsList = ({
     }
   };
 
+  const startEditReview = (review: Review) => {
+    setEditingReviewId(review.id);
+    setEditingReplyId(null);
+    setEditDraft(review.comment ?? '');
+    setOpenedMenuId(null);
+  };
+
+  const saveReviewEdit = async (review: Review) => {
+    const nextText = editDraft.trim();
+    if (!nextText || nextText === review.comment) {
+      setEditingReviewId(null);
+      return;
+    }
+    await api.updateReview(review.id, { comment: nextText });
+    updateReview(review.id, (item) => ({ ...item, comment: nextText }));
+    setEditingReviewId(null);
+  };
+
+  const deleteReview = async (review: Review) => {
+    if (!window.confirm('Удалить отзыв?')) return;
+    await api.deleteReview(review.id);
+    setLocalReviews((prev) => ({ ...prev, [review.id]: { ...review, canDelete: false, comment: 'Отзыв удалён' } }));
+    setOpenedMenuId(null);
+  };
+
+  const startEditReply = (replyId: string, text: string) => {
+    setEditingReviewId(null);
+    setEditingReplyId(replyId);
+    setEditDraft(text);
+    setOpenedMenuId(null);
+  };
+
+  const saveReplyEdit = async (review: Review, replyId: string) => {
+    const nextText = editDraft.trim();
+    if (!nextText) return;
+    await api.updateReviewReply(replyId, { text: nextText });
+    updateReview(review.id, (item) => ({
+      ...item,
+      replies: (item.replies ?? []).map((reply) =>
+        reply.id === replyId ? { ...reply, text: nextText } : reply
+      )
+    }));
+    setEditingReplyId(null);
+  };
+
+  const deleteReply = async (review: Review, replyId: string) => {
+    if (!window.confirm('Удалить ответ?')) return;
+    await api.deleteReviewReply(replyId);
+    updateReview(review.id, (item) => ({
+      ...item,
+      replies: (item.replies ?? []).filter((reply) => reply.id !== replyId)
+    }));
+    setOpenedMenuId(null);
+  };
+
   if (error) {
     return <p className={styles.empty}>{error}</p>;
   }
@@ -272,7 +338,25 @@ export const ReviewsList = ({
                   {formatReviewDate(review.createdAt)}
                 </span>
               </div>
-              <Rating value={review.rating} count={0} />
+              <div className={styles.topActions}>
+                <Rating value={review.rating} count={0} />
+                {(review.canEdit || review.canDelete) ? (
+                  <div className={styles.menuWrap}>
+                    <button type="button" className={styles.menuButton} onClick={(event) => {
+                      event.stopPropagation();
+                      setOpenedMenuId((prev) => (prev === review.id ? null : review.id));
+                    }}>
+                      ⋮
+                    </button>
+                    {openedMenuId === review.id ? (
+                      <div className={styles.menu} onClick={(event) => event.stopPropagation()}>
+                        {review.canEdit ? <button type="button" onClick={() => startEditReview(review)}>Редактировать</button> : null}
+                        {review.canDelete ? <button type="button" onClick={() => deleteReview(review).catch(() => undefined)}>Удалить</button> : null}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
             </div>
 
             <div className={styles.body}>
@@ -283,7 +367,13 @@ export const ReviewsList = ({
                 <strong>Недостатки:</strong> {review.cons}
               </p>
               <p>
-                <strong>Комментарий:</strong> {review.comment}
+                <strong>Комментарий:</strong>{' '}
+                {editingReviewId === review.id ? (
+                  <span className={styles.inlineEdit}>
+                    <textarea value={editDraft} onChange={(event) => setEditDraft(event.target.value)} />
+                    <button type="button" onClick={() => saveReviewEdit(review).catch(() => undefined)}>Сохранить</button>
+                  </span>
+                ) : review.comment}
               </p>
             </div>
 
@@ -383,9 +473,34 @@ export const ReviewsList = ({
                   <article key={reply.id} className={styles.replyCard}>
                     <header className={styles.replyHeader}>
                       <strong>{getReplyAuthorName(reply)}</strong>
-                      <span className={styles.date}>{formatReviewDate(reply.createdAt)}</span>
+                      <div className={styles.replyActions}>
+                        <span className={styles.date}>{formatReviewDate(reply.createdAt)}</span>
+                        {(reply.canEdit || reply.canDelete) ? (
+                          <div className={styles.menuWrap}>
+                            <button type="button" className={styles.menuButton} onClick={(event) => {
+                              event.stopPropagation();
+                              setOpenedMenuId((prev) => (prev === reply.id ? null : reply.id));
+                            }}>
+                              ⋮
+                            </button>
+                            {openedMenuId === reply.id ? (
+                              <div className={styles.menu} onClick={(event) => event.stopPropagation()}>
+                                {reply.canEdit ? <button type="button" onClick={() => startEditReply(reply.id, reply.text)}>Редактировать</button> : null}
+                                {reply.canDelete ? <button type="button" onClick={() => deleteReply(review, reply.id).catch(() => undefined)}>Удалить</button> : null}
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
                     </header>
-                    <p>{reply.text}</p>
+                    <p>
+                      {editingReplyId === reply.id ? (
+                        <span className={styles.inlineEdit}>
+                          <textarea value={editDraft} onChange={(event) => setEditDraft(event.target.value)} />
+                          <button type="button" onClick={() => saveReplyEdit(review, reply.id).catch(() => undefined)}>Сохранить</button>
+                        </span>
+                      ) : reply.text}
+                    </p>
                   </article>
                 ))}
               </div>

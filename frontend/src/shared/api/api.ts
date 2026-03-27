@@ -349,6 +349,32 @@ export const api = {
     }
   },
 
+  async updateReview(reviewId: string, payload: { text?: string; pros?: string; cons?: string; comment?: string }) {
+    return apiClient.request<Review>(`/reviews/${reviewId}`, {
+      method: 'PATCH',
+      body: payload
+    });
+  },
+
+  async deleteReview(reviewId: string) {
+    return apiClient.request<{ success: boolean }>(`/reviews/${reviewId}`, {
+      method: 'DELETE'
+    });
+  },
+
+  async updateReviewReply(replyId: string, payload: { text: string }) {
+    return apiClient.request<ReviewReply>(`/reviews/replies/${replyId}`, {
+      method: 'PATCH',
+      body: payload
+    });
+  },
+
+  async deleteReviewReply(replyId: string) {
+    return apiClient.request<{ success: boolean }>(`/reviews/replies/${replyId}`, {
+      method: 'DELETE'
+    });
+  },
+
   async getReviewSummary(
     id: string,
     productIds?: string[],
@@ -649,6 +675,16 @@ export const api = {
   async cancelMyOrder(orderId: string) {
     return apiClient.request<Order>(`/me/orders/${orderId}/cancel`, {
       method: 'PATCH'
+    });
+  },
+
+  async retryMyOrderPayment(orderId: string) {
+    return apiClient.request<{
+      paymentUrl?: string | null;
+      order?: Order | null;
+      orderId?: string;
+    }>(`/me/orders/${orderId}/retry-payment`, {
+      method: 'POST'
     });
   },
 
@@ -1280,6 +1316,11 @@ export const api = {
       return apiClient.request<ChatThread>(`/admin/chats/${id}`, {
         method: 'PATCH',
         body: payload
+      });
+    },
+    async deleteThread(id: string) {
+      return apiClient.request<{ success: boolean }>(`/admin/chats/${id}`, {
+        method: 'DELETE'
       });
     },
     async updateReturnStatus(

@@ -9,6 +9,10 @@ import {
   getProductImages,
   getProductVideos
 } from '../../shared/lib/productMedia';
+import {
+  getModerationStatusLabelRu,
+  getModerationStatusTone
+} from '../../shared/lib/productModeration';
 import styles from './AdminPage.module.css';
 
 type AdminProduct = Product & {
@@ -137,11 +141,15 @@ export const AdminProductsPage = () => {
   };
 
   const handleArchive = async (id: string) => {
+    const shouldDelete = window.confirm(
+      'Удалить товар?\nТовар будет скрыт из каталога. Это действие нельзя просто отменить.'
+    );
+    if (!shouldDelete) return;
     setActionId(id);
     try {
       await api.archiveAdminProduct(id);
       closeModal();
-      await loadProducts();
+      setProducts((prev) => prev.filter((item) => item.id !== id));
     } finally {
       setActionId(null);
     }
@@ -191,7 +199,10 @@ export const AdminProductsPage = () => {
         },
         {
           label: 'Статус',
-          value: toDisplayValue(selectedProduct.moderationStatus || status)
+          value: getModerationStatusLabelRu(
+            selectedProduct.moderationStatus,
+            selectedProduct.moderationStatusLabelRu
+          )
         },
         { label: 'Создан', value: formatDate(selectedProduct.createdAt) },
         { label: 'Обновлён', value: formatDate(selectedProduct.updatedAt) },
@@ -255,7 +266,10 @@ export const AdminProductsPage = () => {
     ? [
         {
           label: 'Статус модерации',
-          value: toDisplayValue(selectedProduct.moderationStatus)
+          value: getModerationStatusLabelRu(
+            selectedProduct.moderationStatus,
+            selectedProduct.moderationStatusLabelRu
+          )
         },
         {
           label: 'Примечания модерации',
@@ -298,7 +312,7 @@ export const AdminProductsPage = () => {
             >
               {statusOptions.map((option) => (
                 <option key={option} value={option}>
-                  {option}
+                  {getModerationStatusLabelRu(option)}
                 </option>
               ))}
             </select>
@@ -344,8 +358,13 @@ export const AdminProductsPage = () => {
                 </div>
               </div>
               <span>{product.price.toLocaleString('ru-RU')} ₽</span>
-              <span className={styles.status}>
-                {product.moderationStatus ?? status}
+              <span
+                className={`${styles.status} ${styles[`status_${getModerationStatusTone(product.moderationStatus)}`]}`}
+              >
+                {getModerationStatusLabelRu(
+                  product.moderationStatus,
+                  product.moderationStatusLabelRu
+                )}
               </span>
               <div className={styles.actions}>
                 <Button
@@ -353,6 +372,14 @@ export const AdminProductsPage = () => {
                   onClick={() => openModerationModal(product)}
                 >
                   Подробнее
+                </Button>
+                <Button
+                  type="button"
+                  variant="danger"
+                  onClick={() => handleArchive(product.id)}
+                  disabled={actionId === product.id}
+                >
+                  Удалить
                 </Button>
               </div>
             </div>
@@ -555,7 +582,7 @@ export const AdminProductsPage = () => {
                 onClick={() => handleArchive(selectedProduct.id)}
                 disabled={actionId === selectedProduct.id}
               >
-                Архивировать
+                Удалить
               </Button>
               <Button
                 type="button"

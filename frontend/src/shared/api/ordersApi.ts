@@ -34,6 +34,11 @@ type ApiOrder = {
   orderLabels?: Array<{ packageNo: number; code: string }>;
   createdAt: string;
   payoutStatus?: string | null;
+  paymentStatus?: string | null;
+  paymentExpiresAt?: string | null;
+  secondsUntilExpiry?: number | null;
+  isExpired?: boolean | null;
+  canRetryPayment?: boolean | null;
   trackingNumber?: string | null;
   cdekOrderId?: string | null;
   cdekStatus?: string | null;
@@ -88,6 +93,18 @@ const mapOrder = (order: ApiOrder): Order => ({
   orderLabels: order.orderLabels ?? [],
   createdAt: order.createdAt,
   payoutStatus: order.payoutStatus ?? null,
+  paymentStatus: order.paymentStatus ?? null,
+  paymentExpiresAt: order.paymentExpiresAt ?? null,
+  secondsUntilExpiry:
+    typeof order.secondsUntilExpiry === 'number'
+      ? order.secondsUntilExpiry
+      : null,
+  isExpired:
+    typeof order.isExpired === 'boolean' ? order.isExpired : null,
+  canRetryPayment:
+    typeof order.canRetryPayment === 'boolean'
+      ? order.canRetryPayment
+      : null,
   trackingNumber: order.trackingNumber ?? null,
   cdekOrderId: order.cdekOrderId ?? null,
   cdekStatus: order.cdekStatus ?? null,

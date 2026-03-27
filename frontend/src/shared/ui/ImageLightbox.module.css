@@ -44,12 +44,13 @@
   height: min(84vh, 94vh);
   padding: 0 56px;
   touch-action: pan-y;
+  width: 100%;
 }
 
 .image {
-  width: auto;
-  height: auto;
-  max-width: min(96vw, 1240px);
+  width: 100%;
+  height: 100%;
+  max-width: min(96vw, 1280px);
   max-height: min(82vh, 90vh);
   object-fit: contain;
   border-radius: 14px;

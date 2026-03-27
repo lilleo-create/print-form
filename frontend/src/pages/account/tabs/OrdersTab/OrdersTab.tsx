@@ -3,6 +3,7 @@ import { resolveImageUrl } from '../../../../shared/lib/resolveImageUrl';
 import { getDeliveryStatusLabel } from '../../../../shared/lib/deliveryStatus';
 import { getOrderDeliveryLabel } from '../../../../shared/lib/deliveryLabel';
 import { useNavigate } from 'react-router-dom';
+import { api } from '../../../../shared/api';
 import styles from './OrdersTab.module.css';
 
 interface OrdersTabProps {
@@ -11,6 +12,17 @@ interface OrdersTabProps {
 
 export const OrdersTab = ({ orders }: OrdersTabProps) => {
   const navigate = useNavigate();
+  const handleRetryPayment = async (orderId: string) => {
+    try {
+      const response = await api.retryMyOrderPayment(orderId);
+      const paymentUrl = response.data?.paymentUrl;
+      if (paymentUrl) {
+        window.location.assign(paymentUrl);
+      }
+    } catch {
+      // интеграционная точка: backend endpoint должен вернуть paymentUrl и/или обновлённый заказ
+    }
+  };
 
   return (
     <div className={styles.section}>
@@ -66,8 +78,23 @@ export const OrdersTab = ({ orders }: OrdersTabProps) => {
                 </div>
 
                 <p className={styles.status}>Статус доставки: {getDeliveryStatusLabel(order)}</p>
+                {order.isExpired && order.paymentStatus !== 'PAID' ? (
+                  <p className={styles.unpaidStatus}>Статус оплаты: Не оплачен</p>
+                ) : null}
                 {order.trackingNumber ? <p className={styles.caption}>СДЭК: {order.trackingNumber}</p> : null}
                 {getOrderDeliveryLabel(order) ? <p className={styles.caption}>{getOrderDeliveryLabel(order)}</p> : null}
+                {order.isExpired && order.canRetryPayment ? (
+                  <button
+                    type="button"
+                    className={styles.retryButton}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleRetryPayment(order.id).catch(() => undefined);
+                    }}
+                  >
+                    Повторить оплату
+                  </button>
+                ) : null}
 
                 <button
                   type="button"

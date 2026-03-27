@@ -6,9 +6,10 @@ interface AdminChatListProps {
   threads: ChatThread[];
   activeId?: string | null;
   onSelect: (thread: ChatThread) => void;
+  onDelete?: (thread: ChatThread) => void;
 }
 
-export const AdminChatList = ({ title, threads, activeId, onSelect }: AdminChatListProps) => {
+export const AdminChatList = ({ title, threads, activeId, onSelect, onDelete }: AdminChatListProps) => {
   return (
     <section className={styles.section}>
       <h3>{title}</h3>
@@ -17,18 +18,30 @@ export const AdminChatList = ({ title, threads, activeId, onSelect }: AdminChatL
       ) : (
         <div className={styles.list}>
           {threads.map((thread) => (
-            <button
-              type="button"
-              key={thread.id}
-              className={activeId === thread.id ? styles.itemActive : styles.item}
-              onClick={() => onSelect(thread)}
-            >
-              <div>
-                <strong>{thread.user?.name ?? 'Пользователь'}</strong>
-                <p className={styles.preview}>{thread.lastMessage?.text ?? 'Нет сообщений'}</p>
+            <div key={thread.id} className={activeId === thread.id ? styles.itemActive : styles.item}>
+              <button
+                type="button"
+                className={styles.threadButton}
+                onClick={() => onSelect(thread)}
+              >
+                <div>
+                  <strong>{thread.user?.name ?? 'Пользователь'}</strong>
+                  <p className={styles.preview}>{thread.lastMessage?.text ?? 'Нет сообщений'}</p>
+                </div>
+              </button>
+              <div className={styles.threadMeta}>
+                {onDelete ? (
+                  <button
+                    type="button"
+                    className={styles.deleteButton}
+                    onClick={() => onDelete(thread)}
+                  >
+                    Удалить
+                  </button>
+                ) : null}
+                <span className={styles.badge}>{thread.status}</span>
               </div>
-              <span className={styles.badge}>{thread.status}</span>
-            </button>
+            </div>
           ))}
         </div>
       )}

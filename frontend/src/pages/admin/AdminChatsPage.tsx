@@ -70,6 +70,22 @@ export const AdminChatsPage = () => {
     await loadThread(selectedThread.id);
   };
 
+  const handleDeleteThread = async (thread: ChatThread) => {
+    const shouldDelete = window.confirm(
+      'Удалить чат?\nПереписка будет скрыта из списка. Это действие нельзя просто отменить.'
+    );
+    if (!shouldDelete) return;
+    await api.adminChats.deleteThread(thread.id);
+    setThreads((prev) => ({
+      active: prev.active.filter((item) => item.id !== thread.id),
+      closed: prev.closed.filter((item) => item.id !== thread.id)
+    }));
+    if (selectedThread?.id === thread.id) {
+      setSelectedThread(null);
+      setMessages([]);
+    }
+  };
+
   return (
     <section className={styles.page}>
       <div className={styles.layout}>
@@ -85,6 +101,7 @@ export const AdminChatsPage = () => {
             title="Активные"
             threads={threads.active ?? []}
             activeId={selectedThread?.id}
+            onDelete={(thread) => handleDeleteThread(thread).catch(() => undefined)}
             onSelect={(thread) => {
               setSelectedThread(thread);
               loadThread(thread.id).catch(() => undefined);
@@ -94,6 +111,7 @@ export const AdminChatsPage = () => {
             title="Завершенные"
             threads={threads.closed ?? []}
             activeId={selectedThread?.id}
+            onDelete={(thread) => handleDeleteThread(thread).catch(() => undefined)}
             onSelect={(thread) => {
               setSelectedThread(thread);
               loadThread(thread.id).catch(() => undefined);
