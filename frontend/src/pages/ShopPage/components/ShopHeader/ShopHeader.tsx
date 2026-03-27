@@ -84,7 +84,7 @@ export const ShopHeader = ({
             ) : (
               <div className={styles.avatarFallback}>{avatarText}</div>
             )}
-            <div>
+            <div className={styles.shopMetaText}>
               {loading ? (
                 <Skeleton className={styles.titleSkeleton} />
               ) : (

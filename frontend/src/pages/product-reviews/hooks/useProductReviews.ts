@@ -73,6 +73,10 @@ const normalizeReview = (review: Review): Review => ({
   }))
 });
 
+type UpsertReviewOptions = {
+  prepend?: boolean;
+};
+
 export const useProductReviews = (productId: string | undefined, options: Options) => {
   const { filters, scope, productIds, pageSize = 6 } = options;
 
@@ -157,6 +161,14 @@ export const useProductReviews = (productId: string | undefined, options: Option
 
   const filteredReviews = useMemo(() => applyFilters(reviews, filters), [reviews, filters]);
 
+  const upsertReview = useCallback((review: Review, options?: UpsertReviewOptions) => {
+    const normalized = normalizeReview(review);
+    setReviews((prev) => {
+      const withoutCurrent = prev.filter((item) => item.id !== normalized.id);
+      return options?.prepend ? [normalized, ...withoutCurrent] : [...withoutCurrent, normalized];
+    });
+  }, []);
+
   return {
     reviews: filteredReviews,
     summary,
@@ -164,6 +176,7 @@ export const useProductReviews = (productId: string | undefined, options: Option
     error,
     hasMore,
     loadMore,
-    refresh
+    refresh,
+    upsertReview
   };
 };

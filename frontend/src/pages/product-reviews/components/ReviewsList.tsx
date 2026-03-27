@@ -1,4 +1,4 @@
-import type { Review } from '../../../shared/types';
+import type { Review, ReviewReply } from '../../../shared/types';
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../../shared/api';
 import { normalizeApiError } from '../../../shared/api/client';
@@ -42,6 +42,32 @@ const getReplyActionErrorMessage = (error: unknown, fallback: string) => {
   return fallback;
 };
 
+const unwrapPayload = <T,>(payload: unknown): T | null => {
+  if (payload == null) return null;
+  if (typeof payload === 'object' && 'data' in payload) {
+    return (payload as { data?: T }).data ?? null;
+  }
+  return payload as T;
+};
+
+const normalizeReply = (
+  reply: Partial<ReviewReply> & { message?: string } | null | undefined,
+  reviewId: string,
+  fallbackText: string
+): ReviewReply => ({
+  ...reply,
+  id: typeof reply?.id === 'string' ? reply.id : `${reviewId}-${Date.now()}`,
+  reviewId: reply?.reviewId ?? reviewId,
+  text: reply?.text ?? (reply as { message?: string })?.message ?? fallbackText,
+  createdAt: reply?.createdAt ?? new Date().toISOString(),
+  authorType: reply?.authorType ?? 'SELLER'
+});
+
+const normalizeReview = (review: Review): Review => ({
+  ...review,
+  replies: (review.replies ?? []).map((reply) => normalizeReply(reply, review.id, reply.text ?? ''))
+});
+
 export const ReviewsList = ({
   reviews,
   status,
@@ -70,7 +96,7 @@ export const ReviewsList = ({
   }, [openedMenuId]);
 
   const mergedReviews = useMemo(
-    () => reviews.map((review) => localReviews[review.id] ?? review),
+    () => reviews.map((review) => localReviews[review.id] ?? normalizeReview(review)),
     [localReviews, reviews]
   );
 
@@ -227,21 +253,18 @@ export const ReviewsList = ({
     setReplySubmitting((prev) => ({ ...prev, [review.id]: true }));
     try {
       const response = await api.createReviewReply(review.productId, review.id, text);
-      const reply = response.data?.data ?? response.data;
-      const replyId = typeof reply?.id === 'string' ? reply.id : `${review.id}-${Date.now()}`;
+      const reply = normalizeReply(
+        unwrapPayload<Partial<ReviewReply> & { message?: string }>(unwrapPayload<unknown>(response)),
+        review.id,
+        text
+      );
       updateReview(review.id, (item) => ({
         ...item,
         replies: [
-          ...(item.replies ?? []).filter((itemReply) => itemReply.id !== replyId),
-          {
-            ...reply,
-            id: replyId,
-            reviewId: reply?.reviewId ?? review.id,
-            text: reply?.text ?? (reply as { message?: string })?.message ?? text,
-            createdAt: reply?.createdAt ?? new Date().toISOString()
-          }
+          ...(item.replies ?? []).filter((itemReply) => itemReply.id !== reply.id),
+          reply
         ],
-        repliesCount: Math.max((item.repliesCount ?? item.replies?.length ?? 0) + 1, (item.replies?.length ?? 0) + 1)
+        repliesCount: Math.max(item.repliesCount ?? 0, (item.replies?.length ?? 0) + 1)
       }));
       setReplyDrafts((prev) => ({ ...prev, [review.id]: '' }));
       setExpandedReplies((prev) => ({ ...prev, [review.id]: true }));
@@ -277,8 +300,12 @@ export const ReviewsList = ({
       setEditingReviewId(null);
       return;
     }
-    await api.updateReview(review.id, { comment: nextText });
-    updateReview(review.id, (item) => ({ ...item, comment: nextText }));
+    const response = await api.updateReview(review.id, { comment: nextText });
+    const payload = unwrapPayload<Review>(unwrapPayload<unknown>(response));
+    const updatedReview = payload && typeof payload === 'object' && 'id' in payload
+      ? normalizeReview(payload as Review)
+      : null;
+    updateReview(review.id, (item) => ({ ...item, ...(updatedReview ?? {}), comment: nextText, id: item.id }));
     setEditingReviewId(null);
   };
 
@@ -308,11 +335,16 @@ export const ReviewsList = ({
     });
 
     try {
-      await api.updateReviewReply(replyId, { text: nextText });
+      const response = await api.updateReviewReply(replyId, { text: nextText });
+      const updatedReply = normalizeReply(
+        unwrapPayload<Partial<ReviewReply> & { message?: string }>(unwrapPayload<unknown>(response)),
+        review.id,
+        nextText
+      );
       updateReview(review.id, (item) => ({
         ...item,
         replies: (item.replies ?? []).map((reply) =>
-          reply.id === replyId ? { ...reply, text: nextText } : reply
+          reply.id === replyId ? { ...reply, ...updatedReply, id: reply.id } : reply
         )
       }));
       setEditingReplyId(null);
@@ -385,6 +417,9 @@ export const ReviewsList = ({
         const likes = review.reactions?.likes ?? review.likesCount ?? 0;
         const dislikes = review.reactions?.dislikes ?? review.dislikesCount ?? 0;
         const buyerName = getReviewAuthorName(review);
+        const moderationBadge = review.isOwn && review.moderationStatus === 'PENDING'
+          ? (review.moderationStatusLabelRu?.trim() || 'На модерации')
+          : null;
 
         return (
           <article key={review.id} className={styles.card}>
@@ -394,10 +429,11 @@ export const ReviewsList = ({
                 <span className={styles.date}>
                   {formatReviewDate(review.createdAt)}
                 </span>
+                {moderationBadge ? <span className={styles.pendingBadge}>{moderationBadge}</span> : null}
               </div>
               <div className={styles.topActions}>
                 <Rating value={review.rating} count={0} />
-                {(review.canEdit || review.canDelete) ? (
+                {review.isOwn !== false && (review.canEdit || review.canDelete) ? (
                   <div className={styles.menuWrap}>
                     <button type="button" className={styles.menuButton} onClick={(event) => {
                       event.stopPropagation();
@@ -532,7 +568,7 @@ export const ReviewsList = ({
                       <strong>{getReplyAuthorName(reply)}</strong>
                       <div className={styles.replyActions}>
                         <span className={styles.date}>{formatReviewDate(reply.createdAt)}</span>
-                        {(reply.canEdit || reply.canDelete) ? (
+                        {reply.isOwn !== false && (reply.canEdit || reply.canDelete) ? (
                           <div className={styles.menuWrap}>
                             <button type="button" className={styles.menuButton} onClick={(event) => {
                               event.stopPropagation();

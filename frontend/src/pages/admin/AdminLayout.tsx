@@ -2,7 +2,7 @@ import { Link, NavLink, Outlet } from 'react-router-dom';
 import styles from './AdminLayout.module.css';
 
 const navItems = [
-  { to: '/admin/kyc', label: 'KYC' },
+  { to: '/admin/kyc', label: 'Проверка продавцов' },
   { to: '/admin/products', label: 'Товары' },
   { to: '/admin/reviews', label: 'Отзывы' },
   { to: '/admin/chats', label: 'Чат' }
