@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { api } from '../../shared/api';
 import { normalizeApiError } from '../../shared/api/client';
@@ -112,6 +112,7 @@ const getSellerSummaryFromProduct = (product: Product): SellerCardSummary => {
 };
 
 export const ProductReviewsPreview = ({ productId, product, reviews, summary }: ProductReviewsPreviewProps) => {
+  const location = useLocation();
   const reviewsCount = summary?.total ?? 0;
   const isSingleReview = reviews.length === 1;
   const [shop, setShop] = useState<Shop | null>(null);
@@ -162,7 +163,18 @@ export const ProductReviewsPreview = ({ productId, product, reviews, summary }: 
           <h2>Отзывы</h2>
           <p className={styles.reviewsHint}>Последние впечатления покупателей</p>
         </div>
-        <Link to={`/product/${productId}/reviews`} className={styles.reviewLink}>
+        <Link
+          to={`/product/${productId}/reviews`}
+          className={styles.reviewLink}
+          state={{
+            from: {
+              pathname: location.pathname,
+              search: location.search,
+              hash: location.hash
+            },
+            fallback: `/product/${productId}`
+          }}
+        >
           Смотреть все отзывы
         </Link>
       </div>

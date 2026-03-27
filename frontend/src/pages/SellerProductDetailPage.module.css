@@ -14,8 +14,13 @@
 }
 
 .backLink {
+  border: none;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
   color: var(--primary);
   text-decoration: none;
+  font: inherit;
 }
 
 .status {

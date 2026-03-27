@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { lockBodyScroll, unlockBodyScroll } from './bodyScrollLockManager';
 
 export const useModalFocus = (
@@ -6,6 +6,12 @@ export const useModalFocus = (
   onClose: () => void,
   container: React.RefObject<HTMLElement>
 ) => {
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
   useEffect(() => {
     if (!isOpen) {
       return;
@@ -24,7 +30,7 @@ export const useModalFocus = (
 
     const handleKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        onClose();
+        onCloseRef.current();
         return;
       }
 
@@ -46,5 +52,5 @@ export const useModalFocus = (
       unlockBodyScroll();
       previousActive?.focus();
     };
-  }, [isOpen, onClose, container]);
+  }, [isOpen, container]);
 };

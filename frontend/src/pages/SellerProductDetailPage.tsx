@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../shared/api';
 import { getModerationStatusLabelRu } from '../shared/lib/productModeration';
 import { getProductImages } from '../shared/lib/productMedia';
@@ -20,6 +20,7 @@ const formatCurrency = (value: number) =>
 export const SellerProductDetailPage = () => {
   const { productId = '' } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [product, setProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -75,6 +76,38 @@ export const SellerProductDetailPage = () => {
     await loadProduct();
   };
 
+  const handleBack = () => {
+    const canUseHistoryBack =
+      typeof window !== 'undefined' &&
+      typeof window.history.state?.idx === 'number' &&
+      window.history.state.idx > 0;
+    const state = location.state as
+      | {
+          from?: { pathname: string; search?: string; hash?: string };
+          fallback?: string;
+        }
+      | null;
+
+    if (canUseHistoryBack) {
+      navigate(-1);
+      return;
+    }
+
+    if (state?.from?.pathname) {
+      navigate(
+        {
+          pathname: state.from.pathname,
+          search: state.from.search ?? '',
+          hash: state.from.hash ?? ''
+        },
+        { replace: true }
+      );
+      return;
+    }
+
+    navigate(state?.fallback ?? '/seller', { replace: true });
+  };
+
   if (isLoading) {
     return (
       <section className={styles.page}>
@@ -101,9 +134,9 @@ export const SellerProductDetailPage = () => {
   return (
     <section className={styles.page}>
       <div className={styles.topBar}>
-        <Link to="/seller" className={styles.backLink}>
+        <button type="button" className={styles.backLink} onClick={handleBack}>
           ← К товарам продавца
-        </Link>
+        </button>
         <span className={styles.status}>
           {getModerationStatusLabelRu(
             product.moderationStatus,

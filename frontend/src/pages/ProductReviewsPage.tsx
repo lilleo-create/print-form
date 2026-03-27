@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../shared/api';
 import type { Product, Review } from '../shared/types';
 import { useCartStore } from '../app/store/cartStore';
@@ -42,6 +42,7 @@ const unwrapPayload = <T,>(payload: unknown): T | null => {
 export const ProductReviewsPage = () => {
   const { id: productId } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const addItem = useCartStore((s) => s.addItem);
   const user = useAuthStore((s) => s.user);
@@ -105,8 +106,38 @@ export const ProductReviewsPage = () => {
   }, [toastMessage]);
 
   const handleBack = useCallback(() => {
-    navigate(-1);
-  }, [navigate]);
+    const canUseHistoryBack =
+      typeof window !== 'undefined' &&
+      typeof window.history.state?.idx === 'number' &&
+      window.history.state.idx > 0;
+    const state = location.state as
+      | {
+          from?: { pathname: string; search?: string; hash?: string };
+          fallback?: string;
+        }
+      | null;
+
+    if (canUseHistoryBack) {
+      navigate(-1);
+      return;
+    }
+
+    if (state?.from?.pathname) {
+      navigate(
+        {
+          pathname: state.from.pathname,
+          search: state.from.search ?? '',
+          hash: state.from.hash ?? ''
+        },
+        { replace: true }
+      );
+      return;
+    }
+
+    navigate(state?.fallback ?? (productId ? `/product/${productId}` : '/catalog'), {
+      replace: true
+    });
+  }, [location.state, navigate, productId]);
 
   const handleReviewSubmit = useCallback(
     async (values: ReviewFormValues) => {

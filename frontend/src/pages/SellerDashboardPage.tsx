@@ -1507,7 +1507,16 @@ export const SellerDashboardPage = () => {
                                   type="button"
                                   className={styles.linkButton}
                                   onClick={() =>
-                                    navigate(`/seller/products/${product.id}`)
+                                    navigate(`/seller/products/${product.id}`, {
+                                      state: {
+                                        from: {
+                                          pathname: location.pathname,
+                                          search: location.search,
+                                          hash: location.hash
+                                        },
+                                        fallback: '/seller'
+                                      }
+                                    })
                                   }
                                 >
                                   {product.title}
@@ -1540,7 +1549,16 @@ export const SellerDashboardPage = () => {
                                 className={styles.linkButton}
                                 onClick={() => {
                                   if (product.moderationStatus === 'APPROVED') {
-                                    navigate(`/seller/products/${product.id}`);
+                                    navigate(`/seller/products/${product.id}`, {
+                                      state: {
+                                        from: {
+                                          pathname: location.pathname,
+                                          search: location.search,
+                                          hash: location.hash
+                                        },
+                                        fallback: '/seller'
+                                      }
+                                    });
                                     return;
                                   }
                                   setActiveProduct(product);
