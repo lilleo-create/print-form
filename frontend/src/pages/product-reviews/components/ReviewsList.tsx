@@ -95,6 +95,17 @@ export const ReviewsList = ({
     return () => document.removeEventListener('click', handler);
   }, [openedMenuId]);
 
+  useEffect(() => {
+    const visibleIds = new Set(reviews.map((review) => review.id));
+    setLocalReviews((prev) => {
+      const nextEntries = Object.entries(prev).filter(([reviewId]) => visibleIds.has(reviewId));
+      if (nextEntries.length === Object.keys(prev).length) {
+        return prev;
+      }
+      return Object.fromEntries(nextEntries);
+    });
+  }, [reviews]);
+
   const mergedReviews = useMemo(
     () => reviews.map((review) => localReviews[review.id] ?? normalizeReview(review)),
     [localReviews, reviews]
@@ -565,7 +576,14 @@ export const ReviewsList = ({
                 {visibleReplies.map((reply) => (
                   <article key={reply.id} className={styles.replyCard}>
                     <header className={styles.replyHeader}>
-                      <strong>{getReplyAuthorName(reply)}</strong>
+                      <div>
+                        <strong>{getReplyAuthorName(reply)}</strong>
+                        {reply.isOwn && reply.moderationStatus === 'PENDING' ? (
+                          <span className={styles.pendingBadge}>
+                            {reply.moderationStatusLabelRu?.trim() || 'На модерации'}
+                          </span>
+                        ) : null}
+                      </div>
                       <div className={styles.replyActions}>
                         <span className={styles.date}>{formatReviewDate(reply.createdAt)}</span>
                         {reply.isOwn !== false && (reply.canEdit || reply.canDelete) ? (

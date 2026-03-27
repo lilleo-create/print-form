@@ -146,6 +146,8 @@ export interface ReviewReply {
   text: string;
   createdAt: string;
   authorType: 'BUYER' | 'SELLER';
+  moderationStatus?: ReviewModerationStatus;
+  moderationStatusLabelRu?: string | null;
   buyerNickname?: string | null;
   storeName?: string | null;
   user?: { id?: string | null; name?: string | null; nickname?: string | null; fullName?: string | null } | null;

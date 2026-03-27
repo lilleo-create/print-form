@@ -113,6 +113,7 @@ const getSellerSummaryFromProduct = (product: Product): SellerCardSummary => {
 
 export const ProductReviewsPreview = ({ productId, product, reviews, summary }: ProductReviewsPreviewProps) => {
   const reviewsCount = summary?.total ?? 0;
+  const isSingleReview = reviews.length === 1;
   const [shop, setShop] = useState<Shop | null>(null);
   const sellerSummary = getSellerSummaryFromProduct(product);
   const shopId = product.sellerId;
@@ -230,7 +231,7 @@ export const ProductReviewsPreview = ({ productId, product, reviews, summary }: 
           )}
         </div>
 
-        <div className={styles.reviewList}>
+        <div className={`${styles.reviewList} ${isSingleReview ? styles.reviewListSingle : ''}`}>
           {reviews.length === 0 ? (
             <p className={styles.reviewsEmpty}>Пока нет отзывов.</p>
           ) : (
@@ -248,6 +249,11 @@ export const ProductReviewsPreview = ({ productId, product, reviews, summary }: 
                   <div>
                     <strong>{getReviewAuthorName(review)}</strong>
                     <span className={styles.reviewDate}>{formatReviewDate(review.createdAt)}</span>
+                    {review.isOwn && review.moderationStatus === 'PENDING' ? (
+                      <span className={styles.pendingBadge}>
+                        {review.moderationStatusLabelRu?.trim() || 'На модерации'}
+                      </span>
+                    ) : null}
                   </div>
                   <Rating value={review.rating} count={0} />
                 </div>

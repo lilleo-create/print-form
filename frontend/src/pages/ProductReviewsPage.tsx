@@ -206,9 +206,16 @@ export const ProductReviewsPage = () => {
             />
 
             {hasMore && (
-              <button onClick={loadMore} disabled={status === 'loading'}>
-                Загрузить ещё
-              </button>
+              <div className={styles.loadMore}>
+                <button
+                  type="button"
+                  className={styles.loadMoreButton}
+                  onClick={loadMore}
+                  disabled={status === 'loading'}
+                >
+                  Загрузить ещё
+                </button>
+              </div>
             )}
           </div>
         </div>
