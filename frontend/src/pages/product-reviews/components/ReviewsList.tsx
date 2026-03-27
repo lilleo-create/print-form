@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../../shared/api';
 import { normalizeApiError } from '../../../shared/api/client';
 import { Rating } from '../../../shared/ui/Rating';
+import { Skeleton } from '../../../shared/ui/Skeleton';
 import { resolveImageUrl } from '../../../shared/lib/resolveImageUrl';
 import { getReplyAuthorName, getReviewAuthorName, normalizeReviewPhotoUrl } from '../../../shared/lib/reviews';
 import styles from './ReviewsList.module.css';
@@ -403,7 +404,29 @@ export const ReviewsList = ({
   }
 
   if (status === 'loading' && reviews.length === 0) {
-    return <p className={styles.empty}>Загрузка отзывов…</p>;
+    return (
+      <div className={styles.list}>
+        {Array.from({ length: 4 }).map((_, index) => (
+          <article key={index} className={styles.card}>
+            <div className={styles.skeletonTop}>
+              <div>
+                <Skeleton className={styles.skeletonName} />
+                <Skeleton className={styles.skeletonDate} />
+              </div>
+              <Skeleton className={styles.skeletonRating} />
+            </div>
+            <Skeleton className={styles.skeletonLine} />
+            <Skeleton className={styles.skeletonLine} />
+            <Skeleton className={styles.skeletonLineShort} />
+            <div className={styles.skeletonPhotos}>
+              <Skeleton className={styles.skeletonPhoto} />
+              <Skeleton className={styles.skeletonPhoto} />
+              <Skeleton className={styles.skeletonPhoto} />
+            </div>
+          </article>
+        ))}
+      </div>
+    );
   }
 
   if (reviews.length === 0) {
