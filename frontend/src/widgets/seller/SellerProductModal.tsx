@@ -293,6 +293,14 @@ const parseProductVariants = (payload: unknown): ProductVariant[] => {
     return parseProductVariants(payload.items);
   }
 
+  if ('variant' in payload) {
+    return parseProductVariants(payload.variant);
+  }
+
+  if ('productVariants' in payload) {
+    return parseProductVariants(payload.productVariants);
+  }
+
   const singleVariant = normalizeVariant(payload);
   return singleVariant ? [singleVariant] : [];
 };
