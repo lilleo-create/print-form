@@ -4,6 +4,7 @@ import { useCartStore } from '../app/store/cartStore';
 import { useAuthStore } from '../app/store/authStore';
 import styles from './CartPage.module.css';
 import { getProductMainImage } from '../shared/lib/productMedia';
+import { SmartImage } from '../shared/ui/SmartImage';
 
 export const CartPage = () => {
   const items = useCartStore((state) => state.items);
@@ -43,7 +44,7 @@ export const CartPage = () => {
                 return (
                   <div key={item.product.id} className={styles.item}>
                     {imageSrc ? (
-                      <img src={imageSrc} alt={item.product.title} />
+                      <SmartImage src={imageSrc} alt={item.product.title} sizePreset="card" />
                     ) : (
                       <div aria-hidden="true" />
                     )}

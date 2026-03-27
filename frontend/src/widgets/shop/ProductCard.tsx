@@ -1,15 +1,14 @@
-import { KeyboardEvent, useMemo, useState } from 'react';
+import { KeyboardEvent, useMemo } from 'react';
 import { getProductGroupKey, getProductVariants } from '../../shared/lib/productGrouping';
 import { useNavigate } from 'react-router-dom';
 import { Product } from '../../shared/types';
 import { useCartStore } from '../../app/store/cartStore';
 import { Button } from '../../shared/ui/Button';
 import { Rating } from '../../shared/ui/Rating';
-import { resolveMediaUrl } from '../../shared/lib/resolveMediaUrl';
 import { getProductMainImage } from '../../shared/lib/productMedia';
 import styles from './ProductCard.module.css';
 import { formatEtaDays } from '../../shared/lib/deliveryEta';
-import { useEffect } from 'react';
+import { SmartImage } from '../../shared/ui/SmartImage';
 interface ProductCardProps {
   product: Product;
 }
@@ -18,9 +17,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
   const navigate = useNavigate();
   const addItem = useCartStore((state) => state.addItem);
 
-  const [imgBroken, setImgBroken] = useState(false);
-
-  const imageSrc = useMemo(() => resolveMediaUrl(getProductMainImage(product)) ?? '', [product]);
+  const imageSrc = useMemo(() => getProductMainImage(product), [product]);
 
   const groupKey = useMemo(() => getProductGroupKey(product), [product]);
   const variantProducts = useMemo(() => {
@@ -42,9 +39,6 @@ export const ProductCard = ({ product }: ProductCardProps) => {
     }
   };
 
-  useEffect(() => {
-    setImgBroken(false);
-  }, [imageSrc]);
   return (
     <article
       className={styles.card}
@@ -54,15 +48,8 @@ export const ProductCard = ({ product }: ProductCardProps) => {
       onKeyDown={handleKeyDown}
     >
       <div className={styles.imageFrame}>
-        {imageSrc && !imgBroken ? (
-          <img
-            src={imageSrc}
-            alt={product.title}
-            className={styles.image}
-            loading="lazy"
-            onError={() => setImgBroken(true)}
-            onLoad={() => setImgBroken(false)}
-          />
+        {imageSrc ? (
+          <SmartImage src={imageSrc} alt={product.title} className={styles.image} sizePreset="card" />
         ) : (
           <div className={styles.imagePlaceholder}>Нет изображения</div>
         )}
