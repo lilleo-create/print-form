@@ -1,6 +1,7 @@
 .list {
   display: grid;
   gap: 16px;
+  min-width: 0;
 }
 
 .card {
@@ -10,12 +11,15 @@
   border: 1px solid var(--border);
   display: grid;
   gap: 12px;
+  min-width: 0;
 }
 
 .top {
   display: flex;
   justify-content: space-between;
   gap: 12px;
+  align-items: flex-start;
+  flex-wrap: wrap;
 }
 
 .topActions,
@@ -44,6 +48,7 @@
 
 .body p {
   margin-bottom: 6px;
+  overflow-wrap: anywhere;
 }
 
 .photos {
@@ -169,6 +174,7 @@
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 6px;
+  flex-wrap: wrap;
 }
 
 .menuWrap {

@@ -40,6 +40,8 @@ function unwrap<T>(res: any): T | null {
 const applyFilters = (reviews: Review[], filters: ReviewFilters) => {
   let next = [...reviews];
 
+  next = next.filter((review) => !(review.moderationStatus === 'PENDING' && review.isOwn === false));
+
   if (filters.withMedia) {
     next = next.filter((review) => (review.photos?.length ?? 0) > 0);
   }
@@ -52,7 +54,14 @@ const applyFilters = (reviews: Review[], filters: ReviewFilters) => {
     next = next.filter((review) => review.rating <= 3);
   }
 
-  return next;
+  return next.sort((a, b) => {
+    const ownA = a.isOwn === true ? 1 : 0;
+    const ownB = b.isOwn === true ? 1 : 0;
+    if (ownA !== ownB) {
+      return ownB - ownA;
+    }
+    return 0;
+  });
 };
 
 const getSort = (filters: ReviewFilters) => {
