@@ -5,6 +5,7 @@ import { Button } from '../../shared/ui/Button';
 import { useModalFocus } from '../../shared/lib/useModalFocus';
 import { getProductMainImage } from '../../shared/lib/productMedia';
 import styles from './ProductModal.module.css';
+import { SmartImage } from '../../shared/ui/SmartImage';
 
 export const ProductModal = () => {
   const product = useUiStore((state) => state.selectedProduct);
@@ -46,11 +47,7 @@ export const ProductModal = () => {
         </button>
         <div className={styles.content}>
           {productImage ? (
-            <img
-              src={productImage}
-              alt={product.title}
-              className={styles.image}
-            />
+            <SmartImage src={productImage} alt={product.title} className={styles.image} sizePreset="detail" />
           ) : (
             <div className={styles.image} aria-hidden="true" />
           )}

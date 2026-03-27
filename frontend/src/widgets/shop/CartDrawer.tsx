@@ -14,6 +14,7 @@ import { Button } from '../../shared/ui/Button';
 import { useModalFocus } from '../../shared/lib/useModalFocus';
 import { getProductMainImage } from '../../shared/lib/productMedia';
 import styles from './CartDrawer.module.css';
+import { SmartImage } from '../../shared/ui/SmartImage';
 
 const checkoutSchema = z.object({
   name: z.string().min(2, 'Введите имя'),
@@ -146,7 +147,7 @@ export const CartDrawer = () => {
                 return (
                   <div className={styles.item} key={item.product.id}>
                     {imageSrc ? (
-                      <img src={imageSrc} alt={item.product.title} />
+                      <SmartImage src={imageSrc} alt={item.product.title} sizePreset="card" />
                     ) : (
                       <div aria-hidden="true" />
                     )}

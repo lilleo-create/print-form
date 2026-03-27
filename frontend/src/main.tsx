@@ -30,12 +30,45 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e)
   applyTheme(e.matches ? 'dark' : 'light');
 });
 
+
+const enforceLazyLoadingForImages = () => {
+  const patchImage = (image: HTMLImageElement) => {
+    if (!image.getAttribute('loading')) {
+      image.setAttribute('loading', 'lazy');
+    }
+    if (!image.getAttribute('decoding')) {
+      image.setAttribute('decoding', 'async');
+    }
+  };
+
+  document.querySelectorAll('img').forEach((node) => patchImage(node as HTMLImageElement));
+
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      mutation.addedNodes.forEach((node) => {
+        if (!(node instanceof HTMLElement)) return;
+
+        if (node.tagName === 'IMG') {
+          patchImage(node as HTMLImageElement);
+          return;
+        }
+
+        node.querySelectorAll('img').forEach((img) => patchImage(img as HTMLImageElement));
+      });
+    });
+  });
+
+  observer.observe(document.body, { childList: true, subtree: true });
+};
+
 delete (L.Icon.Default.prototype as { _getIconUrl?: unknown })._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: markerIcon2x,
   iconUrl: markerIcon,
   shadowUrl: markerShadow
 });
+
+enforceLazyLoadingForImages();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

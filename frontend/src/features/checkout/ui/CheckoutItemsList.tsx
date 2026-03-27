@@ -1,6 +1,6 @@
-import { resolveImageUrl } from '../../../shared/lib/resolveImageUrl';
 import type { CheckoutDto } from '../api/checkoutApi';
 import styles from './CheckoutItemsList.module.css';
+import { SmartImage } from '../../../shared/ui/SmartImage';
 
 type Props = { items: CheckoutDto['cartItems'] };
 
@@ -8,7 +8,7 @@ export const CheckoutItemsList = ({ items }: Props) => (
   <div className={styles.list}>
     {items.map((item) => (
       <article key={item.productId} className={styles.item}>
-        <img src={resolveImageUrl(item.image ?? '')} alt={item.title} />
+        <SmartImage src={item.image ?? ''} alt={item.title} sizePreset="card" />
         <div>
           <h4>{item.title}</h4>
           <p>{item.shortSpec ?? 'SKU/variant'}</p>

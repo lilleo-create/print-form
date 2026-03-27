@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ProductImage } from '../../shared/types';
 import styles from '../../pages/ProductPage.module.css';
-import { resolveImageUrl } from '../../shared/lib/resolveImageUrl';
 import { ImageLightbox } from '../../shared/ui/ImageLightbox';
+import { SmartImage } from '../../shared/ui/SmartImage';
 
 type ProductGalleryProps = {
   images: ProductImage[];
@@ -10,10 +10,7 @@ type ProductGalleryProps = {
 };
 
 export const ProductGallery = ({ images, title }: ProductGalleryProps) => {
-  const resolvedImages = useMemo(
-    () => images.map((image) => ({ ...image, resolvedUrl: resolveImageUrl(image.url) })),
-    [images]
-  );
+  const resolvedImages = useMemo(() => images.map((image) => ({ ...image, resolvedUrl: image.url ?? '' })), [images]);
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [isLightboxOpen, setLightboxOpen] = useState(false);
@@ -44,7 +41,7 @@ export const ProductGallery = ({ images, title }: ProductGalleryProps) => {
         onClick={() => openLightbox(activeIndex)}
         aria-label={`Открыть увеличенное изображение ${title}`}
       >
-        <img src={activeImage} alt={title} className={styles.mainImage} loading="eager" decoding="async" />
+        <SmartImage src={activeImage} alt={title} className={styles.mainImage} sizePreset="detail" />
       </button>
 
       <div className={styles.thumbs}>
@@ -56,7 +53,7 @@ export const ProductGallery = ({ images, title }: ProductGalleryProps) => {
             aria-label={`Показать изображение ${title}`}
             type="button"
           >
-            <img src={image.resolvedUrl} alt={title} loading="lazy" decoding="async" />
+            <SmartImage src={image.resolvedUrl} alt={title} sizePreset="card" />
           </button>
         ))}
       </div>

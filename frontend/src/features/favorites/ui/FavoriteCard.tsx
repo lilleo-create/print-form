@@ -1,10 +1,10 @@
 import { useNavigate } from 'react-router-dom';
-import { resolveImageUrl } from '../../../shared/lib/resolveImageUrl';
 import { Button } from '../../../shared/ui/Button';
 import { useCartStore } from '../../../app/store/cartStore';
 import { useFavoritesStore } from '../model/useFavoritesStore';
 import type { ProductCardDto } from '../api/favoritesApi';
 import styles from './FavoriteCard.module.css';
+import { SmartImage } from '../../../shared/ui/SmartImage';
 
 type FavoriteCardProps = {
   item: ProductCardDto;
@@ -18,7 +18,7 @@ export const FavoriteCard = ({ item }: FavoriteCardProps) => {
   return (
     <article className={styles.card}>
       <button type="button" className={styles.mediaButton} onClick={() => navigate(`/product/${item.id}`)}>
-        <img src={resolveImageUrl(item.image ?? '')} alt={item.title} className={styles.image} loading="lazy" />
+        <SmartImage src={item.image ?? ''} alt={item.title} className={styles.image} sizePreset="card" />
       </button>
 
       <button
