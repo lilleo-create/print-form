@@ -235,6 +235,17 @@
 
 .empty {
   color: var(--muted);
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+}
+
+.empty button {
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
 }
 
 .skeletonTop {

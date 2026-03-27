@@ -12,6 +12,7 @@ type ReviewsListProps = {
   reviews: Review[];
   status: 'idle' | 'loading' | 'success' | 'error';
   error: string | null;
+  onRetry?: () => void;
   onPhotoClick: (photos: string[], index: number) => void;
 };
 
@@ -73,6 +74,7 @@ export const ReviewsList = ({
   reviews,
   status,
   error,
+  onRetry,
   onPhotoClick
 }: ReviewsListProps) => {
   const [localReviews, setLocalReviews] = useState<Record<string, Review>>({});
@@ -400,7 +402,16 @@ export const ReviewsList = ({
   };
 
   if (error) {
-    return <p className={styles.empty}>{error}</p>;
+    return (
+      <div className={styles.empty}>
+        <p>{error}</p>
+        {onRetry ? (
+          <button type="button" onClick={onRetry}>
+            Повторить
+          </button>
+        ) : null}
+      </div>
+    );
   }
 
   if (status === 'loading' && reviews.length === 0) {

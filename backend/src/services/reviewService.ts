@@ -17,9 +17,17 @@ const sortMap = (sort: string): ReviewOrderBy => {
   }
 };
 
-const buildWhere = (productIds: string[]): Prisma.ReviewWhereInput => ({
+const buildApprovedWhere = (productIds: string[]): Prisma.ReviewWhereInput => ({
   productId: { in: productIds },
   moderationStatus: 'APPROVED',
+  isPublic: true
+});
+
+const buildOwnPendingWhere = (productIds: string[], userId: string): Prisma.ReviewWhereInput => ({
+  productId: { in: productIds },
+  userId,
+  moderationStatus: 'PENDING',
+  status: ReviewStatus.PENDING,
   isPublic: true
 });
 
@@ -62,32 +70,88 @@ export const reviewService = {
     });
   },
 
-  listByProduct: (productId: string, page = 1, limit = 5, sort = 'new') =>
-    prisma.review.findMany({
-      where: buildWhere([productId]),
-      orderBy: sortMap(sort),
-      take: limit,
-      skip: (page - 1) * limit,
-      include: { user: { select: { id: true, name: true } } }
-    }),
+  listByProduct: (productId: string, page = 1, limit = 5, sort = 'new', viewerUserId?: string) =>
+    reviewService.listByProducts([productId], page, limit, sort, viewerUserId),
 
-  listByProducts: (productIds: string[], page = 1, limit = 5, sort = 'new') =>
-    prisma.review.findMany({
-      where: buildWhere(productIds),
-      orderBy: sortMap(sort),
-      take: limit,
-      skip: (page - 1) * limit,
-      include: { user: { select: { id: true, name: true } } }
-    }),
+  async listByProducts(productIds: string[], page = 1, limit = 5, sort = 'new', viewerUserId?: string) {
+    const approvedOrderBy = sortMap(sort);
+    const include = { user: { select: { id: true, name: true } } } as const;
 
-  countByProduct: (productId: string) => prisma.review.count({ where: buildWhere([productId]) }),
+    if (!viewerUserId) {
+      return prisma.review.findMany({
+        where: buildApprovedWhere(productIds),
+        orderBy: approvedOrderBy,
+        take: limit,
+        skip: (page - 1) * limit,
+        include
+      });
+    }
 
-  countByProducts: (productIds: string[]) => prisma.review.count({ where: buildWhere(productIds) }),
+    const ownPending = await prisma.review.findMany({
+      where: buildOwnPendingWhere(productIds, viewerUserId),
+      orderBy: [{ createdAt: 'desc' }],
+      include
+    });
+    const ownPendingIds = new Set(ownPending.map((review) => review.id));
+    const hasOwnPending = ownPending.length > 0;
+    const pendingCount = ownPending.length;
+
+    const approvedSkip = Math.max(0, (page - 1) * limit - pendingCount);
+    const approvedTake = page === 1 ? Math.max(limit - pendingCount, 0) : limit;
+    const approvedWhere: Prisma.ReviewWhereInput = hasOwnPending
+      ? {
+          ...buildApprovedWhere(productIds),
+          NOT: {
+            userId: viewerUserId
+          }
+        }
+      : buildApprovedWhere(productIds);
+
+    const approved = approvedTake
+      ? await prisma.review.findMany({
+          where: approvedWhere,
+          orderBy: approvedOrderBy,
+          take: approvedTake,
+          skip: approvedSkip,
+          include
+        })
+      : [];
+
+    if (page !== 1) {
+      return approved;
+    }
+
+    const merged = [...ownPending, ...approved.filter((review) => !ownPendingIds.has(review.id))];
+    return merged.slice(0, limit);
+  },
+
+  countByProduct: (productId: string, viewerUserId?: string) =>
+    reviewService.countByProducts([productId], viewerUserId),
+
+  async countByProducts(productIds: string[], viewerUserId?: string) {
+    if (!viewerUserId) {
+      return prisma.review.count({ where: buildApprovedWhere(productIds) });
+    }
+
+    const pendingCount = await prisma.review.count({ where: buildOwnPendingWhere(productIds, viewerUserId) });
+    const approvedWhere: Prisma.ReviewWhereInput = pendingCount
+      ? {
+          ...buildApprovedWhere(productIds),
+          NOT: {
+            userId: viewerUserId
+          }
+        }
+      : buildApprovedWhere(productIds);
+
+    const approvedCount = await prisma.review.count({ where: approvedWhere });
+
+    return pendingCount + approvedCount;
+  },
 
   async summaryByProduct(productId: string) {
     const grouped = await prisma.review.groupBy({
       by: ['rating'],
-      where: buildWhere([productId]),
+      where: buildApprovedWhere([productId]),
       _count: { _all: true }
     });
 
@@ -103,7 +167,7 @@ export const reviewService = {
 
     const photos = (
       await prisma.review.findMany({
-        where: buildWhere([productId]),
+        where: buildApprovedWhere([productId]),
         select: { photos: true }
       })
     ).flatMap((review) => review.photos ?? []);
@@ -114,7 +178,7 @@ export const reviewService = {
   async summaryByProducts(productIds: string[]) {
     const grouped = await prisma.review.groupBy({
       by: ['rating'],
-      where: buildWhere(productIds),
+      where: buildApprovedWhere(productIds),
       _count: { _all: true }
     });
 
@@ -130,7 +194,7 @@ export const reviewService = {
 
     const photos = (
       await prisma.review.findMany({
-        where: buildWhere(productIds),
+        where: buildApprovedWhere(productIds),
         select: { photos: true }
       })
     ).flatMap((review) => review.photos ?? []);

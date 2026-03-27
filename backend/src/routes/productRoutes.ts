@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { productUseCases } from '../usecases/productUseCases';
 import { reviewService } from '../services/reviewService';
-import { authenticate, AuthRequest } from '../middleware/authMiddleware';
+import { authenticate, AuthRequest, optionalAuth } from '../middleware/authMiddleware';
 import { publicReadLimiter, writeLimiter } from '../middleware/rateLimiters';
 
 export const productRoutes = Router();
@@ -111,7 +111,7 @@ const summaryQuerySchema = z.object({
   productIds: z.string().optional()
 });
 
-productRoutes.get('/:id/reviews', publicReadLimiter, async (req, res, next) => {
+productRoutes.get('/:id/reviews', publicReadLimiter, optionalAuth, async (req: AuthRequest, res, next) => {
   try {
     const params = reviewListSchema.parse(req.query);
     const productIds = params.productIds
@@ -120,10 +120,25 @@ productRoutes.get('/:id/reviews', publicReadLimiter, async (req, res, next) => {
           .map((value) => value.trim())
           .filter(Boolean)
       : [req.params.id];
-    const reviews = await reviewService.listByProducts(productIds, params.page, params.limit, params.sort);
-    const total = await reviewService.countByProducts(productIds);
+    const viewerUserId = req.user?.userId;
+    const reviews = await reviewService.listByProducts(
+      productIds,
+      params.page,
+      params.limit,
+      params.sort,
+      viewerUserId
+    );
+    const total = await reviewService.countByProducts(productIds, viewerUserId);
     res.json({ data: reviews, meta: { total } });
   } catch (error) {
+    console.error('[productRoutes.get/:id/reviews] failed', {
+      endpoint: 'GET /products/:id/reviews',
+      productId: req.params.id,
+      productIds: typeof req.query.productIds === 'string' ? req.query.productIds : undefined,
+      userId: req.user?.userId ?? null,
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorStack: error instanceof Error ? error.stack : undefined
+    });
     next(error);
   }
 });
