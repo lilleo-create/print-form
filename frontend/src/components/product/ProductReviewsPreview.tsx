@@ -19,25 +19,120 @@ type ProductReviewsPreviewProps = {
   summary: ReviewSummary | null;
 };
 
+type SellerCardSummary = {
+  title: string;
+  rating: number | null;
+  productsCount: number | null;
+  storeAvailable: boolean;
+};
+
 const shopCache = new Map<string, Shop>();
+
+const toRecord = (value: unknown): Record<string, unknown> | null =>
+  value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+
+const takeText = (...values: unknown[]) => {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+  return '';
+};
+
+const takeNumber = (...values: unknown[]) => {
+  for (const value of values) {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+  }
+  return null;
+};
+
+const takeBoolean = (...values: unknown[]) => {
+  for (const value of values) {
+    if (typeof value === 'boolean') {
+      return value;
+    }
+  }
+  return null;
+};
+
+const getSellerSummaryFromProduct = (product: Product): SellerCardSummary => {
+  const record = product as Product & Record<string, unknown>;
+  const storeSummary = toRecord(record.storeSummary);
+  const sellerSummary = toRecord(record.sellerSummary);
+  const seller = toRecord(record.seller);
+
+  const title =
+    takeText(
+      storeSummary?.name,
+      storeSummary?.title,
+      sellerSummary?.name,
+      sellerSummary?.title,
+      seller?.storeName,
+      seller?.name,
+      record.storeName,
+      record.sellerName
+    ) || 'Магазин продавца';
+
+  const rating = takeNumber(
+    storeSummary?.rating,
+    sellerSummary?.rating,
+    seller?.rating,
+    record.sellerRating
+  );
+
+  const productsCount = takeNumber(
+    storeSummary?.productsCount,
+    storeSummary?.itemsCount,
+    sellerSummary?.productsCount,
+    sellerSummary?.itemsCount,
+    record.sellerProductsCount,
+    record.productsCount
+  );
+
+  const storeAvailable =
+    takeBoolean(
+      storeSummary?.storeAvailable,
+      sellerSummary?.storeAvailable,
+      storeSummary?.available,
+      sellerSummary?.available,
+      record.storeAvailable
+    ) ?? Boolean(product.sellerId);
+
+  return {
+    title,
+    rating,
+    productsCount,
+    storeAvailable
+  };
+};
 
 export const ProductReviewsPreview = ({ productId, product, reviews, summary }: ProductReviewsPreviewProps) => {
   const reviewsCount = summary?.total ?? 0;
   const [shop, setShop] = useState<Shop | null>(null);
-  const [isShopHidden, setIsShopHidden] = useState(false);
+  const sellerSummary = getSellerSummaryFromProduct(product);
   const shopId = product.sellerId;
   const productImageSrc = resolveImageUrl(getProductPrimaryImage(product));
+  const canOpenShop = Boolean(shopId) && sellerSummary.storeAvailable;
+  const sellerTitle = shop?.title ?? sellerSummary.title;
+  const sellerRating = takeNumber(shop?.rating, sellerSummary.rating) ?? 0;
+  const sellerProductsCount = sellerSummary.productsCount;
+  const neutralStoreMessage = canOpenShop
+    ? ''
+    : 'Информация о магазине временно ограничена';
 
   useEffect(() => {
-    if (!shopId) {
+    if (!shopId || !canOpenShop) {
       setShop(null);
-      setIsShopHidden(false);
       return;
     }
     const cached = shopCache.get(shopId);
     if (cached) {
       setShop(cached);
-      setIsShopHidden(false);
       return;
     }
     const controller = new AbortController();
@@ -46,21 +141,18 @@ export const ProductReviewsPreview = ({ productId, product, reviews, summary }: 
       .then((response) => {
         shopCache.set(shopId, response.data);
         setShop(response.data);
-        setIsShopHidden(false);
       })
       .catch((error) => {
         const normalizedError = normalizeApiError(error);
         if (normalizedError.code === 'STORE_NOT_PUBLIC') {
-          setIsShopHidden(true);
           setShop(null);
           return;
         }
-
         setShop(null);
       });
 
     return () => controller.abort();
-  }, [shopId]);
+  }, [canOpenShop, shopId]);
 
   return (
     <div className={styles.reviewsPreview}>
@@ -108,25 +200,31 @@ export const ProductReviewsPreview = ({ productId, product, reviews, summary }: 
             ))}
           </ul>
 
-          {shopId && !isShopHidden ? (
+          {canOpenShop ? (
             <Link to={`/shop/${shopId}`} className={styles.shopBadge}>
               {shop?.avatarUrl ? (
-                <img src={resolveImageUrl(shop.avatarUrl)} alt={shop.title} className={styles.shopBadgeAvatar} />
+                <img src={resolveImageUrl(shop.avatarUrl)} alt={sellerTitle} className={styles.shopBadgeAvatar} />
               ) : (
                 <div className={styles.shopBadgeAvatar}>🏪</div>
               )}
               <div>
-                <p className={styles.shopBadgeTitle}>{shop?.title ?? 'Магазин'}</p>
-                <p className={styles.shopBadgeMeta}>Рейтинг {Number(shop?.rating ?? 0).toFixed(1)}</p>
+                <p className={styles.shopBadgeTitle}>{sellerTitle}</p>
+                <p className={styles.shopBadgeMeta}>Рейтинг {Number(sellerRating).toFixed(1)}</p>
+                {typeof sellerProductsCount === 'number' ? (
+                  <p className={styles.shopBadgeMeta}>Товаров: {sellerProductsCount}</p>
+                ) : null}
               </div>
             </Link>
           ) : (
             <div className={`${styles.shopBadge} ${styles.shopBadgeDisabled}`}>
               <div className={styles.shopBadgeAvatar}>🏪</div>
               <div>
-                <p className={styles.shopBadgeTitle}>
-                  Информация о магазине временно недоступна
-                </p>
+                <p className={styles.shopBadgeTitle}>{sellerTitle}</p>
+                <p className={styles.shopBadgeMeta}>Рейтинг {Number(sellerRating).toFixed(1)}</p>
+                {typeof sellerProductsCount === 'number' ? (
+                  <p className={styles.shopBadgeMeta}>Товаров: {sellerProductsCount}</p>
+                ) : null}
+                <p className={styles.shopBadgeMeta}>{neutralStoreMessage}</p>
               </div>
             </div>
           )}
