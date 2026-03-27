@@ -6,7 +6,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { createPortal } from 'react-dom';
 import { Product, ProductVariant } from '../../shared/types';
 import { Button } from '../../shared/ui/Button';
-import { useBodyScrollLock } from '../../shared/lib/useBodyScrollLock';
 import { useModalFocus } from '../../shared/lib/useModalFocus';
 import { useOverlayClose } from '../../shared/lib/useOverlayClose';
 import { toEditableProduct } from '../../shared/lib/editableProduct';
@@ -309,6 +308,7 @@ const parseProductVariants = (payload: unknown): ProductVariant[] => {
 export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProductModalProps) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const variantDraftsRef = useRef<VariantDraft[]>([]);
   const [uploadError, setUploadError] = useState('');
   const [fileErrors, setFileErrors] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -359,7 +359,6 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
 
   useModalFocus(true, onClose, modalRef);
   const { handlePointerDown, handleClick } = useOverlayClose(onClose);
-  useBodyScrollLock(true);
 
   const activeVariant = useMemo(
     () => variantDrafts.find((variant) => variant.id === activeVariantId) ?? null,
@@ -477,32 +476,6 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
   }, []);
 
   useEffect(() => {
-    const subscription = watch((values) => {
-      if (!activeVariantId) return;
-      setVariantDrafts((prev) =>
-        prev.map((variant) =>
-          variant.id === activeVariantId
-            ? {
-                ...variant,
-                form: {
-                  ...variant.form,
-                  ...values,
-                }
-              }
-            : variant
-        )
-      );
-    });
-
-    return () => subscription.unsubscribe();
-  }, [watch, activeVariantId]);
-
-  useEffect(() => {
-    if (!activeVariant) return;
-    reset(activeVariant.form);
-  }, [activeVariant, reset]);
-
-  useEffect(() => {
     if (!activeProductVariant) {
       setVariantForm({
         name: '',
@@ -525,10 +498,14 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
   }, [activeProductVariant]);
 
   useEffect(() => {
-    return () => {
-      revokeNewMediaUrls(variantDrafts);
-    };
+    variantDraftsRef.current = variantDrafts;
   }, [variantDrafts]);
+
+  useEffect(() => {
+    return () => {
+      revokeNewMediaUrls(variantDraftsRef.current);
+    };
+  }, []);
 
   const updateActiveVariant = (updater: (variant: VariantDraft) => VariantDraft) => {
     if (!activeVariantId) return;

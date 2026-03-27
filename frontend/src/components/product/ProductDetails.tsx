@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { Product } from '../../shared/types';
 import { Rating } from '../../shared/ui/Rating';
 import { Button } from '../../shared/ui/Button';
@@ -30,6 +30,7 @@ export const ProductDetails = ({
   reviewsCount
 }: ProductDetailsProps) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const addItem = useCartStore((state) => state.addItem);
 
   const [isShareOpen, setIsShareOpen] = useState(false);
@@ -84,6 +85,14 @@ export const ProductDetails = ({
           <Link
             to={`/product/${baseProductId}/reviews`}
             className={styles.reviewLink}
+            state={{
+              from: {
+                pathname: location.pathname,
+                search: location.search,
+                hash: location.hash
+              },
+              fallback: `/product/${baseProductId}`
+            }}
           >
             {ratingCount} оценки · {reviewsCount} отзывов
           </Link>

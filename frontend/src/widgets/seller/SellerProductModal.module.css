@@ -364,6 +364,11 @@ textarea.inputError {
     padding: 14px;
   }
 
+  .input,
+  .inputError {
+    font-size: 16px;
+  }
+
   .fileItem {
     grid-template-columns: 52px 1fr;
   }
