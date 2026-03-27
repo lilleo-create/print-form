@@ -11,6 +11,7 @@ import { useModalFocus } from '../../shared/lib/useModalFocus';
 import { useOverlayClose } from '../../shared/lib/useOverlayClose';
 import { toEditableProduct } from '../../shared/lib/editableProduct';
 import { api } from '../../shared/api';
+import { getModerationStatusLabelRu } from '../../shared/lib/productModeration';
 import { sellerProductVariantsService } from '../../shared/api/sellerProductVariantsService';
 import { normalizeApiError } from '../../shared/api/client';
 import styles from './SellerProductModal.module.css';
@@ -1011,7 +1012,14 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
               {product ? (
                 <label>
                   Статус модерации
-                  <input className={styles.input} value={product.moderationStatus ?? '—'} readOnly />
+                  <input
+                    className={styles.input}
+                    value={getModerationStatusLabelRu(
+                      product.moderationStatus,
+                      product.moderationStatusLabelRu
+                    )}
+                    readOnly
+                  />
                 </label>
               ) : null}
             </div>

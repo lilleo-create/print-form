@@ -77,6 +77,7 @@ export interface Product {
   dyCm?: number;
   dzCm?: number;
   moderationStatus?: ProductModerationStatus;
+  moderationStatusLabelRu?: string | null;
   moderationNotes?: string | null;
   publishedAt?: string | null;
   moderatedAt?: string | null;
@@ -131,6 +132,8 @@ export interface Review {
   };
   repliesCount?: number;
   replies?: ReviewReply[];
+  canEdit?: boolean;
+  canDelete?: boolean;
   user?: { id: string; name: string; nickname?: string | null; fullName?: string | null } | null;
   product?: { id: string; title: string; image?: string };
 }
@@ -146,6 +149,8 @@ export interface ReviewReply {
   user?: { id?: string | null; name?: string | null; nickname?: string | null; fullName?: string | null } | null;
   author?: { id?: string | null; name?: string | null; nickname?: string | null; fullName?: string | null } | null;
   isCurrentStoreReply?: boolean;
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
 export interface CartItem {
@@ -299,6 +304,11 @@ export interface Order {
   items: OrderItem[];
   delivery?: OrderDelivery | null;
   payoutStatus?: string | null;
+  paymentStatus?: string | null;
+  paymentExpiresAt?: string | null;
+  secondsUntilExpiry?: number | null;
+  isExpired?: boolean | null;
+  canRetryPayment?: boolean | null;
   shipment?: {
     id: string;
     provider: string;

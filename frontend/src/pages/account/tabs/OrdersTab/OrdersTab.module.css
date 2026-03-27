@@ -86,6 +86,24 @@
   font-weight: 500;
 }
 
+.unpaidStatus {
+  margin: 0;
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.retryButton {
+  width: fit-content;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  border-radius: 10px;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 8px 12px;
+}
+
 .returnLink {
   width: fit-content;
   border: none;

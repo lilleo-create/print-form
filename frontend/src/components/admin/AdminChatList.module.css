@@ -13,11 +13,9 @@
 .itemActive {
   border-radius: var(--radius-control);
   padding: 12px;
-  text-align: left;
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  cursor: pointer;
   min-width: 0;
 }
 
@@ -30,6 +28,30 @@
 
 .item strong {
   overflow-wrap: anywhere;
+}
+
+.threadButton {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.threadMeta {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+}
+
+.deleteButton {
+  border: 0;
+  background: transparent;
+  color: #ef4444;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .preview {

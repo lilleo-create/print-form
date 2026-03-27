@@ -24,6 +24,10 @@ import { CdekPvzPickerModal } from '../components/checkout/CdekPvzPickerModal';
 import { getExternalDeliveryStatusLabel } from '../shared/lib/deliveryStatus';
 import { normalizeSellerType } from '../shared/lib/sellerType';
 import {
+  getModerationStatusLabelRu,
+  getModerationStatusTone
+} from '../shared/lib/productModeration';
+import {
   SellerProductModal,
   SellerProductPayload
 } from '../widgets/seller/SellerProductModal';
@@ -73,6 +77,17 @@ const formatDate = (value: string) =>
     month: 'long',
     year: 'numeric'
   });
+
+const formatCountdown = (seconds: number) => {
+  const safe = Math.max(0, seconds);
+  const minutes = Math.floor(safe / 60)
+    .toString()
+    .padStart(2, '0');
+  const rest = Math.floor(safe % 60)
+    .toString()
+    .padStart(2, '0');
+  return `${minutes}:${rest}`;
+};
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
@@ -153,6 +168,9 @@ export const SellerDashboardPage = () => {
   const [productsError, setProductsError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeProduct, setActiveProduct] = useState<Product | null>(null);
+  const [productActionMessage, setProductActionMessage] = useState<
+    string | null
+  >(null);
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [ordersView, setOrdersView] = useState<Order[]>([]);
@@ -357,6 +375,21 @@ export const SellerDashboardPage = () => {
     }
   }, [isSellerReady]);
 
+  const handleDeleteProduct = useCallback(async (product: Product) => {
+    const shouldDelete = window.confirm(
+      'Удалить товар?\nТовар будет скрыт из каталога. Это действие нельзя просто отменить.'
+    );
+    if (!shouldDelete) return;
+
+    try {
+      await api.removeSellerProduct(product.id);
+      setProducts((prev) => prev.filter((item) => item.id !== product.id));
+      setProductActionMessage('Товар успешно удалён');
+    } catch {
+      setProductActionMessage('Не удалось удалить товар');
+    }
+  }, []);
+
   const loadOrders = useCallback(async () => {
     setOrdersLoading(true);
     setOrdersError(null);
@@ -370,8 +403,15 @@ export const SellerDashboardPage = () => {
 
       const data = await ordersApi.listBySeller(userId);
       setOrders(data);
-
-      setOrdersView(data);
+      setOrdersView(
+        data.filter(
+          (order) =>
+            !(
+              order.paymentStatus === 'PAYMENT_EXPIRED' ||
+              order.isExpired === true
+            )
+        )
+      );
 
       const profileResponse = await api.getSellerDeliveryProfile();
       const dropoffPvz = profileResponse.data?.dropoffPvz;
@@ -394,6 +434,49 @@ export const SellerDashboardPage = () => {
       setOrdersLoading(false);
     }
   }, [isSellerReady, userId]);
+
+  useEffect(() => {
+    if (!productActionMessage) return;
+    const timer = window.setTimeout(() => setProductActionMessage(null), 3000);
+    return () => window.clearTimeout(timer);
+  }, [productActionMessage]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setOrdersView((prev) =>
+        prev.filter((order) => {
+          if (order.paymentStatus !== 'PENDING') return true;
+          if (order.isExpired) return false;
+          if (
+            typeof order.secondsUntilExpiry === 'number' &&
+            order.secondsUntilExpiry <= 0
+          ) {
+            return false;
+          }
+          return true;
+        })
+      );
+
+      setOrders((prev) =>
+        prev.map((order) => {
+          if (
+            order.paymentStatus !== 'PENDING' ||
+            typeof order.secondsUntilExpiry !== 'number'
+          ) {
+            return order;
+          }
+          const next = Math.max(0, order.secondsUntilExpiry - 1);
+          return {
+            ...order,
+            secondsUntilExpiry: next,
+            isExpired: next <= 0 ? true : order.isExpired
+          };
+        })
+      );
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, []);
   const loadKyc = useCallback(async () => {
     setKycLoading(true);
     setKycError(null);
@@ -1391,6 +1474,9 @@ export const SellerDashboardPage = () => {
                     <p className={styles.error}>{productsError}</p>
                   ) : (
                     <div className={styles.productPanel}>
+                      {productActionMessage && (
+                        <p className={styles.toast}>{productActionMessage}</p>
+                      )}
                       <div className={styles.tableHeader}>
                         <span>Название</span>
                         <span>Цена</span>
@@ -1433,7 +1519,14 @@ export const SellerDashboardPage = () => {
                             <span>{formatCurrency(product.price)} ₽</span>
                             <span>{product.category}</span>
                             <span>
-                              <strong>{product.moderationStatus ?? '—'}</strong>
+                              <strong
+                                className={`${styles.statusBadge} ${styles[`statusBadge_${getModerationStatusTone(product.moderationStatus)}`]}`}
+                              >
+                                {getModerationStatusLabelRu(
+                                  product.moderationStatus,
+                                  product.moderationStatusLabelRu
+                                )}
+                              </strong>
                               {product.moderationStatus === 'NEEDS_EDIT' &&
                                 product.moderationNotes && (
                                   <span className={styles.moderationNote}>
@@ -1441,22 +1534,32 @@ export const SellerDashboardPage = () => {
                                   </span>
                                 )}
                             </span>
-                            <button
-                              type="button"
-                              className={styles.linkButton}
-                              onClick={() => {
-                                if (product.moderationStatus === 'APPROVED') {
-                                  navigate(`/seller/products/${product.id}`);
-                                  return;
-                                }
-                                setActiveProduct(product);
-                                setIsModalOpen(true);
-                              }}
-                            >
-                              {product.moderationStatus === 'APPROVED'
-                                ? 'Открыть'
-                                : 'Редактировать'}
-                            </button>
+                            <div className={styles.rowActions}>
+                              <button
+                                type="button"
+                                className={styles.linkButton}
+                                onClick={() => {
+                                  if (product.moderationStatus === 'APPROVED') {
+                                    navigate(`/seller/products/${product.id}`);
+                                    return;
+                                  }
+                                  setActiveProduct(product);
+                                  setIsModalOpen(true);
+                                }}
+                              >
+                                {product.moderationStatus === 'APPROVED'
+                                  ? 'Подробнее'
+                                  : 'Редактировать'}
+                              </button>
+                              <span className={styles.actionDivider}>|</span>
+                              <button
+                                type="button"
+                                className={`${styles.linkButton} ${styles.deleteButton}`}
+                                onClick={() => handleDeleteProduct(product)}
+                              >
+                                Удалить
+                              </button>
+                            </div>
                           </div>
                         ))
                       )}
@@ -1527,6 +1630,17 @@ export const SellerDashboardPage = () => {
                                 <p className={styles.muted}>
                                   Статус: {displayStatus}
                                 </p>
+                                {order.paymentStatus === 'PENDING' &&
+                                  !order.isExpired &&
+                                  typeof order.secondsUntilExpiry ===
+                                    'number' && (
+                                    <p className={styles.pendingPaymentTimer}>
+                                      Ожидает оплату:{' '}
+                                      {formatCountdown(
+                                        order.secondsUntilExpiry
+                                      )}
+                                    </p>
+                                  )}
                               </div>
                             </div>
 

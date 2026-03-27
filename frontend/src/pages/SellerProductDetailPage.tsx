@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../shared/api';
+import { getModerationStatusLabelRu } from '../shared/lib/productModeration';
 import { getProductImages } from '../shared/lib/productMedia';
 import { Product } from '../shared/types';
 import { Button } from '../shared/ui/Button';
@@ -103,7 +104,12 @@ export const SellerProductDetailPage = () => {
         <Link to="/seller" className={styles.backLink}>
           ← К товарам продавца
         </Link>
-        <span className={styles.status}>{product.moderationStatus ?? '—'}</span>
+        <span className={styles.status}>
+          {getModerationStatusLabelRu(
+            product.moderationStatus,
+            product.moderationStatusLabelRu
+          )}
+        </span>
       </div>
 
       <div className={styles.layout}>
@@ -134,7 +140,13 @@ export const SellerProductDetailPage = () => {
             </label>
             <label>
               <span>Статус</span>
-              <input value={product.moderationStatus ?? '—'} readOnly />
+              <input
+                value={getModerationStatusLabelRu(
+                  product.moderationStatus,
+                  product.moderationStatusLabelRu
+                )}
+                readOnly
+              />
             </label>
             <label>
               <span>SKU</span>
