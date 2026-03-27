@@ -28,9 +28,12 @@ import { internalRoutes } from "./routes/internalRoutes.js";
 import { debugRoutes } from "./routes/debugRoutes.js";
 import { cdekRoutes } from "./routes/cdekRoutes.js";
 import { shipmentsRoutes } from "./routes/shipmentsRoutes.js";
+import { seoRoutes } from "./routes/seoRoutes.js";
+import { buildPrerenderMiddleware } from "./middleware/prerenderMiddleware.js";
 
 const app = express();
 const uploadsDir = path.join(process.cwd(), "uploads");
+const frontendDistDir = path.resolve(process.cwd(), "../frontend/dist");
 
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
@@ -81,6 +84,8 @@ app.use(cookieParser());
 // ✅ uploads
 app.use("/uploads", express.static(uploadsDir));
 
+app.use(buildPrerenderMiddleware());
+
 app.get("/health", (_req, res) => res.json({ status: "ok", build: "server-2026-02-04-1" }));
 
 const mountRoutes = (prefix = '') => {
@@ -103,11 +108,29 @@ const mountRoutes = (prefix = '') => {
   app.use(`${prefix}/cdek`, cdekRoutes);
   app.use(`${prefix}/shipments`, shipmentsRoutes);
   app.use(`${prefix}/debug`, debugRoutes);
+  app.use(prefix, seoRoutes);
 };
 
 mountRoutes('/api');
 // Legacy non-prefixed routes kept for backward compatibility.
 mountRoutes();
+
+if (fs.existsSync(frontendDistDir)) {
+  app.use(
+    express.static(frontendDistDir, {
+      maxAge: "30d",
+      index: false
+    })
+  );
+
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/api/")) {
+      return next();
+    }
+    return res.sendFile(path.join(frontendDistDir, "index.html"));
+  });
+}
+
 app.use(errorHandler);
 
 app.listen(env.port, () => {
