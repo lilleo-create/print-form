@@ -143,6 +143,10 @@ export const ordersApi = {
       .map(mapOrder)
       .filter((order) => order.items.some((item) => item.sellerId === sellerId));
   },
+  getById: async (orderId: string) => {
+    const result = await api.getOrder(orderId);
+    return mapOrder(result.data as unknown as ApiOrder);
+  },
   create: async (payload: {
     buyerId: string;
     buyerEmail: string;

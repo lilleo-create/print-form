@@ -31,6 +31,7 @@ import { AuthBootstrap } from './app/providers/AuthBootstrap';
 import { RouteScrollManager } from './app/providers/RouteScrollManager';
 import { RouteProgressBar } from './app/providers/RouteProgressBar';
 import { SellerProductDetailPage } from './pages/SellerProductDetailPage';
+import { PaymentReturnPage } from './pages/PaymentReturnPage';
 
 const App = () => {
   return (
@@ -70,6 +71,14 @@ const App = () => {
           element={
             <ProtectedRoute>
               <CheckoutPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/payment/return"
+          element={
+            <ProtectedRoute>
+              <PaymentReturnPage />
             </ProtectedRoute>
           }
         />

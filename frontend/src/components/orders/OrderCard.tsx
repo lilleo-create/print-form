@@ -25,6 +25,18 @@ export const OrderCard = ({ order }: OrderCardProps) => {
     navigate(`/account?tab=returns&orderId=${order.id}`);
   };
 
+  const paymentStatusLabel = (() => {
+    switch (order.paymentStatus) {
+      case 'PAID':
+        return 'Оплачено';
+      case 'PAYMENT_EXPIRED':
+        return 'Оплата не прошла';
+      case 'PENDING':
+      default:
+        return 'Ожидает оплаты';
+    }
+  })();
+
   return (
     <article
       className={styles.card}
@@ -56,6 +68,12 @@ export const OrderCard = ({ order }: OrderCardProps) => {
 
       {deliveryLabel ? <p>{deliveryLabel}</p> : null}
       <p>Статус доставки: {getDeliveryStatusLabel(order)}</p>
+      <p>Статус оплаты: {paymentStatusLabel}</p>
+      {order.paidAt ? (
+        <p>
+          Оплачен: {new Date(order.paidAt).toLocaleString('ru-RU')}
+        </p>
+      ) : null}
       {order.trackingNumber ? <p>СДЭК: {order.trackingNumber}</p> : null}
       <button type="button" className={styles.returnLink} onClick={handleCreateReturn}>
         Оформить возврат

@@ -1,0 +1,24 @@
+.page {
+  padding: 24px 0 40px;
+}
+
+.card {
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border, #e7e7e7);
+  border-radius: 16px;
+  padding: 20px;
+  max-width: 720px;
+}
+
+.title {
+  margin: 0 0 8px;
+}
+
+.meta {
+  margin: 0;
+  color: var(--color-text-secondary, #6b7280);
+}
+
+.error {
+  color: #b42318;
+}

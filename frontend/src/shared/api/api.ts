@@ -431,6 +431,10 @@ export const api = {
     return apiClient.request<Order[]>('/me/orders');
   },
 
+  async getOrder(orderId: string) {
+    return apiClient.request<Order>(`/orders/${orderId}`);
+  },
+
   async getSellerProducts() {
     return apiClient.request<Product[]>('/seller/products');
   },
