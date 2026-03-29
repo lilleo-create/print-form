@@ -6,6 +6,7 @@ import { useModalFocus } from '../../shared/lib/useModalFocus';
 import { getProductMainImage } from '../../shared/lib/productMedia';
 import styles from './ProductModal.module.css';
 import { SmartImage } from '../../shared/ui/SmartImage';
+import { formatPrice } from '../../utils/money';
 
 export const ProductModal = () => {
   const product = useUiStore((state) => state.selectedProduct);
@@ -54,7 +55,7 @@ export const ProductModal = () => {
           <div className={styles.details}>
             <h2>{product.title}</h2>
             <p className={styles.price}>
-              {product.price.toLocaleString('ru-RU')} ₽
+              {formatPrice(product.price)} ₽
             </p>
             <p>{product.description}</p>
             <ul className={styles.specs}>

@@ -9,6 +9,7 @@ import { ProductActionsInline } from '../../pages/ProductPage/components/Product
 import { useFavoritesStore } from '../../features/favorites/model/useFavoritesStore';
 import { ShareModal } from '../../features/share/ui/ShareModal';
 import { formatReadyToShipLabel } from '../../shared/lib/dateLabels';
+import { formatPrice } from '../../utils/money';
 
 type ProductDetailsProps = {
   product: Product;
@@ -109,7 +110,7 @@ export const ProductDetails = ({
           </div>
         ) : null}
         <span className={styles.price}>
-          {Number((product as any).price ?? 0).toLocaleString('ru-RU')} ₽
+          {formatPrice(Number((product as any).price ?? 0))} ₽
         </span>
         <span className={styles.delivery}>
           Готово к отправке: {readyToShipLabel}

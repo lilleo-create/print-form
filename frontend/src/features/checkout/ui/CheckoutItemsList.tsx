@@ -1,6 +1,7 @@
 import type { CheckoutDto } from '../api/checkoutApi';
 import styles from './CheckoutItemsList.module.css';
 import { SmartImage } from '../../../shared/ui/SmartImage';
+import { formatPrice } from '../../../utils/money';
 
 type Props = { items: CheckoutDto['cartItems'] };
 
@@ -12,7 +13,7 @@ export const CheckoutItemsList = ({ items }: Props) => (
         <div>
           <h4>{item.title}</h4>
           <p>{item.shortSpec ?? 'SKU/variant'}</p>
-          <p>{item.quantity} × {item.price.toLocaleString('ru-RU')} ₽</p>
+          <p>{item.quantity} × {formatPrice(item.price)} ₽</p>
         </div>
       </article>
     ))}

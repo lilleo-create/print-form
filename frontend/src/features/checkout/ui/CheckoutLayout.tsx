@@ -12,6 +12,7 @@ import { PaymentMethodSelector } from './PaymentMethodSelector';
 import { AddCardModal } from './AddCardModal';
 import { CheckoutLegalLinks } from './CheckoutLegalLinks';
 import styles from './CheckoutLayout.module.css';
+import { formatPrice } from '../../../utils/money';
 
 export const CheckoutLayout = () => {
   const {
@@ -133,7 +134,7 @@ export const CheckoutLayout = () => {
           />
 
           <div className={styles.summary}>
-            <div>Итого: {total.toLocaleString('ru-RU')} ₽</div>
+            <div>Итого: {formatPrice(total)} ₽</div>
 
             <Button
               isLoading={isSubmittingOrder || isPaying}

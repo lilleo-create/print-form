@@ -3,6 +3,7 @@ import { resolveImageUrl } from '../../shared/lib/resolveImageUrl';
 import { ReturnRequest } from '../../shared/types';
 import { reasonLabels, statusLabels } from './returnLabels';
 import styles from './ReturnCard.module.css';
+import { formatPrice } from '../../utils/money';
 
 interface ReturnCardProps {
   request: ReturnRequest;
@@ -58,7 +59,7 @@ export const ReturnCard = ({ request, onOpen }: ReturnCardProps) => {
           <p className={styles.productTitle}>{productTitle}</p>
           <div className={styles.productMeta}>
             {typeof productPrice === 'number' && (
-              <span className={styles.productPrice}>{productPrice.toLocaleString('ru-RU')} ₽</span>
+              <span className={styles.productPrice}>{formatPrice(productPrice)} ₽</span>
             )}
             {productQuantity && (
               <span className={styles.productQuantity}>{productQuantity} шт.</span>

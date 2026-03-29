@@ -14,6 +14,7 @@ import {
   getModerationStatusTone
 } from '../../shared/lib/productModeration';
 import styles from './AdminPage.module.css';
+import { formatPrice } from '../../utils/money';
 
 type AdminProduct = Product & {
   seller?: { id: string; name: string; email: string } | null;
@@ -43,7 +44,7 @@ const formatDate = (value?: string | null) => {
   }).format(date);
 };
 
-const formatPrice = (value?: number, currency?: string) => {
+const formatPriceWithCurrency = (value?: number, currency?: string) => {
   if (typeof value !== 'number' || Number.isNaN(value)) return '—';
   const currencyCode = currency || 'RUB';
   return `${value.toLocaleString('ru-RU')} ${currencyCode}`;
@@ -191,7 +192,7 @@ export const AdminProductsPage = () => {
         { label: 'Категория', value: toDisplayValue(selectedProduct.category) },
         {
           label: 'Цена',
-          value: formatPrice(selectedProduct.price, selectedProduct.currency)
+          value: formatPriceWithCurrency(selectedProduct.price, selectedProduct.currency)
         },
         {
           label: 'Валюта',
@@ -357,7 +358,7 @@ export const AdminProductsPage = () => {
                   {product.seller?.email ?? ''}
                 </div>
               </div>
-              <span>{product.price.toLocaleString('ru-RU')} ₽</span>
+              <span>{formatPrice(product.price)} ₽</span>
               <span
                 className={`${styles.status} ${styles[`status_${getModerationStatusTone(product.moderationStatus)}`]}`}
               >

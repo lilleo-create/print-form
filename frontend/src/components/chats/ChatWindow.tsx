@@ -3,6 +3,7 @@ import { MessageComposer } from './MessageComposer';
 import styles from './ChatWindow.module.css';
 import { resolveMediaUrl } from '../../shared/lib/resolveMediaUrl';
 import { getProductMainImage } from '../../shared/lib/productMedia';
+import { formatPrice } from '../../utils/money';
 
 interface ChatWindowProps {
   thread: ChatThread | null;
@@ -105,7 +106,7 @@ export const ChatWindow = ({
               )}
               <div>
                 <strong>{product.title}</strong>
-                <p>{product.price.toLocaleString('ru-RU')} ₽</p>
+                <p>{formatPrice(product.price)} ₽</p>
               </div>
             </div>
           )}

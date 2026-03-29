@@ -6,6 +6,7 @@ import styles from './AdminChatDetailsPanel.module.css';
 import { resolveMediaUrl } from '../../shared/lib/resolveMediaUrl';
 import { getProductMainImage } from '../../shared/lib/productMedia';
 import { getChatThreadStatusLabel, getReturnStatusLabel } from '../../shared/lib/adminStatusLabels';
+import { formatPrice } from '../../utils/money';
 
 interface AdminChatDetailsPanelProps {
   thread: ChatThread | null;
@@ -100,7 +101,7 @@ export const AdminChatDetailsPanel = ({
               )}
               <div>
                 <strong>{product.title}</strong>
-                <p>{product.price.toLocaleString('ru-RU')} ₽</p>
+                <p>{formatPrice(product.price)} ₽</p>
               </div>
             </div>
           )}

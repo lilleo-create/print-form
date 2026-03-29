@@ -13,6 +13,7 @@ import { api } from '../../shared/api';
 import { getModerationStatusLabelRu } from '../../shared/lib/productModeration';
 import { sellerProductVariantsService } from '../../shared/api/sellerProductVariantsService';
 import { normalizeApiError } from '../../shared/api/client';
+import { formatPrice } from '../../utils/money';
 import styles from './SellerProductModal.module.css';
 import {
   detectProductMediaKind,
@@ -214,7 +215,7 @@ const getProductFormValues = (product: Product): ProductFormValues => {
     description: editableProduct?.description ?? '',
     descriptionFull: editableProduct?.descriptionFull ?? '',
     sku: editableProduct?.sku ?? '',
-    price: editableProduct?.price ?? 0,
+    price: editableProduct ? Number(formatPrice(editableProduct.price)) : 0,
     material: editableProduct?.material ?? '',
     category: editableProduct?.category ?? '',
     technology: editableProduct?.technology ?? '',
@@ -750,7 +751,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
     const payload: SellerProductPayload = {
       id: product?.id,
       title: values.title,
-      price: values.price,
+      price: Math.round(values.price * 100),
       material: values.material,
       category: values.category,
       technology: values.technology,

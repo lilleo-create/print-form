@@ -1,5 +1,6 @@
 import type { CartItem } from '../../shared/types';
 import styles from '../../pages/CheckoutPage.module.css';
+import { formatPrice } from '../../utils/money';
 
 type OrderSummaryProps = {
   items: CartItem[];
@@ -15,13 +16,13 @@ export const OrderSummary = ({ items, total, onConfirm, disabled = false }: Orde
       {items.map((item) => (
         <li key={item.product.id}>
           {item.product.title} × {item.quantity}
-          <span>{(item.product.price * item.quantity).toLocaleString('ru-RU')} ₽</span>
+          <span>{formatPrice(item.product.price * item.quantity)} ₽</span>
         </li>
       ))}
     </ul>
     <div className={styles.total}>
       <span>Итого</span>
-      <strong>{total.toLocaleString('ru-RU')} ₽</strong>
+      <strong>{formatPrice(total)} ₽</strong>
     </div>
     <button className={styles.primaryButton} type="button" onClick={onConfirm} disabled={disabled}>
       Подтвердить заказ

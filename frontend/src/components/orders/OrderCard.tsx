@@ -5,6 +5,7 @@ import { getDeliveryStatusLabel } from '../../shared/lib/deliveryStatus';
 import { getOrderDeliveryLabel } from '../../shared/lib/deliveryLabel';
 import { OrderItemsMini } from './OrderItemsMini';
 import styles from './OrdersComponents.module.css';
+import { formatPrice } from '../../utils/money';
 
 interface OrderCardProps {
   order: Order;
@@ -61,7 +62,7 @@ export const OrderCard = ({ order }: OrderCardProps) => {
             })}
           </span>
         </div>
-        <div className={styles.total}>{order.total.toLocaleString('ru-RU')} ₽</div>
+        <div className={styles.total}>{formatPrice(order.total)} ₽</div>
       </div>
 
       <OrderItemsMini order={order} />

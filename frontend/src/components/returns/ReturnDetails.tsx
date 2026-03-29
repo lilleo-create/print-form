@@ -4,6 +4,7 @@ import { ReturnRequest } from '../../shared/types';
 import { reasonLabels, statusLabels } from './returnLabels';
 import { ReturnPhotos } from './ReturnPhotos';
 import styles from './ReturnDetails.module.css';
+import { formatPrice } from '../../utils/money';
 
 interface ReturnDetailsProps {
   request: ReturnRequest;
@@ -52,7 +53,7 @@ export const ReturnDetails = ({ request }: ReturnDetailsProps) => {
           <p className={styles.productTitle}>{productTitle}</p>
           <div className={styles.productMeta}>
             {typeof productPrice === 'number' && (
-              <span className={styles.productPrice}>{productPrice.toLocaleString('ru-RU')} ₽</span>
+              <span className={styles.productPrice}>{formatPrice(productPrice)} ₽</span>
             )}
             {productQuantity && <span className={styles.productQuantity}>{productQuantity} шт.</span>}
           </div>
