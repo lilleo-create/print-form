@@ -5,6 +5,7 @@ import { getOrderDeliveryLabel } from '../../../../shared/lib/deliveryLabel';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../../../shared/api';
 import styles from './OrdersTab.module.css';
+import { formatPrice } from '../../../../utils/money';
 
 interface OrdersTabProps {
   orders: Order[];
@@ -61,7 +62,7 @@ export const OrdersTab = ({ orders }: OrdersTabProps) => {
                       })}
                     </span>
                   </div>
-                  <div className={styles.total}>{order.total.toLocaleString('ru-RU')} ₽</div>
+                  <div className={styles.total}>{formatPrice(order.total)} ₽</div>
                 </div>
 
                 <div className={styles.productCard}>
@@ -72,7 +73,7 @@ export const OrdersTab = ({ orders }: OrdersTabProps) => {
                   )}
                   <div className={styles.itemInfo}>
                     <strong>{product.title}</strong>
-                    <span>{product.price.toLocaleString('ru-RU')} ₽</span>
+                    <span>{formatPrice(product.price)} ₽</span>
                     {order.items.length > 1 ? <span className={styles.caption}>+ еще {order.items.length - 1}</span> : null}
                   </div>
                 </div>

@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { resolveImageUrl } from '../../shared/lib/resolveImageUrl';
 import styles from './PurchasedItemsList.module.css';
+import { formatPrice } from '../../utils/money';
 
 interface PurchasedItem {
   productId: string;
@@ -33,7 +34,7 @@ export const PurchasedItemsList = ({ items }: PurchasedItemsListProps) => {
             )}
             <div className={styles.body}>
               <h3 className={styles.title}>{item.title}</h3>
-              <p className={styles.price}>{item.price.toLocaleString('ru-RU')} ₽</p>
+              <p className={styles.price}>{formatPrice(item.price)} ₽</p>
               <span className={styles.caption}>
                 Заказ от{' '}
                 {new Date(item.orderDate).toLocaleDateString('ru-RU', {

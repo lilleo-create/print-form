@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ordersApi } from '../shared/api/ordersApi';
 import type { Order } from '../shared/types';
+import { formatPrice } from '../utils/money';
 import styles from './PaymentReturnPage.module.css';
 
 const POLLING_INTERVAL_MS = 2000;
@@ -90,6 +91,9 @@ export const PaymentReturnPage = () => {
           {orderId ? <p className={styles.meta}>Заказ: {orderId}</p> : null}
           {order?.paymentStatus ? (
             <p className={styles.meta}>Текущий статус: {order.paymentStatus}</p>
+          ) : null}
+          {order ? (
+            <p className={styles.meta}>Сумма: {formatPrice(order.total)} ₽</p>
           ) : null}
           {error ? <p className={styles.error}>{error}</p> : null}
         </div>

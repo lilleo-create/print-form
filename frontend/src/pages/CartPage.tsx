@@ -5,6 +5,7 @@ import { useAuthStore } from '../app/store/authStore';
 import styles from './CartPage.module.css';
 import { getProductMainImage } from '../shared/lib/productMedia';
 import { SmartImage } from '../shared/ui/SmartImage';
+import { formatPrice } from '../utils/money';
 
 export const CartPage = () => {
   const items = useCartStore((state) => state.items);
@@ -50,7 +51,7 @@ export const CartPage = () => {
                     )}
                     <div className={styles.info}>
                       <h3>{item.product.title}</h3>
-                      <p>{item.product.price.toLocaleString('ru-RU')} ₽</p>
+                      <p>{formatPrice(item.product.price)} ₽</p>
                     </div>
                     <div className={styles.controls}>
                       <input
@@ -69,10 +70,7 @@ export const CartPage = () => {
                       </button>
                     </div>
                     <div className={styles.sum}>
-                      {(item.product.price * item.quantity).toLocaleString(
-                        'ru-RU'
-                      )}{' '}
-                      ₽
+                      {formatPrice(item.product.price * item.quantity)} ₽
                     </div>
                   </div>
                 );
@@ -81,7 +79,7 @@ export const CartPage = () => {
             <aside className={styles.summary}>
               <div>
                 <span>Итого</span>
-                <strong>{total.toLocaleString('ru-RU')} ₽</strong>
+                <strong>{formatPrice(total)} ₽</strong>
               </div>
               <button className={styles.cta} onClick={handleCheckout}>
                 Оформить заказ

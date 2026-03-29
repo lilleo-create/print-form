@@ -15,6 +15,7 @@ import { useModalFocus } from '../../shared/lib/useModalFocus';
 import { getProductMainImage } from '../../shared/lib/productMedia';
 import styles from './CartDrawer.module.css';
 import { SmartImage } from '../../shared/ui/SmartImage';
+import { formatPrice } from '../../utils/money';
 
 const checkoutSchema = z.object({
   name: z.string().min(2, 'Введите имя'),
@@ -153,7 +154,7 @@ export const CartDrawer = () => {
                     )}
                     <div className={styles.itemInfo}>
                       <h4>{item.product.title}</h4>
-                      <p>{item.product.price.toLocaleString('ru-RU')} ₽</p>
+                      <p>{formatPrice(item.product.price)} ₽</p>
                       <div className={styles.controls}>
                         <input
                           type="number"
@@ -181,7 +182,7 @@ export const CartDrawer = () => {
         <div className={styles.footer}>
           <div className={styles.total}>
             <span>Итого</span>
-            <strong>{total.toLocaleString('ru-RU')} ₽</strong>
+            <strong>{formatPrice(total)} ₽</strong>
           </div>
           <form className={styles.form} onSubmit={handleSubmit(onSubmit)}>
             <input placeholder="Имя" {...register('name')} />

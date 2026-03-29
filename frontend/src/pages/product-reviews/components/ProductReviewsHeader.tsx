@@ -2,6 +2,7 @@ import { Rating } from '../../../shared/ui/Rating';
 import type { Product } from '../../../shared/types';
 import styles from './ProductReviewsHeader.module.css';
 import { getProductMainImage } from '../../../shared/lib/productMedia';
+import { formatPrice } from '../../../utils/money';
 
 type ProductReviewsHeaderProps = {
   product: Product;
@@ -52,7 +53,7 @@ export const ProductReviewsHeader = ({
       </div>
       <div className={styles.actions}>
         <div className={styles.price}>
-          {product.price.toLocaleString('ru-RU')} ₽
+          {formatPrice(product.price)} ₽
         </div>
         <button
           type="button"

@@ -9,6 +9,7 @@ import { getProductMainImage } from '../../shared/lib/productMedia';
 import styles from './ProductCard.module.css';
 import { formatEtaDays } from '../../shared/lib/deliveryEta';
 import { SmartImage } from '../../shared/ui/SmartImage';
+import { formatPrice } from '../../utils/money';
 interface ProductCardProps {
   product: Product;
 }
@@ -92,7 +93,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
         <div className={styles.footer}>
           <div className={styles.summary}>
             <Rating value={product.ratingAvg} count={product.ratingCount} />
-            <p className={styles.price}>{product.price.toLocaleString('ru-RU')} ₽</p>
+            <p className={styles.price}>{formatPrice(product.price)} ₽</p>
           </div>
 
           <div className={styles.actions}>

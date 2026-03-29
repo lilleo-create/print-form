@@ -7,6 +7,7 @@ import { getProductPrimaryImage } from '../../../shared/lib/getProductPrimaryIma
 import { useBodyScrollLock } from '../../../shared/lib/useBodyScrollLock';
 import { useOverlayClose } from '../../../shared/lib/useOverlayClose';
 import styles from './ReviewFormModal.module.css';
+import { formatPrice } from '../../../utils/money';
 
 export type ReviewFormValues = {
   rating: number;
@@ -103,7 +104,7 @@ export const ReviewFormModal = ({
           <div>
             <span>{product.title}</span>
             {typeof product.price === 'number' ? (
-              <p className={styles.productPrice}>{product.price.toLocaleString('ru-RU')} ₽</p>
+              <p className={styles.productPrice}>{formatPrice(product.price)} ₽</p>
             ) : null}
           </div>
         </div>

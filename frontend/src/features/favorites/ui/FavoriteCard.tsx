@@ -5,6 +5,7 @@ import { useFavoritesStore } from '../model/useFavoritesStore';
 import type { ProductCardDto } from '../api/favoritesApi';
 import styles from './FavoriteCard.module.css';
 import { SmartImage } from '../../../shared/ui/SmartImage';
+import { formatPrice } from '../../../utils/money';
 
 type FavoriteCardProps = {
   item: ProductCardDto;
@@ -36,7 +37,7 @@ export const FavoriteCard = ({ item }: FavoriteCardProps) => {
         {item.title}
       </button>
 
-      <div className={styles.price}>{item.price.toLocaleString('ru-RU')} ₽</div>
+      <div className={styles.price}>{formatPrice(item.price)} ₽</div>
 
       {item.ratingAvg ? (
         <div className={styles.rating}>★ {item.ratingAvg.toFixed(1)} · {item.ratingCount ?? 0}</div>

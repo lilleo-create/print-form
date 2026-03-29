@@ -10,6 +10,7 @@ import { ReturnReasonRadioGroup } from './ReturnReasonRadioGroup';
 import { ReturnPhotoUploader } from './ReturnPhotoUploader';
 import { StickyActionBar } from './StickyActionBar';
 import styles from './ReturnCreateFlow.module.css';
+import { formatPrice } from '../../utils/money';
 
 export type ReturnCreateStep = 'select' | 'form' | 'success' | 'exists';
 
@@ -284,7 +285,7 @@ export const ReturnCreateFlow = ({
                         })}
                       </span>
                       <strong className={styles.cardTitle}>{item.title}</strong>
-                      <span className={styles.cardPrice}>{item.price.toLocaleString('ru-RU')} ₽</span>
+                      <span className={styles.cardPrice}>{formatPrice(item.price)} ₽</span>
                     </span>
                   </span>
 
@@ -326,7 +327,7 @@ export const ReturnCreateFlow = ({
             )}
             <div>
               <strong>{selectedItem.title}</strong>
-              <p>{selectedItem.price.toLocaleString('ru-RU')} ₽</p>
+              <p>{formatPrice(selectedItem.price)} ₽</p>
             </div>
           </div>
 
