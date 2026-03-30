@@ -30,6 +30,10 @@ export const OrderCard = ({ order }: OrderCardProps) => {
     switch (order.paymentStatus) {
       case 'PAID':
         return 'Оплачено';
+      case 'REFUND_PENDING':
+        return 'Возврат обрабатывается';
+      case 'REFUNDED':
+        return 'Деньги возвращены';
       case 'PAYMENT_EXPIRED':
         return 'Оплата не прошла';
       case 'PENDING':
@@ -76,9 +80,11 @@ export const OrderCard = ({ order }: OrderCardProps) => {
         </p>
       ) : null}
       {order.trackingNumber ? <p>СДЭК: {order.trackingNumber}</p> : null}
-      <button type="button" className={styles.returnLink} onClick={handleCreateReturn}>
-        Оформить возврат
-      </button>
+      {order.status !== 'CANCELLED' ? (
+        <button type="button" className={styles.returnLink} onClick={handleCreateReturn}>
+          Оформить возврат
+        </button>
+      ) : null}
     </article>
   );
 };

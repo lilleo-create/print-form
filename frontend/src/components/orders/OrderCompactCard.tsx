@@ -12,10 +12,20 @@ export const OrderCompactCard = ({ order }: { order: Order }) => {
   const firstItem = order.items[0];
   const moreCount = Math.max(0, order.items.length - 1);
   const deliveryLabel = getOrderDeliveryLabel(order);
+  const isCancelled = order.status === 'CANCELLED';
+  const isRefundPending = order.paymentStatus === 'REFUND_PENDING';
+  const isRefunded = order.paymentStatus === 'REFUNDED';
+  const refundStatusLabel = isRefundPending
+    ? 'Возврат обрабатывается'
+    : isRefunded
+      ? 'Деньги возвращены'
+      : null;
+  const canCancel = !isCancelled && isCancellableDeliveryStage(order);
+  const canCreateReturn = !isCancelled && hasHandoverStarted(order);
 
   const handleAction = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
-    if (isCancellableDeliveryStage(order)) {
+    if (canCancel) {
       navigate(`/cancel?orderId=${order.id}`);
       return;
     }
@@ -43,9 +53,10 @@ export const OrderCompactCard = ({ order }: { order: Order }) => {
           <p>{formatEtaDateRangeFromDates(order.estimatedDeliveryDateMin ?? null, order.estimatedDeliveryDateMax ?? null) ?? formatEtaDateRange(order.createdAt, order.deliveryDaysMin ?? null, order.deliveryDaysMax ?? null)}</p>
         </>
       ) : null}
-      {(hasHandoverStarted(order) || isCancellableDeliveryStage(order)) ? (
+      {refundStatusLabel ? <p className={styles.muted}>{refundStatusLabel}</p> : null}
+      {(canCreateReturn || canCancel) ? (
         <button type="button" className={styles.returnLink} onClick={handleAction}>
-          {isCancellableDeliveryStage(order) ? 'Отменить заказ' : 'Оформить возврат'}
+          {canCancel ? 'Отменить заказ' : 'Оформить возврат'}
         </button>
       ) : null}
     </article>
