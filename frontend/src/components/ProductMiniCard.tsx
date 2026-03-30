@@ -17,7 +17,7 @@ export const ProductMiniCard = ({ title, price, qty, image }: ProductMiniCardPro
       {imageUrl ? <img src={imageUrl} alt={title} width={48} height={48} className={styles.image} /> : <span className={styles.placeholder} aria-hidden="true" />}
       <div className={styles.meta}>
         <strong>{title}</strong>
-        <span>{formatPrice(price)} ₽</span>
+        <span>{formatPrice(price)}</span>
         {typeof qty === 'number' ? <span className={styles.qty}>{qty} шт.</span> : null}
       </div>
     </div>

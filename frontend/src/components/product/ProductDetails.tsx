@@ -110,7 +110,7 @@ export const ProductDetails = ({
           </div>
         ) : null}
         <span className={styles.price}>
-          {formatPrice(Number((product as any).price ?? 0))} ₽
+          {formatPrice(Number((product as any).price ?? 0))}
         </span>
         <span className={styles.delivery}>
           Готово к отправке: {readyToShipLabel}

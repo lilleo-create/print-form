@@ -31,6 +31,7 @@ import {
   SellerProductModal,
   SellerProductPayload
 } from '../widgets/seller/SellerProductModal';
+import { formatPrice } from '../shared/lib/formatPrice';
 import styles from './SellerAccountPage.module.css';
 
 const menuItems = [
@@ -64,13 +65,6 @@ const statusLabels: Partial<Record<OrderStatus, string>> = {
   EXPIRED: 'Просрочен'
 };
 
-const formatCurrency = (value: number) => value.toLocaleString('ru-RU');
-const formatMoney = (value: number, currency = 'RUB') =>
-  new Intl.NumberFormat('ru-RU', {
-    style: 'currency',
-    currency,
-    maximumFractionDigits: 0
-  }).format(value);
 const formatDate = (value: string) =>
   new Date(value).toLocaleDateString('ru-RU', {
     day: '2-digit',
@@ -99,6 +93,46 @@ const firstNonEmpty = (...values: Array<string | null | undefined>) => {
     }
   }
   return '';
+};
+
+const toKopecks = (value?: number | null) => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 0;
+  return Math.round(value * 100);
+};
+
+const resolveOrderItemLineTotalKopecks = (item: Order['items'][number]) => {
+  if (typeof item.lineTotalKopecks === 'number') return item.lineTotalKopecks;
+  if (typeof item.lineTotal === 'number') return item.lineTotal;
+  return toKopecks(item.lineTotalRubles);
+};
+
+const resolveOrderKopecks = (order: Order) => {
+  if (typeof order.sellerNetAmount === 'number') return order.sellerNetAmount;
+  if (typeof order.totalKopecks === 'number') return order.totalKopecks;
+  if (typeof order.total === 'number') return order.total;
+  return toKopecks(order.totalRubles);
+};
+
+const resolvePaymentKopecks = (payment: Payment) => {
+  if (typeof payment.amountKopecks === 'number') return payment.amountKopecks;
+  if (typeof payment.amount === 'number') return payment.amount;
+  return toKopecks(payment.amountRubles);
+};
+
+const payoutStatusLabelRu = (value?: string | null) => {
+  switch (String(value ?? '').toUpperCase()) {
+    case 'HOLD':
+      return 'Заморожено';
+    case 'PAID_OUT':
+    case 'RELEASED':
+      return 'Выплачено';
+    case 'PENDING':
+      return 'В обработке';
+    case 'BLOCKED':
+      return 'Заблокировано / отменено';
+    default:
+      return 'В обработке';
+  }
 };
 
 const HANDOFF_STATUSES = new Set<OrderStatus>([
@@ -865,17 +899,6 @@ export const SellerDashboardPage = () => {
     }
   };
 
-  const payoutLabel = (value?: string | null) => {
-    if (value === 'PAID') return 'PAID';
-    if (
-      value === 'RELEASED' ||
-      value === 'READY_TO_PAYOUT' ||
-      value === 'READY'
-    )
-      return 'READY';
-    return 'HOLD до получения';
-  };
-
   const readyToShipDisabledReason = (order: Order) => {
     if (!order.paidAt && order.status !== 'PAID') return 'Ожидает оплаты';
     if (!order.isPacked) return 'Сначала отметьте упаковку';
@@ -897,12 +920,14 @@ export const SellerDashboardPage = () => {
     const totalProducts = products.length;
     const totalOrders = orders.length;
 
-    const revenue = orders.reduce(
-      (sum, order) =>
-        sum +
-        order.items.reduce((itemSum, item) => itemSum + item.lineTotal, 0),
-      0
-    );
+    const revenue = orders
+      .filter(
+        (order) =>
+          order.status !== 'CANCELLED' &&
+          order.paymentStatus !== 'REFUND_PENDING' &&
+          order.paymentStatus !== 'REFUNDED'
+      )
+      .reduce((sum, order) => sum + resolveOrderKopecks(order), 0);
 
     const statusCounts = statusFlow.reduce<Record<OrderStatus, number>>(
       (acc, status) => {
@@ -929,33 +954,29 @@ export const SellerDashboardPage = () => {
           String(payment.status).toUpperCase()
         )
       )
-      .reduce((sum, payment) => sum + payment.amount, 0);
+      .reduce((sum, payment) => sum + resolvePaymentKopecks(payment), 0);
     const inProcessing = payments
       .filter((payment) =>
         ['PENDING', 'PROCESSING', 'READY'].includes(
           String(payment.status).toUpperCase()
         )
       )
-      .reduce((sum, payment) => sum + payment.amount, 0);
+      .reduce((sum, payment) => sum + resolvePaymentKopecks(payment), 0);
     const frozen = orders
-      .filter((order) => order.payoutStatus === 'HOLD')
-      .reduce(
-        (sum, order) =>
-          sum +
-          order.items.reduce((itemSum, item) => itemSum + item.lineTotal, 0),
-        0
-      );
+      .filter(
+        (order) =>
+          String(order.payoutStatus ?? '').toUpperCase() === 'HOLD' ||
+          String(order.yookassaDealStatus ?? '').toUpperCase() === 'HOLD'
+      )
+      .reduce((sum, order) => sum + resolveOrderKopecks(order), 0);
     const released = orders
       .filter(
         (order) =>
-          order.payoutStatus === 'RELEASED' || order.payoutStatus === 'PAID'
+          ['RELEASED', 'PAID', 'PAID_OUT'].includes(
+            String(order.payoutStatus ?? '').toUpperCase()
+          )
       )
-      .reduce(
-        (sum, order) =>
-          sum +
-          order.items.reduce((itemSum, item) => itemSum + item.lineTotal, 0),
-        0
-      );
+      .reduce((sum, order) => sum + resolveOrderKopecks(order), 0);
 
     return { available, frozen, released, inProcessing };
   }, [orders, payments]);
@@ -968,18 +989,19 @@ export const SellerDashboardPage = () => {
       const label = date.toLocaleDateString('ru-RU', { month: 'short' });
 
       const orderAmount = orders
+        .filter(
+          (order) =>
+            order.status !== 'CANCELLED' &&
+            order.paymentStatus !== 'REFUND_PENDING' &&
+            order.paymentStatus !== 'REFUNDED'
+        )
         .filter((order) => {
           const orderDate = new Date(order.createdAt);
           return (
             `${orderDate.getFullYear()}-${orderDate.getMonth()}` === monthKey
           );
         })
-        .reduce(
-          (sum, order) =>
-            sum +
-            order.items.reduce((itemSum, item) => itemSum + item.lineTotal, 0),
-          0
-        );
+        .reduce((sum, order) => sum + resolveOrderKopecks(order), 0);
 
       const payoutAmount = payments
         .filter((payment) => {
@@ -989,22 +1011,21 @@ export const SellerDashboardPage = () => {
             monthKey
           );
         })
-        .reduce((sum, payment) => sum + payment.amount, 0);
+        .reduce((sum, payment) => sum + resolvePaymentKopecks(payment), 0);
 
       const frozenAmount = orders
-        .filter((order) => order.payoutStatus === 'HOLD')
+        .filter(
+          (order) =>
+            String(order.payoutStatus ?? '').toUpperCase() === 'HOLD' ||
+            String(order.yookassaDealStatus ?? '').toUpperCase() === 'HOLD'
+        )
         .filter((order) => {
           const orderDate = new Date(order.createdAt);
           return (
             `${orderDate.getFullYear()}-${orderDate.getMonth()}` === monthKey
           );
         })
-        .reduce(
-          (sum, order) =>
-            sum +
-            order.items.reduce((itemSum, item) => itemSum + item.lineTotal, 0),
-          0
-        );
+        .reduce((sum, order) => sum + resolveOrderKopecks(order), 0);
 
       return { label, orderAmount, payoutAmount, frozenAmount };
     });
@@ -1040,31 +1061,33 @@ export const SellerDashboardPage = () => {
       date: payment.createdAt,
       type: 'Выплата',
       orderId: payment.orderId,
-      amount: payment.amount,
+      amount: resolvePaymentKopecks(payment),
       status: paymentStatusLabel(payment.status),
       currency: payment.currency
     }));
 
     const holdOperations = orders
-      .filter(
-        (order) =>
-          order.payoutStatus === 'HOLD' ||
-          order.payoutStatus === 'BLOCKED' ||
-          order.payoutStatus === 'RELEASED' ||
-          order.payoutStatus === 'PAID'
-      )
+      .filter((order) => Boolean(order.payoutStatus))
       .map((order) => ({
         id: `order-${order.id}`,
         date: order.createdAt,
         type:
-          order.payoutStatus === 'HOLD'
+          String(order.payoutStatus ?? '').toUpperCase() === 'HOLD'
             ? 'Заморозка'
-            : order.payoutStatus === 'BLOCKED'
+            : String(order.payoutStatus ?? '').toUpperCase() === 'BLOCKED'
               ? 'Блокировка'
-              : 'Разблокировка',
+              : ['RELEASED', 'PAID_OUT', 'PAID'].includes(
+                    String(order.payoutStatus ?? '').toUpperCase()
+                  )
+                ? 'Выплата'
+                : ['REFUND_PENDING', 'REFUNDED'].includes(
+                      String(order.paymentStatus ?? '').toUpperCase()
+                    )
+                  ? 'Возврат'
+                  : 'В обработке',
         orderId: order.id,
-        amount: order.items.reduce((sum, item) => sum + item.lineTotal, 0),
-        status: payoutLabel(order.payoutStatus),
+        amount: resolveOrderKopecks(order),
+        status: payoutStatusLabelRu(order.payoutStatus),
         currency: 'RUB'
       }));
 
@@ -1212,7 +1235,7 @@ export const SellerDashboardPage = () => {
                     />
                     <SellerStatsCard
                       title="Выручка"
-                      value={`${formatCurrency(summary.revenue)} ₽`}
+                      value={formatPrice(summary.revenue)}
                     />
                     <SellerStatsCard
                       title="Товары"
@@ -1525,7 +1548,7 @@ export const SellerDashboardPage = () => {
                                 product.title
                               )}
                             </span>
-                            <span>{formatCurrency(product.price)} ₽</span>
+                            <span>{formatPrice(product.price)}</span>
                             <span>{product.category}</span>
                             <span>
                               <strong
@@ -1605,10 +1628,8 @@ export const SellerDashboardPage = () => {
                       {ordersView.map((order) => {
                         const displayStatus =
                           getSellerOrderDisplayStatus(order);
-                        const total = order.items.reduce(
-                          (sum, item) => sum + item.lineTotal,
-                          0
-                        );
+                        const total = order.items.reduce((sum, item) => sum + resolveOrderItemLineTotalKopecks(item), 0);
+                        const sellerNetAmount = typeof order.sellerNetAmount === 'number' ? order.sellerNetAmount : total;
 
                         return (
                           <div key={order.id} className={styles.orderCard}>
@@ -1637,13 +1658,13 @@ export const SellerDashboardPage = () => {
 
                               <div className={styles.orderCardRight}>
                                 <p className={styles.orderAmount}>
-                                  {formatCurrency(total)} ₽
+                                  {formatPrice(total)}
                                 </p>
                                 <div className={styles.orderPayoutSummary}>
                                   <span className={styles.orderPayoutLabel}>
                                     Получит продавец
                                   </span>
-                                  <strong>{formatMoney(total)}</strong>
+                                  <strong>{formatPrice(sellerNetAmount)}</strong>
                                 </div>
                                 <p className={styles.muted}>
                                   Статус: {displayStatus}
@@ -1678,11 +1699,16 @@ export const SellerDashboardPage = () => {
                               </p>
                               <div className={styles.orderFinanceMeta}>
                                 <p className={styles.muted}>
-                                  Выплата: {payoutLabel(order.payoutStatus)}
+                                  Выплата: {payoutStatusLabelRu(order.payoutStatus)}
                                 </p>
                                 <p className={styles.muted}>
-                                  Сумма продавца: {formatMoney(total)}
+                                  Сумма продавца: {formatPrice(sellerNetAmount)}
                                 </p>
+                                {order.yookassaDealId ? (
+                                  <p className={styles.muted}>
+                                    Safe Deal: {String(order.yookassaDealStatus ?? 'PENDING')}
+                                  </p>
+                                ) : null}
                               </div>
                               <p className={styles.muted}>
                                 Статус доставки: {displayStatus}
@@ -1765,7 +1791,7 @@ export const SellerDashboardPage = () => {
                                   Грузомест: {order.packagesCount ?? 1}
                                 </p>
                                 <p className={styles.muted}>
-                                  Сумма: {formatCurrency(total)} ₽
+                                  Сумма: {formatPrice(total)}
                                 </p>
                                 <p className={styles.muted}>
                                   Товары:{' '}
@@ -1848,19 +1874,19 @@ export const SellerDashboardPage = () => {
                   <div className={styles.financeSummaryGrid}>
                     <SellerStatsCard
                       title="Доступно"
-                      value={formatMoney(financeSummary.available)}
+                      value={formatPrice(financeSummary.available)}
                     />
                     <SellerStatsCard
                       title="Заморожено"
-                      value={formatMoney(financeSummary.frozen)}
+                      value={formatPrice(financeSummary.frozen)}
                     />
                     <SellerStatsCard
                       title="Выплачено"
-                      value={formatMoney(financeSummary.released)}
+                      value={formatPrice(financeSummary.released)}
                     />
                     <SellerStatsCard
                       title="В обработке"
-                      value={formatMoney(financeSummary.inProcessing)}
+                      value={formatPrice(financeSummary.inProcessing)}
                     />
                   </div>
 
@@ -1925,7 +1951,7 @@ export const SellerDashboardPage = () => {
                               </div>
                             </div>
                             <span className={styles.financeChartValue}>
-                              {formatMoney(row.orderAmount)}
+                              {formatPrice(row.orderAmount)}
                             </span>
                           </div>
                         ))}
@@ -1997,7 +2023,7 @@ export const SellerDashboardPage = () => {
                             №{operation.orderId}
                           </span>
                           <span>
-                            {formatMoney(operation.amount, operation.currency)}
+                            {formatPrice(operation.amount, operation.currency)}
                           </span>
                           <span>{operation.status}</span>
                         </div>

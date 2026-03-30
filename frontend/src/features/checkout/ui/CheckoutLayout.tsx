@@ -8,11 +8,9 @@ import { CdekPvzPickerModal } from '../../../components/checkout/CdekPvzPickerMo
 import { RecipientModal } from './RecipientModal';
 import { DeliveryDatesSection } from './DeliveryDatesSection';
 import { CheckoutItemsList } from './CheckoutItemsList';
-import { PaymentMethodSelector } from './PaymentMethodSelector';
-import { AddCardModal } from './AddCardModal';
 import { CheckoutLegalLinks } from './CheckoutLegalLinks';
 import styles from './CheckoutLayout.module.css';
-import { formatPrice } from '../../../utils/money';
+import { formatPrice } from '../../../shared/lib/formatPrice';
 
 export const CheckoutLayout = () => {
   const {
@@ -25,14 +23,11 @@ export const CheckoutLayout = () => {
     setPickupPoint,
     updateRecipient,
     updateAddress,
-    setPaymentMethod,
-    addCard,
     placeOrder
   } = useCheckoutStore();
 
   const [isPvzOpen, setPvzOpen] = useState(false);
   const [isRecipientOpen, setRecipientOpen] = useState(false);
-  const [isAddCardOpen, setAddCardOpen] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
   const [legalAccepted, setLegalAccepted] = useState(false);
 
@@ -42,15 +37,13 @@ export const CheckoutLayout = () => {
 
   const total = useMemo(
     () =>
-      data?.cartItems.reduce(
-        (sum, item) => sum + item.price * item.quantity,
-        0
-      ) ?? 0,
+      data?.cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0) ??
+      0,
     [data?.cartItems]
   );
 
   const selectedDeliveryMethod = data?.selectedDeliveryMethod ?? 'COURIER';
-
+  const selectedPaymentMethod = data?.selectedPaymentMethod ?? 'CARD';
   const availableDeliveryMethods = data?.deliveryMethods ?? [];
 
   const handlePayClick = async () => {
@@ -59,20 +52,16 @@ export const CheckoutLayout = () => {
     try {
       const result = await placeOrder();
       if (!result) return;
-
       window.location.href = result.paymentUrl;
     } finally {
       setIsPaying(false);
     }
   };
 
-  if (isLoading && !data)
-    return <p className={styles.state}>Загрузка checkout…</p>;
+  if (isLoading && !data) return <p className={styles.state}>Загрузка checkout…</p>;
 
   if (!data) {
-    return (
-      <p className={styles.state}>{error ?? 'Не удалось загрузить checkout'}</p>
-    );
+    return <p className={styles.state}>{error ?? 'Не удалось загрузить checkout'}</p>;
   }
 
   return (
@@ -117,37 +106,26 @@ export const CheckoutLayout = () => {
 
         <DeliveryDatesSection items={data.cartItems} />
         <CheckoutItemsList items={data.cartItems} />
-        <CheckoutLegalLinks
-          accepted={legalAccepted}
-          onAcceptedChange={setLegalAccepted}
-        />
+        <CheckoutLegalLinks accepted={legalAccepted} onAcceptedChange={setLegalAccepted} />
       </div>
 
       <aside className={styles.right}>
         <div className={styles.block}>
-          <PaymentMethodSelector
-            data={data}
-            onSelectMethod={(method, cardId) =>
-              void setPaymentMethod(method, cardId)
-            }
-            onOpenAddCard={() => setAddCardOpen(true)}
-          />
-
           <div className={styles.summary}>
-            <div>Итого: {formatPrice(total)} ₽</div>
+            <div>Способ оплаты: {selectedPaymentMethod === 'SBP' ? 'СБП / YooKassa' : 'Банковская карта / YooKassa'}</div>
+            <div>Итого: {formatPrice(total)}</div>
 
             <Button
               isLoading={isSubmittingOrder || isPaying}
               disabled={isPaying || !legalAccepted}
               onClick={() => void handlePayClick()}
             >
-              Пополнить и оплатить
+              Оплатить
             </Button>
 
             {!legalAccepted ? (
               <p className={styles.error}>
-                Подтвердите согласие с правилами сервиса и политикой
-                персональных данных.
+                Подтвердите согласие с правилами сервиса и политикой персональных данных.
               </p>
             ) : null}
             {error ? <p className={styles.error}>{error}</p> : null}
@@ -178,12 +156,6 @@ export const CheckoutLayout = () => {
         onClose={() => setRecipientOpen(false)}
         initial={data.recipient}
         onSave={updateRecipient}
-      />
-
-      <AddCardModal
-        isOpen={isAddCardOpen}
-        onClose={() => setAddCardOpen(false)}
-        onSubmit={addCard}
       />
     </div>
   );

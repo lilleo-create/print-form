@@ -168,9 +168,13 @@ export interface OrderItem {
   productId: string;
   title: string;
   price: number;
+  priceKopecks?: number;
+  priceRubles?: number;
   qty: number;
   sellerId: string;
   lineTotal: number;
+  lineTotalKopecks?: number;
+  lineTotalRubles?: number;
   image?: string;
 }
 
@@ -282,6 +286,8 @@ export interface Order {
   readyForShipmentAt?: string | null;
   isPacked?: boolean | null;
   total: number;
+  totalKopecks?: number;
+  totalRubles?: number;
   recipientName?: string | null;
   recipientPhone?: string | null;
   recipientEmail?: string | null;
@@ -312,6 +318,10 @@ export interface Order {
   delivery?: OrderDelivery | null;
   payoutStatus?: string | null;
   paymentStatus?: string | null;
+  yookassaDealId?: string | null;
+  yookassaDealStatus?: string | null;
+  platformFeeAmount?: number | null;
+  sellerNetAmount?: number | null;
   paymentExpiresAt?: string | null;
   secondsUntilExpiry?: number | null;
   isExpired?: boolean | null;
@@ -475,6 +485,8 @@ export interface Payment {
   orderId: string;
   status: string;
   amount: number;
+  amountKopecks?: number;
+  amountRubles?: number;
   currency: string;
   createdAt: string;
 }

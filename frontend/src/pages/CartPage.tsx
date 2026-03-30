@@ -70,7 +70,7 @@ export const CartPage = () => {
                       </button>
                     </div>
                     <div className={styles.sum}>
-                      {formatPrice(item.product.price * item.quantity)} ₽
+                      {formatPrice(item.product.price * item.quantity)}
                     </div>
                   </div>
                 );
@@ -79,7 +79,7 @@ export const CartPage = () => {
             <aside className={styles.summary}>
               <div>
                 <span>Итого</span>
-                <strong>{formatPrice(total)} ₽</strong>
+                <strong>{formatPrice(total)}</strong>
               </div>
               <button className={styles.cta} onClick={handleCheckout}>
                 Оформить заказ
