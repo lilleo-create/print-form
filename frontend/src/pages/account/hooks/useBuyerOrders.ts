@@ -25,7 +25,7 @@ export const useBuyerOrders = (user: User | null) => {
   }, [loadBuyerOrders, user]);
 
   const activeOrders = useMemo(
-    () => orders.filter((order) => !['DELIVERED', 'CANCELLED', 'RETURNED'].includes(order.status)),
+    () => orders.filter((order) => !['DELIVERED', 'RETURNED'].includes(order.status)),
     [orders]
   );
 

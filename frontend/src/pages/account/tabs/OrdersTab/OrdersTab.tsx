@@ -115,11 +115,13 @@ export const OrdersTab = ({ orders }: OrdersTabProps) => {
             const isRefunded = order.paymentStatus === 'REFUNDED';
             const hasActiveReturn = activeReturnOrderIds.has(order.id);
             const isShipped = hasHandoverStarted(order);
-            const refundStatusText = isRefundPending
-              ? 'Возврат обрабатывается'
-              : isRefunded
-                ? 'Деньги возвращены'
-                : null;
+            const cancellationBadgeText = isCancelled
+              ? isRefundPending
+                ? 'Возврат обрабатывается'
+                : isRefunded
+                  ? 'Деньги возвращены'
+                  : 'Заказ отменён'
+              : null;
             const showCancelAction = !isCancelled && !isRefunded && !hasActiveReturn && isPaid && !isShipped;
             const showReturnAction = !isCancelled && !isRefunded && !hasActiveReturn && isPaid && isShipped;
 
@@ -167,6 +169,9 @@ export const OrdersTab = ({ orders }: OrdersTabProps) => {
                 </div>
 
                 <p className={styles.status}>Статус доставки: {getDeliveryStatusLabel(order)}</p>
+                {cancellationBadgeText ? (
+                  <p className={styles.cancelledBadge}>{cancellationBadgeText}</p>
+                ) : null}
                 <p className={order.paymentStatus === 'PAID' ? styles.caption : styles.unpaidStatus}>
                   Статус оплаты: {getPaymentStatusLabel(order.paymentStatus)}
                 </p>
@@ -182,12 +187,6 @@ export const OrdersTab = ({ orders }: OrdersTabProps) => {
                     }}
                   >
                     Повторить оплату
-                  </button>
-                ) : null}
-
-                {isCancelled && refundStatusText ? (
-                  <button type="button" className={styles.actionButtonSecondary} disabled>
-                    {refundStatusText}
                   </button>
                 ) : null}
 
