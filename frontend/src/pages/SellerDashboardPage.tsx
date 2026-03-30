@@ -72,6 +72,29 @@ const formatDate = (value: string) =>
     year: 'numeric'
   });
 
+const formatMoneyRub = (value: number) =>
+  new Intl.NumberFormat('ru-RU', {
+    style: 'currency',
+    currency: 'RUB',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(value);
+
+const formatMoney = (params: {
+  displayRubles?: string | number | null;
+  kopecks?: number | null;
+}) => {
+  const { displayRubles, kopecks } = params;
+  if (typeof displayRubles === 'string' && displayRubles.trim().length > 0) {
+    const parsed = Number(displayRubles);
+    if (Number.isFinite(parsed)) return formatMoneyRub(parsed);
+  }
+  if (typeof displayRubles === 'number' && Number.isFinite(displayRubles)) {
+    return formatMoneyRub(displayRubles);
+  }
+  return formatPrice(typeof kopecks === 'number' ? kopecks : 0);
+};
+
 const formatCountdown = (seconds: number) => {
   const safe = Math.max(0, seconds);
   const minutes = Math.floor(safe / 60)
@@ -964,99 +987,25 @@ export const SellerDashboardPage = () => {
     (user?.fullName ?? user?.name ?? '').trim() ||
     'Магазин продавца';
 
-  const financeSummary = useMemo(() => {
-    const available = payments
-      .filter((payment) =>
-        ['PAID', 'SUCCESS', 'SUCCEEDED', 'COMPLETED'].includes(
-          String(payment.status).toUpperCase()
-        )
-      )
-      .reduce((sum, payment) => sum + resolvePaymentKopecks(payment), 0);
-    const inProcessing = payments
-      .filter((payment) =>
-        ['PENDING', 'PROCESSING', 'READY'].includes(
-          String(payment.status).toUpperCase()
-        )
-      )
-      .reduce((sum, payment) => sum + resolvePaymentKopecks(payment), 0);
-    const frozen = orders
-      .filter(
-        (order) =>
-          String(order.payoutStatus ?? '').toUpperCase() === 'HOLD' ||
-          String(order.yookassaDealStatus ?? '').toUpperCase() === 'HOLD'
-      )
-      .reduce((sum, order) => sum + resolveOrderKopecks(order), 0);
-    const released = orders
-      .filter(
-        (order) =>
-          ['RELEASED', 'PAID', 'PAID_OUT'].includes(
-            String(order.payoutStatus ?? '').toUpperCase()
-          )
-      )
-      .reduce((sum, order) => sum + resolveOrderKopecks(order), 0);
+  const financeData = useMemo(() => {
+    const isFrozenOrder = (order: Order) =>
+      String(order.payoutStatus ?? '').toUpperCase() === 'HOLD' ||
+      String(order.yookassaDealStatus ?? '').toUpperCase() === 'HOLD';
+    const isPaidOutOrder = (order: Order) =>
+      ['RELEASED', 'PAID', 'PAID_OUT', 'SUCCEEDED'].includes(
+        String(order.payoutStatus ?? '').toUpperCase()
+      );
+    const isAdjustmentOrder = (order: Order) =>
+      order.status === 'CANCELLED' ||
+      ['REFUND_PENDING', 'REFUNDED'].includes(
+        String(order.paymentStatus ?? '').toUpperCase()
+      ) ||
+      String(order.payoutStatus ?? '').toUpperCase() === 'BLOCKED';
+    const isQueuedOrder = (order: Order) =>
+      !isAdjustmentOrder(order) && !isPaidOutOrder(order);
 
-    return { available, frozen, released, inProcessing };
-  }, [orders, payments]);
-
-  const financeChartRows = useMemo(() => {
-    const rows = Array.from({ length: 4 }, (_, index) => {
-      const date = new Date();
-      date.setMonth(date.getMonth() - (3 - index));
-      const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
-      const label = date.toLocaleDateString('ru-RU', { month: 'short' });
-
-      const orderAmount = orders
-        .filter(
-          (order) =>
-            order.status !== 'CANCELLED' &&
-            order.paymentStatus !== 'REFUND_PENDING' &&
-            order.paymentStatus !== 'REFUNDED'
-        )
-        .filter((order) => {
-          const orderDate = new Date(order.createdAt);
-          return (
-            `${orderDate.getFullYear()}-${orderDate.getMonth()}` === monthKey
-          );
-        })
-        .reduce((sum, order) => sum + resolveOrderKopecks(order), 0);
-
-      const payoutAmount = payments
-        .filter((payment) => {
-          const paymentDate = new Date(payment.createdAt);
-          return (
-            `${paymentDate.getFullYear()}-${paymentDate.getMonth()}` ===
-            monthKey
-          );
-        })
-        .reduce((sum, payment) => sum + resolvePaymentKopecks(payment), 0);
-
-      const frozenAmount = orders
-        .filter(
-          (order) =>
-            String(order.payoutStatus ?? '').toUpperCase() === 'HOLD' ||
-            String(order.yookassaDealStatus ?? '').toUpperCase() === 'HOLD'
-        )
-        .filter((order) => {
-          const orderDate = new Date(order.createdAt);
-          return (
-            `${orderDate.getFullYear()}-${orderDate.getMonth()}` === monthKey
-          );
-        })
-        .reduce((sum, order) => sum + resolveOrderKopecks(order), 0);
-
-      return { label, orderAmount, payoutAmount, frozenAmount };
-    });
-
-    const maxValue = rows.reduce(
-      (max, row) =>
-        Math.max(max, row.orderAmount, row.payoutAmount, row.frozenAmount),
-      0
-    );
-    return { rows, maxValue: maxValue || 1 };
-  }, [orders, payments]);
-
-  const financeOperations = useMemo(() => {
-    return orders
+    const queueItems = orders
+      .filter((order) => isQueuedOrder(order))
       .map((order) => {
         const orderAmount = resolveOrderKopecks(order);
         const sellerNetAmount =
@@ -1065,29 +1014,109 @@ export const SellerDashboardPage = () => {
           typeof order.platformFeeAmount === 'number'
             ? order.platformFeeAmount
             : Math.max(0, orderAmount - sellerNetAmount);
-
-        const operationStatus =
-          order.status === 'CANCELLED'
-            ? order.paymentStatus === 'REFUND_PENDING'
-              ? 'Деньги возвращаются покупателю'
-              : order.paymentStatus === 'REFUNDED'
-                ? 'Деньги возвращены покупателю'
-                : 'Заказ отменён'
-            : payoutStatusLabelRu(order.payoutStatus);
-
         return {
-          id: `order-${order.id}`,
-          date: order.createdAt,
+          id: `queue-${order.id}`,
           orderId: order.id,
+          date: order.createdAt,
           orderAmount,
           platformFee,
           sellerNetAmount,
-          status: operationStatus
+          status: payoutStatusLabelRu(order.payoutStatus)
         };
       })
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      .slice(0, 12);
-  }, [orders]);
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    const adjustments = orders
+      .filter((order) => isAdjustmentOrder(order))
+      .map((order) => {
+        const amount = resolveOrderKopecks(order);
+        let reason = 'Удержание платформой';
+        let status = 'Удержано';
+        if (order.status === 'CANCELLED') {
+          reason = 'Отмена заказа';
+          status = 'Отменен';
+        } else if (String(order.paymentStatus ?? '').toUpperCase() === 'REFUND_PENDING') {
+          reason = 'Возврат покупателю в процессе';
+          status = 'Возврат в процессе';
+        } else if (String(order.paymentStatus ?? '').toUpperCase() === 'REFUNDED') {
+          reason = 'Возврат покупателю завершен';
+          status = 'Возвращено';
+        }
+        return {
+          id: `adjustment-${order.id}`,
+          orderId: order.id,
+          date: order.createdAt,
+          amount,
+          reason,
+          status
+        };
+      })
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    const payoutHistory = payments
+      .filter((payment) =>
+        ['PAID', 'SUCCESS', 'SUCCEEDED', 'COMPLETED'].includes(
+          String(payment.status).toUpperCase()
+        )
+      )
+      .map((payment) => {
+        const order = orders.find((item) => item.id === payment.orderId);
+        const orderAmount = order ? resolveOrderKopecks(order) : resolvePaymentKopecks(payment);
+        const sellerNetAmount =
+          order && typeof order.sellerNetAmount === 'number'
+            ? order.sellerNetAmount
+            : resolvePaymentKopecks(payment);
+        const platformFee =
+          order && typeof order.platformFeeAmount === 'number'
+            ? order.platformFeeAmount
+            : Math.max(0, orderAmount - sellerNetAmount);
+        return {
+          id: payment.id,
+          date: payment.createdAt,
+          ordersCount: 1,
+          orderAmount,
+          platformFee,
+          sellerNetAmount,
+          status: 'Выплачено'
+        };
+      })
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    const nextPayoutAmount = queueItems.reduce(
+      (sum, item) => sum + item.sellerNetAmount,
+      0
+    );
+    const pendingPayment = payments.find((payment) =>
+      ['PENDING', 'PROCESSING', 'READY'].includes(String(payment.status).toUpperCase())
+    );
+    const payoutSchedule =
+      (sellerProfile as { payoutSchedule?: string | null } | null)?.payoutSchedule ??
+      'По регламенту маркетплейса';
+
+    const summary = {
+      awaitingPayout: queueItems
+        .filter((item) => item.status !== 'Заморожено')
+        .reduce((sum, item) => sum + item.sellerNetAmount, 0),
+      frozen: orders
+        .filter((order) => isFrozenOrder(order))
+        .reduce((sum, order) => sum + resolveOrderKopecks(order), 0),
+      paidOut: payoutHistory.reduce((sum, payout) => sum + payout.sellerNetAmount, 0),
+      adjustments: adjustments.reduce((sum, item) => sum + item.amount, 0)
+    };
+
+    return {
+      summary,
+      queueItems,
+      adjustments,
+      payoutHistory,
+      nextPayout: {
+        date: pendingPayment?.createdAt ?? null,
+        amount: nextPayoutAmount,
+        ordersCount: queueItems.length,
+        payoutSchedule
+      }
+    };
+  }, [orders, payments, sellerProfile]);
 
   const shouldShowSellerError =
     authStatus === 'authorized' &&
@@ -1907,174 +1936,186 @@ export const SellerDashboardPage = () => {
                     <div>
                       <h2>Финансы продавца</h2>
                       <p>
-                        Блок подготовлен под денежный контур маркетплейса и
-                        интеграцию с YooKassa без изменения текущей логики
-                        выплат.
+                        Только реальные суммы и статусы: что уже выплачено, что
+                        в заморозке и что войдет в ближайшую выплату.
                       </p>
                     </div>
                   </div>
 
                   <div className={styles.financeSummaryGrid}>
                     <SellerStatsCard
-                      title="Доступно"
-                      value={formatPrice(financeSummary.available)}
+                      title="Ожидает выплаты"
+                      value={formatMoney({ kopecks: financeData.summary.awaitingPayout })}
                     />
                     <SellerStatsCard
                       title="Заморожено"
-                      value={formatPrice(financeSummary.frozen)}
+                      value={formatMoney({ kopecks: financeData.summary.frozen })}
                     />
                     <SellerStatsCard
                       title="Выплачено"
-                      value={formatPrice(financeSummary.released)}
+                      value={formatMoney({ kopecks: financeData.summary.paidOut })}
                     />
                     <SellerStatsCard
-                      title="В обработке"
-                      value={formatPrice(financeSummary.inProcessing)}
+                      title="Возвраты / удержания"
+                      value={formatMoney({ kopecks: financeData.summary.adjustments })}
                     />
                   </div>
 
-                  <div className={styles.financeGrid}>
-                    <div className={styles.financeChartCard}>
-                      <div className={styles.sectionHeader}>
+                  <div className={styles.financePanel}>
+                    <h3>Ближайшая выплата</h3>
+                    {financeData.nextPayout.ordersCount === 0 ? (
+                      <div className={styles.infoCard}>
+                        <strong>Будет доступно после настройки выплат</strong>
+                        <p className={styles.muted}>
+                          Как только появятся заказы в очереди, здесь отобразятся
+                          дата, сумма и количество заказов.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className={styles.nextPayoutGrid}>
                         <div>
-                          <h3>Движение по периодам</h3>
-                          <p>
-                            Поступления, выплаты и удержания по последним
-                            месяцам.
-                          </p>
+                          <p className={styles.muted}>Дата</p>
+                          <strong>
+                            {financeData.nextPayout.date
+                              ? formatDate(financeData.nextPayout.date)
+                              : 'Дата уточняется'}
+                          </strong>
+                        </div>
+                        <div>
+                          <p className={styles.muted}>Сумма</p>
+                          <strong>
+                            {formatMoney({ kopecks: financeData.nextPayout.amount })}
+                          </strong>
+                        </div>
+                        <div>
+                          <p className={styles.muted}>Заказов</p>
+                          <strong>{financeData.nextPayout.ordersCount}</strong>
+                        </div>
+                        <div>
+                          <p className={styles.muted}>График выплат</p>
+                          <strong>{financeData.nextPayout.payoutSchedule}</strong>
                         </div>
                       </div>
-                      <div className={styles.financeChartLegend}>
-                        <span>
-                          <i className={styles.financeLegendRevenue} />
-                          Поступления
-                        </span>
-                        <span>
-                          <i className={styles.financeLegendPayout} />
-                          Выплаты
-                        </span>
-                        <span>
-                          <i className={styles.financeLegendFrozen} />
-                          Заморозка
-                        </span>
-                      </div>
-                      <div className={styles.financeChart}>
-                        {financeChartRows.rows.map((row) => (
-                          <div
-                            key={row.label}
-                            className={styles.financeChartRow}
-                          >
-                            <span className={styles.financeChartLabel}>
-                              {row.label}
+                    )}
+                  </div>
+
+                  <div className={styles.financePanel}>
+                    <h3>Очередь на выплату</h3>
+                    {financeData.queueItems.length === 0 ? (
+                      <p className={styles.muted}>Нет заказов в очереди на выплату.</p>
+                    ) : (
+                      <div className={styles.financeRows}>
+                        <div className={styles.financeTableHeader}>
+                          <span>Заказ</span>
+                          <span>Дата</span>
+                          <span>Сумма заказа</span>
+                          <span>Комиссия платформы</span>
+                          <span>К выплате продавцу</span>
+                          <span>Статус</span>
+                        </div>
+                        {financeData.queueItems.map((item) => (
+                          <div className={styles.financeTableRow} key={item.id}>
+                            <span data-title="Заказ">№{item.orderId}</span>
+                            <span data-title="Дата">{formatDate(item.date)}</span>
+                            <span data-title="Сумма заказа">
+                              {formatMoney({ kopecks: item.orderAmount })}
                             </span>
-                            <div className={styles.financeBars}>
-                              <div className={styles.financeBarTrack}>
-                                <div
-                                  className={`${styles.financeBar} ${styles.financeBarRevenue}`}
-                                  style={{
-                                    width: `${(row.orderAmount / financeChartRows.maxValue) * 100}%`
-                                  }}
-                                />
-                              </div>
-                              <div className={styles.financeBarTrack}>
-                                <div
-                                  className={`${styles.financeBar} ${styles.financeBarPayout}`}
-                                  style={{
-                                    width: `${(row.payoutAmount / financeChartRows.maxValue) * 100}%`
-                                  }}
-                                />
-                              </div>
-                              <div className={styles.financeBarTrack}>
-                                <div
-                                  className={`${styles.financeBar} ${styles.financeBarFrozen}`}
-                                  style={{
-                                    width: `${(row.frozenAmount / financeChartRows.maxValue) * 100}%`
-                                  }}
-                                />
-                              </div>
-                            </div>
-                            <span className={styles.financeChartValue}>
-                              {formatPrice(row.orderAmount)}
+                            <span data-title="Комиссия платформы">
+                              {formatMoney({ kopecks: item.platformFee })}
                             </span>
+                            <span data-title="К выплате продавцу">
+                              {formatMoney({ kopecks: item.sellerNetAmount })}
+                            </span>
+                            <span data-title="Статус">{item.status}</span>
                           </div>
                         ))}
                       </div>
-                    </div>
-
-                    <div className={styles.financeInfoCard}>
-                      <h3>Статусы операций</h3>
-                      <ul className={styles.financeStatusList}>
-                        <li>
-                          <strong>Доступно</strong>
-                          <span>Средства, готовые к выводу/зачислению.</span>
-                        </li>
-                        <li>
-                          <strong>Заморожено</strong>
-                          <span>
-                            Заказы в hold до завершения сценария доставки.
-                          </span>
-                        </li>
-                        <li>
-                          <strong>Выплачено</strong>
-                          <span>
-                            Операции с подтвержденной выплатой продавцу.
-                          </span>
-                        </li>
-                        <li>
-                          <strong>В обработке</strong>
-                          <span>
-                            Подготовленные backend-ом операции, ожидающие
-                            завершения.
-                          </span>
-                        </li>
-                      </ul>
-                    </div>
+                    )}
                   </div>
 
-                  {paymentsLoading ? (
-                    <p className={styles.muted}>
-                      Загрузка финансовых операций...
-                    </p>
-                  ) : paymentsError ? (
-                    <p className={styles.error}>{paymentsError}</p>
-                  ) : financeOperations.length === 0 ? (
-                    <div className={styles.infoCard}>
-                      <h3>История операций пока пуста</h3>
-                      <p className={styles.muted}>
-                        Как только появятся выплаты, холды или разблокировки,
-                        они будут показаны в этом разделе.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className={styles.ordersTable}>
-                      <div className={styles.financeTableHeader}>
-                        <span>Дата</span>
-                        <span>Заказ</span>
-                        <span>Сумма заказа</span>
-                        <span>Комиссия платформы</span>
-                        <span>К выплате продавцу</span>
-                        <span>Статус</span>
-                      </div>
-
-                      {financeOperations.map((operation) => (
-                        <div
-                          key={operation.id}
-                          className={styles.financeTableRow}
-                        >
-                          <span>{formatDate(operation.date)}</span>
-                          <span className={styles.cellTruncate}>
-                            №{operation.orderId}
-                          </span>
-                          <span>
-                            {formatPrice(operation.orderAmount)}
-                          </span>
-                          <span>{formatPrice(operation.platformFee)}</span>
-                          <span>{formatPrice(operation.sellerNetAmount)}</span>
-                          <span>{operation.status}</span>
+                  <div className={styles.financePanel}>
+                    <h3>Возвраты и удержания</h3>
+                    {financeData.adjustments.length === 0 ? (
+                      <p className={styles.muted}>Возвратов и удержаний пока нет.</p>
+                    ) : (
+                      <div className={styles.financeRows}>
+                        <div className={styles.financeTableHeader}>
+                          <span>Заказ</span>
+                          <span>Дата</span>
+                          <span>Сумма</span>
+                          <span>Причина / описание</span>
+                          <span>Статус</span>
                         </div>
-                      ))}
-                    </div>
+                        {financeData.adjustments.map((item) => (
+                          <div className={styles.financeAdjustmentsRow} key={item.id}>
+                            <span data-title="Заказ">№{item.orderId}</span>
+                            <span data-title="Дата">{formatDate(item.date)}</span>
+                            <span data-title="Сумма">
+                              {formatMoney({ kopecks: item.amount })}
+                            </span>
+                            <span data-title="Причина / описание">{item.reason}</span>
+                            <span data-title="Статус">{item.status}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={styles.financePanel}>
+                    <h3>История выплат</h3>
+                    {financeData.payoutHistory.length === 0 ? (
+                      <div className={styles.infoCard}>
+                        <strong>Выплат пока не было</strong>
+                      </div>
+                    ) : (
+                      <div className={styles.financeRows}>
+                        <div className={styles.financeTableHeader}>
+                          <span>Дата</span>
+                          <span>Заказов</span>
+                          <span>Сумма заказов</span>
+                          <span>Комиссия платформы</span>
+                          <span>К выплате</span>
+                          <span>Статус</span>
+                        </div>
+                        {financeData.payoutHistory.map((item) => (
+                          <div className={styles.financeTableRow} key={item.id}>
+                            <span data-title="Дата">{formatDate(item.date)}</span>
+                            <span data-title="Заказов">{item.ordersCount}</span>
+                            <span data-title="Сумма заказов">
+                              {formatMoney({ kopecks: item.orderAmount })}
+                            </span>
+                            <span data-title="Комиссия платформы">
+                              {formatMoney({ kopecks: item.platformFee })}
+                            </span>
+                            <span data-title="К выплате">
+                              {formatMoney({ kopecks: item.sellerNetAmount })}
+                            </span>
+                            <span data-title="Статус">{item.status}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {paymentsLoading && (
+                    <p className={styles.muted}>Загрузка финансовых операций...</p>
                   )}
+                  {paymentsError && (
+                    <p className={styles.error}>{paymentsError}</p>
+                  )}
+                  <div className={styles.financeHintList}>
+                    <p>
+                      <strong>Ожидает выплаты</strong> — деньги по заказам, готовым к перечислению.
+                    </p>
+                    <p>
+                      <strong>Заморожено</strong> — оплаченные заказы до завершения сценария.
+                    </p>
+                    <p>
+                      <strong>Выплачено</strong> — уже перечислено продавцу.
+                    </p>
+                    <p>
+                      <strong>Возвраты / удержания</strong> — отмены, возвраты и блокировки.
+                    </p>
+                  </div>
                 </div>
               )}
 
