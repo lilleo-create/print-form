@@ -119,6 +119,54 @@
   text-decoration: underline;
 }
 
+.actionButton {
+  width: fit-content;
+  border: 1px solid var(--primary);
+  background: transparent;
+  color: var(--primary);
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 8px 12px;
+}
+
+.actionButtonSecondary {
+  width: fit-content;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--muted);
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 600;
+  cursor: not-allowed;
+  padding: 8px 12px;
+}
+
+.cancelModal {
+  display: grid;
+  gap: 12px;
+}
+
+.modalActions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 60;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-card);
+  padding: 12px 14px;
+  max-width: 420px;
+}
+
 .empty {
   color: var(--muted);
 }
