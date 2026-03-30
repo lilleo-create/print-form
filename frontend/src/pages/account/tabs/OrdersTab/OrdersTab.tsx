@@ -110,9 +110,18 @@ export const OrdersTab = ({ orders }: OrdersTabProps) => {
             const product = order.items[0];
             const imageSrc = resolveImageUrl(product?.image);
             const isPaid = order.paymentStatus === 'PAID';
+            const isCancelled = order.status === 'CANCELLED';
+            const isRefundPending = order.paymentStatus === 'REFUND_PENDING';
             const isRefunded = order.paymentStatus === 'REFUNDED';
             const hasActiveReturn = activeReturnOrderIds.has(order.id);
             const isShipped = hasHandoverStarted(order);
+            const refundStatusText = isRefundPending
+              ? 'Возврат обрабатывается'
+              : isRefunded
+                ? 'Деньги возвращены'
+                : null;
+            const showCancelAction = !isCancelled && !isRefunded && !hasActiveReturn && isPaid && !isShipped;
+            const showReturnAction = !isCancelled && !isRefunded && !hasActiveReturn && isPaid && isShipped;
 
             if (!product) return null;
 
@@ -176,19 +185,25 @@ export const OrdersTab = ({ orders }: OrdersTabProps) => {
                   </button>
                 ) : null}
 
-                {isRefunded ? (
+                {isCancelled && refundStatusText ? (
+                  <button type="button" className={styles.actionButtonSecondary} disabled>
+                    {refundStatusText}
+                  </button>
+                ) : null}
+
+                {!isCancelled && isRefunded ? (
                   <button type="button" className={styles.actionButtonSecondary} disabled>
                     Деньги возвращены
                   </button>
                 ) : null}
 
-                {!isRefunded && hasActiveReturn ? (
+                {!isCancelled && !isRefunded && hasActiveReturn ? (
                   <button type="button" className={styles.actionButtonSecondary} disabled>
                     Возврат оформлен
                   </button>
                 ) : null}
 
-                {!isRefunded && !hasActiveReturn && isPaid && !isShipped ? (
+                {showCancelAction ? (
                   <button
                     type="button"
                     className={styles.actionButton}
@@ -201,7 +216,7 @@ export const OrdersTab = ({ orders }: OrdersTabProps) => {
                   </button>
                 ) : null}
 
-                {!isRefunded && !hasActiveReturn && isPaid && isShipped ? (
+                {showReturnAction ? (
                   <button
                     type="button"
                     className={styles.actionButton}
