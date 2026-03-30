@@ -502,6 +502,7 @@ export const api = {
     status?: OrderStatus;
     offset?: number;
     limit?: number;
+    search?: string;
   }) {
     const params = new URLSearchParams();
     if (filters?.status) params.set('status', filters.status);
@@ -509,6 +510,7 @@ export const api = {
       params.set('offset', String(filters.offset));
     if (filters?.limit !== undefined)
       params.set('limit', String(filters.limit));
+    if (filters?.search) params.set('search', filters.search);
     const query = params.toString();
     return apiClient.request<Order[]>(
       `/seller/orders${query ? `?${query}` : ''}`

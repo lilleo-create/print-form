@@ -15,6 +15,7 @@ type ApiOrderItem = {
 
 type ApiOrder = {
   id: string;
+  publicNumber?: string | null;
   buyerId: string;
   buyer?: { id: string; name: string; email: string; phone?: string | null };
   contactId?: string | null;
@@ -74,6 +75,7 @@ const mapStatus = (status?: string): OrderStatus => {
 
 const mapOrder = (order: ApiOrder): Order => ({
   id: order.id,
+  publicNumber: order.publicNumber ?? null,
   buyerId: order.buyerId,
   buyerEmail: order.buyer?.email ?? '',
   contactId: order.contactId ?? '',
@@ -149,8 +151,14 @@ export const ordersApi = {
     const raw = pickApiList<ApiOrder>(result.data);
     return raw.map(mapOrder).filter((order) => order.buyerId === buyerId);
   },
-  listBySeller: async (sellerId: string, status?: OrderStatus) => {
-    const result = await api.getSellerOrders(status ? { status } : undefined);
+  listBySeller: async (
+    sellerId: string,
+    filters?: {
+      status?: OrderStatus;
+      search?: string;
+    }
+  ) => {
+    const result = await api.getSellerOrders(filters);
     const raw = pickApiList<ApiOrder>(result.data);
     return raw
       .map(mapOrder)

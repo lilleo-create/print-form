@@ -1,0 +1,31 @@
+.orderNumberButton {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+
+.orderNumberText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.copyIcon {
+  opacity: 0.72;
+  font-size: 12px;
+}
+
+.copyFeedback {
+  font-size: 12px;
+  color: #86efac;
+  white-space: nowrap;
+}

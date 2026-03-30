@@ -19,6 +19,9 @@ import { SellerActions } from '../components/seller/SellerActions';
 import { SellerErrorState } from '../components/seller/SellerErrorState';
 import { SellerHeader } from '../components/seller/SellerHeader';
 import { SellerStatsCard } from '../components/seller/SellerStatsCard';
+import { CopyableOrderNumber } from '../components/seller/CopyableOrderNumber';
+import { SellerFinanceTable } from '../components/seller/SellerFinanceTable';
+import { SellerFinanceMobileCard } from '../components/seller/SellerFinanceMobileCard';
 import { BottomNav } from '../widgets/layout/BottomNav';
 import { CdekPvzPickerModal } from '../components/checkout/CdekPvzPickerModal';
 import { getExternalDeliveryStatusLabel } from '../shared/lib/deliveryStatus';
@@ -244,6 +247,8 @@ export const SellerDashboardPage = () => {
   >(null);
 
   const [orders, setOrders] = useState<Order[]>([]);
+  const [ordersSearchInput, setOrdersSearchInput] = useState('');
+  const [ordersSearchQuery, setOrdersSearchQuery] = useState('');
   const [ordersTab, setOrdersTab] = useState<'ACTIVE' | 'COMPLETED' | 'CANCELLED'>('ACTIVE');
   const [ordersLoading, setOrdersLoading] = useState(true);
   const [ordersError, setOrdersError] = useState<string | null>(null);
@@ -471,7 +476,9 @@ export const SellerDashboardPage = () => {
         return;
       }
 
-      const data = await ordersApi.listBySeller(userId);
+      const data = await ordersApi.listBySeller(userId, {
+        search: ordersSearchQuery
+      });
       setOrders(data);
 
       const profileResponse = await api.getSellerDeliveryProfile();
@@ -493,7 +500,14 @@ export const SellerDashboardPage = () => {
     } finally {
       setOrdersLoading(false);
     }
-  }, [isSellerReady, userId]);
+  }, [isSellerReady, ordersSearchQuery, userId]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setOrdersSearchQuery(ordersSearchInput.trim());
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [ordersSearchInput]);
 
   useEffect(() => {
     if (!productActionMessage) return;
@@ -933,8 +947,17 @@ export const SellerDashboardPage = () => {
   const isCompletedOrder = (order: Order) =>
     ['DELIVERED', 'RETURNED'].includes(String(order.status ?? '').toUpperCase());
 
+  const searchedOrders = useMemo(() => {
+    const normalizedSearch = ordersSearchQuery.toLowerCase();
+    if (!normalizedSearch) return orders;
+    return orders.filter((order) => {
+      const displayNumber = (order.publicNumber?.trim() || getShortOrderId(order.id)).toLowerCase();
+      return displayNumber.includes(normalizedSearch);
+    });
+  }, [orders, ordersSearchQuery]);
+
   const ordersView = useMemo(() => {
-    const visibleOrders = orders.filter(
+    const visibleOrders = searchedOrders.filter(
       (order) => !(order.paymentStatus === 'PAYMENT_EXPIRED' || order.isExpired === true)
     );
 
@@ -943,10 +966,10 @@ export const SellerDashboardPage = () => {
       if (ordersTab === 'COMPLETED') return isCompletedOrder(order);
       return !isCancelledOrder(order) && !isCompletedOrder(order);
     });
-  }, [orders, ordersTab]);
+  }, [ordersTab, searchedOrders]);
 
   const ordersTabCounts = useMemo(() => {
-    const visibleOrders = orders.filter(
+    const visibleOrders = searchedOrders.filter(
       (order) => !(order.paymentStatus === 'PAYMENT_EXPIRED' || order.isExpired === true)
     );
     return {
@@ -955,7 +978,7 @@ export const SellerDashboardPage = () => {
       COMPLETED: visibleOrders.filter((order) => isCompletedOrder(order)).length,
       CANCELLED: visibleOrders.filter((order) => isCancelledOrder(order)).length
     };
-  }, [orders]);
+  }, [searchedOrders]);
 
   const summary = useMemo(() => {
     const totalProducts = products.length;
@@ -1005,7 +1028,7 @@ export const SellerDashboardPage = () => {
     const isQueuedOrder = (order: Order) =>
       !isAdjustmentOrder(order) && !isPaidOutOrder(order);
 
-    const queueItems = orders
+    const queueItems = searchedOrders
       .filter((order) => isQueuedOrder(order))
       .map((order) => {
         const orderAmount = resolveOrderKopecks(order);
@@ -1018,6 +1041,7 @@ export const SellerDashboardPage = () => {
         return {
           id: `queue-${order.id}`,
           orderId: order.id,
+          publicNumber: order.publicNumber ?? null,
           date: order.createdAt,
           orderAmount,
           platformFee,
@@ -1027,7 +1051,7 @@ export const SellerDashboardPage = () => {
       })
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    const adjustments = orders
+    const adjustments = searchedOrders
       .filter((order) => isAdjustmentOrder(order))
       .map((order) => {
         const amount = resolveOrderKopecks(order);
@@ -1046,6 +1070,7 @@ export const SellerDashboardPage = () => {
         return {
           id: `adjustment-${order.id}`,
           orderId: order.id,
+          publicNumber: order.publicNumber ?? null,
           date: order.createdAt,
           amount,
           reason,
@@ -1061,7 +1086,7 @@ export const SellerDashboardPage = () => {
         )
       )
       .map((payment) => {
-        const order = orders.find((item) => item.id === payment.orderId);
+        const order = searchedOrders.find((item) => item.id === payment.orderId);
         const orderAmount = order ? resolveOrderKopecks(order) : resolvePaymentKopecks(payment);
         const sellerNetAmount =
           order && typeof order.sellerNetAmount === 'number'
@@ -1098,7 +1123,7 @@ export const SellerDashboardPage = () => {
       awaitingPayout: queueItems
         .filter((item) => item.status !== 'Заморожено')
         .reduce((sum, item) => sum + item.sellerNetAmount, 0),
-      frozen: orders
+      frozen: searchedOrders
         .filter((order) => isFrozenOrder(order))
         .reduce((sum, order) => sum + resolveOrderKopecks(order), 0),
       paidOut: payoutHistory.reduce((sum, payout) => sum + payout.sellerNetAmount, 0),
@@ -1117,7 +1142,7 @@ export const SellerDashboardPage = () => {
         payoutSchedule
       }
     };
-  }, [orders, payments, sellerProfile]);
+  }, [payments, searchedOrders, sellerProfile]);
 
   const shouldShowSellerError =
     authStatus === 'authorized' &&
@@ -1662,6 +1687,15 @@ export const SellerDashboardPage = () => {
                       Отменённые ({ordersTabCounts.CANCELLED})
                     </button>
                   </div>
+                  <div className={styles.ordersSearchRow}>
+                    <input
+                      type="search"
+                      className={styles.ordersSearchInput}
+                      placeholder="Поиск по номеру заказа"
+                      value={ordersSearchInput}
+                      onChange={(event) => setOrdersSearchInput(event.target.value)}
+                    />
+                  </div>
 
                   {ordersLoading ? (
                     <p className={styles.muted}>Загрузка заказов...</p>
@@ -1689,12 +1723,11 @@ export const SellerDashboardPage = () => {
                             <div className={styles.orderCardTop}>
                               <div className={styles.orderCardLeft}>
                                 <div className={styles.cellTruncate}>
-                                  <strong
+                                  <CopyableOrderNumber
+                                    orderId={order.id}
+                                    publicNumber={order.publicNumber}
                                     className={styles.orderIdText}
-                                    title={order.id}
-                                  >
-                                    №{getShortOrderId(order.id)}
-                                  </strong>
+                                  />
                                   <p className={styles.muted}>
                                     {formatDate(order.createdAt)}
                                   </p>
@@ -1947,6 +1980,15 @@ export const SellerDashboardPage = () => {
                       </p>
                     </div>
                   </div>
+                  <div className={styles.ordersSearchRow}>
+                    <input
+                      type="search"
+                      className={styles.ordersSearchInput}
+                      placeholder="Поиск по номеру заказа"
+                      value={ordersSearchInput}
+                      onChange={(event) => setOrdersSearchInput(event.target.value)}
+                    />
+                  </div>
 
                   <div className={styles.financeSummaryGrid}>
                     <SellerStatsCard
@@ -2011,58 +2053,80 @@ export const SellerDashboardPage = () => {
                       <p className={styles.muted}>Нет заказов в очереди на выплату.</p>
                     ) : (
                       <>
-                        <div className={styles.financeRowsDesktop}>
-                          <div className={styles.financeTableHeader}>
-                            <span>Заказ</span>
-                            <span>Дата</span>
-                            <span>Сумма заказа</span>
-                            <span>Комиссия платформы</span>
-                            <span>К выплате продавцу</span>
-                            <span>Статус</span>
-                          </div>
-                          {financeData.queueItems.map((item) => (
-                            <div className={styles.financeTableRow} key={item.id}>
-                              <span
-                                data-title="Заказ"
-                                className={styles.orderIdText}
-                                title={item.orderId}
-                              >
-                                №{getShortOrderId(item.orderId)}
-                              </span>
-                              <span data-title="Дата">{formatDate(item.date)}</span>
-                              <span data-title="Сумма заказа">
-                                {formatMoney({ kopecks: item.orderAmount })}
-                              </span>
-                              <span data-title="Комиссия платформы">
-                                {formatMoney({ kopecks: item.platformFee })}
-                              </span>
-                              <span data-title="К выплате продавцу">
-                                {formatMoney({ kopecks: item.sellerNetAmount })}
-                              </span>
-                              <span data-title="Статус">{item.status}</span>
-                            </div>
-                          ))}
-                        </div>
-                        <div className={styles.financeCardsMobile}>
-                          {financeData.queueItems.map((item) => (
-                            <div className={styles.financeMobileCard} key={`${item.id}-mobile`}>
-                              <p className={styles.financeMobileOrderIdRow}>
-                                <span className={styles.muted}>Заказ</span>
-                                <strong
+                        <SellerFinanceTable
+                          rows={financeData.queueItems}
+                          rowKey={(item) => item.id}
+                          desktopContainerClassName={styles.financeRowsDesktop}
+                          headerClassName={styles.financeTableHeader}
+                          rowClassName={styles.financeTableRow}
+                          desktopTemplate="26% 18% 14% 14% 16% 12%"
+                          columns={[
+                            {
+                              key: 'order',
+                              title: 'Заказ',
+                              render: (item) => (
+                                <CopyableOrderNumber
+                                  orderId={item.orderId}
+                                  publicNumber={item.publicNumber}
                                   className={styles.orderIdText}
-                                  title={item.orderId}
-                                >
-                                  №{getShortOrderId(item.orderId)}
-                                </strong>
-                              </p>
-                              <p><span className={styles.muted}>Дата: </span>{formatDate(item.date)}</p>
-                              <p><span className={styles.muted}>Сумма заказа: </span>{formatMoney({ kopecks: item.orderAmount })}</p>
-                              <p><span className={styles.muted}>Комиссия платформы: </span>{formatMoney({ kopecks: item.platformFee })}</p>
-                              <p><span className={styles.muted}>К выплате продавцу: </span>{formatMoney({ kopecks: item.sellerNetAmount })}</p>
-                              <p><span className={styles.muted}>Статус: </span>{item.status}</p>
-                            </div>
-                          ))}
-                        </div>
+                                />
+                              )
+                            },
+                            { key: 'date', title: 'Дата', render: (item) => formatDate(item.date) },
+                            {
+                              key: 'amount',
+                              title: 'Сумма заказа',
+                              render: (item) => formatMoney({ kopecks: item.orderAmount })
+                            },
+                            {
+                              key: 'fee',
+                              title: 'Комиссия платформы',
+                              render: (item) => formatMoney({ kopecks: item.platformFee })
+                            },
+                            {
+                              key: 'net',
+                              title: 'К выплате продавцу',
+                              render: (item) => formatMoney({ kopecks: item.sellerNetAmount })
+                            },
+                            { key: 'status', title: 'Статус', render: (item) => item.status }
+                          ]}
+                        />
+                        <SellerFinanceMobileCard
+                          rows={financeData.queueItems}
+                          rowKey={(item) => item.id}
+                          cardsContainerClassName={styles.financeCardsMobile}
+                          cardClassName={styles.financeMobileCard}
+                          fields={[
+                            {
+                              key: 'order',
+                              label: 'Заказ',
+                              render: (item) => (
+                                <CopyableOrderNumber
+                                  orderId={item.orderId}
+                                  publicNumber={item.publicNumber}
+                                  className={styles.orderIdText}
+                                />
+                              )
+                            },
+                            { key: 'date', label: 'Дата', render: (item) => formatDate(item.date) },
+                            {
+                              key: 'amount',
+                              label: 'Сумма заказа',
+                              render: (item) => formatMoney({ kopecks: item.orderAmount })
+                            },
+                            {
+                              key: 'fee',
+                              label: 'Комиссия платформы',
+                              render: (item) => formatMoney({ kopecks: item.platformFee })
+                            },
+                            {
+                              key: 'net',
+                              label: 'К выплате продавцу',
+                              render: (item) => formatMoney({ kopecks: item.sellerNetAmount })
+                            },
+                            { key: 'status', label: 'Статус', render: (item) => item.status }
+                          ]}
+                        />
                       </>
                     )}
                   </div>
@@ -2073,51 +2137,62 @@ export const SellerDashboardPage = () => {
                       <p className={styles.muted}>Возвратов и удержаний пока нет.</p>
                     ) : (
                       <>
-                        <div className={styles.financeRowsDesktop}>
-                          <div className={styles.financeTableHeader}>
-                            <span>Заказ</span>
-                            <span>Дата</span>
-                            <span>Сумма</span>
-                            <span>Причина / описание</span>
-                            <span>Статус</span>
-                          </div>
-                          {financeData.adjustments.map((item) => (
-                            <div className={styles.financeAdjustmentsRow} key={item.id}>
-                              <span
-                                data-title="Заказ"
-                                className={styles.orderIdText}
-                                title={item.orderId}
-                              >
-                                №{getShortOrderId(item.orderId)}
-                              </span>
-                              <span data-title="Дата">{formatDate(item.date)}</span>
-                              <span data-title="Сумма">
-                                {formatMoney({ kopecks: item.amount })}
-                              </span>
-                              <span data-title="Причина / описание">{item.reason}</span>
-                              <span data-title="Статус">{item.status}</span>
-                            </div>
-                          ))}
-                        </div>
-                        <div className={styles.financeCardsMobile}>
-                          {financeData.adjustments.map((item) => (
-                            <div className={styles.financeMobileCard} key={`${item.id}-mobile`}>
-                              <p className={styles.financeMobileOrderIdRow}>
-                                <span className={styles.muted}>Заказ</span>
-                                <strong
+                        <SellerFinanceTable
+                          rows={financeData.adjustments}
+                          rowKey={(item) => item.id}
+                          desktopContainerClassName={styles.financeRowsDesktop}
+                          headerClassName={styles.financeTableHeader}
+                          rowClassName={styles.financeAdjustmentsRow}
+                          desktopTemplate="26% 18% 14% 26% 16%"
+                          columns={[
+                            {
+                              key: 'order',
+                              title: 'Заказ',
+                              render: (item) => (
+                                <CopyableOrderNumber
+                                  orderId={item.orderId}
+                                  publicNumber={item.publicNumber}
                                   className={styles.orderIdText}
-                                  title={item.orderId}
-                                >
-                                  №{getShortOrderId(item.orderId)}
-                                </strong>
-                              </p>
-                              <p><span className={styles.muted}>Дата: </span>{formatDate(item.date)}</p>
-                              <p><span className={styles.muted}>Сумма: </span>{formatMoney({ kopecks: item.amount })}</p>
-                              <p><span className={styles.muted}>Причина / описание: </span>{item.reason}</p>
-                              <p><span className={styles.muted}>Статус: </span>{item.status}</p>
-                            </div>
-                          ))}
-                        </div>
+                                />
+                              )
+                            },
+                            { key: 'date', title: 'Дата', render: (item) => formatDate(item.date) },
+                            {
+                              key: 'amount',
+                              title: 'Сумма',
+                              render: (item) => formatMoney({ kopecks: item.amount })
+                            },
+                            { key: 'reason', title: 'Причина / описание', render: (item) => item.reason },
+                            { key: 'status', title: 'Статус', render: (item) => item.status }
+                          ]}
+                        />
+                        <SellerFinanceMobileCard
+                          rows={financeData.adjustments}
+                          rowKey={(item) => item.id}
+                          cardsContainerClassName={styles.financeCardsMobile}
+                          cardClassName={styles.financeMobileCard}
+                          fields={[
+                            {
+                              key: 'order',
+                              label: 'Заказ',
+                              render: (item) => (
+                                <CopyableOrderNumber
+                                  orderId={item.orderId}
+                                  publicNumber={item.publicNumber}
+                                  className={styles.orderIdText}
+                                />
+                              )
+                            },
+                            { key: 'date', label: 'Дата', render: (item) => formatDate(item.date) },
+                            {
+                              key: 'amount',
+                              label: 'Сумма',
+                              render: (item) => formatMoney({ kopecks: item.amount })
+                            },
+                            { key: 'reason', label: 'Причина / описание', render: (item) => item.reason },
+                            { key: 'status', label: 'Статус', render: (item) => item.status }
+                          ]}
+                        />
                       </>
                     )}
                   </div>
