@@ -130,16 +130,29 @@ const mapOrder = (order: ApiOrder): Order => ({
   }))
 });
 
+const pickApiList = <T>(payload: unknown): T[] => {
+  if (Array.isArray(payload)) return payload as T[];
+  if (
+    payload &&
+    typeof payload === 'object' &&
+    'data' in payload &&
+    Array.isArray((payload as { data?: unknown }).data)
+  ) {
+    return (payload as { data: T[] }).data;
+  }
+  return [];
+};
+
 export const ordersApi = {
   listByBuyer: async (buyerId: string) => {
     const result = await api.getOrders();
-    const raw = result.data as unknown as ApiOrder[];
-    return (raw ?? []).map(mapOrder).filter((order) => order.buyerId === buyerId);
+    const raw = pickApiList<ApiOrder>(result.data);
+    return raw.map(mapOrder).filter((order) => order.buyerId === buyerId);
   },
   listBySeller: async (sellerId: string, status?: OrderStatus) => {
     const result = await api.getSellerOrders(status ? { status } : undefined);
-    const raw = result.data as unknown as ApiOrder[];
-    return (raw ?? [])
+    const raw = pickApiList<ApiOrder>(result.data);
+    return raw
       .map(mapOrder)
       .filter((order) => order.items.some((item) => item.sellerId === sellerId));
   },
