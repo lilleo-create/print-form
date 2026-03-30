@@ -6,6 +6,7 @@ interface OrdersState {
   orders: Order[];
   loadBuyerOrders: (user: User) => Promise<void>;
   loadSellerOrders: (sellerId: string) => Promise<void>;
+  updateOrder: (order: Order) => void;
   createOrder: (payload: {
     user: User;
     contactId: string;
@@ -36,6 +37,13 @@ export const useOrdersStore = create<OrdersState>((set) => ({
   async loadSellerOrders(sellerId) {
     const data = await ordersApi.listBySeller(sellerId);
     set({ orders: data });
+  },
+  updateOrder(order) {
+    set((state) => ({
+      orders: state.orders.map((existing) =>
+        existing.id === order.id ? order : existing
+      )
+    }));
   },
   async createOrder({
     user,
