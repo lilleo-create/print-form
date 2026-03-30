@@ -32,6 +32,7 @@ import {
   SellerProductPayload
 } from '../widgets/seller/SellerProductModal';
 import { formatPrice } from '../shared/lib/formatPrice';
+import { getShortOrderId } from '../shared/utils/orderId';
 import styles from './SellerAccountPage.module.css';
 
 const menuItems = [
@@ -1688,7 +1689,12 @@ export const SellerDashboardPage = () => {
                             <div className={styles.orderCardTop}>
                               <div className={styles.orderCardLeft}>
                                 <div className={styles.cellTruncate}>
-                                  <strong>№{order.id}</strong>
+                                  <strong
+                                    className={styles.orderIdText}
+                                    title={order.id}
+                                  >
+                                    №{getShortOrderId(order.id)}
+                                  </strong>
                                   <p className={styles.muted}>
                                     {formatDate(order.createdAt)}
                                   </p>
@@ -2004,32 +2010,60 @@ export const SellerDashboardPage = () => {
                     {financeData.queueItems.length === 0 ? (
                       <p className={styles.muted}>Нет заказов в очереди на выплату.</p>
                     ) : (
-                      <div className={styles.financeRows}>
-                        <div className={styles.financeTableHeader}>
-                          <span>Заказ</span>
-                          <span>Дата</span>
-                          <span>Сумма заказа</span>
-                          <span>Комиссия платформы</span>
-                          <span>К выплате продавцу</span>
-                          <span>Статус</span>
-                        </div>
-                        {financeData.queueItems.map((item) => (
-                          <div className={styles.financeTableRow} key={item.id}>
-                            <span data-title="Заказ">№{item.orderId}</span>
-                            <span data-title="Дата">{formatDate(item.date)}</span>
-                            <span data-title="Сумма заказа">
-                              {formatMoney({ kopecks: item.orderAmount })}
-                            </span>
-                            <span data-title="Комиссия платформы">
-                              {formatMoney({ kopecks: item.platformFee })}
-                            </span>
-                            <span data-title="К выплате продавцу">
-                              {formatMoney({ kopecks: item.sellerNetAmount })}
-                            </span>
-                            <span data-title="Статус">{item.status}</span>
+                      <>
+                        <div className={styles.financeRowsDesktop}>
+                          <div className={styles.financeTableHeader}>
+                            <span>Заказ</span>
+                            <span>Дата</span>
+                            <span>Сумма заказа</span>
+                            <span>Комиссия платформы</span>
+                            <span>К выплате продавцу</span>
+                            <span>Статус</span>
                           </div>
-                        ))}
-                      </div>
+                          {financeData.queueItems.map((item) => (
+                            <div className={styles.financeTableRow} key={item.id}>
+                              <span
+                                data-title="Заказ"
+                                className={styles.orderIdText}
+                                title={item.orderId}
+                              >
+                                №{getShortOrderId(item.orderId)}
+                              </span>
+                              <span data-title="Дата">{formatDate(item.date)}</span>
+                              <span data-title="Сумма заказа">
+                                {formatMoney({ kopecks: item.orderAmount })}
+                              </span>
+                              <span data-title="Комиссия платформы">
+                                {formatMoney({ kopecks: item.platformFee })}
+                              </span>
+                              <span data-title="К выплате продавцу">
+                                {formatMoney({ kopecks: item.sellerNetAmount })}
+                              </span>
+                              <span data-title="Статус">{item.status}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <div className={styles.financeCardsMobile}>
+                          {financeData.queueItems.map((item) => (
+                            <div className={styles.financeMobileCard} key={`${item.id}-mobile`}>
+                              <p className={styles.financeMobileOrderIdRow}>
+                                <span className={styles.muted}>Заказ</span>
+                                <strong
+                                  className={styles.orderIdText}
+                                  title={item.orderId}
+                                >
+                                  №{getShortOrderId(item.orderId)}
+                                </strong>
+                              </p>
+                              <p><span className={styles.muted}>Дата: </span>{formatDate(item.date)}</p>
+                              <p><span className={styles.muted}>Сумма заказа: </span>{formatMoney({ kopecks: item.orderAmount })}</p>
+                              <p><span className={styles.muted}>Комиссия платформы: </span>{formatMoney({ kopecks: item.platformFee })}</p>
+                              <p><span className={styles.muted}>К выплате продавцу: </span>{formatMoney({ kopecks: item.sellerNetAmount })}</p>
+                              <p><span className={styles.muted}>Статус: </span>{item.status}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </>
                     )}
                   </div>
 
@@ -2038,26 +2072,53 @@ export const SellerDashboardPage = () => {
                     {financeData.adjustments.length === 0 ? (
                       <p className={styles.muted}>Возвратов и удержаний пока нет.</p>
                     ) : (
-                      <div className={styles.financeRows}>
-                        <div className={styles.financeTableHeader}>
-                          <span>Заказ</span>
-                          <span>Дата</span>
-                          <span>Сумма</span>
-                          <span>Причина / описание</span>
-                          <span>Статус</span>
-                        </div>
-                        {financeData.adjustments.map((item) => (
-                          <div className={styles.financeAdjustmentsRow} key={item.id}>
-                            <span data-title="Заказ">№{item.orderId}</span>
-                            <span data-title="Дата">{formatDate(item.date)}</span>
-                            <span data-title="Сумма">
-                              {formatMoney({ kopecks: item.amount })}
-                            </span>
-                            <span data-title="Причина / описание">{item.reason}</span>
-                            <span data-title="Статус">{item.status}</span>
+                      <>
+                        <div className={styles.financeRowsDesktop}>
+                          <div className={styles.financeTableHeader}>
+                            <span>Заказ</span>
+                            <span>Дата</span>
+                            <span>Сумма</span>
+                            <span>Причина / описание</span>
+                            <span>Статус</span>
                           </div>
-                        ))}
-                      </div>
+                          {financeData.adjustments.map((item) => (
+                            <div className={styles.financeAdjustmentsRow} key={item.id}>
+                              <span
+                                data-title="Заказ"
+                                className={styles.orderIdText}
+                                title={item.orderId}
+                              >
+                                №{getShortOrderId(item.orderId)}
+                              </span>
+                              <span data-title="Дата">{formatDate(item.date)}</span>
+                              <span data-title="Сумма">
+                                {formatMoney({ kopecks: item.amount })}
+                              </span>
+                              <span data-title="Причина / описание">{item.reason}</span>
+                              <span data-title="Статус">{item.status}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <div className={styles.financeCardsMobile}>
+                          {financeData.adjustments.map((item) => (
+                            <div className={styles.financeMobileCard} key={`${item.id}-mobile`}>
+                              <p className={styles.financeMobileOrderIdRow}>
+                                <span className={styles.muted}>Заказ</span>
+                                <strong
+                                  className={styles.orderIdText}
+                                  title={item.orderId}
+                                >
+                                  №{getShortOrderId(item.orderId)}
+                                </strong>
+                              </p>
+                              <p><span className={styles.muted}>Дата: </span>{formatDate(item.date)}</p>
+                              <p><span className={styles.muted}>Сумма: </span>{formatMoney({ kopecks: item.amount })}</p>
+                              <p><span className={styles.muted}>Причина / описание: </span>{item.reason}</p>
+                              <p><span className={styles.muted}>Статус: </span>{item.status}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </>
                     )}
                   </div>
 
