@@ -13,7 +13,7 @@ export const CheckoutItemsList = ({ items }: Props) => (
         <div>
           <h4>{item.title}</h4>
           <p>{item.shortSpec ?? 'SKU/variant'}</p>
-          <p>{item.quantity} × {formatPrice(item.price)} ₽</p>
+          <p>{item.quantity} × {formatPrice(item.price)}</p>
         </div>
       </article>
     ))}

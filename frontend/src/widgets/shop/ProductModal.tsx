@@ -55,7 +55,7 @@ export const ProductModal = () => {
           <div className={styles.details}>
             <h2>{product.title}</h2>
             <p className={styles.price}>
-              {formatPrice(product.price)} ₽
+              {formatPrice(product.price)}
             </p>
             <p>{product.description}</p>
             <ul className={styles.specs}>

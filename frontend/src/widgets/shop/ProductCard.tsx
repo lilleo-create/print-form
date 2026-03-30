@@ -93,7 +93,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
         <div className={styles.footer}>
           <div className={styles.summary}>
             <Rating value={product.ratingAvg} count={product.ratingCount} />
-            <p className={styles.price}>{formatPrice(product.price)} ₽</p>
+            <p className={styles.price}>{formatPrice(product.price)}</p>
           </div>
 
           <div className={styles.actions}>

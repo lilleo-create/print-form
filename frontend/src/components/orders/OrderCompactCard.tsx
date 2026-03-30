@@ -59,6 +59,12 @@ export const OrderCompactCard = ({
   const isRefunded = order.paymentStatus === 'REFUNDED';
   const isPaid = order.paymentStatus === 'PAID';
   const isShipped = hasHandoverStarted(order);
+  const isSafeDealMode = Boolean(order.yookassaDealId);
+  const isHeldBySafeDeal =
+    isSafeDealMode &&
+    ['HOLD', 'PENDING'].includes(
+      String(order.yookassaDealStatus ?? order.payoutStatus ?? '').toUpperCase()
+    );
 
   const status = isCancelled ? 'Заказ отменён' : `Статус доставки: ${getDeliveryStatusLabel(order)}`;
   const subStatus = useMemo(() => {
@@ -72,8 +78,12 @@ export const OrderCompactCard = ({
       return 'Возврат оформлен';
     }
 
+    if (isHeldBySafeDeal) {
+      return 'Оплата принята, деньги зарезервированы до выполнения заказа';
+    }
+
     return `Статус оплаты: ${getPaymentStatusLabel(order.paymentStatus)}`;
-  }, [isCancelled, isRefundPending, isRefunded, order.paymentStatus]);
+  }, [isCancelled, isHeldBySafeDeal, isRefundPending, isRefunded, order.paymentStatus]);
 
   const canCancel = !isCancelled && !hasActiveReturn && !isRefunded && isPaid && isCancellableDeliveryStage(order);
   const canCreateReturn = !isCancelled && !hasActiveReturn && !isRefunded && isPaid && isShipped;
@@ -120,7 +130,7 @@ export const OrderCompactCard = ({
           <h3>Заказ №{order.id}</h3>
           <span>{new Date(order.createdAt).toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric' })}</span>
         </div>
-        <div className={styles.total}>{formatPrice(order.total)} ₽</div>
+        <div className={styles.total}>{formatPrice(order.total)}</div>
       </div>
 
       {firstItem ? <ProductMiniCard title={firstItem.title} price={firstItem.price} qty={firstItem.qty} image={firstItem.image} /> : null}

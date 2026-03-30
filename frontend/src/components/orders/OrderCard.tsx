@@ -15,6 +15,13 @@ export const OrderCard = ({ order }: OrderCardProps) => {
   const navigate = useNavigate();
   const deliveryLabel = getOrderDeliveryLabel(order);
   const firstItem = order.items[0];
+  const isCancelled = order.status === 'CANCELLED';
+  const isSafeDealMode = Boolean(order.yookassaDealId);
+  const isHeldBySafeDeal =
+    isSafeDealMode &&
+    ['HOLD', 'PENDING'].includes(
+      String(order.yookassaDealStatus ?? order.payoutStatus ?? '').toUpperCase()
+    );
 
   const openProduct = () => {
     if (!firstItem?.productId) return;
@@ -66,20 +73,26 @@ export const OrderCard = ({ order }: OrderCardProps) => {
             })}
           </span>
         </div>
-        <div className={styles.total}>{formatPrice(order.total)} ₽</div>
+        <div className={styles.total}>{formatPrice(order.total)}</div>
       </div>
 
       <OrderItemsMini order={order} />
 
       {deliveryLabel ? <p>{deliveryLabel}</p> : null}
-      <p>Статус доставки: {getDeliveryStatusLabel(order)}</p>
-      <p>Статус оплаты: {paymentStatusLabel}</p>
+      {isCancelled ? <p>Заказ отменён</p> : <p>Статус доставки: {getDeliveryStatusLabel(order)}</p>}
+      {isCancelled ? null : (
+        <p>
+          {isHeldBySafeDeal
+            ? 'Оплата принята, деньги зарезервированы до выполнения заказа'
+            : `Статус оплаты: ${paymentStatusLabel}`}
+        </p>
+      )}
       {order.paidAt ? (
         <p>
           Оплачен: {new Date(order.paidAt).toLocaleString('ru-RU')}
         </p>
       ) : null}
-      {order.trackingNumber ? <p>СДЭК: {order.trackingNumber}</p> : null}
+      {!isCancelled && order.trackingNumber ? <p>СДЭК: {order.trackingNumber}</p> : null}
       {order.status !== 'CANCELLED' ? (
         <button type="button" className={styles.returnLink} onClick={handleCreateReturn}>
           Оформить возврат

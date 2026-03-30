@@ -182,7 +182,7 @@ export const CartDrawer = () => {
         <div className={styles.footer}>
           <div className={styles.total}>
             <span>Итого</span>
-            <strong>{formatPrice(total)} ₽</strong>
+            <strong>{formatPrice(total)}</strong>
           </div>
           <form className={styles.form} onSubmit={handleSubmit(onSubmit)}>
             <input placeholder="Имя" {...register('name')} />

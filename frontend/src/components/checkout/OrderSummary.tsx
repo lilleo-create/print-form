@@ -16,13 +16,13 @@ export const OrderSummary = ({ items, total, onConfirm, disabled = false }: Orde
       {items.map((item) => (
         <li key={item.product.id}>
           {item.product.title} × {item.quantity}
-          <span>{formatPrice(item.product.price * item.quantity)} ₽</span>
+          <span>{formatPrice(item.product.price * item.quantity)}</span>
         </li>
       ))}
     </ul>
     <div className={styles.total}>
       <span>Итого</span>
-      <strong>{formatPrice(total)} ₽</strong>
+      <strong>{formatPrice(total)}</strong>
     </div>
     <button className={styles.primaryButton} type="button" onClick={onConfirm} disabled={disabled}>
       Подтвердить заказ

@@ -11,12 +11,41 @@
 .cancelModal {
   display: grid;
   gap: 12px;
+  max-height: 88vh;
+  min-width: min(560px, 92vw);
+  overflow-y: auto;
 }
 
 .modalActions {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
+}
+
+.modalActions :global(button) {
+  min-height: 44px;
+}
+
+@media (max-width: 720px) {
+  .cancelModal {
+    min-width: 100%;
+    border-radius: 16px 16px 0 0;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+  }
+
+  .modalActions {
+    position: sticky;
+    bottom: 0;
+    background: var(--card);
+    padding-top: 8px;
+    padding-bottom: calc(4px + env(safe-area-inset-bottom));
+    flex-direction: column-reverse;
+    justify-content: stretch;
+  }
+
+  .modalActions :global(button) {
+    width: 100%;
+  }
 }
 
 .toast {

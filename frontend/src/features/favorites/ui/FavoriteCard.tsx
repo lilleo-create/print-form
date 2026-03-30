@@ -37,7 +37,7 @@ export const FavoriteCard = ({ item }: FavoriteCardProps) => {
         {item.title}
       </button>
 
-      <div className={styles.price}>{formatPrice(item.price)} ₽</div>
+      <div className={styles.price}>{formatPrice(item.price)}</div>
 
       {item.ratingAvg ? (
         <div className={styles.rating}>★ {item.ratingAvg.toFixed(1)} · {item.ratingCount ?? 0}</div>
