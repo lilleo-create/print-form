@@ -25,19 +25,34 @@
   box-shadow: var(--shadow-card);
   border: 1px solid var(--border);
   display: grid;
-  gap: 16px;
+  gap: 14px;
   cursor: pointer;
+}
+
+.card:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.cardHighlighted {
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 18%, transparent), var(--shadow-card);
 }
 
 .cardHeader {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
   flex-wrap: wrap;
 }
 
-.cardHeader span {
+.headerMeta {
+  display: grid;
+  gap: 4px;
+}
+
+.headerMeta span {
   color: var(--muted);
   font-size: 14px;
 }
@@ -47,42 +62,85 @@
   font-size: 18px;
 }
 
-.item {
-  display: flex;
-  justify-content: flex-start;
-  gap: 12px;
-  align-items: center;
-  border: 0;
-  background: transparent;
-  padding: 0;
-  text-align: left;
-  cursor: pointer;
-}
-
-.itemInfo {
+.statusSection {
   display: grid;
-  gap: 4px;
+  gap: 8px;
 }
 
-.itemInfo span {
+.badge {
+  width: fit-content;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.badgeNeutral {
+  background: var(--bg-2);
+  color: var(--text);
+}
+
+.badgeDanger {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.substatus {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.caption {
   color: var(--muted);
+  font-size: 13px;
+}
+
+.link {
+  width: fit-content;
+  color: var(--primary);
+  text-decoration: none;
   font-size: 14px;
 }
 
-@media (max-width: 640px) {
-  .item {
-    flex-direction: column;
-    align-items: flex-start;
-  }
+.link:hover {
+  text-decoration: underline;
 }
 
-.returnLink {
+.actionsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.actionButton {
+  width: fit-content;
+  border: 1px solid var(--primary);
+  background: transparent;
+  color: var(--primary);
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 8px 12px;
+}
+
+.actionButtonSecondary {
   width: fit-content;
   border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--card);
-  padding: 8px 12px;
+  background: var(--bg-2);
+  color: var(--muted);
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 600;
   cursor: pointer;
+  padding: 8px 12px;
+}
+
+.actionButtonSecondary:disabled {
+  cursor: not-allowed;
 }
 
 .cancelModal {
