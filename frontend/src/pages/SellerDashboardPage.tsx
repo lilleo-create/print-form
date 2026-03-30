@@ -186,6 +186,19 @@ const isAccessError = (error: unknown) => {
   );
 };
 
+const pickApiList = <T,>(payload: unknown): T[] => {
+  if (Array.isArray(payload)) return payload;
+  if (
+    payload &&
+    typeof payload === 'object' &&
+    'data' in payload &&
+    Array.isArray((payload as { data?: unknown }).data)
+  ) {
+    return (payload as { data: T[] }).data;
+  }
+  return [];
+};
+
 export const SellerDashboardPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -398,7 +411,7 @@ export const SellerDashboardPage = () => {
     setProductsError(null);
     try {
       const productsResponse = await api.getSellerProducts();
-      setProducts(productsResponse.data);
+      setProducts(pickApiList<Product>(productsResponse.data));
     } catch (error) {
       setProducts([]);
       if (isAccessError(error) && isSellerReady) {
@@ -534,7 +547,7 @@ export const SellerDashboardPage = () => {
     setPaymentsError(null);
     try {
       const response = await api.getSellerPayments();
-      setPayments(response.data ?? []);
+      setPayments(pickApiList<Payment>(response.data));
     } catch (error) {
       setPayments([]);
       if (isAccessError(error) && isSellerReady) {
