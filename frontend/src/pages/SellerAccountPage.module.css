@@ -349,6 +349,19 @@
   margin-bottom: 12px;
 }
 
+.ordersSearchRow {
+  margin-bottom: 12px;
+}
+
+.ordersSearchInput {
+  width: min(420px, 100%);
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--text);
+}
+
 .ordersTabButton {
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -799,10 +812,10 @@
 .financeMobileCard {
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 12px;
+  padding: 14px;
   background: var(--card);
   display: grid;
-  gap: 8px;
+  gap: 10px;
 }
 
 .financeMobileCard p {
@@ -818,7 +831,7 @@
 
 .orderIdText {
   display: inline-block;
-  max-width: 160px;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -829,10 +842,9 @@
 .financeTableRow,
 .financeAdjustmentsRow {
   display: grid;
-  grid-template-columns: minmax(110px, 0.9fr) minmax(90px, 0.8fr) minmax(120px, 1fr) minmax(120px, 1fr) minmax(130px, 1fr) minmax(160px, 1.2fr);
-  gap: 12px;
+  gap: 10px;
   align-items: center;
-  padding: 12px 16px;
+  padding: 12px 14px;
 }
 
 .financeTableHeader {
@@ -841,13 +853,26 @@
   background: var(--bg-2);
 }
 
-.financeAdjustmentsRow {
-  grid-template-columns: minmax(110px, 1fr) minmax(120px, 1fr) minmax(120px, 1fr) minmax(220px, 1.4fr) minmax(140px, 1fr);
-}
-
 .financeTableRow,
 .financeAdjustmentsRow {
-  border-top: 1px solid var(--border);
+  border-top: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+.financeTableRow > span,
+.financeAdjustmentsRow > span {
+  min-width: 0;
+}
+
+.financeTableRow > span:nth-child(3),
+.financeTableRow > span:nth-child(4),
+.financeTableRow > span:nth-child(5),
+.financeAdjustmentsRow > span:nth-child(3) {
+  text-align: right;
+}
+
+.financeAdjustmentsRow > span:nth-child(4) {
+  white-space: normal;
+  line-height: 1.35;
 }
 
 .financeHintList {
@@ -893,7 +918,7 @@
   .financeAdjustmentsRow span {
     display: grid;
     gap: 2px;
-    word-break: break-word;
+    word-break: normal;
   }
 
   .financeTableRow span::before,

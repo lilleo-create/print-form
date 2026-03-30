@@ -276,6 +276,7 @@ export interface OrderDelivery {
 
 export interface Order {
   id: string;
+  publicNumber?: string | null;
   buyerId: string;
   buyerEmail: string;
   contactId: string;
