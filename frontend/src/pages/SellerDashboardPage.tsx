@@ -220,7 +220,7 @@ export const SellerDashboardPage = () => {
   >(null);
 
   const [orders, setOrders] = useState<Order[]>([]);
-  const [ordersView, setOrdersView] = useState<Order[]>([]);
+  const [ordersTab, setOrdersTab] = useState<'ACTIVE' | 'COMPLETED' | 'CANCELLED'>('ACTIVE');
   const [ordersLoading, setOrdersLoading] = useState(true);
   const [ordersError, setOrdersError] = useState<string | null>(null);
 
@@ -444,21 +444,11 @@ export const SellerDashboardPage = () => {
     try {
       if (!userId || !isSellerReady) {
         setOrders([]);
-        setOrdersView([]);
         return;
       }
 
       const data = await ordersApi.listBySeller(userId);
       setOrders(data);
-      setOrdersView(
-        data.filter(
-          (order) =>
-            !(
-              order.paymentStatus === 'PAYMENT_EXPIRED' ||
-              order.isExpired === true
-            )
-        )
-      );
 
       const profileResponse = await api.getSellerDeliveryProfile();
       const dropoffPvz = profileResponse.data?.dropoffPvz;
@@ -471,7 +461,6 @@ export const SellerDashboardPage = () => {
       );
     } catch (error) {
       setOrders([]);
-      setOrdersView([]);
       if (isAccessError(error) && isSellerReady) {
         setOrdersError('Сессия истекла, войдите снова.');
       } else if (isSellerReady) {
@@ -490,20 +479,6 @@ export const SellerDashboardPage = () => {
 
   useEffect(() => {
     const timer = window.setInterval(() => {
-      setOrdersView((prev) =>
-        prev.filter((order) => {
-          if (order.paymentStatus !== 'PENDING') return true;
-          if (order.isExpired) return false;
-          if (
-            typeof order.secondsUntilExpiry === 'number' &&
-            order.secondsUntilExpiry <= 0
-          ) {
-            return false;
-          }
-          return true;
-        })
-      );
-
       setOrders((prev) =>
         prev.map((order) => {
           if (
@@ -587,7 +562,6 @@ export const SellerDashboardPage = () => {
       setProducts([]);
       setPayments([]);
       setOrders([]);
-      setOrdersView([]);
       setOrdersError(null);
       setPaymentsError(null);
       setProductsError(null);
@@ -913,6 +887,7 @@ export const SellerDashboardPage = () => {
   };
 
   const readyToShipDisabledReason = (order: Order) => {
+    if (order.status === 'CANCELLED') return 'Заказ отменён';
     if (!order.paidAt && order.status !== 'PAID') return 'Ожидает оплаты';
     if (!order.isPacked) return 'Сначала отметьте упаковку';
     if (!order.sellerDropoffPvzMeta && !dropoffPvzId)
@@ -929,6 +904,35 @@ export const SellerDashboardPage = () => {
     }
     return null;
   };
+
+  const isCancelledOrder = (order: Order) => order.status === 'CANCELLED';
+  const isCompletedOrder = (order: Order) =>
+    ['DELIVERED', 'RETURNED'].includes(String(order.status ?? '').toUpperCase());
+
+  const ordersView = useMemo(() => {
+    const visibleOrders = orders.filter(
+      (order) => !(order.paymentStatus === 'PAYMENT_EXPIRED' || order.isExpired === true)
+    );
+
+    return visibleOrders.filter((order) => {
+      if (ordersTab === 'CANCELLED') return isCancelledOrder(order);
+      if (ordersTab === 'COMPLETED') return isCompletedOrder(order);
+      return !isCancelledOrder(order) && !isCompletedOrder(order);
+    });
+  }, [orders, ordersTab]);
+
+  const ordersTabCounts = useMemo(() => {
+    const visibleOrders = orders.filter(
+      (order) => !(order.paymentStatus === 'PAYMENT_EXPIRED' || order.isExpired === true)
+    );
+    return {
+      ACTIVE: visibleOrders.filter((order) => !isCancelledOrder(order) && !isCompletedOrder(order))
+        .length,
+      COMPLETED: visibleOrders.filter((order) => isCompletedOrder(order)).length,
+      CANCELLED: visibleOrders.filter((order) => isCancelledOrder(order)).length
+    };
+  }, [orders]);
+
   const summary = useMemo(() => {
     const totalProducts = products.length;
     const totalOrders = orders.length;
@@ -1051,63 +1055,39 @@ export const SellerDashboardPage = () => {
     return { rows, maxValue: maxValue || 1 };
   }, [orders, payments]);
 
-  const paymentStatusLabel = (status: string) => {
-    switch (String(status).toUpperCase()) {
-      case 'PAID':
-      case 'SUCCESS':
-      case 'SUCCEEDED':
-      case 'COMPLETED':
-        return 'Выплачено';
-      case 'READY':
-      case 'PROCESSING':
-        return 'Готовится к выплате';
-      case 'PENDING':
-        return 'В обработке';
-      default:
-        return status;
-    }
-  };
-
   const financeOperations = useMemo(() => {
-    const payoutOperations = payments.map((payment) => ({
-      id: `payment-${payment.id}`,
-      date: payment.createdAt,
-      type: 'Выплата',
-      orderId: payment.orderId,
-      amount: resolvePaymentKopecks(payment),
-      status: paymentStatusLabel(payment.status),
-      currency: payment.currency
-    }));
+    return orders
+      .map((order) => {
+        const orderAmount = resolveOrderKopecks(order);
+        const sellerNetAmount =
+          typeof order.sellerNetAmount === 'number' ? order.sellerNetAmount : orderAmount;
+        const platformFee =
+          typeof order.platformFeeAmount === 'number'
+            ? order.platformFeeAmount
+            : Math.max(0, orderAmount - sellerNetAmount);
 
-    const holdOperations = orders
-      .filter((order) => Boolean(order.payoutStatus))
-      .map((order) => ({
-        id: `order-${order.id}`,
-        date: order.createdAt,
-        type:
-          String(order.payoutStatus ?? '').toUpperCase() === 'HOLD'
-            ? 'Заморозка'
-            : String(order.payoutStatus ?? '').toUpperCase() === 'BLOCKED'
-              ? 'Блокировка'
-              : ['RELEASED', 'PAID_OUT', 'PAID'].includes(
-                    String(order.payoutStatus ?? '').toUpperCase()
-                  )
-                ? 'Выплата'
-                : ['REFUND_PENDING', 'REFUNDED'].includes(
-                      String(order.paymentStatus ?? '').toUpperCase()
-                    )
-                  ? 'Возврат'
-                  : 'В обработке',
-        orderId: order.id,
-        amount: resolveOrderKopecks(order),
-        status: payoutStatusLabelRu(order.payoutStatus),
-        currency: 'RUB'
-      }));
+        const operationStatus =
+          order.status === 'CANCELLED'
+            ? order.paymentStatus === 'REFUND_PENDING'
+              ? 'Деньги возвращаются покупателю'
+              : order.paymentStatus === 'REFUNDED'
+                ? 'Деньги возвращены покупателю'
+                : 'Заказ отменён'
+            : payoutStatusLabelRu(order.payoutStatus);
 
-    return [...payoutOperations, ...holdOperations]
+        return {
+          id: `order-${order.id}`,
+          date: order.createdAt,
+          orderId: order.id,
+          orderAmount,
+          platformFee,
+          sellerNetAmount,
+          status: operationStatus
+        };
+      })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       .slice(0, 12);
-  }, [orders, payments]);
+  }, [orders]);
 
   const shouldShowSellerError =
     authStatus === 'authorized' &&
@@ -1629,6 +1609,29 @@ export const SellerDashboardPage = () => {
                       <p>Отслеживайте выполнение и документы доставки.</p>
                     </div>
                   </div>
+                  <div className={styles.ordersTabs}>
+                    <button
+                      type="button"
+                      className={`${styles.ordersTabButton} ${ordersTab === 'ACTIVE' ? styles.ordersTabButtonActive : ''}`}
+                      onClick={() => setOrdersTab('ACTIVE')}
+                    >
+                      Активные ({ordersTabCounts.ACTIVE})
+                    </button>
+                    <button
+                      type="button"
+                      className={`${styles.ordersTabButton} ${ordersTab === 'COMPLETED' ? styles.ordersTabButtonActive : ''}`}
+                      onClick={() => setOrdersTab('COMPLETED')}
+                    >
+                      Завершённые ({ordersTabCounts.COMPLETED})
+                    </button>
+                    <button
+                      type="button"
+                      className={`${styles.ordersTabButton} ${ordersTab === 'CANCELLED' ? styles.ordersTabButtonActive : ''}`}
+                      onClick={() => setOrdersTab('CANCELLED')}
+                    >
+                      Отменённые ({ordersTabCounts.CANCELLED})
+                    </button>
+                  </div>
 
                   {ordersLoading ? (
                     <p className={styles.muted}>Загрузка заказов...</p>
@@ -1643,6 +1646,13 @@ export const SellerDashboardPage = () => {
                           getSellerOrderDisplayStatus(order);
                         const total = order.items.reduce((sum, item) => sum + resolveOrderItemLineTotalKopecks(item), 0);
                         const sellerNetAmount = typeof order.sellerNetAmount === 'number' ? order.sellerNetAmount : total;
+                        const isCancelled = order.status === 'CANCELLED';
+                        const cancelPaymentHint =
+                          order.paymentStatus === 'REFUND_PENDING'
+                            ? 'Деньги возвращаются покупателю'
+                            : order.paymentStatus === 'REFUNDED'
+                              ? 'Деньги возвращены покупателю'
+                              : null;
 
                         return (
                           <div key={order.id} className={styles.orderCard}>
@@ -1682,6 +1692,14 @@ export const SellerDashboardPage = () => {
                                 <p className={styles.muted}>
                                   Статус: {displayStatus}
                                 </p>
+                                {isCancelled && (
+                                  <span className={styles.cancelledOrderBadge}>
+                                    Заказ отменён
+                                  </span>
+                                )}
+                                {cancelPaymentHint && (
+                                  <p className={styles.muted}>{cancelPaymentHint}</p>
+                                )}
                                 {order.paymentStatus === 'PENDING' &&
                                   !order.isExpired &&
                                   typeof order.secondsUntilExpiry ===
@@ -1736,48 +1754,56 @@ export const SellerDashboardPage = () => {
                                 Трек-номер: {order.trackingNumber ?? '—'}
                               </p>
 
-                              <Button
-                                type="button"
-                                variant={order.isPacked ? 'ghost' : 'secondary'}
-                                onClick={() => handleTogglePacked(order)}
-                                disabled={
-                                  !order.paidAt && order.status !== 'PAID'
-                                }
-                              >
-                                {order.isPacked
-                                  ? 'Снять отметку упаковки'
-                                  : 'Отметить упаковку'}
-                              </Button>
-
-                              {!order.shipment?.id ? (
+                              {!isCancelled ? (
                                 <>
                                   <Button
                                     type="button"
-                                    variant="secondary"
-                                    onClick={() => handleReadyToShip(order.id)}
-                                    disabled={Boolean(
-                                      readyToShipDisabledReason(order)
-                                    )}
+                                    variant={order.isPacked ? 'ghost' : 'secondary'}
+                                    onClick={() => handleTogglePacked(order)}
+                                    disabled={
+                                      !order.paidAt && order.status !== 'PAID'
+                                    }
                                   >
-                                    Готов к отгрузке
+                                    {order.isPacked
+                                      ? 'Снять отметку упаковки'
+                                      : 'Отметить упаковку'}
                                   </Button>
-                                  {readyToShipDisabledReason(order) && (
-                                    <p className={styles.muted}>
-                                      {readyToShipDisabledReason(order)}
-                                    </p>
+
+                                  {!order.shipment?.id ? (
+                                    <>
+                                      <Button
+                                        type="button"
+                                        variant="secondary"
+                                        onClick={() => handleReadyToShip(order.id)}
+                                        disabled={Boolean(
+                                          readyToShipDisabledReason(order)
+                                        )}
+                                      >
+                                        Готов к отгрузке
+                                      </Button>
+                                      {readyToShipDisabledReason(order) && (
+                                        <p className={styles.muted}>
+                                          {readyToShipDisabledReason(order)}
+                                        </p>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      onClick={() => handleSyncShipment(order)}
+                                      disabled={
+                                        !order.shipment?.id && !order.cdekOrderId
+                                      }
+                                    >
+                                      Синхронизировать CDEK
+                                    </Button>
                                   )}
                                 </>
                               ) : (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  onClick={() => handleSyncShipment(order)}
-                                  disabled={
-                                    !order.shipment?.id && !order.cdekOrderId
-                                  }
-                                >
-                                  Синхронизировать CDEK
-                                </Button>
+                                <p className={styles.muted}>
+                                  Действия доставки недоступны для отменённого заказа.
+                                </p>
                               )}
 
                               <details>
@@ -1814,50 +1840,54 @@ export const SellerDashboardPage = () => {
                                 </p>
                               </details>
 
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                className={
-                                  labelDownloaded[order.id]
-                                    ? styles.downloadedButton
-                                    : ''
-                                }
-                                onClick={() =>
-                                  order.shipment?.id &&
-                                  handleDownloadLabel(
-                                    order.shipment.id,
-                                    order.id
-                                  )
-                                }
-                                disabled={
-                                  !order.shipment?.id || !order.trackingNumber
-                                }
-                              >
-                                Скачать ярлык
-                              </Button>
+                              {!isCancelled && (
+                                <>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    className={
+                                      labelDownloaded[order.id]
+                                        ? styles.downloadedButton
+                                        : ''
+                                    }
+                                    onClick={() =>
+                                      order.shipment?.id &&
+                                      handleDownloadLabel(
+                                        order.shipment.id,
+                                        order.id
+                                      )
+                                    }
+                                    disabled={
+                                      !order.shipment?.id || !order.trackingNumber
+                                    }
+                                  >
+                                    Скачать ярлык
+                                  </Button>
 
-                              {!order.trackingNumber && (
-                                <p className={styles.muted}>ещё формируется</p>
+                                  {!order.trackingNumber && (
+                                    <p className={styles.muted}>ещё формируется</p>
+                                  )}
+
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    className={
+                                      actDownloaded[order.id]
+                                        ? styles.downloadedButton
+                                        : ''
+                                    }
+                                    onClick={() =>
+                                      order.shipment?.id &&
+                                      handleDownloadAct(order.shipment.id, order.id)
+                                    }
+                                    disabled={
+                                      !order.shipment?.id && !order.cdekOrderId
+                                    }
+                                  >
+                                    Скачать акт
+                                  </Button>
+                                </>
                               )}
-
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                className={
-                                  actDownloaded[order.id]
-                                    ? styles.downloadedButton
-                                    : ''
-                                }
-                                onClick={() =>
-                                  order.shipment?.id &&
-                                  handleDownloadAct(order.shipment.id, order.id)
-                                }
-                                disabled={
-                                  !order.shipment?.id && !order.cdekOrderId
-                                }
-                              >
-                                Скачать акт
-                              </Button>
                             </div>
                           </div>
                         );
@@ -2019,9 +2049,10 @@ export const SellerDashboardPage = () => {
                     <div className={styles.ordersTable}>
                       <div className={styles.financeTableHeader}>
                         <span>Дата</span>
-                        <span>Тип операции</span>
                         <span>Заказ</span>
-                        <span>Сумма</span>
+                        <span>Сумма заказа</span>
+                        <span>Комиссия платформы</span>
+                        <span>К выплате продавцу</span>
                         <span>Статус</span>
                       </div>
 
@@ -2031,13 +2062,14 @@ export const SellerDashboardPage = () => {
                           className={styles.financeTableRow}
                         >
                           <span>{formatDate(operation.date)}</span>
-                          <span>{operation.type}</span>
                           <span className={styles.cellTruncate}>
                             №{operation.orderId}
                           </span>
                           <span>
-                            {formatPrice(operation.amount, operation.currency)}
+                            {formatPrice(operation.orderAmount)}
                           </span>
+                          <span>{formatPrice(operation.platformFee)}</span>
+                          <span>{formatPrice(operation.sellerNetAmount)}</span>
                           <span>{operation.status}</span>
                         </div>
                       ))}
