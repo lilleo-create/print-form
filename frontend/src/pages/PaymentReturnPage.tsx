@@ -1,29 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Button } from '../shared/ui/Button';
 import { ordersApi } from '../shared/api/ordersApi';
 import type { Order } from '../shared/types';
-import { formatPrice } from '../utils/money';
 import styles from './PaymentReturnPage.module.css';
 
 const POLLING_INTERVAL_MS = 2000;
 const MAX_POLLING_ATTEMPTS = 15;
 
-const getPaymentStatusLabel = (paymentStatus?: string | null) => {
-  switch (paymentStatus) {
-    case 'PAID':
-      return 'Оплата прошла успешно';
-    case 'PENDING':
-      return 'Оплата не завершена';
-    case 'PAYMENT_EXPIRED':
-      return 'Оплата не завершена';
-    default:
-      return 'Оплата не завершена';
-  }
-};
-
 const isPendingPayment = (order: Order | null) => order?.paymentStatus === 'PENDING';
+const isPaidPayment = (order: Order | null) => order?.paymentStatus === 'PAID';
 
 export const PaymentReturnPage = () => {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const orderId = searchParams.get('orderId') ?? searchParams.get('order_id') ?? '';
   const [order, setOrder] = useState<Order | null>(null);
@@ -35,7 +24,7 @@ export const PaymentReturnPage = () => {
 
     const loadOrder = async () => {
       if (!orderId) {
-        setError('Не найден номер заказа в параметрах возврата.');
+        setError('Не найден номер заказа.');
         setIsLoading(false);
         return;
       }
@@ -56,13 +45,9 @@ export const PaymentReturnPage = () => {
           setOrder(latest);
           attempt += 1;
         }
-      } catch (loadError) {
+      } catch {
         if (cancelled) return;
-        setError(
-          loadError instanceof Error
-            ? loadError.message
-            : 'Не удалось получить статус оплаты.'
-        );
+        setError('Не удалось проверить статус оплаты. Попробуйте открыть заказ позже.');
       } finally {
         if (!cancelled) {
           setIsLoading(false);
@@ -77,25 +62,55 @@ export const PaymentReturnPage = () => {
     };
   }, [orderId]);
 
-  const title = useMemo(() => {
-    if (error) return 'Оплата не завершена';
-    if (isLoading && !order) return 'Проверяем статус оплаты…';
-    return getPaymentStatusLabel(order?.paymentStatus);
-  }, [error, isLoading, order]);
+  const isPaid = useMemo(() => isPaidPayment(order), [order]);
+
+  const title = isPaid
+    ? 'Спасибо! Мы приняли оплату и передали заказ продавцу'
+    : 'Платеж еще обрабатывается';
+  const subtitle = isPaid
+    ? 'Продавец уже получил заказ и скоро начнет работу'
+    : 'Это обычно занимает немного времени. Статус можно проверить в заказе.';
 
   return (
     <section className={styles.page}>
       <div className="container">
-        <div className={styles.card}>
-          <h1 className={styles.title}>{title}</h1>
-          {orderId ? <p className={styles.meta}>Заказ: {orderId}</p> : null}
-          {order?.paymentStatus ? (
-            <p className={styles.meta}>Текущий статус: {order.paymentStatus}</p>
-          ) : null}
-          {order ? (
-            <p className={styles.meta}>Сумма: {formatPrice(order.total)} ₽</p>
-          ) : null}
-          {error ? <p className={styles.error}>{error}</p> : null}
+        <div className={styles.layout}>
+          <div className={styles.card}>
+            <div className={styles.iconWrap} aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" className={styles.icon}>
+                <path
+                  d="M20 6L9 17L4 12"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </div>
+
+            <h1 className={styles.title}>{isLoading ? 'Проверяем оплату…' : title}</h1>
+            <p className={styles.subtitle}>{subtitle}</p>
+            {error ? <p className={styles.error}>{error}</p> : null}
+
+            <div className={styles.actions}>
+              <Button
+                type="button"
+                onClick={() => navigate(`/orders/${orderId}`)}
+                disabled={!orderId}
+                className={styles.actionButton}
+              >
+                Перейти к заказу
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => navigate('/')}
+                className={styles.actionButton}
+              >
+                На главную
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
     </section>
