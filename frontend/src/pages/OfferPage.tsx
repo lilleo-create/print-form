@@ -334,6 +334,7 @@ const sections: LegalDocumentSection[] = [
         <p>Сервис: Print-Form</p>
         <p>Сайт: https://print-form.ru</p>
         <p>Email: print.form@mail.ru</p>
+        <p>ИНН: 773324099976</p>
         <p>Реквизиты: указываются в подтверждении заказа и/или платежных документах</p>
       </>
     )

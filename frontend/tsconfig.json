@@ -15,9 +15,13 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
+    "types": ["node"],
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@shared/*": ["src/shared/*"]
+      
     }
+    
   },
   "include": ["src"],
   "exclude": ["src/tests", "**/*.test.ts", "**/*.test.tsx"]

@@ -4,6 +4,7 @@ import { Button } from '../shared/ui/Button';
 import { ordersApi } from '../shared/api/ordersApi';
 import type { Order } from '../shared/types';
 import styles from './PaymentReturnPage.module.css';
+import CheckIcon from '@shared/assets/check.svg?react';
 
 const POLLING_INTERVAL_MS = 2000;
 const MAX_POLLING_ATTEMPTS = 15;
@@ -76,16 +77,8 @@ export const PaymentReturnPage = () => {
       <div className="container">
         <div className={styles.layout}>
           <div className={styles.card}>
-            <div className={styles.iconWrap} aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" className={styles.icon}>
-                <path
-                  d="M20 6L9 17L4 12"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+            <div className={styles.iconWrap}>
+              <CheckIcon className={styles.icon} />
             </div>
 
             <h1 className={styles.title}>{isLoading ? 'Проверяем оплату…' : title}</h1>
