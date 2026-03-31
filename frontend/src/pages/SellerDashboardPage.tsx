@@ -1348,13 +1348,7 @@ export const SellerDashboardPage = () => {
                       </div>
                       <fieldset
                         disabled={isKycPending || isKycSubmitting}
-                        style={{
-                          border: 0,
-                          padding: 0,
-                          margin: 0,
-                          display: 'grid',
-                          gap: '12px'
-                        }}
+                        className={styles.formFieldset}
                       >
                         <div className={styles.settingsGrid}>
                           <label className={styles.labelBlock}>
@@ -2059,7 +2053,7 @@ export const SellerDashboardPage = () => {
                           desktopContainerClassName={styles.financeRowsDesktop}
                           headerClassName={styles.financeTableHeader}
                           rowClassName={styles.financeTableRow}
-                          desktopTemplate="26% 18% 14% 14% 16% 12%"
+                          templateClassName={styles.financeQueueTemplate}
                           columns={[
                             {
                               key: 'order',
@@ -2143,7 +2137,7 @@ export const SellerDashboardPage = () => {
                           desktopContainerClassName={styles.financeRowsDesktop}
                           headerClassName={styles.financeTableHeader}
                           rowClassName={styles.financeAdjustmentsRow}
-                          desktopTemplate="26% 18% 14% 26% 16%"
+                          templateClassName={styles.financeAdjustmentsTemplate}
                           columns={[
                             {
                               key: 'order',
@@ -2205,7 +2199,9 @@ export const SellerDashboardPage = () => {
                       </div>
                     ) : (
                       <div className={styles.financeRows}>
-                        <div className={styles.financeTableHeader}>
+                        <div
+                          className={`${styles.financeTableHeader} ${styles.financePayoutHistoryTemplate}`}
+                        >
                           <span>Дата</span>
                           <span>Заказов</span>
                           <span>Сумма заказов</span>
@@ -2214,7 +2210,10 @@ export const SellerDashboardPage = () => {
                           <span>Статус</span>
                         </div>
                         {financeData.payoutHistory.map((item) => (
-                          <div className={styles.financeTableRow} key={item.id}>
+                          <div
+                            className={`${styles.financeTableRow} ${styles.financePayoutHistoryTemplate}`}
+                            key={item.id}
+                          >
                             <span data-title="Дата">{formatDate(item.date)}</span>
                             <span data-title="Заказов">{item.ordersCount}</span>
                             <span data-title="Сумма заказов">
@@ -2348,8 +2347,7 @@ export const SellerDashboardPage = () => {
 
                       {deliverySettingsError && (
                         <p
-                          className={styles.error}
-                          style={{ marginTop: '0.5rem' }}
+                          className={`${styles.error} ${styles.deliveryError}`}
                         >
                           {deliverySettingsError}
                         </p>
