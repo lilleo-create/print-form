@@ -617,6 +617,60 @@
   gap: 12px;
 }
 
+.kycApprovedPanel {
+  display: grid;
+  gap: 12px;
+}
+
+.kycCompletedCard,
+.readonlyInfoCard,
+.settingsPanel {
+  background: var(--card);
+  border-radius: var(--radius-card);
+  padding: 16px;
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border);
+  display: grid;
+  gap: 12px;
+}
+
+.kycCompletedHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.kycCompletedHeader p {
+  margin: 0;
+}
+
+.readonlyInfoCard h3 {
+  margin: 0;
+}
+
+.readonlyInfoCard p {
+  margin: 0;
+}
+
+.readonlyRows {
+  display: grid;
+  gap: 10px;
+}
+
+.readonlyRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+}
+
+.readonlyRow:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
 .kycRow {
   display: flex;
   align-items: center;
@@ -753,7 +807,10 @@
 
   .financePanel,
   .productPanel,
-  .supportCard {
+  .supportCard,
+  .kycCompletedCard,
+  .readonlyInfoCard,
+  .settingsPanel {
     padding: 16px;
   }
 
@@ -1032,5 +1089,10 @@
 
   .orderIdText {
     max-width: 100%;
+  }
+
+  .readonlyRow {
+    flex-direction: column;
+    gap: 4px;
   }
 }

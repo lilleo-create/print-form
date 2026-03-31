@@ -216,6 +216,21 @@ const payoutCancelReasonLabelRu = (value?: string | null) => {
   }
 };
 
+const kycStatusLabelRu = (value?: string | null) => {
+  switch (String(value ?? '').toUpperCase()) {
+    case 'APPROVED':
+      return 'Одобрено';
+    case 'PENDING':
+      return 'На проверке';
+    case 'REJECTED':
+      return 'Отклонено';
+    case 'NEEDS_INFO':
+      return 'Нужны уточнения';
+    default:
+      return 'Не отправлено';
+  }
+};
+
 const HANDOFF_STATUSES = new Set<OrderStatus>([
   'HANDED_TO_DELIVERY',
   'IN_TRANSIT',
@@ -455,6 +470,150 @@ export const SellerDashboardPage = () => {
           : !acceptedRules
             ? 'Подтвердите согласие с документами.'
             : null;
+
+  const isKycApproved = kycSubmission?.status === 'APPROVED';
+  const moderationComment =
+    kycSubmission?.comment ??
+    kycSubmission?.moderationNotes ??
+    kycSubmission?.notes ??
+    '';
+  const sellerIdentityRows = [
+    { label: 'Контактное лицо', value: merchantForm.contactName || '—' },
+    { label: 'Телефон', value: merchantForm.contactPhone || '—' },
+    ...(sellerType === 'ООО' || sellerType === 'Самозанятый'
+      ? [{ label: 'Официальное название', value: merchantForm.legalName || '—' }]
+      : []),
+    { label: 'ИНН', value: merchantForm.inn || '—' },
+    ...(sellerType === 'ООО' || sellerType === 'ИП'
+      ? [{ label: `ОГРН${sellerType === 'ИП' ? 'ИП' : ''}`, value: merchantForm.ogrn || '—' }]
+      : [])
+  ];
+
+  const renderPayoutMethodsSettingsBlock = () => (
+    <div className={styles.settingsPanel}>
+      <div className={styles.payoutMethodsHeader}>
+        <div>
+          <h3>Реквизиты для выплат</h3>
+          <p className={styles.muted}>
+            Управляйте payout methods для Safe Deal и выбирайте основной способ выплат.
+          </p>
+        </div>
+        <Button type="button" variant="secondary" onClick={() => setPayoutModalOpen(true)}>
+          Добавить реквизиты
+        </Button>
+      </div>
+      {payoutMethodsLoading ? (
+        <p className={styles.muted}>Загрузка реквизитов...</p>
+      ) : payoutMethods.length === 0 ? (
+        <EmptyState
+          title="Реквизиты ещё не добавлены"
+          description="Привяжите карту YooKassa payouts-data или кошелёк YooMoney для выплат."
+        />
+      ) : (
+        <div className={styles.payoutMethodsList}>
+          {payoutMethods.map((method) => (
+            <article key={method.id} className={styles.payoutMethodCard}>
+              <div className={styles.payoutMethodTop}>
+                <strong>{method.maskedLabel}</strong>
+                <div className={styles.payoutMethodBadges}>
+                  {method.isDefault && <Badge variant="primary">Основной</Badge>}
+                  <Badge
+                    variant={
+                      String(method.status).toUpperCase() === 'ACTIVE'
+                        ? 'success'
+                        : String(method.status).toUpperCase() === 'INVALID'
+                          ? 'danger'
+                          : 'warning'
+                    }
+                  >
+                    {String(method.status).toUpperCase() === 'ACTIVE'
+                      ? 'Активен'
+                      : String(method.status).toUpperCase() === 'INVALID'
+                        ? 'Требует проверки'
+                        : method.status}
+                  </Badge>
+                </div>
+              </div>
+              <p className={styles.muted}>
+                Провайдер: {method.provider} · Добавлен {formatDate(method.createdAt)}
+              </p>
+              <div className={styles.payoutMethodActions}>
+                {!method.isDefault && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => handleSetDefaultPayoutMethod(method.id)}
+                  >
+                    Сделать основным
+                  </Button>
+                )}
+                <Button type="button" variant="ghost" onClick={() => handleRevokePayoutMethod(method.id)}>
+                  Отключить
+                </Button>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+      {payoutMethodError && <p className={styles.error}>{payoutMethodError}</p>}
+      {payoutMethodSuccess && <p className={styles.successMessage}>{payoutMethodSuccess}</p>}
+
+      {isPayoutModalOpen && (
+        <div className={styles.inlineModal}>
+          <div className={styles.inlineModalCard}>
+            <div className={styles.payoutMethodsHeader}>
+              <h3>Добавить реквизиты</h3>
+              <Button type="button" variant="ghost" onClick={() => setPayoutModalOpen(false)}>
+                Закрыть
+              </Button>
+            </div>
+            <div className={styles.payoutBindTabs}>
+              <Button
+                type="button"
+                variant={payoutBindType === 'BANK_CARD' ? 'primary' : 'ghost'}
+                onClick={() => setPayoutBindType('BANK_CARD')}
+              >
+                Привязать карту
+              </Button>
+              <Button
+                type="button"
+                variant={payoutBindType === 'WALLET' ? 'primary' : 'ghost'}
+                onClick={() => setPayoutBindType('WALLET')}
+              >
+                YooMoney кошелек
+              </Button>
+            </div>
+            {payoutBindType === 'BANK_CARD' ? (
+              <div className={styles.payoutBindBlock}>
+                <p className={styles.muted}>
+                  Для Safe Deal используем YooKassa payouts-data widget (type=safedeal).
+                </p>
+                <Button type="button" onClick={() => void handleBindCard()} disabled={isPayoutSubmitting}>
+                  Привязать карту через YooKassa
+                </Button>
+              </div>
+            ) : (
+              <div className={styles.payoutBindBlock}>
+                <label className={styles.formLabel} htmlFor="wallet-number">
+                  Номер кошелька YooMoney
+                </label>
+                <input
+                  id="wallet-number"
+                  className={styles.input}
+                  value={walletNumber}
+                  onChange={(event) => setWalletNumber(event.target.value)}
+                  placeholder="4100..."
+                />
+                <Button type="button" onClick={() => void handleBindWallet()} disabled={isPayoutSubmitting}>
+                  Сохранить кошелек
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
@@ -1375,31 +1534,81 @@ export const SellerDashboardPage = () => {
                   <div className={styles.sectionHeader}>
                     <div>
                       <p>
-                        Заполните данные продавца, выберите точку отгрузки и
-                        прикрепите документы одним отправлением.
+                        {isKycApproved
+                          ? 'Статус подключения и подтвержденные данные профиля продавца.'
+                          : 'Заполните данные продавца, выберите точку отгрузки и отправьте заявку на проверку.'}
                       </p>
                     </div>
                   </div>
 
                   {kycLoading ? (
                     <p className={styles.muted}>Загрузка статуса...</p>
+                  ) : isKycApproved ? (
+                    <div className={styles.kycApprovedPanel}>
+                      <div className={styles.kycCompletedCard}>
+                        <div className={styles.kycCompletedHeader}>
+                          <Badge variant="success">Подключено</Badge>
+                          <p className={styles.muted}>Профиль продавца подтвержден</p>
+                        </div>
+                        <p className={styles.helperText}>
+                          Профиль продавца подтвержден. Управление реквизитами для выплат доступно во вкладке «Настройки».
+                        </p>
+                      </div>
+
+                      <div className={styles.settingsGrid}>
+                        <div className={styles.kycRow}>
+                          <span className={styles.kycLabel}>Статус заявки:</span>
+                          <strong>{kycStatusLabelRu(kycSubmission?.status)}</strong>
+                        </div>
+                        <div className={styles.kycRow}>
+                          <span className={styles.kycLabel}>Тип продавца:</span>
+                          <strong>{sellerType ?? '—'}</strong>
+                        </div>
+                        {kycSubmission?.updatedAt && (
+                          <div className={styles.kycRow}>
+                            <span className={styles.kycLabel}>Подтверждено:</span>
+                            <strong>{formatDate(kycSubmission.updatedAt)}</strong>
+                          </div>
+                        )}
+                        {moderationComment && (
+                          <p className={styles.kycNotes}>Комментарий модерации: {moderationComment}</p>
+                        )}
+                      </div>
+
+                      <div className={styles.readonlyInfoCard}>
+                        <h3>Подтвержденные данные продавца</h3>
+                        <div className={styles.readonlyRows}>
+                          {sellerIdentityRows.map((item) => (
+                            <div className={styles.readonlyRow} key={item.label}>
+                              <span className={styles.kycLabel}>{item.label}</span>
+                              <strong>{item.value}</strong>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className={styles.readonlyInfoCard}>
+                        <h3>Точка отгрузки</h3>
+                        <p>
+                          {hasDropoffPvz
+                            ? dropoffPvzAddress || `Пункт ${dropoffPvzId}`
+                            : 'Пока не выбрана'}
+                        </p>
+                        <p className={styles.helperText}>
+                          Изменить точку отгрузки и реквизиты выплат можно во вкладке «Настройки».
+                        </p>
+                      </div>
+                    </div>
                   ) : (
                     <div className={styles.kycPanel}>
                       <div className={styles.kycRow}>
                         <span className={styles.kycLabel}>Статус:</span>
-                        <strong>
-                          {kycSubmission?.status ?? 'Не отправлено'}
-                        </strong>
+                        <strong>{kycStatusLabelRu(kycSubmission?.status)}</strong>
                       </div>
 
-                      {(kycSubmission?.comment ||
-                        kycSubmission?.moderationNotes ||
-                        kycSubmission?.notes) && (
+                      {moderationComment && (
                         <p className={styles.kycNotes}>
-                          Комментарий:{' '}
-                          {kycSubmission.comment ??
-                            kycSubmission.moderationNotes ??
-                            kycSubmission.notes}
+                          Комментарий: {moderationComment}
                         </p>
                       )}
 
@@ -2455,73 +2664,6 @@ export const SellerDashboardPage = () => {
                     <p className={styles.error}>{financeError}</p>
                   )}
 
-                  <div className={styles.financePanel}>
-                    <div className={styles.payoutMethodsHeader}>
-                      <h3>Реквизиты для выплат</h3>
-                      <Button type="button" variant="secondary" onClick={() => setPayoutModalOpen(true)}>
-                        Добавить реквизиты
-                      </Button>
-                    </div>
-                    {payoutMethodsLoading ? (
-                      <p className={styles.muted}>Загрузка реквизитов...</p>
-                    ) : payoutMethods.length === 0 ? (
-                      <EmptyState
-                        title="Реквизиты ещё не добавлены"
-                        description="Привяжите карту YooKassa payouts-data или кошелёк YooMoney для выплат."
-                      />
-                    ) : (
-                      <div className={styles.payoutMethodsList}>
-                        {payoutMethods.map((method) => (
-                          <article key={method.id} className={styles.payoutMethodCard}>
-                            <div className={styles.payoutMethodTop}>
-                              <strong>{method.maskedLabel}</strong>
-                              <div className={styles.payoutMethodBadges}>
-                                {method.isDefault && <Badge variant="primary">Основной</Badge>}
-                                <Badge
-                                  variant={
-                                    String(method.status).toUpperCase() === 'ACTIVE'
-                                      ? 'success'
-                                      : String(method.status).toUpperCase() === 'INVALID'
-                                        ? 'danger'
-                                        : 'warning'
-                                  }
-                                >
-                                  {String(method.status).toUpperCase() === 'ACTIVE'
-                                    ? 'Активен'
-                                    : String(method.status).toUpperCase() === 'INVALID'
-                                      ? 'Требует проверки'
-                                      : method.status}
-                                </Badge>
-                              </div>
-                            </div>
-                            <p className={styles.muted}>
-                              Провайдер: {method.provider} · Добавлен {formatDate(method.createdAt)}
-                            </p>
-                            <div className={styles.payoutMethodActions}>
-                              {!method.isDefault && (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  onClick={() => handleSetDefaultPayoutMethod(method.id)}
-                                >
-                                  Сделать основным
-                                </Button>
-                              )}
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                onClick={() => handleRevokePayoutMethod(method.id)}
-                              >
-                                Отключить
-                              </Button>
-                            </div>
-                          </article>
-                        ))}
-                      </div>
-                    )}
-                    {payoutMethodError && <p className={styles.error}>{payoutMethodError}</p>}
-                    {payoutMethodSuccess && <p className={styles.successMessage}>{payoutMethodSuccess}</p>}
-                  </div>
                   <div className={styles.financeHintList}>
                     <p>
                       <strong>Ожидает выплаты</strong> — деньги по заказам, готовым к перечислению.
@@ -2537,68 +2679,6 @@ export const SellerDashboardPage = () => {
                     </p>
                   </div>
 
-                  {isPayoutModalOpen && (
-                    <div className={styles.inlineModal}>
-                      <div className={styles.inlineModalCard}>
-                        <div className={styles.payoutMethodsHeader}>
-                          <h3>Добавить реквизиты</h3>
-                          <Button type="button" variant="ghost" onClick={() => setPayoutModalOpen(false)}>
-                            Закрыть
-                          </Button>
-                        </div>
-                        <div className={styles.payoutBindTabs}>
-                          <Button
-                            type="button"
-                            variant={payoutBindType === 'BANK_CARD' ? 'primary' : 'ghost'}
-                            onClick={() => setPayoutBindType('BANK_CARD')}
-                          >
-                            Привязать карту
-                          </Button>
-                          <Button
-                            type="button"
-                            variant={payoutBindType === 'WALLET' ? 'primary' : 'ghost'}
-                            onClick={() => setPayoutBindType('WALLET')}
-                          >
-                            YooMoney кошелек
-                          </Button>
-                        </div>
-                        {payoutBindType === 'BANK_CARD' ? (
-                          <div className={styles.payoutBindBlock}>
-                            <p className={styles.muted}>
-                              Для Safe Deal используем YooKassa payouts-data widget (type=safedeal).
-                            </p>
-                            <Button
-                              type="button"
-                              onClick={() => void handleBindCard()}
-                              disabled={isPayoutSubmitting}
-                            >
-                              Привязать карту через YooKassa
-                            </Button>
-                          </div>
-                        ) : (
-                          <div className={styles.payoutBindBlock}>
-                            <label className={styles.formLabel} htmlFor="wallet-number">
-                              Номер кошелька YooMoney
-                            </label>
-                            <input
-                              id="wallet-number"
-                              className={styles.input}
-                              value={walletNumber}
-                              onChange={(event) => setWalletNumber(event.target.value)}
-                              placeholder="4100..."
-                            />
-                            <Button
-                              type="button"
-                              onClick={() => void handleBindWallet()}
-                              disabled={isPayoutSubmitting}
-                            >
-                              Сохранить кошелек
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -2634,7 +2714,7 @@ export const SellerDashboardPage = () => {
                 <div className={styles.section}>
                   <div className={styles.sectionHeader}>
                     <div>
-                      <p>Актуальные данные магазина.</p>
+                      <p>Рабочие настройки продавца, точка отгрузки и реквизиты для выплат.</p>
                     </div>
                   </div>
 
@@ -2669,8 +2749,7 @@ export const SellerDashboardPage = () => {
                   )}
 
                   <p className={styles.muted}>
-                    Редактирование профиля доступно через форму подключения
-                    продавца.
+                    Здесь управляются операционные настройки. Статус подключения и KYC остаются во вкладке «Подключение».
                   </p>
 
                   <div className={styles.settingsGrid}>
@@ -2717,6 +2796,8 @@ export const SellerDashboardPage = () => {
                   {deliverySettingsError && (
                     <p className={styles.error}>{deliverySettingsError}</p>
                   )}
+
+                  {renderPayoutMethodsSettingsBlock()}
                 </div>
               )}
 
