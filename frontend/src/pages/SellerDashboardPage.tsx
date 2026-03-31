@@ -3,17 +3,24 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../app/store/authStore';
 import { api } from '../shared/api';
 import { ordersApi } from '../shared/api/ordersApi';
+import { sellerFinanceApi } from '../shared/api/sellerFinanceApi';
 import { normalizeApiError } from '../shared/api/client';
 import { useSellerContext } from '../hooks/seller/useSellerContext';
 import { useHeaderMenuStore } from '../app/store/headerMenuStore';
 import {
   Order,
   OrderStatus,
-  Payment,
   Product,
-  SellerKycSubmission
+  SellerAdjustmentItem,
+  SellerFinanceDashboardResponse,
+  SellerKycSubmission,
+  SellerPayoutHistoryItem,
+  SellerPayoutMethod,
+  SellerPayoutMethodBindPayload,
+  SellerPayoutQueueItem
 } from '../shared/types';
 import { Button } from '../shared/ui/Button';
+import { Badge } from '../shared/ui/Badge';
 import { EmptyState } from '../shared/ui/EmptyState';
 import { SellerActions } from '../components/seller/SellerActions';
 import { SellerErrorState } from '../components/seller/SellerErrorState';
@@ -36,6 +43,7 @@ import {
 } from '../widgets/seller/SellerProductModal';
 import { formatPrice } from '../shared/lib/formatPrice';
 import { getShortOrderId } from '../shared/utils/orderId';
+import { initYooKassaPayoutWidget } from '../shared/lib/yookassaPayoutWidget';
 import styles from './SellerAccountPage.module.css';
 
 const menuItems = [
@@ -140,25 +148,71 @@ const resolveOrderKopecks = (order: Order) => {
   return toKopecks(order.totalRubles);
 };
 
-const resolvePaymentKopecks = (payment: Payment) => {
-  if (typeof payment.amountKopecks === 'number') return payment.amountKopecks;
-  if (typeof payment.amount === 'number') return payment.amount;
-  return toKopecks(payment.amountRubles);
-};
-
 const payoutStatusLabelRu = (value?: string | null) => {
   switch (String(value ?? '').toUpperCase()) {
     case 'HOLD':
       return 'Заморожено';
+    case 'AWAITING_PAYOUT':
+      return 'Ожидает выплаты';
+    case 'PAYOUT_PENDING':
+      return 'Выплата создаётся';
+    case 'REFUNDED':
+      return 'Возвращено покупателю';
+    case 'FAILED':
+    case 'PAYOUT_CANCELED':
+      return 'Выплата не прошла';
     case 'PAID_OUT':
     case 'RELEASED':
       return 'Выплачено';
-    case 'PENDING':
-      return 'В обработке';
     case 'BLOCKED':
-      return 'Заблокировано / отменено';
+      return 'Заблокировано';
     default:
       return 'В обработке';
+  }
+};
+
+const payoutScheduleLabelRu = (value?: string | null) => {
+  switch (String(value ?? '').toUpperCase()) {
+    case 'MANUAL':
+      return 'Вручную / по регламенту платформы';
+    case 'DAILY':
+      return 'Ежедневно';
+    case 'WEEKLY':
+      return 'Еженедельно';
+    default:
+      return 'По регламенту платформы';
+  }
+};
+
+const adjustmentTypeLabelRu = (value?: string | null) => {
+  switch (String(value ?? '').toUpperCase()) {
+    case 'REFUND':
+      return 'Возврат';
+    case 'BLOCKED':
+      return 'Блокировка';
+    case 'PAYOUT_CANCELED':
+      return 'Неуспешная выплата';
+    default:
+      return 'Корректировка';
+  }
+};
+
+const payoutCancelReasonLabelRu = (value?: string | null) => {
+  switch (String(value ?? '').toLowerCase()) {
+    case 'fraud_suspected':
+      return 'Подозрение на мошенничество';
+    case 'general_decline':
+      return 'Отклонено платёжной системой';
+    case 'identification_required':
+      return 'Требуется идентификация получателя';
+    case 'one_time_limit_exceeded':
+      return 'Превышен разовый лимит';
+    case 'periodic_limit_exceeded':
+      return 'Превышен периодический лимит';
+    case 'rejected_by_payee':
+      return 'Получатель отклонил выплату';
+    default:
+      return null;
   }
 };
 
@@ -279,9 +333,22 @@ export const SellerDashboardPage = () => {
     ogrn: ''
   });
 
-  const [payments, setPayments] = useState<Payment[]>([]);
-  const [paymentsLoading, setPaymentsLoading] = useState(true);
-  const [paymentsError, setPaymentsError] = useState<string | null>(null);
+  const [financeDashboard, setFinanceDashboard] =
+    useState<SellerFinanceDashboardResponse | null>(null);
+  const [financeLoading, setFinanceLoading] = useState(true);
+  const [financeError, setFinanceError] = useState<string | null>(null);
+  const [payoutMethods, setPayoutMethods] = useState<SellerPayoutMethod[]>([]);
+  const [payoutMethodsLoading, setPayoutMethodsLoading] = useState(true);
+  const [payoutMethodError, setPayoutMethodError] = useState<string | null>(null);
+  const [payoutMethodSuccess, setPayoutMethodSuccess] = useState<string | null>(
+    null
+  );
+  const [isPayoutModalOpen, setPayoutModalOpen] = useState(false);
+  const [payoutBindType, setPayoutBindType] = useState<'BANK_CARD' | 'WALLET'>(
+    'BANK_CARD'
+  );
+  const [walletNumber, setWalletNumber] = useState('');
+  const [isPayoutSubmitting, setPayoutSubmitting] = useState(false);
 
   // === Delivery profile ===
   const [dropoffPvzId, setDropoffPvzId] = useState('');
@@ -555,21 +622,31 @@ export const SellerDashboardPage = () => {
     }
   }, [isSellerReady]);
 
-  const loadPayments = useCallback(async () => {
-    setPaymentsLoading(true);
-    setPaymentsError(null);
+  const loadFinanceData = useCallback(async () => {
+    setFinanceLoading(true);
+    setPayoutMethodsLoading(true);
+    setFinanceError(null);
+    setPayoutMethodError(null);
     try {
-      const response = await api.getSellerPayments();
-      setPayments(pickApiList<Payment>(response.data));
+      const [dashboardResponse, methodsResponse] = await Promise.all([
+        sellerFinanceApi.getDashboard(),
+        sellerFinanceApi.getPayoutMethods()
+      ]);
+      setFinanceDashboard(dashboardResponse.data);
+      setPayoutMethods(pickApiList<SellerPayoutMethod>(methodsResponse.data));
     } catch (error) {
-      setPayments([]);
+      setFinanceDashboard(null);
+      setPayoutMethods([]);
       if (isAccessError(error) && isSellerReady) {
-        setPaymentsError(
-          'Не удалось загрузить операции. Попробуйте ещё раз чуть позже.'
+        setFinanceError('Сессия истекла, войдите снова.');
+      } else if (isSellerReady) {
+        setFinanceError(
+          'Не удалось загрузить бухгалтерию Safe Deal. Попробуйте обновить страницу.'
         );
       }
     } finally {
-      setPaymentsLoading(false);
+      setFinanceLoading(false);
+      setPayoutMethodsLoading(false);
     }
   }, [isSellerReady]);
 
@@ -598,10 +675,11 @@ export const SellerDashboardPage = () => {
   useEffect(() => {
     if (!isSellerReady) {
       setProducts([]);
-      setPayments([]);
+      setFinanceDashboard(null);
+      setPayoutMethods([]);
       setOrders([]);
       setOrdersError(null);
-      setPaymentsError(null);
+      setFinanceError(null);
       setProductsError(null);
 
       setKycSubmission(null);
@@ -609,16 +687,17 @@ export const SellerDashboardPage = () => {
       setKycError(null);
 
       setIsProductsLoading(false);
-      setPaymentsLoading(false);
+      setFinanceLoading(false);
+      setPayoutMethodsLoading(false);
       setOrdersLoading(false);
       return;
     }
 
     void loadProducts();
     void loadKyc();
-    void loadPayments();
+    void loadFinanceData();
     if (userId) void loadOrders();
-  }, [isSellerReady, loadKyc, loadOrders, loadPayments, loadProducts, userId]);
+  }, [isSellerReady, loadFinanceData, loadKyc, loadOrders, loadProducts, userId]);
 
   const handleKycSubmit = async () => {
     if (!isSellerReady) {
@@ -1012,137 +1091,43 @@ export const SellerDashboardPage = () => {
     'Магазин продавца';
 
   const financeData = useMemo(() => {
-    const isFrozenOrder = (order: Order) =>
-      String(order.payoutStatus ?? '').toUpperCase() === 'HOLD' ||
-      String(order.yookassaDealStatus ?? '').toUpperCase() === 'HOLD';
-    const isPaidOutOrder = (order: Order) =>
-      ['RELEASED', 'PAID', 'PAID_OUT', 'SUCCEEDED'].includes(
-        String(order.payoutStatus ?? '').toUpperCase()
-      );
-    const isAdjustmentOrder = (order: Order) =>
-      order.status === 'CANCELLED' ||
-      ['REFUND_PENDING', 'REFUNDED'].includes(
-        String(order.paymentStatus ?? '').toUpperCase()
-      ) ||
-      String(order.payoutStatus ?? '').toUpperCase() === 'BLOCKED';
-    const isQueuedOrder = (order: Order) =>
-      !isAdjustmentOrder(order) && !isPaidOutOrder(order);
+    if (!financeDashboard) {
+      return {
+        summary: {
+          awaitingPayoutKopecks: 0,
+          frozenKopecks: 0,
+          paidOutKopecks: 0,
+          adjustmentsKopecks: 0
+        },
+        nextPayout: { scheduledAt: null, amountKopecks: 0, orderCount: 0, payoutScheduleType: null },
+        payoutQueue: [] as SellerPayoutQueueItem[],
+        adjustments: [] as SellerAdjustmentItem[],
+        payoutHistory: [] as SellerPayoutHistoryItem[],
+        payoutWidgetConfig: null
+      };
+    }
 
-    const queueItems = searchedOrders
-      .filter((order) => isQueuedOrder(order))
-      .map((order) => {
-        const orderAmount = resolveOrderKopecks(order);
-        const sellerNetAmount =
-          typeof order.sellerNetAmount === 'number' ? order.sellerNetAmount : orderAmount;
-        const platformFee =
-          typeof order.platformFeeAmount === 'number'
-            ? order.platformFeeAmount
-            : Math.max(0, orderAmount - sellerNetAmount);
-        return {
-          id: `queue-${order.id}`,
-          orderId: order.id,
-          publicNumber: order.publicNumber ?? null,
-          date: order.createdAt,
-          orderAmount,
-          platformFee,
-          sellerNetAmount,
-          status: payoutStatusLabelRu(order.payoutStatus)
-        };
-      })
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-    const adjustments = searchedOrders
-      .filter((order) => isAdjustmentOrder(order))
-      .map((order) => {
-        const amount = resolveOrderKopecks(order);
-        let reason = 'Удержание платформой';
-        let status = 'Удержано';
-        if (order.status === 'CANCELLED') {
-          reason = 'Отмена заказа';
-          status = 'Отменен';
-        } else if (String(order.paymentStatus ?? '').toUpperCase() === 'REFUND_PENDING') {
-          reason = 'Возврат покупателю в процессе';
-          status = 'Возврат в процессе';
-        } else if (String(order.paymentStatus ?? '').toUpperCase() === 'REFUNDED') {
-          reason = 'Возврат покупателю завершен';
-          status = 'Возвращено';
-        }
-        return {
-          id: `adjustment-${order.id}`,
-          orderId: order.id,
-          publicNumber: order.publicNumber ?? null,
-          date: order.createdAt,
-          amount,
-          reason,
-          status
-        };
-      })
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-    const payoutHistory = payments
-      .filter((payment) =>
-        ['PAID', 'SUCCESS', 'SUCCEEDED', 'COMPLETED'].includes(
-          String(payment.status).toUpperCase()
-        )
-      )
-      .map((payment) => {
-        const order = searchedOrders.find((item) => item.id === payment.orderId);
-        const orderAmount = order ? resolveOrderKopecks(order) : resolvePaymentKopecks(payment);
-        const sellerNetAmount =
-          order && typeof order.sellerNetAmount === 'number'
-            ? order.sellerNetAmount
-            : resolvePaymentKopecks(payment);
-        const platformFee =
-          order && typeof order.platformFeeAmount === 'number'
-            ? order.platformFeeAmount
-            : Math.max(0, orderAmount - sellerNetAmount);
-        return {
-          id: payment.id,
-          date: payment.createdAt,
-          ordersCount: 1,
-          orderAmount,
-          platformFee,
-          sellerNetAmount,
-          status: 'Выплачено'
-        };
-      })
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-    const nextPayoutAmount = queueItems.reduce(
-      (sum, item) => sum + item.sellerNetAmount,
-      0
-    );
-    const pendingPayment = payments.find((payment) =>
-      ['PENDING', 'PROCESSING', 'READY'].includes(String(payment.status).toUpperCase())
-    );
-    const payoutSchedule =
-      (sellerProfile as { payoutSchedule?: string | null } | null)?.payoutSchedule ??
-      'По регламенту маркетплейса';
-
-    const summary = {
-      awaitingPayout: queueItems
-        .filter((item) => item.status !== 'Заморожено')
-        .reduce((sum, item) => sum + item.sellerNetAmount, 0),
-      frozen: searchedOrders
-        .filter((order) => isFrozenOrder(order))
-        .reduce((sum, order) => sum + resolveOrderKopecks(order), 0),
-      paidOut: payoutHistory.reduce((sum, payout) => sum + payout.sellerNetAmount, 0),
-      adjustments: adjustments.reduce((sum, item) => sum + item.amount, 0)
+    const matchBySearch = (orderId?: string | null, publicNumber?: string | null) => {
+      const normalizedSearch = ordersSearchQuery.trim().toLowerCase();
+      if (!normalizedSearch) return true;
+      return [orderId, publicNumber]
+        .filter((value): value is string => typeof value === 'string')
+        .some((value) => value.toLowerCase().includes(normalizedSearch));
     };
 
     return {
-      summary,
-      queueItems,
-      adjustments,
-      payoutHistory,
-      nextPayout: {
-        date: pendingPayment?.createdAt ?? null,
-        amount: nextPayoutAmount,
-        ordersCount: queueItems.length,
-        payoutSchedule
-      }
+      ...financeDashboard,
+      payoutQueue: financeDashboard.payoutQueue.filter((item) =>
+        matchBySearch(item.orderId, item.publicNumber)
+      ),
+      adjustments: financeDashboard.adjustments.filter((item) =>
+        matchBySearch(item.orderId, item.publicNumber)
+      ),
+      payoutHistory: financeDashboard.payoutHistory.filter((item) =>
+        matchBySearch(item.orderId, item.publicNumber)
+      )
     };
-  }, [payments, searchedOrders, sellerProfile]);
+  }, [financeDashboard, ordersSearchQuery]);
 
   const shouldShowSellerError =
     authStatus === 'authorized' &&
@@ -1184,6 +1169,85 @@ export const SellerDashboardPage = () => {
     if (isMenuOpen && deltaX < -70) {
       closeSellerMenu();
     }
+  };
+
+  const handleSetDefaultPayoutMethod = async (id: string) => {
+    setPayoutMethodError(null);
+    setPayoutMethodSuccess(null);
+    try {
+      await sellerFinanceApi.makeDefaultPayoutMethod(id);
+      await loadFinanceData();
+      setPayoutMethodSuccess('Основной способ выплаты обновлён.');
+    } catch (error) {
+      const normalized = normalizeApiError(error);
+      setPayoutMethodError(
+        normalized.message ?? 'Не удалось сделать способ выплаты основным.'
+      );
+    }
+  };
+
+  const handleRevokePayoutMethod = async (id: string) => {
+    setPayoutMethodError(null);
+    setPayoutMethodSuccess(null);
+    try {
+      await sellerFinanceApi.revokePayoutMethod(id);
+      await loadFinanceData();
+      setPayoutMethodSuccess('Способ выплаты отключён.');
+    } catch (error) {
+      const normalized = normalizeApiError(error);
+      setPayoutMethodError(
+        normalized.message ?? 'Не удалось отключить способ выплаты.'
+      );
+    }
+  };
+
+  const handleCreatePayoutMethod = async (payload: SellerPayoutMethodBindPayload) => {
+    setPayoutSubmitting(true);
+    setPayoutMethodError(null);
+    setPayoutMethodSuccess(null);
+    try {
+      await sellerFinanceApi.createPayoutMethod(payload);
+      await loadFinanceData();
+      setPayoutModalOpen(false);
+      setWalletNumber('');
+      setPayoutMethodSuccess('Реквизиты для выплат успешно добавлены.');
+    } catch (error) {
+      const normalized = normalizeApiError(error);
+      setPayoutMethodError(
+        normalized.message ?? 'Не удалось добавить способ выплаты.'
+      );
+    } finally {
+      setPayoutSubmitting(false);
+    }
+  };
+
+  const handleBindCard = async () => {
+    await initYooKassaPayoutWidget({
+      type: 'safedeal',
+      config: financeDashboard?.payoutWidgetConfig ?? null,
+      onSuccess: (payoutToken) => {
+        void handleCreatePayoutMethod({
+          provider: 'YOOKASSA',
+          methodType: 'BANK_CARD',
+          payoutToken
+        });
+      },
+      onError: (error) => setPayoutMethodError(error.message)
+    });
+  };
+
+  const handleBindWallet = async () => {
+    const normalizedWallet = walletNumber.replace(/\D/g, '');
+    if (normalizedWallet.length < 11 || normalizedWallet.length > 20) {
+      setPayoutMethodError('Введите корректный номер кошелька YooMoney.');
+      return;
+    }
+
+    await handleCreatePayoutMethod({
+      provider: 'YOOMONEY',
+      methodType: 'WALLET',
+      walletNumber: normalizedWallet
+    });
   };
 
   return (
@@ -1987,25 +2051,25 @@ export const SellerDashboardPage = () => {
                   <div className={styles.financeSummaryGrid}>
                     <SellerStatsCard
                       title="Ожидает выплаты"
-                      value={formatMoney({ kopecks: financeData.summary.awaitingPayout })}
+                      value={formatMoney({ kopecks: financeData.summary.awaitingPayoutKopecks })}
                     />
                     <SellerStatsCard
                       title="Заморожено"
-                      value={formatMoney({ kopecks: financeData.summary.frozen })}
+                      value={formatMoney({ kopecks: financeData.summary.frozenKopecks })}
                     />
                     <SellerStatsCard
                       title="Выплачено"
-                      value={formatMoney({ kopecks: financeData.summary.paidOut })}
+                      value={formatMoney({ kopecks: financeData.summary.paidOutKopecks })}
                     />
                     <SellerStatsCard
-                      title="Возвраты / удержания"
-                      value={formatMoney({ kopecks: financeData.summary.adjustments })}
+                      title="Возвраты / блокировки"
+                      value={formatMoney({ kopecks: financeData.summary.adjustmentsKopecks })}
                     />
                   </div>
 
                   <div className={styles.financePanel}>
                     <h3>Ближайшая выплата</h3>
-                    {financeData.nextPayout.ordersCount === 0 ? (
+                    {financeData.nextPayout.orderCount === 0 ? (
                       <div className={styles.infoCard}>
                         <strong>Будет доступно после настройки выплат</strong>
                         <p className={styles.muted}>
@@ -2018,24 +2082,26 @@ export const SellerDashboardPage = () => {
                         <div>
                           <p className={styles.muted}>Дата</p>
                           <strong>
-                            {financeData.nextPayout.date
-                              ? formatDate(financeData.nextPayout.date)
+                            {financeData.nextPayout.scheduledAt
+                              ? formatDate(financeData.nextPayout.scheduledAt)
                               : 'Дата уточняется'}
                           </strong>
                         </div>
                         <div>
                           <p className={styles.muted}>Сумма</p>
                           <strong>
-                            {formatMoney({ kopecks: financeData.nextPayout.amount })}
+                            {formatMoney({ kopecks: financeData.nextPayout.amountKopecks })}
                           </strong>
                         </div>
                         <div>
                           <p className={styles.muted}>Заказов</p>
-                          <strong>{financeData.nextPayout.ordersCount}</strong>
+                          <strong>{financeData.nextPayout.orderCount}</strong>
                         </div>
                         <div>
                           <p className={styles.muted}>График выплат</p>
-                          <strong>{financeData.nextPayout.payoutSchedule}</strong>
+                          <strong>
+                            {payoutScheduleLabelRu(financeData.nextPayout.payoutScheduleType)}
+                          </strong>
                         </div>
                       </div>
                     )}
@@ -2043,13 +2109,13 @@ export const SellerDashboardPage = () => {
 
                   <div className={styles.financePanel}>
                     <h3>Очередь на выплату</h3>
-                    {financeData.queueItems.length === 0 ? (
+                    {financeData.payoutQueue.length === 0 ? (
                       <p className={styles.muted}>Нет заказов в очереди на выплату.</p>
                     ) : (
                       <>
                         <SellerFinanceTable
-                          rows={financeData.queueItems}
-                          rowKey={(item) => item.id}
+                          rows={financeData.payoutQueue}
+                          rowKey={(item) => item.payoutId}
                           desktopContainerClassName={styles.financeRowsDesktop}
                           headerClassName={styles.financeTableHeader}
                           rowClassName={styles.financeTableRow}
@@ -2066,30 +2132,45 @@ export const SellerDashboardPage = () => {
                                 />
                               )
                             },
-                            { key: 'date', title: 'Дата', render: (item) => formatDate(item.date) },
+                            {
+                              key: 'date',
+                              title: 'Доступно к выплате / Дата',
+                              render: (item) =>
+                                item.status === 'HOLD'
+                                  ? `Заморожено до ${item.eligibleAt ? formatDate(item.eligibleAt) : 'даты уточнения'}`
+                                  : item.eligibleAt
+                                    ? `Доступно с ${formatDate(item.eligibleAt)}`
+                                    : 'Доступно к выплате'
+                            },
                             {
                               key: 'amount',
                               title: 'Сумма заказа',
-                              render: (item) => formatMoney({ kopecks: item.orderAmount })
+                              render: (item) => formatMoney({ kopecks: item.amountKopecks })
                             },
                             {
                               key: 'fee',
                               title: 'Комиссия платформы',
-                              render: (item) => formatMoney({ kopecks: item.platformFee })
+                              render: (item) => formatMoney({ kopecks: item.platformFeeKopecks })
                             },
                             {
                               key: 'net',
                               title: 'К выплате продавцу',
-                              render: (item) => formatMoney({ kopecks: item.sellerNetAmount })
+                              render: (item) =>
+                                formatMoney({ kopecks: item.sellerNetAmountKopecks })
                             },
-                            { key: 'status', title: 'Статус', render: (item) => item.status }
+                            {
+                              key: 'status',
+                              title: 'Статус',
+                              render: (item) => payoutStatusLabelRu(item.status)
+                            }
                           ]}
                         />
                         <SellerFinanceMobileCard
-                          rows={financeData.queueItems}
-                          rowKey={(item) => item.id}
+                          rows={financeData.payoutQueue}
+                          rowKey={(item) => item.payoutId}
                           cardsContainerClassName={styles.financeCardsMobile}
                           cardClassName={styles.financeMobileCard}
+                          labelClassName={styles.financeMobileLabel}
                           fields={[
                             {
                               key: 'order',
@@ -2102,23 +2183,37 @@ export const SellerDashboardPage = () => {
                                 />
                               )
                             },
-                            { key: 'date', label: 'Дата', render: (item) => formatDate(item.date) },
+                            {
+                              key: 'date',
+                              label: 'Доступно к выплате',
+                              render: (item) =>
+                                item.status === 'HOLD'
+                                  ? `Заморожено до ${item.eligibleAt ? formatDate(item.eligibleAt) : 'даты уточнения'}`
+                                  : item.eligibleAt
+                                    ? `Доступно с ${formatDate(item.eligibleAt)}`
+                                    : 'Доступно к выплате'
+                            },
                             {
                               key: 'amount',
                               label: 'Сумма заказа',
-                              render: (item) => formatMoney({ kopecks: item.orderAmount })
+                              render: (item) => formatMoney({ kopecks: item.amountKopecks })
                             },
                             {
                               key: 'fee',
                               label: 'Комиссия платформы',
-                              render: (item) => formatMoney({ kopecks: item.platformFee })
+                              render: (item) => formatMoney({ kopecks: item.platformFeeKopecks })
                             },
                             {
                               key: 'net',
                               label: 'К выплате продавцу',
-                              render: (item) => formatMoney({ kopecks: item.sellerNetAmount })
+                              render: (item) =>
+                                formatMoney({ kopecks: item.sellerNetAmountKopecks })
                             },
-                            { key: 'status', label: 'Статус', render: (item) => item.status }
+                            {
+                              key: 'status',
+                              label: 'Статус',
+                              render: (item) => payoutStatusLabelRu(item.status)
+                            }
                           ]}
                         />
                       </>
@@ -2126,14 +2221,14 @@ export const SellerDashboardPage = () => {
                   </div>
 
                   <div className={styles.financePanel}>
-                    <h3>Возвраты и удержания</h3>
+                    <h3>Возвраты и блокировки</h3>
                     {financeData.adjustments.length === 0 ? (
                       <p className={styles.muted}>Возвратов и удержаний пока нет.</p>
                     ) : (
                       <>
                         <SellerFinanceTable
                           rows={financeData.adjustments}
-                          rowKey={(item) => item.id}
+                          rowKey={(item) => item.adjustmentId}
                           desktopContainerClassName={styles.financeRowsDesktop}
                           headerClassName={styles.financeTableHeader}
                           rowClassName={styles.financeAdjustmentsRow}
@@ -2150,21 +2245,42 @@ export const SellerDashboardPage = () => {
                                 />
                               )
                             },
-                            { key: 'date', title: 'Дата', render: (item) => formatDate(item.date) },
+                            {
+                              key: 'date',
+                              title: 'Дата',
+                              render: (item) => formatDate(item.createdAt)
+                            },
                             {
                               key: 'amount',
                               title: 'Сумма',
-                              render: (item) => formatMoney({ kopecks: item.amount })
+                              render: (item) => formatMoney({ kopecks: item.amountKopecks })
                             },
-                            { key: 'reason', title: 'Причина / описание', render: (item) => item.reason },
-                            { key: 'status', title: 'Статус', render: (item) => item.status }
+                            {
+                              key: 'type',
+                              title: 'Тип',
+                              render: (item) => adjustmentTypeLabelRu(item.type)
+                            },
+                            {
+                              key: 'description',
+                              title: 'Описание',
+                              render: (item) =>
+                                [item.description, payoutCancelReasonLabelRu(item.cancellationReason)]
+                                  .filter(Boolean)
+                                  .join(' · ') || '—'
+                            },
+                            {
+                              key: 'status',
+                              title: 'Статус',
+                              render: (item) => payoutStatusLabelRu(item.status)
+                            }
                           ]}
                         />
                         <SellerFinanceMobileCard
                           rows={financeData.adjustments}
-                          rowKey={(item) => item.id}
+                          rowKey={(item) => item.adjustmentId}
                           cardsContainerClassName={styles.financeCardsMobile}
                           cardClassName={styles.financeMobileCard}
+                          labelClassName={styles.financeMobileLabel}
                           fields={[
                             {
                               key: 'order',
@@ -2177,14 +2293,34 @@ export const SellerDashboardPage = () => {
                                 />
                               )
                             },
-                            { key: 'date', label: 'Дата', render: (item) => formatDate(item.date) },
+                            {
+                              key: 'date',
+                              label: 'Дата',
+                              render: (item) => formatDate(item.createdAt)
+                            },
                             {
                               key: 'amount',
                               label: 'Сумма',
-                              render: (item) => formatMoney({ kopecks: item.amount })
+                              render: (item) => formatMoney({ kopecks: item.amountKopecks })
                             },
-                            { key: 'reason', label: 'Причина / описание', render: (item) => item.reason },
-                            { key: 'status', label: 'Статус', render: (item) => item.status }
+                            {
+                              key: 'type',
+                              label: 'Тип',
+                              render: (item) => adjustmentTypeLabelRu(item.type)
+                            },
+                            {
+                              key: 'description',
+                              label: 'Описание',
+                              render: (item) =>
+                                [item.description, payoutCancelReasonLabelRu(item.cancellationReason)]
+                                  .filter(Boolean)
+                                  .join(' · ') || '—'
+                            },
+                            {
+                              key: 'status',
+                              label: 'Статус',
+                              render: (item) => payoutStatusLabelRu(item.status)
+                            }
                           ]}
                         />
                       </>
@@ -2196,47 +2332,196 @@ export const SellerDashboardPage = () => {
                     {financeData.payoutHistory.length === 0 ? (
                       <div className={styles.infoCard}>
                         <strong>Выплат пока не было</strong>
+                        <p className={styles.muted}>
+                          Когда выплаты продавцу появятся, здесь отобразится реальная история перечислений.
+                        </p>
                       </div>
                     ) : (
-                      <div className={styles.financeRows}>
-                        <div
-                          className={`${styles.financeTableHeader} ${styles.financePayoutHistoryTemplate}`}
-                        >
-                          <span>Дата</span>
-                          <span>Заказов</span>
-                          <span>Сумма заказов</span>
-                          <span>Комиссия платформы</span>
-                          <span>К выплате</span>
-                          <span>Статус</span>
-                        </div>
-                        {financeData.payoutHistory.map((item) => (
-                          <div
-                            className={`${styles.financeTableRow} ${styles.financePayoutHistoryTemplate}`}
-                            key={item.id}
-                          >
-                            <span data-title="Дата">{formatDate(item.date)}</span>
-                            <span data-title="Заказов">{item.ordersCount}</span>
-                            <span data-title="Сумма заказов">
-                              {formatMoney({ kopecks: item.orderAmount })}
-                            </span>
-                            <span data-title="Комиссия платформы">
-                              {formatMoney({ kopecks: item.platformFee })}
-                            </span>
-                            <span data-title="К выплате">
-                              {formatMoney({ kopecks: item.sellerNetAmount })}
-                            </span>
-                            <span data-title="Статус">{item.status}</span>
-                          </div>
+                      <>
+                        <SellerFinanceTable
+                          rows={financeData.payoutHistory}
+                          rowKey={(item) => `${item.payoutId}-${item.orderId}`}
+                          desktopContainerClassName={styles.financeRowsDesktop}
+                          headerClassName={styles.financeTableHeader}
+                          rowClassName={styles.financeTableRow}
+                          templateClassName={styles.financePayoutHistoryTemplate}
+                          columns={[
+                            {
+                              key: 'order',
+                              title: 'Заказ',
+                              render: (item) => (
+                                <CopyableOrderNumber
+                                  orderId={item.orderId}
+                                  publicNumber={item.publicNumber}
+                                  className={styles.orderIdText}
+                                />
+                              )
+                            },
+                            {
+                              key: 'date',
+                              title: 'Дата',
+                              render: (item) =>
+                                formatDate(item.succeededAt ?? item.createdAt)
+                            },
+                            {
+                              key: 'amount',
+                              title: 'Сумма заказа',
+                              render: (item) => formatMoney({ kopecks: item.amountKopecks })
+                            },
+                            {
+                              key: 'fee',
+                              title: 'Комиссия',
+                              render: (item) =>
+                                formatMoney({ kopecks: item.platformFeeKopecks })
+                            },
+                            {
+                              key: 'net',
+                              title: 'Выплачено продавцу',
+                              render: (item) =>
+                                formatMoney({ kopecks: item.sellerNetAmountKopecks })
+                            },
+                            {
+                              key: 'method',
+                              title: 'Способ выплаты',
+                              render: (item) => item.payoutMethodSummary ?? '—'
+                            },
+                            {
+                              key: 'status',
+                              title: 'Статус',
+                              render: (item) => payoutStatusLabelRu(item.status)
+                            }
+                          ]}
+                        />
+                        <SellerFinanceMobileCard
+                          rows={financeData.payoutHistory}
+                          rowKey={(item) => `${item.payoutId}-${item.orderId}`}
+                          cardsContainerClassName={styles.financeCardsMobile}
+                          cardClassName={styles.financeMobileCard}
+                          labelClassName={styles.financeMobileLabel}
+                          fields={[
+                            {
+                              key: 'order',
+                              label: 'Заказ',
+                              render: (item) => (
+                                <CopyableOrderNumber
+                                  orderId={item.orderId}
+                                  publicNumber={item.publicNumber}
+                                  className={styles.orderIdText}
+                                />
+                              )
+                            },
+                            {
+                              key: 'date',
+                              label: 'Дата',
+                              render: (item) =>
+                                formatDate(item.succeededAt ?? item.createdAt)
+                            },
+                            {
+                              key: 'amount',
+                              label: 'Сумма заказа',
+                              render: (item) => formatMoney({ kopecks: item.amountKopecks })
+                            },
+                            {
+                              key: 'fee',
+                              label: 'Комиссия',
+                              render: (item) =>
+                                formatMoney({ kopecks: item.platformFeeKopecks })
+                            },
+                            {
+                              key: 'net',
+                              label: 'Выплачено продавцу',
+                              render: (item) =>
+                                formatMoney({ kopecks: item.sellerNetAmountKopecks })
+                            },
+                            {
+                              key: 'method',
+                              label: 'Способ выплаты',
+                              render: (item) => item.payoutMethodSummary ?? '—'
+                            },
+                            {
+                              key: 'status',
+                              label: 'Статус',
+                              render: (item) => payoutStatusLabelRu(item.status)
+                            }
+                          ]}
+                        />
+                      </>
+                    )}
+                  </div>
+                  {financeLoading && (
+                    <p className={styles.muted}>Загрузка финансовых операций Safe Deal...</p>
+                  )}
+                  {financeError && (
+                    <p className={styles.error}>{financeError}</p>
+                  )}
+
+                  <div className={styles.financePanel}>
+                    <div className={styles.payoutMethodsHeader}>
+                      <h3>Реквизиты для выплат</h3>
+                      <Button type="button" variant="secondary" onClick={() => setPayoutModalOpen(true)}>
+                        Добавить реквизиты
+                      </Button>
+                    </div>
+                    {payoutMethodsLoading ? (
+                      <p className={styles.muted}>Загрузка реквизитов...</p>
+                    ) : payoutMethods.length === 0 ? (
+                      <EmptyState
+                        title="Реквизиты ещё не добавлены"
+                        description="Привяжите карту YooKassa payouts-data или кошелёк YooMoney для выплат."
+                      />
+                    ) : (
+                      <div className={styles.payoutMethodsList}>
+                        {payoutMethods.map((method) => (
+                          <article key={method.id} className={styles.payoutMethodCard}>
+                            <div className={styles.payoutMethodTop}>
+                              <strong>{method.maskedLabel}</strong>
+                              <div className={styles.payoutMethodBadges}>
+                                {method.isDefault && <Badge variant="primary">Основной</Badge>}
+                                <Badge
+                                  variant={
+                                    String(method.status).toUpperCase() === 'ACTIVE'
+                                      ? 'success'
+                                      : String(method.status).toUpperCase() === 'INVALID'
+                                        ? 'danger'
+                                        : 'warning'
+                                  }
+                                >
+                                  {String(method.status).toUpperCase() === 'ACTIVE'
+                                    ? 'Активен'
+                                    : String(method.status).toUpperCase() === 'INVALID'
+                                      ? 'Требует проверки'
+                                      : method.status}
+                                </Badge>
+                              </div>
+                            </div>
+                            <p className={styles.muted}>
+                              Провайдер: {method.provider} · Добавлен {formatDate(method.createdAt)}
+                            </p>
+                            <div className={styles.payoutMethodActions}>
+                              {!method.isDefault && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  onClick={() => handleSetDefaultPayoutMethod(method.id)}
+                                >
+                                  Сделать основным
+                                </Button>
+                              )}
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={() => handleRevokePayoutMethod(method.id)}
+                              >
+                                Отключить
+                              </Button>
+                            </div>
+                          </article>
                         ))}
                       </div>
                     )}
+                    {payoutMethodError && <p className={styles.error}>{payoutMethodError}</p>}
+                    {payoutMethodSuccess && <p className={styles.successMessage}>{payoutMethodSuccess}</p>}
                   </div>
-                  {paymentsLoading && (
-                    <p className={styles.muted}>Загрузка финансовых операций...</p>
-                  )}
-                  {paymentsError && (
-                    <p className={styles.error}>{paymentsError}</p>
-                  )}
                   <div className={styles.financeHintList}>
                     <p>
                       <strong>Ожидает выплаты</strong> — деньги по заказам, готовым к перечислению.
@@ -2251,6 +2536,69 @@ export const SellerDashboardPage = () => {
                       <strong>Возвраты / удержания</strong> — отмены, возвраты и блокировки.
                     </p>
                   </div>
+
+                  {isPayoutModalOpen && (
+                    <div className={styles.inlineModal}>
+                      <div className={styles.inlineModalCard}>
+                        <div className={styles.payoutMethodsHeader}>
+                          <h3>Добавить реквизиты</h3>
+                          <Button type="button" variant="ghost" onClick={() => setPayoutModalOpen(false)}>
+                            Закрыть
+                          </Button>
+                        </div>
+                        <div className={styles.payoutBindTabs}>
+                          <Button
+                            type="button"
+                            variant={payoutBindType === 'BANK_CARD' ? 'primary' : 'ghost'}
+                            onClick={() => setPayoutBindType('BANK_CARD')}
+                          >
+                            Привязать карту
+                          </Button>
+                          <Button
+                            type="button"
+                            variant={payoutBindType === 'WALLET' ? 'primary' : 'ghost'}
+                            onClick={() => setPayoutBindType('WALLET')}
+                          >
+                            YooMoney кошелек
+                          </Button>
+                        </div>
+                        {payoutBindType === 'BANK_CARD' ? (
+                          <div className={styles.payoutBindBlock}>
+                            <p className={styles.muted}>
+                              Для Safe Deal используем YooKassa payouts-data widget (type=safedeal).
+                            </p>
+                            <Button
+                              type="button"
+                              onClick={() => void handleBindCard()}
+                              disabled={isPayoutSubmitting}
+                            >
+                              Привязать карту через YooKassa
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className={styles.payoutBindBlock}>
+                            <label className={styles.formLabel} htmlFor="wallet-number">
+                              Номер кошелька YooMoney
+                            </label>
+                            <input
+                              id="wallet-number"
+                              className={styles.input}
+                              value={walletNumber}
+                              onChange={(event) => setWalletNumber(event.target.value)}
+                              placeholder="4100..."
+                            />
+                            <Button
+                              type="button"
+                              onClick={() => void handleBindWallet()}
+                              disabled={isPayoutSubmitting}
+                            >
+                              Сохранить кошелек
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
