@@ -492,6 +492,106 @@ export interface Payment {
   createdAt: string;
 }
 
+export type SellerPayoutStatus =
+  | 'HOLD'
+  | 'AWAITING_PAYOUT'
+  | 'PAYOUT_PENDING'
+  | 'PAID_OUT'
+  | 'RELEASED'
+  | 'REFUNDED'
+  | 'BLOCKED'
+  | 'PAYOUT_CANCELED'
+  | 'FAILED'
+  | string;
+
+export type SellerAdjustmentType =
+  | 'REFUND'
+  | 'BLOCKED'
+  | 'PAYOUT_CANCELED'
+  | string;
+
+export interface SellerPayoutMethod {
+  id: string;
+  provider: string;
+  methodType: string;
+  status: string;
+  isDefault: boolean;
+  maskedLabel: string;
+  cardLast4?: string | null;
+  cardType?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type SellerPayoutMethodBindPayload =
+  | {
+      provider: 'YOOKASSA';
+      methodType: 'BANK_CARD';
+      payoutToken: string;
+    }
+  | {
+      provider: 'YOOMONEY';
+      methodType: 'WALLET';
+      walletNumber: string;
+    };
+
+export interface SellerPayoutQueueItem {
+  payoutId: string;
+  orderId: string;
+  publicNumber?: string | null;
+  createdAt: string;
+  eligibleAt?: string | null;
+  amountKopecks: number;
+  sellerNetAmountKopecks: number;
+  platformFeeKopecks: number;
+  status: SellerPayoutStatus;
+}
+
+export interface SellerAdjustmentItem {
+  adjustmentId: string;
+  payoutId?: string | null;
+  orderId: string;
+  publicNumber?: string | null;
+  createdAt: string;
+  amountKopecks: number;
+  type: SellerAdjustmentType;
+  status: string;
+  description?: string | null;
+  cancellationReason?: string | null;
+}
+
+export interface SellerPayoutHistoryItem {
+  payoutId: string;
+  orderId: string;
+  publicNumber?: string | null;
+  createdAt: string;
+  succeededAt?: string | null;
+  amountKopecks: number;
+  sellerNetAmountKopecks: number;
+  platformFeeKopecks: number;
+  status: SellerPayoutStatus;
+  payoutMethodSummary?: string | null;
+}
+
+export interface SellerFinanceDashboardResponse {
+  summary: {
+    awaitingPayoutKopecks: number;
+    frozenKopecks: number;
+    paidOutKopecks: number;
+    adjustmentsKopecks: number;
+  };
+  nextPayout: {
+    scheduledAt?: string | null;
+    amountKopecks: number;
+    orderCount: number;
+    payoutScheduleType?: string | null;
+  };
+  payoutQueue: SellerPayoutQueueItem[];
+  adjustments: SellerAdjustmentItem[];
+  payoutHistory: SellerPayoutHistoryItem[];
+  payoutWidgetConfig?: Record<string, unknown> | null;
+}
+
 export interface CustomPrintRequest {
   id: string;
   name: string;
