@@ -7,7 +7,7 @@ type SellerFinanceTableProps<T> = {
   headerClassName: string;
   rowClassName: string;
   desktopContainerClassName: string;
-  desktopTemplate: string;
+  templateClassName: string;
 };
 
 export const SellerFinanceTable = <T,>({
@@ -17,16 +17,16 @@ export const SellerFinanceTable = <T,>({
   headerClassName,
   rowClassName,
   desktopContainerClassName,
-  desktopTemplate
+  templateClassName
 }: SellerFinanceTableProps<T>) => (
   <div className={desktopContainerClassName}>
-    <div className={headerClassName} style={{ gridTemplateColumns: desktopTemplate }}>
+    <div className={`${headerClassName} ${templateClassName}`}>
       {columns.map((column) => (
         <span key={column.key}>{column.title}</span>
       ))}
     </div>
     {rows.map((row) => (
-      <div key={rowKey(row)} className={rowClassName} style={{ gridTemplateColumns: desktopTemplate }}>
+      <div key={rowKey(row)} className={`${rowClassName} ${templateClassName}`}>
         {columns.map((column) => (
           <span key={`${rowKey(row)}-${column.key}`} data-title={column.title}>
             {column.render(row)}

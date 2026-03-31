@@ -503,6 +503,18 @@
   color: var(--danger);
 }
 
+.deliveryError {
+  margin-top: 0.5rem;
+}
+
+.formFieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 12px;
+}
+
 .reportTable {
   background: var(--card);
   border-radius: var(--radius-card);
@@ -789,14 +801,7 @@
   gap: 12px;
 }
 
-.financeRows {
-  display: grid;
-  gap: 0;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  overflow: hidden;
-}
-
+.financeRows,
 .financeRowsDesktop {
   display: grid;
   gap: 0;
@@ -831,6 +836,7 @@
 
 .orderIdText {
   display: inline-block;
+  min-width: 0;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -842,7 +848,7 @@
 .financeTableRow,
 .financeAdjustmentsRow {
   display: grid;
-  gap: 10px;
+  gap: 12px;
   align-items: center;
   padding: 12px 14px;
 }
@@ -858,19 +864,42 @@
   border-top: 1px solid rgba(148, 163, 184, 0.35);
 }
 
+.financeTableHeader > span,
 .financeTableRow > span,
 .financeAdjustmentsRow > span {
   min-width: 0;
+  overflow-wrap: anywhere;
 }
 
-.financeTableRow > span:nth-child(3),
-.financeTableRow > span:nth-child(4),
-.financeTableRow > span:nth-child(5),
-.financeAdjustmentsRow > span:nth-child(3) {
+.financeQueueTemplate {
+  grid-template-columns: minmax(176px, 1.6fr) minmax(108px, 0.95fr) minmax(128px, 1fr) minmax(128px, 1fr) minmax(128px, 1fr) minmax(92px, 0.8fr);
+}
+
+.financeAdjustmentsTemplate {
+  grid-template-columns: minmax(176px, 1.5fr) minmax(108px, 0.9fr) minmax(128px, 0.95fr) minmax(260px, 2.45fr) minmax(92px, 0.8fr);
+}
+
+.financePayoutHistoryTemplate {
+  grid-template-columns: minmax(108px, 0.95fr) minmax(92px, 0.72fr) minmax(128px, 1fr) minmax(128px, 1fr) minmax(128px, 1fr) minmax(92px, 0.8fr);
+}
+
+.financeQueueTemplate > span:nth-child(3),
+.financeQueueTemplate > span:nth-child(4),
+.financeQueueTemplate > span:nth-child(5),
+.financeAdjustmentsTemplate > span:nth-child(3),
+.financePayoutHistoryTemplate > span:nth-child(3),
+.financePayoutHistoryTemplate > span:nth-child(4),
+.financePayoutHistoryTemplate > span:nth-child(5) {
   text-align: right;
 }
 
-.financeAdjustmentsRow > span:nth-child(4) {
+.financeQueueTemplate > span:last-child,
+.financeAdjustmentsTemplate > span:last-child,
+.financePayoutHistoryTemplate > span:last-child {
+  text-align: left;
+}
+
+.financeAdjustmentsTemplate > span:nth-child(4) {
   white-space: normal;
   line-height: 1.35;
 }
