@@ -171,26 +171,73 @@ const toKopecks = (value?: number | null) => {
 
 const ensureArray = <T,>(value: unknown): T[] => (Array.isArray(value) ? value : []);
 
+type NormalizedPayoutMethods = {
+  methods: SellerPayoutMethod[];
+  widgetConfig: Record<string, unknown> | null;
+};
+
+const normalizePayoutMethodsResponse = (payload: unknown): NormalizedPayoutMethods => {
+  const list = pickApiList<SellerPayoutMethod>(payload);
+  if (Array.isArray(payload)) {
+    return { methods: list, widgetConfig: null };
+  }
+
+  if (!payload || typeof payload !== 'object') {
+    return { methods: list, widgetConfig: null };
+  }
+
+  const source = payload as Record<string, unknown>;
+  const widgetConfigCandidate =
+    (source.widgetConfig as Record<string, unknown> | null | undefined) ??
+    (source.payoutWidgetConfig as Record<string, unknown> | null | undefined) ??
+    (source.config as Record<string, unknown> | null | undefined) ??
+    null;
+
+  return {
+    methods: list,
+    widgetConfig:
+      widgetConfigCandidate && typeof widgetConfigCandidate === 'object'
+        ? widgetConfigCandidate
+        : null
+  };
+};
+
 const normalizeFinanceDashboard = (
   value: SellerFinanceDashboardResponse
-): SellerFinanceDashboardResponse => ({
-  summary: {
-    awaitingPayoutKopecks: value?.summary?.awaitingPayoutKopecks ?? 0,
-    frozenKopecks: value?.summary?.frozenKopecks ?? 0,
-    paidOutKopecks: value?.summary?.paidOutKopecks ?? 0,
-    adjustmentsKopecks: value?.summary?.adjustmentsKopecks ?? 0
-  },
-  nextPayout: {
-    scheduledAt: value?.nextPayout?.scheduledAt ?? null,
-    amountKopecks: value?.nextPayout?.amountKopecks ?? 0,
-    orderCount: value?.nextPayout?.orderCount ?? 0,
-    payoutScheduleType: value?.nextPayout?.payoutScheduleType ?? null
-  },
-  payoutQueue: ensureArray(value?.payoutQueue),
-  adjustments: ensureArray(value?.adjustments),
-  payoutHistory: ensureArray(value?.payoutHistory),
-  payoutWidgetConfig: value?.payoutWidgetConfig ?? null
-});
+): SellerFinanceDashboardResponse => {
+  const summary = (value as { summary?: Record<string, number | undefined> })?.summary ?? {};
+  const nextPayout =
+    (value as { nextPayout?: Record<string, string | number | null | undefined> })?.nextPayout ??
+    {};
+
+  return {
+    summary: {
+      awaitingPayoutKopecks: summary.awaitingPayoutKopecks ?? summary.pendingPayoutMinor ?? 0,
+      frozenKopecks: summary.frozenKopecks ?? summary.frozenMinor ?? 0,
+      paidOutKopecks: summary.paidOutKopecks ?? summary.paidOutMinor ?? 0,
+      adjustmentsKopecks: summary.adjustmentsKopecks ?? summary.refundsAndHoldsMinor ?? 0
+    },
+    nextPayout: {
+      scheduledAt:
+        (nextPayout.scheduledAt as string | null | undefined) ??
+        (nextPayout.availableAt as string | null | undefined) ??
+        null,
+      amountKopecks:
+        (nextPayout.amountKopecks as number | undefined) ??
+        (nextPayout.amountMinor as number | undefined) ??
+        0,
+      orderCount:
+        (nextPayout.orderCount as number | undefined) ??
+        (nextPayout.ordersCount as number | undefined) ??
+        0,
+      payoutScheduleType: (nextPayout.payoutScheduleType as string | null | undefined) ?? null
+    },
+    payoutQueue: ensureArray(value?.payoutQueue ?? (value as { queue?: unknown }).queue),
+    adjustments: ensureArray(value?.adjustments ?? (value as { holds?: unknown }).holds),
+    payoutHistory: ensureArray(value?.payoutHistory ?? (value as { history?: unknown }).history),
+    payoutWidgetConfig: value?.payoutWidgetConfig ?? null
+  };
+};
 
 const resolveOrderItemLineTotalKopecks = (item: Order['items'][number]) => {
   if (typeof item.lineTotalKopecks === 'number') return item.lineTotalKopecks;
@@ -412,6 +459,10 @@ export const SellerDashboardPage = () => {
   const [payoutMethods, setPayoutMethods] = useState<SellerPayoutMethod[]>([]);
   const [payoutMethodsLoading, setPayoutMethodsLoading] = useState(true);
   const [payoutMethodError, setPayoutMethodError] = useState<string | null>(null);
+  const [payoutMethodsUnauthorized, setPayoutMethodsUnauthorized] = useState(false);
+  const [payoutWidgetConfig, setPayoutWidgetConfig] = useState<Record<string, unknown> | null>(
+    null
+  );
   const [payoutMethodSuccess, setPayoutMethodSuccess] = useState<string | null>(
     null
   );
@@ -576,7 +627,7 @@ export const SellerDashboardPage = () => {
         )}
       </div>
       {payoutMethodsLoading ? (
-        <p className={styles.muted}>Загрузка реквизитов...</p>
+        <p className={styles.muted}>Загружаем реквизиты для выплат...</p>
       ) : (
         <div className={styles.payoutMethodsList}>
           {payoutMethods.map((method) => (
@@ -642,7 +693,7 @@ export const SellerDashboardPage = () => {
       {payoutMethodError && <p className={styles.error}>{payoutMethodError}</p>}
       {payoutMethodSuccess && <p className={styles.successMessage}>{payoutMethodSuccess}</p>}
 
-      {(payoutMethods.length === 0 || isPayoutBindExpanded) && (
+      {!payoutMethodError && (payoutMethods.length === 0 || isPayoutBindExpanded) && (
         <div className={styles.payoutBindInlineBlock}>
           {payoutMethodsLoading && (
             <p className={styles.muted}>{YOOKASSA_WIDGET_LOADING_CONFIG_MESSAGE}</p>
@@ -850,49 +901,68 @@ export const SellerDashboardPage = () => {
 
   const loadFinanceData = useCallback(async () => {
     setFinanceLoading(true);
-    setPayoutMethodsLoading(true);
     setFinanceError(null);
-    setPayoutMethodError(null);
-    const [dashboardResult, payoutMethodsResult] = await Promise.allSettled([
-      sellerFinanceApi.getDashboard(),
-      sellerFinanceApi.getPayoutMethods()
-    ]);
-
-    if (dashboardResult.status === 'fulfilled') {
-      const response = dashboardResult.value;
+    try {
+      const response = await sellerFinanceApi.getDashboard();
+      const financePayload = response?.data as SellerFinanceDashboardResponse & {
+        queue?: unknown;
+        history?: unknown;
+        holds?: unknown;
+      };
       console.log('[finance] raw response', response);
-      console.log('[finance] summary', response?.data?.summary);
-      console.log('[finance] queue', response?.data?.payoutQueue);
-      console.log('[finance] history', response?.data?.payoutHistory);
-      console.log('[finance] holds', response?.data?.adjustments);
+      console.log('[finance] summary', financePayload?.summary);
+      console.log('[finance] queue', financePayload?.payoutQueue ?? financePayload?.queue);
+      console.log('[finance] history', financePayload?.payoutHistory ?? financePayload?.history);
+      console.log('[finance] holds', financePayload?.adjustments ?? financePayload?.holds);
       setFinanceDashboard(normalizeFinanceDashboard(response.data));
-    } else {
+    } catch (error) {
       setFinanceDashboard(null);
-      const error = dashboardResult.reason;
       if (isAccessError(error) && isSellerReady) {
         setFinanceError('Сессия истекла, войдите снова.');
       } else if (isSellerReady) {
         setFinanceError('Не удалось загрузить данные бухгалтерии.');
       }
+    } finally {
+      setFinanceLoading(false);
     }
+  }, [isSellerReady]);
 
-    if (payoutMethodsResult.status === 'fulfilled') {
-      setPayoutMethods(pickApiList<SellerPayoutMethod>(payoutMethodsResult.value.data));
-    } else {
+  const loadPayoutSettings = useCallback(async () => {
+    setPayoutMethodsLoading(true);
+    setPayoutMethodError(null);
+    setPayoutMethodsUnauthorized(false);
+    setPayoutWidgetConfig(null);
+    try {
+      const response = await sellerFinanceApi.getPayoutMethods();
+      const status: number = 200;
+      const normalizedPayoutMethods = normalizePayoutMethodsResponse(response.data);
+      console.log('[payout-methods] raw response', response);
+      console.log('[payout-methods] status', status);
+      console.log('[payout-methods] authorized', status !== 401);
+      console.log('[payout-methods] normalized data', normalizedPayoutMethods);
+      setPayoutMethods(normalizedPayoutMethods.methods);
+      setPayoutWidgetConfig(normalizedPayoutMethods.widgetConfig);
+    } catch (error) {
+      console.error('[payout-methods] request failed', error);
       setPayoutMethods([]);
-      const normalized = normalizeApiError(payoutMethodsResult.reason);
-      if (isAccessError(payoutMethodsResult.reason) && isSellerReady) {
-        setPayoutMethodError('Сессия истекла, войдите снова.');
-      } else if (isSellerReady) {
+      const normalized = normalizeApiError(error);
+      const status = normalized.status ?? 0;
+      console.log('[payout-methods] status', status);
+      console.log('[payout-methods] authorized', status !== 401);
+      if (status === 401) {
+        setPayoutMethodsUnauthorized(true);
         setPayoutMethodError(
-          normalized.message ?? 'Не удалось загрузить реквизиты для выплат.'
+          'Не удалось получить данные по выплатам. Требуется повторная авторизация.'
+        );
+      } else {
+        setPayoutMethodError(
+          normalized.message ?? 'Не удалось получить данные по реквизитам выплат.'
         );
       }
+    } finally {
+      setPayoutMethodsLoading(false);
     }
-
-    setFinanceLoading(false);
-    setPayoutMethodsLoading(false);
-  }, [isSellerReady]);
+  }, []);
 
   useEffect(() => {
     if (sellerProfile) {
@@ -921,6 +991,8 @@ export const SellerDashboardPage = () => {
       setProducts([]);
       setFinanceDashboard(null);
       setPayoutMethods([]);
+      setPayoutMethodsUnauthorized(false);
+      setPayoutWidgetConfig(null);
       setOrders([]);
       setOrdersError(null);
       setFinanceError(null);
@@ -940,8 +1012,17 @@ export const SellerDashboardPage = () => {
     void loadProducts();
     void loadKyc();
     void loadFinanceData();
+    void loadPayoutSettings();
     if (userId) void loadOrders();
-  }, [isSellerReady, loadFinanceData, loadKyc, loadOrders, loadProducts, userId]);
+  }, [
+    isSellerReady,
+    loadFinanceData,
+    loadKyc,
+    loadOrders,
+    loadPayoutSettings,
+    loadProducts,
+    userId
+  ]);
 
   const handleKycSubmit = async () => {
     if (!isSellerReady) {
@@ -1403,7 +1484,7 @@ export const SellerDashboardPage = () => {
     setPayoutMethodSuccess(null);
     try {
       await sellerFinanceApi.makeDefaultPayoutMethod(id);
-      await loadFinanceData();
+      await loadPayoutSettings();
       setPayoutMethodSuccess('Основной способ выплаты обновлён.');
     } catch (error) {
       const normalized = normalizeApiError(error);
@@ -1418,7 +1499,7 @@ export const SellerDashboardPage = () => {
     setPayoutMethodSuccess(null);
     try {
       await sellerFinanceApi.revokePayoutMethod(id);
-      await loadFinanceData();
+      await loadPayoutSettings();
       setPayoutMethodSuccess('Способ выплаты отключён.');
     } catch (error) {
       const normalized = normalizeApiError(error);
@@ -1433,7 +1514,7 @@ export const SellerDashboardPage = () => {
     setPayoutMethodSuccess(null);
     try {
       await sellerFinanceApi.createPayoutMethod(payload);
-      await loadFinanceData();
+      await loadPayoutSettings();
       setPayoutBindExpanded(false);
       payoutWidgetRenderKeyRef.current = null;
       setPayoutWidgetInfo(null);
@@ -1476,19 +1557,21 @@ export const SellerDashboardPage = () => {
   };
 
   const handleBindCard = async () => {
-    if (!financeDashboard) {
+    if (payoutMethodsUnauthorized) {
       setPayoutWidgetLoading(false);
       setPayoutWidgetStage('idle');
       setPayoutWidgetInfo(null);
-      setPayoutWidgetError('Не удалось загрузить настройки формы выплат.');
+      setPayoutWidgetError(
+        'Не удалось получить данные по выплатам. Требуется повторная авторизация.'
+      );
       return;
     }
 
-    const widgetConfig = financeDashboard.payoutWidgetConfig ?? null;
-    const resolvedConfig = resolvePayoutWidgetConfig(widgetConfig);
-    console.log('[YK widget] settings loaded', widgetConfig);
-    console.log('[YK widget] enabled:', resolvedConfig.enabled);
-    console.log('[YK widget] accountId:', resolvedConfig.accountId);
+    const resolvedConfig = resolvePayoutWidgetConfig(payoutWidgetConfig);
+    console.log('[widget] script loaded', Boolean((window as Window & { PayoutsData?: unknown }).PayoutsData));
+    console.log('[widget] accountId', resolvedConfig.accountId);
+    console.log('[widget] enabled', resolvedConfig.enabled);
+    console.log('[widget] hasSavedCard', resolvedConfig.hasSavedCard);
 
     if (!resolvedConfig.enabled) {
       setPayoutWidgetLoading(false);
@@ -1540,6 +1623,7 @@ export const SellerDashboardPage = () => {
     const shouldRender =
       activeItem === 'Настройки' &&
       !payoutMethodsLoading &&
+      !payoutMethodError &&
       (payoutMethods.length === 0 || isPayoutBindExpanded);
 
     if (!shouldRender) {
@@ -1550,18 +1634,29 @@ export const SellerDashboardPage = () => {
       return;
     }
 
-    if (!financeDashboard) {
+    if (payoutMethodsUnauthorized) {
       setPayoutWidgetLoading(false);
       setPayoutWidgetStage('idle');
-      setPayoutWidgetInfo(YOOKASSA_WIDGET_LOADING_CONFIG_MESSAGE);
-      setPayoutWidgetError('Не удалось загрузить настройки формы выплат.');
+      setPayoutWidgetInfo(null);
+      setPayoutWidgetError(
+        'Не удалось получить данные по выплатам. Требуется повторная авторизация.'
+      );
       clearPayoutWidgetInstance();
       clearPayoutWidgetContainer();
       return;
     }
 
-    const widgetConfig = financeDashboard.payoutWidgetConfig ?? null;
-    const resolvedConfig = resolvePayoutWidgetConfig(widgetConfig);
+    if (!payoutWidgetConfig) {
+      setPayoutWidgetLoading(false);
+      setPayoutWidgetStage('idle');
+      setPayoutWidgetInfo(YOOKASSA_WIDGET_LOADING_CONFIG_MESSAGE);
+      setPayoutWidgetError('Не удалось загрузить конфигурацию выплат.');
+      clearPayoutWidgetInstance();
+      clearPayoutWidgetContainer();
+      return;
+    }
+
+    const resolvedConfig = resolvePayoutWidgetConfig(payoutWidgetConfig);
     const mode = isPayoutBindExpanded ? 'rebind' : 'initial';
     const nextRenderKey = `${resolvedConfig.accountId}:${mode}`;
     if (!resolvedConfig.enabled) {
@@ -1598,11 +1693,12 @@ export const SellerDashboardPage = () => {
     activeItem,
     clearPayoutWidgetContainer,
     clearPayoutWidgetInstance,
-    financeDashboard?.payoutWidgetConfig,
-    financeDashboard,
     isPayoutBindExpanded,
+    payoutMethodError,
+    payoutMethodsUnauthorized,
     payoutMethods.length,
-    payoutMethodsLoading
+    payoutMethodsLoading,
+    payoutWidgetConfig
   ]);
 
   useEffect(
