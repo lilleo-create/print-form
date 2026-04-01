@@ -9,14 +9,7 @@ import { SellerProductModal, SellerProductPayload } from '../widgets/seller/Sell
 import styles from './SellerProductDetailPage.module.css';
 import { toEditableProduct } from '../shared/lib/editableProduct';
 import { normalizeProductDtoList } from '../shared/lib/normalizeProductDto';
-import { kopecksToRubles } from '../shared/lib/productPrice';
-
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat('ru-RU', {
-    style: 'currency',
-    currency: 'RUB',
-    maximumFractionDigits: 0
-  }).format(value);
+import { formatPrice } from '../shared/lib/formatPrice';
 
 export const SellerProductDetailPage = () => {
   const { productId = '' } = useParams();
@@ -171,7 +164,7 @@ export const SellerProductDetailPage = () => {
             <label>
               <span>Цена</span>
               <input
-                value={formatCurrency(kopecksToRubles(editableProduct?.price ?? product.price))}
+                value={formatPrice(editableProduct?.price ?? product.price)}
                 readOnly
               />
             </label>

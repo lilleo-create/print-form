@@ -13,7 +13,12 @@ import { api } from '../../shared/api';
 import { getModerationStatusLabelRu } from '../../shared/lib/productModeration';
 import { sellerProductVariantsService } from '../../shared/api/sellerProductVariantsService';
 import { normalizeApiError } from '../../shared/api/client';
-import { kopecksToRubles, rublesToKopecks } from '../../shared/lib/productPrice';
+import {
+  formatKopecksToRublesInput,
+  normalizeRublesInput,
+  parseRublesInputToKopecks
+} from '../../shared/lib/productPrice';
+import { cmToMm, mmToCm } from '../../shared/lib/productDimensions';
 import styles from './SellerProductModal.module.css';
 import {
   detectProductMediaKind,
@@ -43,10 +48,12 @@ const productSchema = z.object({
     z.string().min(3, 'Минимум 3 символа').optional()
   ),
   price: z.preprocess(
-    (value) => (typeof value === 'string' && value.trim() === '' ? NaN : value),
+    (value) => normalizeRublesInput(value),
     z
-      .number({ invalid_type_error: 'Введите цену числом' })
-      .min(1, 'Цена должна быть больше 0')
+      .string()
+      .min(1, 'Введите цену')
+      .refine((value) => /^\d+([.,]\d{0,2})?$/.test(value), 'Введите цену в формате 1200.50')
+      .refine((value) => parseRublesInputToKopecks(value) > 0, 'Цена должна быть больше 0')
   ),
   material: z.string().min(2, 'Введите материал'),
   category: z.string().min(1, 'Выберите категорию'),
@@ -54,9 +61,9 @@ const productSchema = z.object({
   productionTimeHours: z.number().int().min(1, 'Минимум 1 час').max(720, 'Максимум 720 часов'),
   color: z.string().min(2, 'Выберите цвет'),
   weightGrossG: z.number().int().positive('Укажите вес (г)').optional(),
-  dxCm: z.number().int().positive('Укажите длину (см)').optional(),
-  dyCm: z.number().int().positive('Укажите ширину (см)').optional(),
-  dzCm: z.number().int().positive('Укажите высоту (см)').optional(),
+  dxCm: z.number().int().positive('Укажите ширину (мм)').optional(),
+  dyCm: z.number().int().positive('Укажите глубину (мм)').optional(),
+  dzCm: z.number().int().positive('Укажите высоту (мм)').optional(),
 });
 
 type ProductFormValues = z.infer<typeof productSchema>;
@@ -138,7 +145,7 @@ const sanitizeFormValues = (form?: Partial<ProductFormValues>): ProductFormValue
   ...getDefaultFormValues(),
   ...form,
   productionTimeHours: form?.productionTimeHours ?? 24,
-  price: form?.price ?? 0
+  price: typeof form?.price === 'string' ? form.price : ''
 });
 
 const toPersistedVariantDraft = (variant: VariantDraft): PersistedVariantDraft => ({
@@ -195,7 +202,7 @@ const getDefaultFormValues = (): ProductFormValues => ({
   description: '',
   descriptionFull: '',
   sku: '',
-  price: 0,
+  price: '',
   material: '',
   category: '',
   technology: '',
@@ -215,16 +222,16 @@ const getProductFormValues = (product: Product): ProductFormValues => {
     description: editableProduct?.description ?? '',
     descriptionFull: editableProduct?.descriptionFull ?? '',
     sku: editableProduct?.sku ?? '',
-    price: editableProduct ? kopecksToRubles(editableProduct.price) : 0,
+    price: editableProduct ? formatKopecksToRublesInput(editableProduct.price) : '',
     material: editableProduct?.material ?? '',
     category: editableProduct?.category ?? '',
     technology: editableProduct?.technology ?? '',
     productionTimeHours: editableProduct?.productionTimeHours ?? 24,
     color: normalizeProductColor(editableProduct?.color ?? ''),
     weightGrossG: editableProduct?.weightGrossG,
-    dxCm: editableProduct?.dxCm,
-    dyCm: editableProduct?.dyCm,
-    dzCm: editableProduct?.dzCm
+    dxCm: cmToMm(editableProduct?.dxCm),
+    dyCm: cmToMm(editableProduct?.dyCm),
+    dzCm: cmToMm(editableProduct?.dzCm)
   } satisfies ProductFormValues;
 };
 
@@ -751,7 +758,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
     const payload: SellerProductPayload = {
       id: product?.id,
       title: values.title,
-      price: rublesToKopecks(values.price),
+      price: parseRublesInputToKopecks(values.price),
       material: values.material,
       category: values.category,
       technology: values.technology,
@@ -764,9 +771,9 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
       imageUrls,
       videoUrls,
       weightGrossG: values.weightGrossG,
-      dxCm: values.dxCm,
-      dyCm: values.dyCm,
-      dzCm: values.dzCm,
+      dxCm: mmToCm(values.dxCm),
+      dyCm: mmToCm(values.dyCm),
+      dzCm: mmToCm(values.dzCm),
     };
 
     await onSubmit(payload);
@@ -978,12 +985,11 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
               <label>
                 Цена
                 <input
-                  type="number"
-                  inputMode="numeric"
-                  min={1}
+                  type="text"
+                  inputMode="decimal"
                   className={errors.price ? styles.inputError : styles.input}
-                  placeholder="Например, 1200"
-                  {...register('price', { valueAsNumber: true })}
+                  placeholder="Например, 1200.50"
+                  {...register('price')}
                 />
                 {errors.price && <span className={styles.errorText}>{errors.price.message}</span>}
               </label>
@@ -1056,17 +1062,17 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
                 {errors.weightGrossG && <span className={styles.errorText}>{errors.weightGrossG.message}</span>}
               </label>
               <label>
-                Длина (см)
+                Ширина (мм)
                 <input type="number" min={1} className={errors.dxCm ? styles.inputError : styles.input} {...register('dxCm', { setValueAs: (value) => (value === '' ? undefined : Number(value)) })} />
                 {errors.dxCm && <span className={styles.errorText}>{errors.dxCm.message}</span>}
               </label>
               <label>
-                Ширина (см)
+                Глубина (мм)
                 <input type="number" min={1} className={errors.dyCm ? styles.inputError : styles.input} {...register('dyCm', { setValueAs: (value) => (value === '' ? undefined : Number(value)) })} />
                 {errors.dyCm && <span className={styles.errorText}>{errors.dyCm.message}</span>}
               </label>
               <label>
-                Высота (см)
+                Высота (мм)
                 <input type="number" min={1} className={errors.dzCm ? styles.inputError : styles.input} {...register('dzCm', { setValueAs: (value) => (value === '' ? undefined : Number(value)) })} />
                 {errors.dzCm && <span className={styles.errorText}>{errors.dzCm.message}</span>}
               </label>
@@ -1078,7 +1084,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
               const dz = watch('dzCm');
               const weight = watch('weightGrossG');
               if (!dx || !dy || !dz) return null;
-              return <p className={styles.muted}>Размер: {dx}×{dy}×{dz} см{weight ? `, вес: ${weight} г` : ''}</p>;
+              return <p className={styles.muted}>Размер: {dx}×{dy}×{dz} мм{weight ? `, вес: ${weight} г` : ''}</p>;
             })()}
           </section>
 

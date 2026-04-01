@@ -10,6 +10,7 @@ import { useFavoritesStore } from '../../features/favorites/model/useFavoritesSt
 import { ShareModal } from '../../features/share/ui/ShareModal';
 import { formatReadyToShipLabel } from '../../shared/lib/dateLabels';
 import { formatPrice } from '../../utils/money';
+import { cmToMm } from '../../shared/lib/productDimensions';
 
 type ProductDetailsProps = {
   product: Product;
@@ -121,7 +122,7 @@ export const ProductDetails = ({
         ) : null}
         {product.dxCm && product.dyCm && product.dzCm ? (
           <span className={styles.delivery}>
-            Размер: {product.dxCm} × {product.dyCm} × {product.dzCm} см
+            Размер: {cmToMm(product.dxCm)} × {cmToMm(product.dyCm)} × {cmToMm(product.dzCm)} мм
             {product.weightGrossG ? `, вес: ${product.weightGrossG} г` : ''}
           </span>
         ) : product.weightGrossG ? (

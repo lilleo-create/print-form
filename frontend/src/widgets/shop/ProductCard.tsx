@@ -10,6 +10,7 @@ import styles from './ProductCard.module.css';
 import { formatEtaDays } from '../../shared/lib/deliveryEta';
 import { SmartImage } from '../../shared/ui/SmartImage';
 import { formatPrice } from '../../utils/money';
+import { cmToMm } from '../../shared/lib/productDimensions';
 interface ProductCardProps {
   product: Product;
 }
@@ -62,7 +63,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           <span className={styles.metaItem}>{product.material}</span>
           <span className={styles.metaItem}>Изготовление: {product.productionTimeHours ?? 24} ч</span>
           {product.dxCm && product.dyCm && product.dzCm ? (
-            <span className={styles.metaItem}>Размер: {product.dxCm} × {product.dyCm} × {product.dzCm} см</span>
+            <span className={styles.metaItem}>Размер: {cmToMm(product.dxCm)} × {cmToMm(product.dyCm)} × {cmToMm(product.dzCm)} мм</span>
           ) : null}
         </div>
 

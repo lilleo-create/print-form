@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { Product, ProductSpec } from '../../shared/types';
 import styles from '../../pages/ProductPage.module.css';
+import { cmToMm } from '../../shared/lib/productDimensions';
 
 type ProductSpecsProps = {
   product: Product;
@@ -11,7 +12,16 @@ export const ProductSpecs = ({ product }: ProductSpecsProps) => {
     const fallback = product.specs ?? [
       { id: 'material', key: 'Материал', value: (product as any).material, sortOrder: 1 },
       { id: 'technology', key: 'Технология', value: (product as any).technology, sortOrder: 3 },
-      ...(product.dxCm && product.dyCm && product.dzCm ? [{ id: 'dimensions', key: 'Размер', value: `${product.dxCm} × ${product.dyCm} × ${product.dzCm} см`, sortOrder: 5 }] : []),
+      ...(product.dxCm && product.dyCm && product.dzCm
+        ? [
+            {
+              id: 'dimensions',
+              key: 'Размер',
+              value: `${cmToMm(product.dxCm)} × ${cmToMm(product.dyCm)} × ${cmToMm(product.dzCm)} мм`,
+              sortOrder: 5
+            }
+          ]
+        : []),
       { id: 'weight', key: 'Вес', value: (product as any).weightGrossG ? `${(product as any).weightGrossG} г` : '—', sortOrder: 6 },
       { id: 'color', key: 'Цвет', value: (product as any).color, sortOrder: 7 }
     ];

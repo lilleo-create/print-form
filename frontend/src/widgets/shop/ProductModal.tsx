@@ -7,6 +7,7 @@ import { getProductMainImage } from '../../shared/lib/productMedia';
 import styles from './ProductModal.module.css';
 import { SmartImage } from '../../shared/ui/SmartImage';
 import { formatPrice } from '../../utils/money';
+import { cmToMm } from '../../shared/lib/productDimensions';
 
 export const ProductModal = () => {
   const product = useUiStore((state) => state.selectedProduct);
@@ -79,7 +80,7 @@ export const ProductModal = () => {
                 <li>
                   <span>Габариты</span>
                   <strong>
-                    {product.dxCm} × {product.dyCm} × {product.dzCm} см
+                    {cmToMm(product.dxCm)} × {cmToMm(product.dyCm)} × {cmToMm(product.dzCm)} мм
                     {product.weightGrossG ? `, ${product.weightGrossG} г` : ''}
                   </strong>
                 </li>
