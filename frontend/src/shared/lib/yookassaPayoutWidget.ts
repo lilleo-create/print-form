@@ -5,19 +5,41 @@ type YooKassaPayoutWidgetOptions = {
   type: 'safedeal';
   accountId: string;
   containerId: string;
-  onSuccess: (payoutToken: string) => void;
+  onSuccess: (payload: YooKassaWidgetSuccessPayload) => void;
   onError: (error: Error) => void;
 };
 
+export type YooKassaWidgetSuccessPayload = {
+  payout_token?: string;
+  payoutToken?: string;
+  first6?: string;
+  last4?: string;
+  issuer_name?: string;
+  issuer_country?: string;
+  card_type?: string;
+};
+
 type PayoutsDataInstance = {
-  render: (container: string | HTMLElement) => void;
+  render: (container: string | HTMLElement) => Promise<void> | void;
+  clearListeners?: () => void;
 };
 
 type PayoutsDataConstructor = new (params: {
   type: 'safedeal';
   account_id: string;
-  success_callback: (payload: { payoutToken?: string; payout_token?: string }) => void;
+  success_callback: (payload: YooKassaWidgetSuccessPayload) => void;
   error_callback: (payload?: unknown) => void;
+  lang?: 'ru_RU';
+  customization?: {
+    colors: {
+      background: string;
+      text: string;
+      border: string;
+      control_secondary: string;
+      control_primary: string;
+      control_primary_content: string;
+    };
+  };
 }) => PayoutsDataInstance;
 
 type GlobalWithYooKassa = Window & {
@@ -35,7 +57,33 @@ const toWidgetError = (payload: unknown): Error => {
   return new Error('Не удалось привязать карту. Попробуйте ещё раз.');
 };
 
-const ensureYooKassaPayoutScript = async (): Promise<void> => {
+export const mapYooKassaWidgetErrorCode = (code: string): string => {
+  switch (code) {
+    case 'card_country_code_error':
+      return 'На эту карту нельзя проводить выплаты. Используйте другую карту.';
+    case 'card_unknown_country_code_error':
+      return 'Не удалось определить страну выпуска карты. Проверьте номер карты или используйте другую карту.';
+    case 'internal_service_error':
+      return 'Ошибка сервиса YooKassa. Попробуйте снова.';
+    default:
+      return 'Не удалось привязать карту. Попробуйте еще раз.';
+  }
+};
+
+const normalizeWidgetError = (payload: unknown): Error => {
+  if (typeof payload === 'string' && payload.trim()) {
+    return new Error(mapYooKassaWidgetErrorCode(payload.trim()));
+  }
+  if (payload && typeof payload === 'object' && 'code' in payload) {
+    const code = (payload as { code?: unknown }).code;
+    if (typeof code === 'string' && code.trim()) {
+      return new Error(mapYooKassaWidgetErrorCode(code.trim()));
+    }
+  }
+  return toWidgetError(payload);
+};
+
+export const loadYooKassaPayoutWidgetScript = async (): Promise<void> => {
   const runtime = window as GlobalWithYooKassa;
   if (runtime.PayoutsData) return;
 
@@ -66,7 +114,12 @@ const ensureYooKassaPayoutScript = async (): Promise<void> => {
     );
   }
 
-  await runtime.__pfYooKassaPayoutWidgetLoadingPromise;
+  try {
+    await runtime.__pfYooKassaPayoutWidgetLoadingPromise;
+  } catch (error) {
+    runtime.__pfYooKassaPayoutWidgetLoadingPromise = undefined;
+    throw error;
+  }
 
   if (!runtime.PayoutsData) {
     throw new Error('Форма YooKassa недоступна. Попробуйте позже.');
@@ -77,7 +130,7 @@ export const initYooKassaPayoutWidget = async (
   options: YooKassaPayoutWidgetOptions
 ) => {
   try {
-    await ensureYooKassaPayoutScript();
+    await loadYooKassaPayoutWidgetScript();
     const runtime = window as GlobalWithYooKassa;
     const Widget = runtime.PayoutsData;
     if (!Widget) {
@@ -87,21 +140,34 @@ export const initYooKassaPayoutWidget = async (
     const widget = new Widget({
       type: options.type,
       account_id: options.accountId,
+      lang: 'ru_RU',
+      customization: {
+        colors: {
+          background: '#0F1A2E',
+          text: '#EAF2FF',
+          border: '#2B426A',
+          control_secondary: '#8EA6C9',
+          control_primary: '#3B82F6',
+          control_primary_content: '#FFFFFF'
+        }
+      },
       success_callback: (payload) => {
         const payoutToken = payload?.payoutToken ?? payload?.payout_token;
         if (!payoutToken) {
           options.onError(new Error('Виджет не вернул токен карты.'));
           return;
         }
-        options.onSuccess(payoutToken);
+        options.onSuccess(payload);
       },
       error_callback: (payload) => {
-        options.onError(toWidgetError(payload));
+        options.onError(normalizeWidgetError(payload));
       }
     });
 
-    widget.render(options.containerId);
+    await widget.render(options.containerId);
+    return widget;
   } catch (error) {
     options.onError(toWidgetError(error));
+    return null;
   }
 };

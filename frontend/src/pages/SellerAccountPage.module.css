@@ -1010,27 +1010,15 @@
   justify-items: start;
 }
 
-.payoutBindInlineCard {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 16px;
+.payoutBindInlineBlock {
+  padding-top: 4px;
   display: grid;
   gap: 12px;
 }
 
-.payoutBindInlineHeader {
-  display: grid;
-  gap: 6px;
-}
-
 .payoutWidgetContainer {
-  min-height: 120px;
-  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
-  border-radius: 10px;
-  background: var(--bg-2);
-  padding: 10px;
-  overflow: hidden;
+  width: 100%;
+  min-height: 220px;
 }
 
 .payoutBindActions {

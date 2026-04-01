@@ -43,7 +43,10 @@ import {
 } from '../widgets/seller/SellerProductModal';
 import { formatPrice } from '../shared/lib/formatPrice';
 import { getShortOrderId } from '../shared/utils/orderId';
-import { initYooKassaPayoutWidget } from '../shared/lib/yookassaPayoutWidget';
+import {
+  initYooKassaPayoutWidget,
+  YooKassaWidgetSuccessPayload
+} from '../shared/lib/yookassaPayoutWidget';
 import { resolvePriceMinorUnits } from '../shared/lib/productPrice';
 import styles from './SellerAccountPage.module.css';
 
@@ -122,11 +125,14 @@ const formatCountdown = (seconds: number) => {
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 
-const YOOKASSA_WIDGET_INFO_MESSAGE =
-  'Привязка карты станет доступна после завершения настройки YooKassa для выплат.';
-const YOOKASSA_WIDGET_NOT_CONFIGURED_MESSAGE =
-  'Привязка карты временно недоступна: не настроен YooKassa payouts widget.';
-const YOOKASSA_WIDGET_LOADING_MESSAGE = 'Загрузка формы привязки карты...';
+const YOOKASSA_WIDGET_NOT_ENABLED_MESSAGE =
+  'Привязка карты временно недоступна: интеграция выплат сейчас отключена.';
+const YOOKASSA_WIDGET_INVALID_CONFIG_MESSAGE =
+  'Не удалось загрузить форму привязки карты: некорректная конфигурация выплат.';
+const YOOKASSA_WIDGET_LOADING_CONFIG_MESSAGE = 'Загружаем настройки выплат...';
+const YOOKASSA_WIDGET_LOADING_MESSAGE = 'Загружаем защищённую форму привязки карты...';
+const YOOKASSA_WIDGET_ERROR_MESSAGE =
+  'Не удалось загрузить форму привязки карты. Обновите страницу или попробуйте позже.';
 
 const firstNonEmpty = (...values: Array<string | null | undefined>) => {
   for (const value of values) {
@@ -135,6 +141,29 @@ const firstNonEmpty = (...values: Array<string | null | undefined>) => {
     }
   }
   return '';
+};
+
+type PayoutWidgetResolvedConfig = {
+  enabled: boolean;
+  accountId: string;
+  hasSavedCard: boolean;
+};
+
+const toBoolean = (value: unknown) => value === true;
+
+const resolvePayoutWidgetConfig = (
+  widgetConfig: Record<string, unknown> | null | undefined
+): PayoutWidgetResolvedConfig => {
+  const enabled = toBoolean(widgetConfig?.enabled);
+  const accountId =
+    typeof widgetConfig?.account_id === 'string'
+      ? widgetConfig.account_id
+      : typeof widgetConfig?.accountId === 'string'
+        ? widgetConfig.accountId
+        : '';
+  const hasSavedCard =
+    toBoolean(widgetConfig?.hasSavedCard) || toBoolean(widgetConfig?.has_saved_card);
+  return { enabled, accountId: accountId.trim(), hasSavedCard };
 };
 
 const toKopecks = (value?: number | null) => {
@@ -369,6 +398,7 @@ export const SellerDashboardPage = () => {
   const [payoutWidgetInfo, setPayoutWidgetInfo] = useState<string | null>(null);
   const [isPayoutWidgetLoading, setPayoutWidgetLoading] = useState(false);
   const payoutWidgetRenderKeyRef = useRef<string | null>(null);
+  const payoutWidgetInstanceRef = useRef<{ clearListeners?: () => void } | null>(null);
 
   // === Delivery profile ===
   const [dropoffPvzId, setDropoffPvzId] = useState('');
@@ -586,15 +616,10 @@ export const SellerDashboardPage = () => {
       {payoutMethodSuccess && <p className={styles.successMessage}>{payoutMethodSuccess}</p>}
 
       {(payoutMethods.length === 0 || isPayoutBindExpanded) && (
-        <div className={styles.payoutBindInlineCard}>
-          <div className={styles.payoutBindInlineHeader}>
-            <h4>
-              {payoutMethods.length > 0 ? 'Изменение банковской карты' : 'Привязка банковской карты'}
-            </h4>
-            <p className={styles.muted}>
-              Карта привязывается через защищённую форму YooKassa для Safe Deal.
-            </p>
-          </div>
+        <div className={styles.payoutBindInlineBlock}>
+          {payoutMethodsLoading && (
+            <p className={styles.muted}>{YOOKASSA_WIDGET_LOADING_CONFIG_MESSAGE}</p>
+          )}
           {isPayoutWidgetLoading && <p className={styles.muted}>{YOOKASSA_WIDGET_LOADING_MESSAGE}</p>}
           <div id="yookassa-payouts-widget-container" className={styles.payoutWidgetContainer} />
           {payoutWidgetInfo && <p className={styles.infoText}>{payoutWidgetInfo}</p>}
@@ -609,8 +634,8 @@ export const SellerDashboardPage = () => {
                   setPayoutWidgetInfo(null);
                   setPayoutWidgetLoading(false);
                   setPayoutMethodError(null);
-                  const container = document.getElementById('yookassa-payouts-widget-container');
-                  if (container) container.innerHTML = '';
+                  clearPayoutWidgetInstance();
+                  clearPayoutWidgetContainer();
                 }}
               >
                 Отмена
@@ -1385,48 +1410,66 @@ export const SellerDashboardPage = () => {
     }
   };
 
-  const handleBindCard = async () => {
-    const widgetConfig = financeDashboard?.payoutWidgetConfig ?? null;
-    const accountId =
-      typeof widgetConfig?.account_id === 'string'
-        ? widgetConfig.account_id
-        : typeof widgetConfig?.accountId === 'string'
-          ? widgetConfig.accountId
-          : '';
+  const clearPayoutWidgetInstance = useCallback(() => {
+    payoutWidgetInstanceRef.current?.clearListeners?.();
+    payoutWidgetInstanceRef.current = null;
+  }, []);
 
-    if (!accountId) {
-      setPayoutWidgetLoading(false);
-      setPayoutWidgetInfo(YOOKASSA_WIDGET_NOT_CONFIGURED_MESSAGE);
+  const clearPayoutWidgetContainer = useCallback(() => {
+    const container = document.getElementById('yookassa-payouts-widget-container');
+    if (container) container.innerHTML = '';
+  }, []);
+
+  const handlePayoutWidgetSuccess = async (payload: YooKassaWidgetSuccessPayload) => {
+    const payoutToken = payload.payout_token ?? payload.payoutToken;
+    if (!payoutToken) {
+      setPayoutMethodError('Виджет не вернул токен привязки карты.');
       return;
     }
 
-    const container = document.getElementById('yookassa-payouts-widget-container');
-    if (container) container.innerHTML = '';
+    setPayoutWidgetLoading(false);
+    setPayoutWidgetInfo('Карта успешно привязана. Сохраняем реквизиты...');
+    await handleCreatePayoutMethod({
+      provider: 'YOOKASSA',
+      methodType: 'BANK_CARD',
+      payoutToken
+    });
+  };
+
+  const handleBindCard = async () => {
+    const widgetConfig = financeDashboard?.payoutWidgetConfig ?? null;
+    const resolvedConfig = resolvePayoutWidgetConfig(widgetConfig);
+
+    if (!resolvedConfig.enabled) {
+      setPayoutWidgetLoading(false);
+      setPayoutWidgetInfo(YOOKASSA_WIDGET_NOT_ENABLED_MESSAGE);
+      return;
+    }
+    if (!resolvedConfig.accountId) {
+      setPayoutWidgetLoading(false);
+      setPayoutWidgetInfo(YOOKASSA_WIDGET_INVALID_CONFIG_MESSAGE);
+      return;
+    }
+
+    clearPayoutWidgetInstance();
+    clearPayoutWidgetContainer();
     setPayoutWidgetLoading(true);
     setPayoutWidgetInfo(null);
 
-    await initYooKassaPayoutWidget({
+    const widget = await initYooKassaPayoutWidget({
       type: 'safedeal',
-      accountId,
+      accountId: resolvedConfig.accountId,
       containerId: 'yookassa-payouts-widget-container',
-      onSuccess: (payoutToken) => {
-        setPayoutWidgetLoading(false);
-        setPayoutWidgetInfo('Карта успешно привязана. Сохраняем реквизиты...');
-        void handleCreatePayoutMethod({
-          provider: 'YOOKASSA',
-          methodType: 'BANK_CARD',
-          payoutToken
-        });
+      onSuccess: (payload) => {
+        void handlePayoutWidgetSuccess(payload);
       },
       onError: (error) => {
         console.error('YooKassa widget init error', error);
         setPayoutWidgetLoading(false);
-        const normalizedMessage = error.message.toLowerCase().includes('пока не подключён')
-          ? YOOKASSA_WIDGET_INFO_MESSAGE
-          : error.message;
-        setPayoutWidgetInfo(normalizedMessage || 'Не удалось инициализировать виджет.');
+        setPayoutWidgetInfo(error.message || YOOKASSA_WIDGET_ERROR_MESSAGE);
       }
     });
+    payoutWidgetInstanceRef.current = widget;
   };
 
   useEffect(() => {
@@ -1436,23 +1479,34 @@ export const SellerDashboardPage = () => {
       (payoutMethods.length === 0 || isPayoutBindExpanded);
 
     if (!shouldRender) {
-      const container = document.getElementById('yookassa-payouts-widget-container');
-      if (container) container.innerHTML = '';
+      clearPayoutWidgetInstance();
+      clearPayoutWidgetContainer();
       return;
     }
 
     const widgetConfig = financeDashboard?.payoutWidgetConfig ?? null;
-    const accountId =
-      typeof widgetConfig?.account_id === 'string'
-        ? widgetConfig.account_id
-        : typeof widgetConfig?.accountId === 'string'
-          ? widgetConfig.accountId
-          : '';
+    const resolvedConfig = resolvePayoutWidgetConfig(widgetConfig);
     const mode = isPayoutBindExpanded ? 'rebind' : 'initial';
-    const nextRenderKey = `${accountId}:${mode}`;
-    if (!accountId) {
+    const nextRenderKey = `${resolvedConfig.accountId}:${mode}`;
+    if (!resolvedConfig.enabled) {
       setPayoutWidgetLoading(false);
-      setPayoutWidgetInfo(YOOKASSA_WIDGET_NOT_CONFIGURED_MESSAGE);
+      setPayoutWidgetInfo(YOOKASSA_WIDGET_NOT_ENABLED_MESSAGE);
+      clearPayoutWidgetInstance();
+      clearPayoutWidgetContainer();
+      return;
+    }
+    if (!resolvedConfig.accountId) {
+      setPayoutWidgetLoading(false);
+      setPayoutWidgetInfo(YOOKASSA_WIDGET_INVALID_CONFIG_MESSAGE);
+      clearPayoutWidgetInstance();
+      clearPayoutWidgetContainer();
+      return;
+    }
+    if (resolvedConfig.hasSavedCard && !isPayoutBindExpanded && payoutMethods.length > 0) {
+      setPayoutWidgetLoading(false);
+      setPayoutWidgetInfo(null);
+      clearPayoutWidgetInstance();
+      clearPayoutWidgetContainer();
       return;
     }
     if (payoutWidgetRenderKeyRef.current === nextRenderKey) return;
@@ -1460,11 +1514,20 @@ export const SellerDashboardPage = () => {
     void handleBindCard();
   }, [
     activeItem,
+    clearPayoutWidgetContainer,
+    clearPayoutWidgetInstance,
     financeDashboard?.payoutWidgetConfig,
     isPayoutBindExpanded,
     payoutMethods.length,
     payoutMethodsLoading
   ]);
+
+  useEffect(
+    () => () => {
+      clearPayoutWidgetInstance();
+    },
+    [clearPayoutWidgetInstance]
+  );
 
   return (
     <section
