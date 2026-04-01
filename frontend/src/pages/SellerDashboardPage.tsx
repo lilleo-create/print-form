@@ -169,6 +169,29 @@ const toKopecks = (value?: number | null) => {
   return Math.round(value * 100);
 };
 
+const ensureArray = <T,>(value: unknown): T[] => (Array.isArray(value) ? value : []);
+
+const normalizeFinanceDashboard = (
+  value: SellerFinanceDashboardResponse
+): SellerFinanceDashboardResponse => ({
+  summary: {
+    awaitingPayoutKopecks: value?.summary?.awaitingPayoutKopecks ?? 0,
+    frozenKopecks: value?.summary?.frozenKopecks ?? 0,
+    paidOutKopecks: value?.summary?.paidOutKopecks ?? 0,
+    adjustmentsKopecks: value?.summary?.adjustmentsKopecks ?? 0
+  },
+  nextPayout: {
+    scheduledAt: value?.nextPayout?.scheduledAt ?? null,
+    amountKopecks: value?.nextPayout?.amountKopecks ?? 0,
+    orderCount: value?.nextPayout?.orderCount ?? 0,
+    payoutScheduleType: value?.nextPayout?.payoutScheduleType ?? null
+  },
+  payoutQueue: ensureArray(value?.payoutQueue),
+  adjustments: ensureArray(value?.adjustments),
+  payoutHistory: ensureArray(value?.payoutHistory),
+  payoutWidgetConfig: value?.payoutWidgetConfig ?? null
+});
+
 const resolveOrderItemLineTotalKopecks = (item: Order['items'][number]) => {
   if (typeof item.lineTotalKopecks === 'number') return item.lineTotalKopecks;
   if (typeof item.lineTotal === 'number') return item.lineTotal;
@@ -394,6 +417,7 @@ export const SellerDashboardPage = () => {
   );
   const [isPayoutBindExpanded, setPayoutBindExpanded] = useState(false);
   const [payoutWidgetInfo, setPayoutWidgetInfo] = useState<string | null>(null);
+  const [payoutWidgetError, setPayoutWidgetError] = useState<string | null>(null);
   const [isPayoutWidgetLoading, setPayoutWidgetLoading] = useState(false);
   const [payoutWidgetStage, setPayoutWidgetStage] = useState<PayoutWidgetStage>('idle');
   const payoutWidgetRenderKeyRef = useRef<string | null>(null);
@@ -540,6 +564,7 @@ export const SellerDashboardPage = () => {
               setPayoutBindExpanded(true);
               payoutWidgetRenderKeyRef.current = null;
               setPayoutWidgetInfo(null);
+              setPayoutWidgetError(null);
               setPayoutWidgetLoading(false);
               setPayoutWidgetStage('idle');
               setPayoutMethodError(null);
@@ -588,6 +613,7 @@ export const SellerDashboardPage = () => {
                     setPayoutBindExpanded(true);
                     payoutWidgetRenderKeyRef.current = null;
                     setPayoutWidgetInfo(null);
+                    setPayoutWidgetError(null);
                     setPayoutWidgetLoading(false);
                     setPayoutWidgetStage('idle');
                     setPayoutMethodError(null);
@@ -629,6 +655,7 @@ export const SellerDashboardPage = () => {
           )}
           <div id="yookassa-payouts-widget-container" className={styles.payoutWidgetContainer} />
           {payoutWidgetInfo && <p className={styles.infoText}>{payoutWidgetInfo}</p>}
+          {payoutWidgetError && <p className={styles.error}>{payoutWidgetError}</p>}
           {isPayoutBindExpanded && (
             <div className={styles.payoutBindActions}>
               <Button
@@ -638,6 +665,7 @@ export const SellerDashboardPage = () => {
                   setPayoutBindExpanded(false);
                   payoutWidgetRenderKeyRef.current = null;
                   setPayoutWidgetInfo(null);
+                  setPayoutWidgetError(null);
                   setPayoutWidgetLoading(false);
                   setPayoutWidgetStage('idle');
                   setPayoutMethodError(null);
@@ -831,7 +859,13 @@ export const SellerDashboardPage = () => {
     ]);
 
     if (dashboardResult.status === 'fulfilled') {
-      setFinanceDashboard(dashboardResult.value.data);
+      const response = dashboardResult.value;
+      console.log('[finance] raw response', response);
+      console.log('[finance] summary', response?.data?.summary);
+      console.log('[finance] queue', response?.data?.payoutQueue);
+      console.log('[finance] history', response?.data?.payoutHistory);
+      console.log('[finance] holds', response?.data?.adjustments);
+      setFinanceDashboard(normalizeFinanceDashboard(response.data));
     } else {
       setFinanceDashboard(null);
       const error = dashboardResult.reason;
@@ -1302,6 +1336,9 @@ export const SellerDashboardPage = () => {
 
   const financeData = useMemo(() => {
     if (!financeDashboard) return null;
+    const queue = financeDashboard?.payoutQueue ?? [];
+    const adjustments = financeDashboard?.adjustments ?? [];
+    const history = financeDashboard?.payoutHistory ?? [];
 
     const matchBySearch = (orderId?: string | null, publicNumber?: string | null) => {
       const normalizedSearch = ordersSearchQuery.trim().toLowerCase();
@@ -1313,15 +1350,9 @@ export const SellerDashboardPage = () => {
 
     return {
       ...financeDashboard,
-      payoutQueue: financeDashboard.payoutQueue.filter((item) =>
-        matchBySearch(item.orderId, item.publicNumber)
-      ),
-      adjustments: financeDashboard.adjustments.filter((item) =>
-        matchBySearch(item.orderId, item.publicNumber)
-      ),
-      payoutHistory: financeDashboard.payoutHistory.filter((item) =>
-        matchBySearch(item.orderId, item.publicNumber)
-      )
+      payoutQueue: queue.filter((item) => matchBySearch(item.orderId, item.publicNumber)),
+      adjustments: adjustments.filter((item) => matchBySearch(item.orderId, item.publicNumber)),
+      payoutHistory: history.filter((item) => matchBySearch(item.orderId, item.publicNumber))
     };
   }, [financeDashboard, ordersSearchQuery]);
 
@@ -1406,6 +1437,7 @@ export const SellerDashboardPage = () => {
       setPayoutBindExpanded(false);
       payoutWidgetRenderKeyRef.current = null;
       setPayoutWidgetInfo(null);
+      setPayoutWidgetError(null);
       setPayoutMethodSuccess('Реквизиты для выплат успешно добавлены.');
     } catch (error) {
       const normalized = normalizeApiError(error);
@@ -1435,6 +1467,7 @@ export const SellerDashboardPage = () => {
     setPayoutWidgetLoading(false);
     setPayoutWidgetStage('idle');
     setPayoutWidgetInfo('Карта успешно привязана. Сохраняем реквизиты...');
+    setPayoutWidgetError(null);
     await handleCreatePayoutMethod({
       provider: 'YOOKASSA',
       methodType: 'BANK_CARD',
@@ -1446,7 +1479,8 @@ export const SellerDashboardPage = () => {
     if (!financeDashboard) {
       setPayoutWidgetLoading(false);
       setPayoutWidgetStage('idle');
-      setPayoutWidgetInfo('Не удалось загрузить настройки формы выплат.');
+      setPayoutWidgetInfo(null);
+      setPayoutWidgetError('Не удалось загрузить настройки формы выплат.');
       return;
     }
 
@@ -1460,12 +1494,14 @@ export const SellerDashboardPage = () => {
       setPayoutWidgetLoading(false);
       setPayoutWidgetStage('idle');
       setPayoutWidgetInfo(YOOKASSA_WIDGET_NOT_ENABLED_MESSAGE);
+      setPayoutWidgetError(null);
       return;
     }
     if (!resolvedConfig.accountId) {
       setPayoutWidgetLoading(false);
       setPayoutWidgetStage('idle');
       setPayoutWidgetInfo(YOOKASSA_WIDGET_INVALID_CONFIG_MESSAGE);
+      setPayoutWidgetError(null);
       return;
     }
 
@@ -1474,6 +1510,7 @@ export const SellerDashboardPage = () => {
     setPayoutWidgetLoading(true);
     setPayoutWidgetStage('script');
     setPayoutWidgetInfo(null);
+    setPayoutWidgetError(null);
 
     const widget = await initYooKassaPayoutWidget({
       type: 'safedeal',
@@ -1488,7 +1525,8 @@ export const SellerDashboardPage = () => {
       onError: (error) => {
         setPayoutWidgetLoading(false);
         setPayoutWidgetStage('idle');
-        setPayoutWidgetInfo(error.message || YOOKASSA_WIDGET_ERROR_MESSAGE);
+        setPayoutWidgetInfo(null);
+        setPayoutWidgetError(error.message || YOOKASSA_WIDGET_ERROR_MESSAGE);
       }
     });
     payoutWidgetInstanceRef.current = widget;
@@ -1506,6 +1544,7 @@ export const SellerDashboardPage = () => {
 
     if (!shouldRender) {
       setPayoutWidgetStage('idle');
+      setPayoutWidgetError(null);
       clearPayoutWidgetInstance();
       clearPayoutWidgetContainer();
       return;
@@ -1514,11 +1553,8 @@ export const SellerDashboardPage = () => {
     if (!financeDashboard) {
       setPayoutWidgetLoading(false);
       setPayoutWidgetStage('idle');
-      setPayoutWidgetInfo(
-        financeError
-          ? 'Не удалось загрузить настройки формы выплат.'
-          : YOOKASSA_WIDGET_LOADING_CONFIG_MESSAGE
-      );
+      setPayoutWidgetInfo(YOOKASSA_WIDGET_LOADING_CONFIG_MESSAGE);
+      setPayoutWidgetError('Не удалось загрузить настройки формы выплат.');
       clearPayoutWidgetInstance();
       clearPayoutWidgetContainer();
       return;
@@ -1532,6 +1568,7 @@ export const SellerDashboardPage = () => {
       setPayoutWidgetLoading(false);
       setPayoutWidgetStage('idle');
       setPayoutWidgetInfo(YOOKASSA_WIDGET_NOT_ENABLED_MESSAGE);
+      setPayoutWidgetError(null);
       clearPayoutWidgetInstance();
       clearPayoutWidgetContainer();
       return;
@@ -1540,6 +1577,7 @@ export const SellerDashboardPage = () => {
       setPayoutWidgetLoading(false);
       setPayoutWidgetStage('idle');
       setPayoutWidgetInfo(YOOKASSA_WIDGET_INVALID_CONFIG_MESSAGE);
+      setPayoutWidgetError(null);
       clearPayoutWidgetInstance();
       clearPayoutWidgetContainer();
       return;
@@ -1548,6 +1586,7 @@ export const SellerDashboardPage = () => {
       setPayoutWidgetLoading(false);
       setPayoutWidgetStage('idle');
       setPayoutWidgetInfo(null);
+      setPayoutWidgetError(null);
       clearPayoutWidgetInstance();
       clearPayoutWidgetContainer();
       return;
@@ -1561,7 +1600,6 @@ export const SellerDashboardPage = () => {
     clearPayoutWidgetInstance,
     financeDashboard?.payoutWidgetConfig,
     financeDashboard,
-    financeError,
     isPayoutBindExpanded,
     payoutMethods.length,
     payoutMethodsLoading
