@@ -998,40 +998,49 @@
 }
 
 .payoutMethodBadges,
-.payoutMethodActions,
-.payoutBindTabs {
+.payoutMethodActions {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
 }
 
-.inlineModal {
-  position: fixed;
-  inset: 0;
-  background: var(--overlay-strong);
-  z-index: 40;
+.payoutEmptyState {
   display: grid;
-  place-items: center;
-  padding: 20px;
+  gap: 12px;
+  justify-items: start;
 }
 
-.inlineModalCard {
-  width: min(560px, 100%);
+.payoutBindInlineCard {
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: var(--radius-card);
+  border-radius: 12px;
   padding: 18px;
   display: grid;
   gap: 14px;
 }
 
-.payoutBindBlock {
+.payoutBindInlineHeader {
   display: grid;
-  gap: 10px;
+  gap: 6px;
 }
 
-.formLabel {
-  font-weight: 600;
+.payoutWidgetContainer {
+  min-height: 112px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  background: var(--bg-2);
+}
+
+.payoutBindActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.infoText {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.4;
 }
 
 .financeHintList {

@@ -1,6 +1,7 @@
 type YooKassaPayoutWidgetOptions = {
   type: 'safedeal';
   config?: Record<string, unknown> | null;
+  containerId?: string;
   onSuccess: (payoutToken: string) => void;
   onError: (error: Error) => void;
 };
@@ -29,6 +30,7 @@ export const initYooKassaPayoutWidget = async (
   try {
     const result = await widget.open({
       ...(options.config ?? {}),
+      ...(options.containerId ? { container: `#${options.containerId}` } : {}),
       type: options.type
     });
     if (!result?.payoutToken) {

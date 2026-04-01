@@ -9,6 +9,7 @@ import { SellerProductModal, SellerProductPayload } from '../widgets/seller/Sell
 import styles from './SellerProductDetailPage.module.css';
 import { toEditableProduct } from '../shared/lib/editableProduct';
 import { normalizeProductDtoList } from '../shared/lib/normalizeProductDto';
+import { kopecksToRubles } from '../shared/lib/productPrice';
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('ru-RU', {
@@ -169,7 +170,10 @@ export const SellerProductDetailPage = () => {
             </label>
             <label>
               <span>Цена</span>
-              <input value={formatCurrency(editableProduct?.price ?? product.price)} readOnly />
+              <input
+                value={formatCurrency(kopecksToRubles(editableProduct?.price ?? product.price))}
+                readOnly
+              />
             </label>
             <label>
               <span>Статус</span>
