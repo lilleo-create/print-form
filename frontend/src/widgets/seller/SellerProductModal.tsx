@@ -14,9 +14,9 @@ import { getModerationStatusLabelRu } from '../../shared/lib/productModeration';
 import { sellerProductVariantsService } from '../../shared/api/sellerProductVariantsService';
 import { normalizeApiError } from '../../shared/api/client';
 import {
-  formatKopecksToRublesInput,
+  formatPriceFromMinorUnits,
   normalizeRublesInput,
-  parseRublesInputToKopecks
+  parsePriceToMinorUnits
 } from '../../shared/lib/productPrice';
 import { cmToMm, mmToCm } from '../../shared/lib/productDimensions';
 import styles from './SellerProductModal.module.css';
@@ -52,8 +52,8 @@ const productSchema = z.object({
     z
       .string()
       .min(1, 'Введите цену')
-      .refine((value) => /^\d+([.,]\d{0,2})?$/.test(value), 'Введите цену в формате 1200.50')
-      .refine((value) => parseRublesInputToKopecks(value) > 0, 'Цена должна быть больше 0')
+      .refine((value) => /^\d+([.,]\d{1,2})?$/.test(value), 'Введите цену в формате 1200.50')
+      .refine((value) => parsePriceToMinorUnits(value) > 0, 'Цена должна быть больше 0')
   ),
   material: z.string().min(2, 'Введите материал'),
   category: z.string().min(1, 'Выберите категорию'),
@@ -222,7 +222,7 @@ const getProductFormValues = (product: Product): ProductFormValues => {
     description: editableProduct?.description ?? '',
     descriptionFull: editableProduct?.descriptionFull ?? '',
     sku: editableProduct?.sku ?? '',
-    price: editableProduct ? formatKopecksToRublesInput(editableProduct.price) : '',
+    price: editableProduct ? formatPriceFromMinorUnits(editableProduct.price) : '',
     material: editableProduct?.material ?? '',
     category: editableProduct?.category ?? '',
     technology: editableProduct?.technology ?? '',
@@ -758,7 +758,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
     const payload: SellerProductPayload = {
       id: product?.id,
       title: values.title,
-      price: parseRublesInputToKopecks(values.price),
+      price: parsePriceToMinorUnits(values.price),
       material: values.material,
       category: values.category,
       technology: values.technology,

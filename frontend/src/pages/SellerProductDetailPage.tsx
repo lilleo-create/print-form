@@ -10,6 +10,7 @@ import styles from './SellerProductDetailPage.module.css';
 import { toEditableProduct } from '../shared/lib/editableProduct';
 import { normalizeProductDtoList } from '../shared/lib/normalizeProductDto';
 import { formatPrice } from '../shared/lib/formatPrice';
+import { resolvePriceMinorUnits } from '../shared/lib/productPrice';
 
 export const SellerProductDetailPage = () => {
   const { productId = '' } = useParams();
@@ -164,7 +165,7 @@ export const SellerProductDetailPage = () => {
             <label>
               <span>Цена</span>
               <input
-                value={formatPrice(editableProduct?.price ?? product.price)}
+                value={formatPrice(resolvePriceMinorUnits(editableProduct ?? product))}
                 readOnly
               />
             </label>
