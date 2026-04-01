@@ -11,13 +11,10 @@ import {
   Order,
   OrderStatus,
   Product,
-  SellerAdjustmentItem,
   SellerFinanceDashboardResponse,
   SellerKycSubmission,
-  SellerPayoutHistoryItem,
   SellerPayoutMethod,
-  SellerPayoutMethodBindPayload,
-  SellerPayoutQueueItem
+  SellerPayoutMethodBindPayload
 } from '../shared/types';
 import { Button } from '../shared/ui/Button';
 import { Badge } from '../shared/ui/Badge';
@@ -171,6 +168,29 @@ const toKopecks = (value?: number | null) => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return 0;
   return Math.round(value * 100);
 };
+
+const ensureArray = <T,>(value: unknown): T[] => (Array.isArray(value) ? value : []);
+
+const normalizeFinanceDashboard = (
+  value: SellerFinanceDashboardResponse
+): SellerFinanceDashboardResponse => ({
+  summary: {
+    awaitingPayoutKopecks: value?.summary?.awaitingPayoutKopecks ?? 0,
+    frozenKopecks: value?.summary?.frozenKopecks ?? 0,
+    paidOutKopecks: value?.summary?.paidOutKopecks ?? 0,
+    adjustmentsKopecks: value?.summary?.adjustmentsKopecks ?? 0
+  },
+  nextPayout: {
+    scheduledAt: value?.nextPayout?.scheduledAt ?? null,
+    amountKopecks: value?.nextPayout?.amountKopecks ?? 0,
+    orderCount: value?.nextPayout?.orderCount ?? 0,
+    payoutScheduleType: value?.nextPayout?.payoutScheduleType ?? null
+  },
+  payoutQueue: ensureArray(value?.payoutQueue),
+  adjustments: ensureArray(value?.adjustments),
+  payoutHistory: ensureArray(value?.payoutHistory),
+  payoutWidgetConfig: value?.payoutWidgetConfig ?? null
+});
 
 const resolveOrderItemLineTotalKopecks = (item: Order['items'][number]) => {
   if (typeof item.lineTotalKopecks === 'number') return item.lineTotalKopecks;
@@ -397,6 +417,7 @@ export const SellerDashboardPage = () => {
   );
   const [isPayoutBindExpanded, setPayoutBindExpanded] = useState(false);
   const [payoutWidgetInfo, setPayoutWidgetInfo] = useState<string | null>(null);
+  const [payoutWidgetError, setPayoutWidgetError] = useState<string | null>(null);
   const [isPayoutWidgetLoading, setPayoutWidgetLoading] = useState(false);
   const [payoutWidgetStage, setPayoutWidgetStage] = useState<PayoutWidgetStage>('idle');
   const payoutWidgetRenderKeyRef = useRef<string | null>(null);
@@ -543,6 +564,7 @@ export const SellerDashboardPage = () => {
               setPayoutBindExpanded(true);
               payoutWidgetRenderKeyRef.current = null;
               setPayoutWidgetInfo(null);
+              setPayoutWidgetError(null);
               setPayoutWidgetLoading(false);
               setPayoutWidgetStage('idle');
               setPayoutMethodError(null);
@@ -591,6 +613,7 @@ export const SellerDashboardPage = () => {
                     setPayoutBindExpanded(true);
                     payoutWidgetRenderKeyRef.current = null;
                     setPayoutWidgetInfo(null);
+                    setPayoutWidgetError(null);
                     setPayoutWidgetLoading(false);
                     setPayoutWidgetStage('idle');
                     setPayoutMethodError(null);
@@ -632,6 +655,7 @@ export const SellerDashboardPage = () => {
           )}
           <div id="yookassa-payouts-widget-container" className={styles.payoutWidgetContainer} />
           {payoutWidgetInfo && <p className={styles.infoText}>{payoutWidgetInfo}</p>}
+          {payoutWidgetError && <p className={styles.error}>{payoutWidgetError}</p>}
           {isPayoutBindExpanded && (
             <div className={styles.payoutBindActions}>
               <Button
@@ -641,6 +665,7 @@ export const SellerDashboardPage = () => {
                   setPayoutBindExpanded(false);
                   payoutWidgetRenderKeyRef.current = null;
                   setPayoutWidgetInfo(null);
+                  setPayoutWidgetError(null);
                   setPayoutWidgetLoading(false);
                   setPayoutWidgetStage('idle');
                   setPayoutMethodError(null);
@@ -828,27 +853,45 @@ export const SellerDashboardPage = () => {
     setPayoutMethodsLoading(true);
     setFinanceError(null);
     setPayoutMethodError(null);
-    try {
-      const [dashboardResponse, methodsResponse] = await Promise.all([
-        sellerFinanceApi.getDashboard(),
-        sellerFinanceApi.getPayoutMethods()
-      ]);
-      setFinanceDashboard(dashboardResponse.data);
-      setPayoutMethods(pickApiList<SellerPayoutMethod>(methodsResponse.data));
-    } catch (error) {
+    const [dashboardResult, payoutMethodsResult] = await Promise.allSettled([
+      sellerFinanceApi.getDashboard(),
+      sellerFinanceApi.getPayoutMethods()
+    ]);
+
+    if (dashboardResult.status === 'fulfilled') {
+      const response = dashboardResult.value;
+      console.log('[finance] raw response', response);
+      console.log('[finance] summary', response?.data?.summary);
+      console.log('[finance] queue', response?.data?.payoutQueue);
+      console.log('[finance] history', response?.data?.payoutHistory);
+      console.log('[finance] holds', response?.data?.adjustments);
+      setFinanceDashboard(normalizeFinanceDashboard(response.data));
+    } else {
       setFinanceDashboard(null);
-      setPayoutMethods([]);
+      const error = dashboardResult.reason;
       if (isAccessError(error) && isSellerReady) {
         setFinanceError('Сессия истекла, войдите снова.');
       } else if (isSellerReady) {
-        setFinanceError(
-          'Не удалось загрузить бухгалтерию Safe Deal. Попробуйте обновить страницу.'
+        setFinanceError('Не удалось загрузить данные бухгалтерии.');
+      }
+    }
+
+    if (payoutMethodsResult.status === 'fulfilled') {
+      setPayoutMethods(pickApiList<SellerPayoutMethod>(payoutMethodsResult.value.data));
+    } else {
+      setPayoutMethods([]);
+      const normalized = normalizeApiError(payoutMethodsResult.reason);
+      if (isAccessError(payoutMethodsResult.reason) && isSellerReady) {
+        setPayoutMethodError('Сессия истекла, войдите снова.');
+      } else if (isSellerReady) {
+        setPayoutMethodError(
+          normalized.message ?? 'Не удалось загрузить реквизиты для выплат.'
         );
       }
-    } finally {
-      setFinanceLoading(false);
-      setPayoutMethodsLoading(false);
     }
+
+    setFinanceLoading(false);
+    setPayoutMethodsLoading(false);
   }, [isSellerReady]);
 
   useEffect(() => {
@@ -1292,21 +1335,10 @@ export const SellerDashboardPage = () => {
     'Магазин продавца';
 
   const financeData = useMemo(() => {
-    if (!financeDashboard) {
-      return {
-        summary: {
-          awaitingPayoutKopecks: 0,
-          frozenKopecks: 0,
-          paidOutKopecks: 0,
-          adjustmentsKopecks: 0
-        },
-        nextPayout: { scheduledAt: null, amountKopecks: 0, orderCount: 0, payoutScheduleType: null },
-        payoutQueue: [] as SellerPayoutQueueItem[],
-        adjustments: [] as SellerAdjustmentItem[],
-        payoutHistory: [] as SellerPayoutHistoryItem[],
-        payoutWidgetConfig: null
-      };
-    }
+    if (!financeDashboard) return null;
+    const queue = financeDashboard?.payoutQueue ?? [];
+    const adjustments = financeDashboard?.adjustments ?? [];
+    const history = financeDashboard?.payoutHistory ?? [];
 
     const matchBySearch = (orderId?: string | null, publicNumber?: string | null) => {
       const normalizedSearch = ordersSearchQuery.trim().toLowerCase();
@@ -1318,15 +1350,9 @@ export const SellerDashboardPage = () => {
 
     return {
       ...financeDashboard,
-      payoutQueue: financeDashboard.payoutQueue.filter((item) =>
-        matchBySearch(item.orderId, item.publicNumber)
-      ),
-      adjustments: financeDashboard.adjustments.filter((item) =>
-        matchBySearch(item.orderId, item.publicNumber)
-      ),
-      payoutHistory: financeDashboard.payoutHistory.filter((item) =>
-        matchBySearch(item.orderId, item.publicNumber)
-      )
+      payoutQueue: queue.filter((item) => matchBySearch(item.orderId, item.publicNumber)),
+      adjustments: adjustments.filter((item) => matchBySearch(item.orderId, item.publicNumber)),
+      payoutHistory: history.filter((item) => matchBySearch(item.orderId, item.publicNumber))
     };
   }, [financeDashboard, ordersSearchQuery]);
 
@@ -1411,6 +1437,7 @@ export const SellerDashboardPage = () => {
       setPayoutBindExpanded(false);
       payoutWidgetRenderKeyRef.current = null;
       setPayoutWidgetInfo(null);
+      setPayoutWidgetError(null);
       setPayoutMethodSuccess('Реквизиты для выплат успешно добавлены.');
     } catch (error) {
       const normalized = normalizeApiError(error);
@@ -1440,6 +1467,7 @@ export const SellerDashboardPage = () => {
     setPayoutWidgetLoading(false);
     setPayoutWidgetStage('idle');
     setPayoutWidgetInfo('Карта успешно привязана. Сохраняем реквизиты...');
+    setPayoutWidgetError(null);
     await handleCreatePayoutMethod({
       provider: 'YOOKASSA',
       methodType: 'BANK_CARD',
@@ -1448,7 +1476,15 @@ export const SellerDashboardPage = () => {
   };
 
   const handleBindCard = async () => {
-    const widgetConfig = financeDashboard?.payoutWidgetConfig ?? null;
+    if (!financeDashboard) {
+      setPayoutWidgetLoading(false);
+      setPayoutWidgetStage('idle');
+      setPayoutWidgetInfo(null);
+      setPayoutWidgetError('Не удалось загрузить настройки формы выплат.');
+      return;
+    }
+
+    const widgetConfig = financeDashboard.payoutWidgetConfig ?? null;
     const resolvedConfig = resolvePayoutWidgetConfig(widgetConfig);
     console.log('[YK widget] settings loaded', widgetConfig);
     console.log('[YK widget] enabled:', resolvedConfig.enabled);
@@ -1458,12 +1494,14 @@ export const SellerDashboardPage = () => {
       setPayoutWidgetLoading(false);
       setPayoutWidgetStage('idle');
       setPayoutWidgetInfo(YOOKASSA_WIDGET_NOT_ENABLED_MESSAGE);
+      setPayoutWidgetError(null);
       return;
     }
     if (!resolvedConfig.accountId) {
       setPayoutWidgetLoading(false);
       setPayoutWidgetStage('idle');
       setPayoutWidgetInfo(YOOKASSA_WIDGET_INVALID_CONFIG_MESSAGE);
+      setPayoutWidgetError(null);
       return;
     }
 
@@ -1472,6 +1510,7 @@ export const SellerDashboardPage = () => {
     setPayoutWidgetLoading(true);
     setPayoutWidgetStage('script');
     setPayoutWidgetInfo(null);
+    setPayoutWidgetError(null);
 
     const widget = await initYooKassaPayoutWidget({
       type: 'safedeal',
@@ -1486,7 +1525,8 @@ export const SellerDashboardPage = () => {
       onError: (error) => {
         setPayoutWidgetLoading(false);
         setPayoutWidgetStage('idle');
-        setPayoutWidgetInfo(error.message || YOOKASSA_WIDGET_ERROR_MESSAGE);
+        setPayoutWidgetInfo(null);
+        setPayoutWidgetError(error.message || YOOKASSA_WIDGET_ERROR_MESSAGE);
       }
     });
     payoutWidgetInstanceRef.current = widget;
@@ -1504,12 +1544,23 @@ export const SellerDashboardPage = () => {
 
     if (!shouldRender) {
       setPayoutWidgetStage('idle');
+      setPayoutWidgetError(null);
       clearPayoutWidgetInstance();
       clearPayoutWidgetContainer();
       return;
     }
 
-    const widgetConfig = financeDashboard?.payoutWidgetConfig ?? null;
+    if (!financeDashboard) {
+      setPayoutWidgetLoading(false);
+      setPayoutWidgetStage('idle');
+      setPayoutWidgetInfo(YOOKASSA_WIDGET_LOADING_CONFIG_MESSAGE);
+      setPayoutWidgetError('Не удалось загрузить настройки формы выплат.');
+      clearPayoutWidgetInstance();
+      clearPayoutWidgetContainer();
+      return;
+    }
+
+    const widgetConfig = financeDashboard.payoutWidgetConfig ?? null;
     const resolvedConfig = resolvePayoutWidgetConfig(widgetConfig);
     const mode = isPayoutBindExpanded ? 'rebind' : 'initial';
     const nextRenderKey = `${resolvedConfig.accountId}:${mode}`;
@@ -1517,6 +1568,7 @@ export const SellerDashboardPage = () => {
       setPayoutWidgetLoading(false);
       setPayoutWidgetStage('idle');
       setPayoutWidgetInfo(YOOKASSA_WIDGET_NOT_ENABLED_MESSAGE);
+      setPayoutWidgetError(null);
       clearPayoutWidgetInstance();
       clearPayoutWidgetContainer();
       return;
@@ -1525,6 +1577,7 @@ export const SellerDashboardPage = () => {
       setPayoutWidgetLoading(false);
       setPayoutWidgetStage('idle');
       setPayoutWidgetInfo(YOOKASSA_WIDGET_INVALID_CONFIG_MESSAGE);
+      setPayoutWidgetError(null);
       clearPayoutWidgetInstance();
       clearPayoutWidgetContainer();
       return;
@@ -1533,6 +1586,7 @@ export const SellerDashboardPage = () => {
       setPayoutWidgetLoading(false);
       setPayoutWidgetStage('idle');
       setPayoutWidgetInfo(null);
+      setPayoutWidgetError(null);
       clearPayoutWidgetInstance();
       clearPayoutWidgetContainer();
       return;
@@ -1545,6 +1599,7 @@ export const SellerDashboardPage = () => {
     clearPayoutWidgetContainer,
     clearPayoutWidgetInstance,
     financeDashboard?.payoutWidgetConfig,
+    financeDashboard,
     isPayoutBindExpanded,
     payoutMethods.length,
     payoutMethodsLoading
@@ -2405,66 +2460,77 @@ export const SellerDashboardPage = () => {
                     />
                   </div>
 
-                  <div className={styles.financeSummaryGrid}>
-                    <SellerStatsCard
-                      title="Ожидает выплаты"
-                      value={formatMoney({ kopecks: financeData.summary.awaitingPayoutKopecks })}
-                    />
-                    <SellerStatsCard
-                      title="Заморожено"
-                      value={formatMoney({ kopecks: financeData.summary.frozenKopecks })}
-                    />
-                    <SellerStatsCard
-                      title="Выплачено"
-                      value={formatMoney({ kopecks: financeData.summary.paidOutKopecks })}
-                    />
-                    <SellerStatsCard
-                      title="Возвраты / блокировки"
-                      value={formatMoney({ kopecks: financeData.summary.adjustmentsKopecks })}
-                    />
-                  </div>
+                  {!financeData && financeError && (
+                    <div className={styles.infoCard}>
+                      <strong>Не удалось загрузить данные бухгалтерии.</strong>
+                      <p className={styles.muted}>
+                        Проверьте доступность API бухгалтерии и обновите страницу.
+                      </p>
+                    </div>
+                  )}
 
-                  <div className={styles.financePanel}>
-                    <h3>Ближайшая выплата</h3>
-                    {financeData.nextPayout.orderCount === 0 ? (
-                      <div className={styles.infoCard}>
-                        <strong>Будет доступно после настройки выплат</strong>
-                        <p className={styles.muted}>
-                          Как только появятся заказы в очереди, здесь отобразятся
-                          дата, сумма и количество заказов.
-                        </p>
+                  {financeData && (
+                    <>
+                      <div className={styles.financeSummaryGrid}>
+                        <SellerStatsCard
+                          title="Ожидает выплаты"
+                          value={formatMoney({ kopecks: financeData.summary.awaitingPayoutKopecks })}
+                        />
+                        <SellerStatsCard
+                          title="Заморожено"
+                          value={formatMoney({ kopecks: financeData.summary.frozenKopecks })}
+                        />
+                        <SellerStatsCard
+                          title="Выплачено"
+                          value={formatMoney({ kopecks: financeData.summary.paidOutKopecks })}
+                        />
+                        <SellerStatsCard
+                          title="Возвраты / блокировки"
+                          value={formatMoney({ kopecks: financeData.summary.adjustmentsKopecks })}
+                        />
                       </div>
-                    ) : (
-                      <div className={styles.nextPayoutGrid}>
-                        <div>
-                          <p className={styles.muted}>Дата</p>
-                          <strong>
-                            {financeData.nextPayout.scheduledAt
-                              ? formatDate(financeData.nextPayout.scheduledAt)
-                              : 'Дата уточняется'}
-                          </strong>
-                        </div>
-                        <div>
-                          <p className={styles.muted}>Сумма</p>
-                          <strong>
-                            {formatMoney({ kopecks: financeData.nextPayout.amountKopecks })}
-                          </strong>
-                        </div>
-                        <div>
-                          <p className={styles.muted}>Заказов</p>
-                          <strong>{financeData.nextPayout.orderCount}</strong>
-                        </div>
-                        <div>
-                          <p className={styles.muted}>График выплат</p>
-                          <strong>
-                            {payoutScheduleLabelRu(financeData.nextPayout.payoutScheduleType)}
-                          </strong>
-                        </div>
-                      </div>
-                    )}
-                  </div>
 
-                  <div className={styles.financePanel}>
+                      <div className={styles.financePanel}>
+                        <h3>Ближайшая выплата</h3>
+                        {financeData.nextPayout.orderCount === 0 ? (
+                          <div className={styles.infoCard}>
+                            <strong>Будет доступно после настройки выплат</strong>
+                            <p className={styles.muted}>
+                              Как только появятся заказы в очереди, здесь отобразятся
+                              дата, сумма и количество заказов.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className={styles.nextPayoutGrid}>
+                            <div>
+                              <p className={styles.muted}>Дата</p>
+                              <strong>
+                                {financeData.nextPayout.scheduledAt
+                                  ? formatDate(financeData.nextPayout.scheduledAt)
+                                  : 'Дата уточняется'}
+                              </strong>
+                            </div>
+                            <div>
+                              <p className={styles.muted}>Сумма</p>
+                              <strong>
+                                {formatMoney({ kopecks: financeData.nextPayout.amountKopecks })}
+                              </strong>
+                            </div>
+                            <div>
+                              <p className={styles.muted}>Заказов</p>
+                              <strong>{financeData.nextPayout.orderCount}</strong>
+                            </div>
+                            <div>
+                              <p className={styles.muted}>График выплат</p>
+                              <strong>
+                                {payoutScheduleLabelRu(financeData.nextPayout.payoutScheduleType)}
+                              </strong>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                  {financeData && <div className={styles.financePanel}>
                     <h3>Очередь на выплату</h3>
                     {financeData.payoutQueue.length === 0 ? (
                       <p className={styles.muted}>Нет заказов в очереди на выплату.</p>
@@ -2575,9 +2641,9 @@ export const SellerDashboardPage = () => {
                         />
                       </>
                     )}
-                  </div>
+                  </div>}
 
-                  <div className={styles.financePanel}>
+                  {financeData && <div className={styles.financePanel}>
                     <h3>Возвраты и блокировки</h3>
                     {financeData.adjustments.length === 0 ? (
                       <p className={styles.muted}>Возвратов и удержаний пока нет.</p>
@@ -2682,9 +2748,9 @@ export const SellerDashboardPage = () => {
                         />
                       </>
                     )}
-                  </div>
+                  </div>}
 
-                  <div className={styles.financePanel}>
+                  {financeData && <div className={styles.financePanel}>
                     <h3>История выплат</h3>
                     {financeData.payoutHistory.length === 0 ? (
                       <div className={styles.infoCard}>
@@ -2804,7 +2870,9 @@ export const SellerDashboardPage = () => {
                         />
                       </>
                     )}
-                  </div>
+                  </div>}
+                    </>
+                  )}
                   {financeLoading && (
                     <p className={styles.muted}>Загрузка финансовых операций Safe Deal...</p>
                   )}
