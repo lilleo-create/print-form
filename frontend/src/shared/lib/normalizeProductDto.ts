@@ -146,7 +146,7 @@ const buildSizeValue = (product: ProductWithLegacyFields): string => {
   const dy = toFiniteNumber(product.dyCm);
   const dz = toFiniteNumber(product.dzCm);
   if (dx === null || dy === null || dz === null) return '';
-  return `${dx} × ${dy} × ${dz} см`;
+  return `${dx * 10} × ${dy * 10} × ${dz * 10} мм`;
 };
 
 export const buildFallbackProductSpecs = (

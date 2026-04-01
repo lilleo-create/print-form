@@ -123,6 +123,8 @@ const getErrorMessage = (error: unknown) =>
 
 const YOOKASSA_WIDGET_INFO_MESSAGE =
   'Привязка карты станет доступна после завершения настройки YooKassa для выплат.';
+const YOOKASSA_WIDGET_NOT_CONFIGURED_MESSAGE =
+  'Привязка карты временно недоступна: не настроен YooKassa payouts widget.';
 
 const firstNonEmpty = (...values: Array<string | null | undefined>) => {
   for (const value of values) {
@@ -363,7 +365,7 @@ export const SellerDashboardPage = () => {
   );
   const [isPayoutBindExpanded, setPayoutBindExpanded] = useState(false);
   const [payoutWidgetInfo, setPayoutWidgetInfo] = useState<string | null>(null);
-  const [isPayoutSubmitting, setPayoutSubmitting] = useState(false);
+  const [isPayoutWidgetLoading, setPayoutWidgetLoading] = useState(false);
 
   // === Delivery profile ===
   const [dropoffPvzId, setDropoffPvzId] = useState('');
@@ -505,6 +507,7 @@ export const SellerDashboardPage = () => {
             onClick={() => {
               setPayoutBindExpanded(true);
               setPayoutWidgetInfo(null);
+              setPayoutWidgetLoading(false);
               setPayoutMethodError(null);
               setPayoutMethodSuccess(null);
             }}
@@ -526,6 +529,7 @@ export const SellerDashboardPage = () => {
             onClick={() => {
               setPayoutBindExpanded(true);
               setPayoutWidgetInfo(null);
+              setPayoutWidgetLoading(false);
               setPayoutMethodError(null);
               setPayoutMethodSuccess(null);
             }}
@@ -568,6 +572,7 @@ export const SellerDashboardPage = () => {
                   onClick={() => {
                     setPayoutBindExpanded(true);
                     setPayoutWidgetInfo(null);
+                    setPayoutWidgetLoading(false);
                     setPayoutMethodError(null);
                     setPayoutMethodSuccess(null);
                   }}
@@ -599,21 +604,24 @@ export const SellerDashboardPage = () => {
           <div className={styles.payoutBindInlineHeader}>
             <h4>Привязка банковской карты</h4>
             <p className={styles.muted}>
-              Карта привязывается через YooKassa payouts-data widget (type=safedeal).
+              Карта привязывается через защищённую форму YooKassa для Safe Deal.
             </p>
           </div>
-          <div id="yookassa-payouts-widget-container" className={styles.payoutWidgetContainer} />
+          {isPayoutWidgetLoading ? (
+            <p className={styles.muted}>Загрузка формы YooKassa...</p>
+          ) : null}
+          {!payoutWidgetInfo ? (
+            <div id="yookassa-payouts-widget-container" className={styles.payoutWidgetContainer} />
+          ) : null}
           {payoutWidgetInfo && <p className={styles.infoText}>{payoutWidgetInfo}</p>}
           <div className={styles.payoutBindActions}>
-            <Button type="button" onClick={() => void handleBindCard()} disabled={isPayoutSubmitting}>
-              Привязать карту
-            </Button>
             <Button
               type="button"
               variant="ghost"
               onClick={() => {
                 setPayoutBindExpanded(false);
                 setPayoutWidgetInfo(null);
+                setPayoutWidgetLoading(false);
                 setPayoutMethodError(null);
               }}
             >
@@ -1371,7 +1379,6 @@ export const SellerDashboardPage = () => {
   };
 
   const handleCreatePayoutMethod = async (payload: SellerPayoutMethodBindPayload) => {
-    setPayoutSubmitting(true);
     setPayoutMethodError(null);
     setPayoutMethodSuccess(null);
     try {
@@ -1385,23 +1392,32 @@ export const SellerDashboardPage = () => {
       setPayoutMethodError(
         normalized.message ?? 'Не удалось добавить способ выплаты.'
       );
-    } finally {
-      setPayoutSubmitting(false);
     }
   };
 
   const handleBindCard = async () => {
     const widgetConfig = financeDashboard?.payoutWidgetConfig ?? null;
-    if (!widgetConfig) {
-      setPayoutWidgetInfo(YOOKASSA_WIDGET_INFO_MESSAGE);
+    const accountId =
+      typeof widgetConfig?.account_id === 'string'
+        ? widgetConfig.account_id
+        : typeof widgetConfig?.accountId === 'string'
+          ? widgetConfig.accountId
+          : '';
+
+    if (!accountId) {
+      setPayoutWidgetInfo(YOOKASSA_WIDGET_NOT_CONFIGURED_MESSAGE);
       return;
     }
 
+    setPayoutWidgetLoading(true);
+    setPayoutWidgetInfo(null);
+
     await initYooKassaPayoutWidget({
       type: 'safedeal',
-      config: widgetConfig,
+      accountId,
       containerId: 'yookassa-payouts-widget-container',
       onSuccess: (payoutToken) => {
+        setPayoutWidgetLoading(false);
         void handleCreatePayoutMethod({
           provider: 'YOOKASSA',
           methodType: 'BANK_CARD',
@@ -1409,6 +1425,7 @@ export const SellerDashboardPage = () => {
         });
       },
       onError: (error) => {
+        setPayoutWidgetLoading(false);
         const normalizedMessage = error.message.toLowerCase().includes('пока не подключён')
           ? YOOKASSA_WIDGET_INFO_MESSAGE
           : error.message;
@@ -1416,6 +1433,11 @@ export const SellerDashboardPage = () => {
       }
     });
   };
+
+  useEffect(() => {
+    if (!isPayoutBindExpanded) return;
+    void handleBindCard();
+  }, [isPayoutBindExpanded, financeDashboard?.payoutWidgetConfig]);
 
   return (
     <section
