@@ -1,5 +1,6 @@
 import type { Product, ProductSpec, ProductVariant } from '../types';
 import { getProductImages, getProductVideos } from './productMedia';
+import { resolvePriceMinorUnits } from './productPrice';
 import { normalizeProductSpecs } from './productSpecs';
 
 type ProductLike = Partial<Product> & {
@@ -9,6 +10,8 @@ type ProductLike = Partial<Product> & {
   specs?: ProductSpec[] | null;
   characteristics?: ProductSpec[] | null;
   variants?: ProductVariant[] | null;
+  priceKopecks?: number | null;
+  priceRubles?: number | null;
 };
 
 export interface EditableProduct {
@@ -66,7 +69,7 @@ export const toEditableProduct = (
     material: toText(product.material),
     technology: toText(product.technology),
     color: toText(product.color),
-    price: toNumber(product.price, 0),
+    price: resolvePriceMinorUnits(product),
     sku: toText(product.sku),
     productionTimeHours: toNumber(product.productionTimeHours, 24),
     imageUrls: getProductImages(product),

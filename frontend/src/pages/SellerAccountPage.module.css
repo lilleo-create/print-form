@@ -1014,9 +1014,9 @@
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 18px;
+  padding: 16px;
   display: grid;
-  gap: 14px;
+  gap: 12px;
 }
 
 .payoutBindInlineHeader {
@@ -1025,10 +1025,12 @@
 }
 
 .payoutWidgetContainer {
-  min-height: 112px;
-  border: 1px dashed var(--border);
+  min-height: 120px;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: 10px;
   background: var(--bg-2);
+  padding: 10px;
+  overflow: hidden;
 }
 
 .payoutBindActions {
@@ -1103,5 +1105,11 @@
   .readonlyRow {
     flex-direction: column;
     gap: 4px;
+  }
+
+  .payoutMethodsHeader,
+  .payoutMethodTop {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }

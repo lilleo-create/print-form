@@ -22,8 +22,7 @@ export const normalizeRublesInput = (value: unknown): string => {
 };
 
 export const formatKopecksToRublesInput = (value: unknown): string => {
-  const kopecks =
-    typeof value === 'number' && Number.isFinite(value) ? value : 0;
+  const kopecks = toFiniteNumber(value);
   const rubles = kopecks / KOPECKS_IN_RUBLE;
   const normalized = rubles.toFixed(2);
   return normalized.endsWith('.00') ? normalized.slice(0, -3) : normalized;
@@ -37,4 +36,30 @@ export const parseRublesInputToKopecks = (value: unknown): number => {
   if (!Number.isFinite(parsed)) return 0;
 
   return Math.round(parsed * KOPECKS_IN_RUBLE);
+};
+
+export const formatPriceFromMinorUnits = (minorUnits: unknown): string =>
+  formatKopecksToRublesInput(minorUnits);
+
+export const parsePriceToMinorUnits = (input: unknown): number =>
+  parseRublesInputToKopecks(input);
+
+export const resolvePriceMinorUnits = (
+  value: { price?: unknown; priceKopecks?: unknown; priceRubles?: unknown } | null | undefined
+): number => {
+  if (!value || typeof value !== 'object') return 0;
+
+  if (typeof value.priceKopecks === 'number' && Number.isFinite(value.priceKopecks)) {
+    return Math.round(value.priceKopecks);
+  }
+
+  if (typeof value.price === 'number' && Number.isFinite(value.price)) {
+    return Math.round(value.price);
+  }
+
+  if (typeof value.priceRubles === 'number' && Number.isFinite(value.priceRubles)) {
+    return Math.round(value.priceRubles * KOPECKS_IN_RUBLE);
+  }
+
+  return 0;
 };
