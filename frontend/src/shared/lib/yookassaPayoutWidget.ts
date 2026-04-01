@@ -5,6 +5,7 @@ type YooKassaPayoutWidgetOptions = {
   type: 'safedeal';
   accountId: string;
   containerId: string;
+  onStageChange?: (stage: 'script' | 'widget') => void;
   onSuccess: (payload: YooKassaWidgetSuccessPayload) => void;
   onError: (error: Error) => void;
 };
@@ -83,22 +84,38 @@ const normalizeWidgetError = (payload: unknown): Error => {
   return toWidgetError(payload);
 };
 
-export const loadYooKassaPayoutWidgetScript = async (): Promise<void> => {
+export const loadYooKassaWidgetScript = async (): Promise<void> => {
   const runtime = window as GlobalWithYooKassa;
+  console.log('[YK widget] window.PayoutsData before load:', !!runtime.PayoutsData);
   if (runtime.PayoutsData) return;
 
   if (!runtime.__pfYooKassaPayoutWidgetLoadingPromise) {
+    console.log('[YK widget] start script load');
     runtime.__pfYooKassaPayoutWidgetLoadingPromise = new Promise<void>(
       (resolve, reject) => {
         const existingScript = document.querySelector<HTMLScriptElement>(
           `script[src=\"${YOOKASSA_PAYOUT_WIDGET_SRC}\"]`
         );
+        console.log('[YK widget] script exists before load:', !!existingScript);
 
         if (existingScript) {
+          if (runtime.PayoutsData) {
+            resolve();
+            return;
+          }
+          const timeoutId = window.setTimeout(() => resolve(), 5000);
           existingScript.addEventListener('load', () => resolve(), { once: true });
           existingScript.addEventListener(
             'error',
-            () => reject(new Error('Не удалось загрузить форму YooKassa.')),
+            () => {
+              window.clearTimeout(timeoutId);
+              reject(new Error('Не удалось загрузить форму YooKassa.'));
+            },
+            { once: true }
+          );
+          existingScript.addEventListener(
+            'load',
+            () => window.clearTimeout(timeoutId),
             { once: true }
           );
           return;
@@ -116,27 +133,33 @@ export const loadYooKassaPayoutWidgetScript = async (): Promise<void> => {
 
   try {
     await runtime.__pfYooKassaPayoutWidgetLoadingPromise;
+    console.log('[YK widget] script load success');
   } catch (error) {
     runtime.__pfYooKassaPayoutWidgetLoadingPromise = undefined;
     throw error;
   }
 
+  console.log('[YK widget] window.PayoutsData after load:', !!runtime.PayoutsData);
   if (!runtime.PayoutsData) {
     throw new Error('Форма YooKassa недоступна. Попробуйте позже.');
   }
 };
 
+export const loadYooKassaPayoutWidgetScript = loadYooKassaWidgetScript;
+
 export const initYooKassaPayoutWidget = async (
   options: YooKassaPayoutWidgetOptions
 ) => {
   try {
-    await loadYooKassaPayoutWidgetScript();
+    options.onStageChange?.('script');
+    await loadYooKassaWidgetScript();
     const runtime = window as GlobalWithYooKassa;
     const Widget = runtime.PayoutsData;
     if (!Widget) {
       throw new Error('Форма YooKassa недоступна. Попробуйте позже.');
     }
 
+    console.log('[YK widget] create instance');
     const widget = new Widget({
       type: options.type,
       account_id: options.accountId,
@@ -164,9 +187,13 @@ export const initYooKassaPayoutWidget = async (
       }
     });
 
+    options.onStageChange?.('widget');
+    console.log('[YK widget] start render');
     await widget.render(options.containerId);
+    console.log('[YK widget] render success');
     return widget;
   } catch (error) {
+    console.error('[YK widget] render failed', error);
     options.onError(toWidgetError(error));
     return null;
   }

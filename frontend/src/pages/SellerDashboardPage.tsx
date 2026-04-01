@@ -130,6 +130,7 @@ const YOOKASSA_WIDGET_NOT_ENABLED_MESSAGE =
 const YOOKASSA_WIDGET_INVALID_CONFIG_MESSAGE =
   'Не удалось загрузить форму привязки карты: некорректная конфигурация выплат.';
 const YOOKASSA_WIDGET_LOADING_CONFIG_MESSAGE = 'Загружаем настройки выплат...';
+const YOOKASSA_WIDGET_LOADING_SCRIPT_MESSAGE = 'Загружаем библиотеку YooKassa...';
 const YOOKASSA_WIDGET_LOADING_MESSAGE = 'Загружаем защищённую форму привязки карты...';
 const YOOKASSA_WIDGET_ERROR_MESSAGE =
   'Не удалось загрузить форму привязки карты. Обновите страницу или попробуйте позже.';
@@ -397,6 +398,7 @@ export const SellerDashboardPage = () => {
   const [isPayoutBindExpanded, setPayoutBindExpanded] = useState(false);
   const [payoutWidgetInfo, setPayoutWidgetInfo] = useState<string | null>(null);
   const [isPayoutWidgetLoading, setPayoutWidgetLoading] = useState(false);
+  const [payoutWidgetStage, setPayoutWidgetStage] = useState<PayoutWidgetStage>('idle');
   const payoutWidgetRenderKeyRef = useRef<string | null>(null);
   const payoutWidgetInstanceRef = useRef<{ clearListeners?: () => void } | null>(null);
 
@@ -542,6 +544,7 @@ export const SellerDashboardPage = () => {
               payoutWidgetRenderKeyRef.current = null;
               setPayoutWidgetInfo(null);
               setPayoutWidgetLoading(false);
+              setPayoutWidgetStage('idle');
               setPayoutMethodError(null);
               setPayoutMethodSuccess(null);
             }}
@@ -589,6 +592,7 @@ export const SellerDashboardPage = () => {
                     payoutWidgetRenderKeyRef.current = null;
                     setPayoutWidgetInfo(null);
                     setPayoutWidgetLoading(false);
+                    setPayoutWidgetStage('idle');
                     setPayoutMethodError(null);
                     setPayoutMethodSuccess(null);
                   }}
@@ -620,7 +624,12 @@ export const SellerDashboardPage = () => {
           {payoutMethodsLoading && (
             <p className={styles.muted}>{YOOKASSA_WIDGET_LOADING_CONFIG_MESSAGE}</p>
           )}
-          {isPayoutWidgetLoading && <p className={styles.muted}>{YOOKASSA_WIDGET_LOADING_MESSAGE}</p>}
+          {isPayoutWidgetLoading && payoutWidgetStage === 'script' && (
+            <p className={styles.muted}>{YOOKASSA_WIDGET_LOADING_SCRIPT_MESSAGE}</p>
+          )}
+          {isPayoutWidgetLoading && payoutWidgetStage === 'widget' && (
+            <p className={styles.muted}>{YOOKASSA_WIDGET_LOADING_MESSAGE}</p>
+          )}
           <div id="yookassa-payouts-widget-container" className={styles.payoutWidgetContainer} />
           {payoutWidgetInfo && <p className={styles.infoText}>{payoutWidgetInfo}</p>}
           {isPayoutBindExpanded && (
@@ -633,6 +642,7 @@ export const SellerDashboardPage = () => {
                   payoutWidgetRenderKeyRef.current = null;
                   setPayoutWidgetInfo(null);
                   setPayoutWidgetLoading(false);
+                  setPayoutWidgetStage('idle');
                   setPayoutMethodError(null);
                   clearPayoutWidgetInstance();
                   clearPayoutWidgetContainer();
@@ -1428,6 +1438,7 @@ export const SellerDashboardPage = () => {
     }
 
     setPayoutWidgetLoading(false);
+    setPayoutWidgetStage('idle');
     setPayoutWidgetInfo('Карта успешно привязана. Сохраняем реквизиты...');
     await handleCreatePayoutMethod({
       provider: 'YOOKASSA',
@@ -1439,14 +1450,19 @@ export const SellerDashboardPage = () => {
   const handleBindCard = async () => {
     const widgetConfig = financeDashboard?.payoutWidgetConfig ?? null;
     const resolvedConfig = resolvePayoutWidgetConfig(widgetConfig);
+    console.log('[YK widget] settings loaded', widgetConfig);
+    console.log('[YK widget] enabled:', resolvedConfig.enabled);
+    console.log('[YK widget] accountId:', resolvedConfig.accountId);
 
     if (!resolvedConfig.enabled) {
       setPayoutWidgetLoading(false);
+      setPayoutWidgetStage('idle');
       setPayoutWidgetInfo(YOOKASSA_WIDGET_NOT_ENABLED_MESSAGE);
       return;
     }
     if (!resolvedConfig.accountId) {
       setPayoutWidgetLoading(false);
+      setPayoutWidgetStage('idle');
       setPayoutWidgetInfo(YOOKASSA_WIDGET_INVALID_CONFIG_MESSAGE);
       return;
     }
@@ -1454,22 +1470,30 @@ export const SellerDashboardPage = () => {
     clearPayoutWidgetInstance();
     clearPayoutWidgetContainer();
     setPayoutWidgetLoading(true);
+    setPayoutWidgetStage('script');
     setPayoutWidgetInfo(null);
 
     const widget = await initYooKassaPayoutWidget({
       type: 'safedeal',
       accountId: resolvedConfig.accountId,
       containerId: 'yookassa-payouts-widget-container',
+      onStageChange: (stage) => {
+        setPayoutWidgetStage(stage);
+      },
       onSuccess: (payload) => {
         void handlePayoutWidgetSuccess(payload);
       },
       onError: (error) => {
-        console.error('YooKassa widget init error', error);
         setPayoutWidgetLoading(false);
+        setPayoutWidgetStage('idle');
         setPayoutWidgetInfo(error.message || YOOKASSA_WIDGET_ERROR_MESSAGE);
       }
     });
     payoutWidgetInstanceRef.current = widget;
+    if (widget) {
+      setPayoutWidgetLoading(false);
+      setPayoutWidgetStage('idle');
+    }
   };
 
   useEffect(() => {
@@ -1479,6 +1503,7 @@ export const SellerDashboardPage = () => {
       (payoutMethods.length === 0 || isPayoutBindExpanded);
 
     if (!shouldRender) {
+      setPayoutWidgetStage('idle');
       clearPayoutWidgetInstance();
       clearPayoutWidgetContainer();
       return;
@@ -1490,6 +1515,7 @@ export const SellerDashboardPage = () => {
     const nextRenderKey = `${resolvedConfig.accountId}:${mode}`;
     if (!resolvedConfig.enabled) {
       setPayoutWidgetLoading(false);
+      setPayoutWidgetStage('idle');
       setPayoutWidgetInfo(YOOKASSA_WIDGET_NOT_ENABLED_MESSAGE);
       clearPayoutWidgetInstance();
       clearPayoutWidgetContainer();
@@ -1497,6 +1523,7 @@ export const SellerDashboardPage = () => {
     }
     if (!resolvedConfig.accountId) {
       setPayoutWidgetLoading(false);
+      setPayoutWidgetStage('idle');
       setPayoutWidgetInfo(YOOKASSA_WIDGET_INVALID_CONFIG_MESSAGE);
       clearPayoutWidgetInstance();
       clearPayoutWidgetContainer();
@@ -1504,6 +1531,7 @@ export const SellerDashboardPage = () => {
     }
     if (resolvedConfig.hasSavedCard && !isPayoutBindExpanded && payoutMethods.length > 0) {
       setPayoutWidgetLoading(false);
+      setPayoutWidgetStage('idle');
       setPayoutWidgetInfo(null);
       clearPayoutWidgetInstance();
       clearPayoutWidgetContainer();
@@ -2950,3 +2978,4 @@ export const SellerDashboardPage = () => {
     </section>
   );
 };
+type PayoutWidgetStage = 'idle' | 'script' | 'widget';
