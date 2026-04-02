@@ -1080,6 +1080,16 @@
   gap: 8px;
 }
 
+.codeBlock {
+  margin: 8px 0 0;
+  padding: 8px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 70%, black 30%);
+  color: var(--text);
+  font-size: 12px;
+  overflow-x: auto;
+}
+
 .inlineLinkButton {
   border: 0;
   background: transparent;

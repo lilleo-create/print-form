@@ -198,6 +198,42 @@ const parseRubAmountToKopecks = (value: string): number | null => {
 
 const kopecksToAmount = (value: number) => (value / 100).toFixed(2);
 
+const normalizePayoutAmountInput = (value: string) => {
+  const normalized = value.replace(',', '.').replace(/[^\d.]/g, '');
+  const [integerPart = '', ...fractionalParts] = normalized.split('.');
+  const sanitizedInteger = integerPart.replace(/^0+(?=\d)/, '');
+  const fractionalPart = fractionalParts.join('').slice(0, 2);
+  if (fractionalParts.length === 0) {
+    return sanitizedInteger;
+  }
+  return `${sanitizedInteger || '0'}.${fractionalPart}`;
+};
+
+const resolvePayoutSubmitErrorMessage = (error: unknown) => {
+  const normalized = normalizeApiError(error);
+  const code = (normalized.code ?? '').toUpperCase();
+  const message = normalized.message ?? '';
+  const details = [code, message].join(' ').toLowerCase();
+
+  if (details.includes('card') && (details.includes('missing') || details.includes('not found'))) {
+    return 'Нет привязанной карты для выплат.';
+  }
+  if (details.includes('min') || details.includes('minimum')) {
+    return 'Сумма меньше минимально допустимой для выплаты.';
+  }
+  if (details.includes('insufficient') || details.includes('available') || details.includes('balance')) {
+    return 'Сумма больше доступного остатка для выплаты.';
+  }
+  if (details.includes('deal') && details.includes('id')) {
+    return 'Не удалось создать выплату: отсутствует deal id.';
+  }
+  if (details.includes('provider') || details.includes('yookassa')) {
+    return 'Ошибка провайдера выплат. Повторите попытку позже.';
+  }
+  if (message) return message;
+  return 'Не удалось создать выплату. Неизвестная ошибка.';
+};
+
 const toKopecks = (value?: number | null) => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return 0;
   return Math.round(value * 100);
@@ -512,6 +548,9 @@ export const SellerDashboardPage = () => {
   const [payoutSubmitError, setPayoutSubmitError] = useState<string | null>(null);
   const [isPayoutSubmitting, setPayoutSubmitting] = useState(false);
   const [payoutCreated, setPayoutCreated] = useState<SellerPayoutCreateResponse | null>(null);
+  const [payoutResultTitle, setPayoutResultTitle] = useState<string | null>(null);
+  const [payoutRawError, setPayoutRawError] = useState<string | null>(null);
+  const [lastPayoutRawResponse, setLastPayoutRawResponse] = useState<unknown>(null);
 
   // === Delivery profile ===
   const [dropoffPvzId, setDropoffPvzId] = useState('');
@@ -526,6 +565,10 @@ export const SellerDashboardPage = () => {
   >(null);
 
   const canSell = kycSubmission?.status === 'APPROVED';
+  const isDevPayoutToolsEnabled =
+    import.meta.env.DEV ||
+    import.meta.env.MODE === 'test' ||
+    import.meta.env.VITE_ENABLE_DEV_PAYOUT_TOOLS === 'true';
   const user = useAuthStore((state) => state.user);
   const userId = user?.id;
 
@@ -676,9 +719,12 @@ export const SellerDashboardPage = () => {
           {savedCardMeta.issuerName && (
             <p className={styles.muted}>Банк: {savedCardMeta.issuerName}</p>
           )}
-          {savedCardMeta.updatedAt && (
-            <p className={styles.muted}>Обновлено: {formatDate(savedCardMeta.updatedAt)}</p>
-          )}
+          <p className={styles.muted}>
+            Обновлено:{' '}
+            {savedCardMeta.updatedAt
+              ? formatDate(savedCardMeta.updatedAt)
+              : formatDate(new Date().toISOString())}
+          </p>
         </article>
       )}
       {payoutMethodError && <p className={styles.error}>{payoutMethodError}</p>}
@@ -1477,9 +1523,16 @@ export const SellerDashboardPage = () => {
   const payoutMaxKopecks = 15000000;
   const hasSavedCard =
     resolvedPayoutWidgetConfig.hasSavedCard || payoutMethods.some((method) => method.status === 'ACTIVE');
-  const isPayoutFormAvailable = hasSavedCard && availableForPayoutKopecks > 0;
+  const canEditPayoutAmount =
+    hasSavedCard &&
+    availableForPayoutKopecks > 0 &&
+    !financeLoading &&
+    !payoutMethodsLoading &&
+    !isPayoutSubmitting;
+  const isPayoutFormAvailable = hasSavedCard && availableForPayoutKopecks > 0 && !financeLoading;
   const payoutValidationError = (() => {
     if (!hasSavedCard) return 'Сначала привяжите карту для выплат в настройках.';
+    if (availableForPayoutKopecks <= 0) return 'Сейчас нет доступной суммы для выплаты.';
     if (!payoutAmountInput.trim()) return 'Введите сумму выплаты.';
     if (payoutAmountKopecks === null) return 'Введите корректную сумму (до 2 знаков после точки).';
     if (payoutAmountKopecks < payoutMinKopecks) return 'Минимальная сумма выплаты — 1 ₽.';
@@ -1488,6 +1541,12 @@ export const SellerDashboardPage = () => {
       return 'Максимальная выплата на карту — 150 000 ₽.';
     return null;
   })();
+  const payoutSummaryAmount =
+    typeof payoutAmountKopecks === 'number' && payoutAmountKopecks > 0
+      ? formatMoney({ kopecks: payoutAmountKopecks })
+      : '—';
+  const isPayoutSubmitDisabled =
+    !isPayoutFormAvailable || Boolean(payoutValidationError) || isPayoutSubmitting;
 
   const shouldShowSellerError =
     authStatus === 'authorized' &&
@@ -1551,25 +1610,30 @@ export const SellerDashboardPage = () => {
   };
 
   const handleSetPayoutPart = (part: 0.25 | 0.5 | 1) => {
-    if (availableForPayoutKopecks <= 0) return;
+    if (!canEditPayoutAmount) return;
     const next = Math.max(0, Math.round(availableForPayoutKopecks * part));
     setPayoutAmountInput(kopecksToAmount(next));
     setPayoutSubmitError(null);
   };
 
-  const handleSubmitPayout = async () => {
+  const executePayoutRequest = async (params: {
+    amountKopecks: number;
+    description: string;
+    successTitle: string;
+    includeDevRawResponse?: boolean;
+  }) => {
+    const { amountKopecks, description, successTitle, includeDevRawResponse = false } = params;
     setPayoutSubmitError(null);
+    setPayoutRawError(null);
     setPayoutCreated(null);
-    if (payoutValidationError || payoutAmountKopecks === null) {
-      setPayoutSubmitError(payoutValidationError ?? 'Проверьте сумму выплаты.');
-      return;
-    }
+    setPayoutResultTitle(null);
+    setLastPayoutRawResponse(null);
 
     setPayoutSubmitting(true);
     try {
       const response = await sellerFinanceApi.triggerPayout({
-        amount: kopecksToAmount(payoutAmountKopecks),
-        description: payoutDescription.trim() || 'Выплата продавцу Print-Form'
+        amount: kopecksToAmount(amountKopecks),
+        description: description.trim() || 'Выплата продавцу Print-Form'
       });
       const payload = (response?.data ?? {}) as SellerPayoutCreateResponse;
       setPayoutCreated({
@@ -1579,20 +1643,71 @@ export const SellerDashboardPage = () => {
           (typeof payload.id === 'string' && payload.id) ||
           null,
         status: typeof payload.status === 'string' ? payload.status : 'PENDING',
-        amount: payload.amount ?? kopecksToAmount(payoutAmountKopecks),
+        amount: payload.amount ?? kopecksToAmount(amountKopecks),
         createdAt:
           typeof payload.createdAt === 'string'
             ? payload.createdAt
             : new Date().toISOString()
       });
+      setPayoutResultTitle(successTitle);
+      if (includeDevRawResponse) {
+        setLastPayoutRawResponse(payload);
+      }
       setPayoutAmountInput('');
       await loadFinanceData();
     } catch (error) {
       const normalized = normalizeApiError(error);
-      setPayoutSubmitError(normalized.message ?? 'Не удалось создать выплату.');
+      setPayoutSubmitError(resolvePayoutSubmitErrorMessage(error));
+      setPayoutRawError(normalized.message ?? getErrorMessage(error));
+      if (includeDevRawResponse && error && typeof error === 'object' && 'payload' in error) {
+        setLastPayoutRawResponse((error as { payload?: unknown }).payload ?? null);
+      }
     } finally {
       setPayoutSubmitting(false);
     }
+  };
+
+  const handleSubmitPayout = async () => {
+    if (payoutValidationError || payoutAmountKopecks === null) {
+      setPayoutSubmitError(payoutValidationError ?? 'Проверьте сумму выплаты.');
+      return;
+    }
+    await executePayoutRequest({
+      amountKopecks: payoutAmountKopecks,
+      description: payoutDescription,
+      successTitle: 'Выплата создана'
+    });
+  };
+
+  const handleDevTestPayout = async () => {
+    if (!hasSavedCard) {
+      setPayoutSubmitError('Нет привязанной карты для выплат.');
+      return;
+    }
+    if (availableForPayoutKopecks <= 0) {
+      setPayoutSubmitError('Сейчас нет доступной суммы для выплаты.');
+      return;
+    }
+    const amountKopecks = Math.min(10000, availableForPayoutKopecks);
+    await executePayoutRequest({
+      amountKopecks,
+      description: 'DEV TEST: фиксированная выплата',
+      successTitle: 'Тестовая выплата создана',
+      includeDevRawResponse: true
+    });
+  };
+
+  const handleDevInputPayout = async () => {
+    if (payoutValidationError || payoutAmountKopecks === null) {
+      setPayoutSubmitError(payoutValidationError ?? 'Проверьте сумму выплаты.');
+      return;
+    }
+    await executePayoutRequest({
+      amountKopecks: payoutAmountKopecks,
+      description: `${payoutDescription.trim() || 'DEV payout'} [dev trigger]`,
+      successTitle: 'Dev payout отправлен',
+      includeDevRawResponse: true
+    });
   };
 
   const clearPayoutWidgetInstance = useCallback(() => {
@@ -2674,7 +2789,15 @@ export const SellerDashboardPage = () => {
                           <div>
                             <p className={styles.muted}>Способ выплаты</p>
                             {hasSavedCard ? (
-                              <strong>{savedCardMeta.maskedLabel}</strong>
+                              <>
+                                <strong>{savedCardMeta.maskedLabel || 'Банковская карта'}</strong>
+                                <p className={styles.muted}>
+                                  Карта привязана · Обновлено{' '}
+                                  {savedCardMeta.updatedAt
+                                    ? formatDate(savedCardMeta.updatedAt)
+                                    : formatDate(new Date().toISOString())}
+                                </p>
+                              </>
                             ) : (
                               <span className={styles.muted}>Карта не привязана</span>
                             )}
@@ -2705,19 +2828,35 @@ export const SellerDashboardPage = () => {
                               placeholder="1000.00"
                               value={payoutAmountInput}
                               onChange={(event) => {
-                                setPayoutAmountInput(event.target.value);
+                                setPayoutAmountInput(normalizePayoutAmountInput(event.target.value));
                                 setPayoutSubmitError(null);
+                                setPayoutRawError(null);
                               }}
-                              disabled={availableForPayoutKopecks <= 0 || isPayoutSubmitting}
+                              disabled={!canEditPayoutAmount}
                             />
                             <div className={styles.payoutQuickActions}>
-                              <Button type="button" variant="ghost" onClick={() => handleSetPayoutPart(0.25)}>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={() => handleSetPayoutPart(0.25)}
+                                disabled={!canEditPayoutAmount}
+                              >
                                 25%
                               </Button>
-                              <Button type="button" variant="ghost" onClick={() => handleSetPayoutPart(0.5)}>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={() => handleSetPayoutPart(0.5)}
+                                disabled={!canEditPayoutAmount}
+                              >
                                 50%
                               </Button>
-                              <Button type="button" variant="ghost" onClick={() => handleSetPayoutPart(1)}>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={() => handleSetPayoutPart(1)}
+                                disabled={!canEditPayoutAmount}
+                              >
                                 100%
                               </Button>
                             </div>
@@ -2733,9 +2872,9 @@ export const SellerDashboardPage = () => {
                             />
                             <div className={styles.infoCard}>
                               <p>
-                                Сумма выплаты: <strong>{payoutAmountKopecks ? formatMoney({ kopecks: payoutAmountKopecks }) : '—'}</strong>
+                                Сумма выплаты: <strong>{payoutSummaryAmount}</strong>
                               </p>
-                              <p>К получению: <strong>{payoutAmountKopecks ? formatMoney({ kopecks: payoutAmountKopecks }) : '—'}</strong></p>
+                              <p>К получению: <strong>{payoutSummaryAmount}</strong></p>
                             </div>
                             {availableForPayoutKopecks <= 0 && (
                               <p className={styles.muted}>Сейчас нет доступной суммы для выплаты.</p>
@@ -2746,10 +2885,32 @@ export const SellerDashboardPage = () => {
                             <Button
                               type="button"
                               onClick={() => void handleSubmitPayout()}
-                              disabled={!isPayoutFormAvailable || Boolean(payoutValidationError) || isPayoutSubmitting}
+                              disabled={isPayoutSubmitDisabled}
                             >
                               {isPayoutSubmitting ? 'Отправляем выплату...' : 'Вывести средства'}
                             </Button>
+                            {isDevPayoutToolsEnabled && (
+                              <div className={styles.payoutBindActions}>
+                                <Button
+                                  type="button"
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={() => void handleDevTestPayout()}
+                                  disabled={isPayoutSubmitting || !hasSavedCard || availableForPayoutKopecks <= 0}
+                                >
+                                  Тестовая выплата 100 ₽
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => void handleDevInputPayout()}
+                                  disabled={isPayoutSubmitting || isPayoutSubmitDisabled}
+                                >
+                                  Отправить dev payout
+                                </Button>
+                              </div>
+                            )}
                             <p className={styles.muted}>
                               Минимальная выплата: 1 ₽. Максимальная выплата на карту: 150 000 ₽. После отправки выплата может находиться в статусе обработки.
                             </p>
@@ -2758,16 +2919,32 @@ export const SellerDashboardPage = () => {
 
                         {payoutCreated && (
                           <div className={styles.infoCard}>
-                            <strong>Выплата создана</strong>
+                            <strong>{payoutResultTitle ?? 'Успех: выплата создана'}</strong>
                             <p>ID выплаты: {String(payoutCreated.payoutId ?? payoutCreated.id ?? '—')}</p>
                             <p>Сумма: {typeof payoutCreated.amount === 'number' ? formatMoneyRub(payoutCreated.amount) : `${String(payoutCreated.amount ?? '—')} ₽`}</p>
                             <p>Статус: {payoutStatusLabelRu(String(payoutCreated.status ?? 'PENDING'))}</p>
                             <p>Дата создания: {payoutCreated.createdAt ? formatDate(String(payoutCreated.createdAt)) : '—'}</p>
+                            {isDevPayoutToolsEnabled && Boolean(lastPayoutRawResponse) && (
+                              <pre className={styles.codeBlock}>
+                                {JSON.stringify(lastPayoutRawResponse, null, 2)}
+                              </pre>
+                            )}
                             <div className={styles.payoutBindActions}>
                               <Button type="button" variant="ghost" onClick={() => void loadFinanceData()}>
                                 Обновить статус
                               </Button>
                             </div>
+                          </div>
+                        )}
+                        {payoutRawError && isDevPayoutToolsEnabled && (
+                          <div className={styles.infoCard}>
+                            <strong>Ошибка payout</strong>
+                            <p>{payoutRawError}</p>
+                            {Boolean(lastPayoutRawResponse) && (
+                              <pre className={styles.codeBlock}>
+                                {JSON.stringify(lastPayoutRawResponse, null, 2)}
+                              </pre>
+                            )}
                           </div>
                         )}
                       </div>
