@@ -592,6 +592,21 @@ export interface SellerFinanceDashboardResponse {
   payoutWidgetConfig?: Record<string, unknown> | null;
 }
 
+export interface SellerPayoutCreatePayload {
+  amount: string;
+  description?: string;
+}
+
+export interface SellerPayoutCreateResponse {
+  accepted?: boolean;
+  id?: string | null;
+  payoutId?: string | null;
+  status?: string | null;
+  amount?: string | number | null;
+  createdAt?: string | null;
+  [key: string]: unknown;
+}
+
 export interface CustomPrintRequest {
   id: string;
   name: string;

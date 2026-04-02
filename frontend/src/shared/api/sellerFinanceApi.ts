@@ -1,6 +1,8 @@
 import { apiClient } from './api';
 import type {
   SellerFinanceDashboardResponse,
+  SellerPayoutCreatePayload,
+  SellerPayoutCreateResponse,
   SellerPayoutMethod,
   SellerPayoutMethodBindPayload
 } from '../types';
@@ -39,11 +41,12 @@ export const sellerFinanceApi = {
     );
   },
 
-  triggerPayout() {
-    return apiClient.request<{ accepted: boolean; id?: string | null }>(
+  triggerPayout(payload: SellerPayoutCreatePayload) {
+    return apiClient.request<SellerPayoutCreateResponse>(
       '/seller/payouts/trigger',
       {
-        method: 'POST'
+        method: 'POST',
+        body: payload
       }
     );
   },

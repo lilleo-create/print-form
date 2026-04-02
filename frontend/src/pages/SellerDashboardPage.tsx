@@ -12,6 +12,7 @@ import {
   OrderStatus,
   Product,
   SellerFinanceDashboardResponse,
+  SellerPayoutCreateResponse,
   SellerKycSubmission,
   SellerPayoutMethod,
   SellerPayoutMethodBindPayload
@@ -143,8 +144,10 @@ const firstNonEmpty = (...values: Array<string | null | undefined>) => {
 
 type PayoutWidgetResolvedConfig = {
   enabled: boolean;
+  type: string;
   accountId: string;
   hasSavedCard: boolean;
+  card: Record<string, unknown> | null;
 };
 
 const toBoolean = (value: unknown) => value === true;
@@ -153,6 +156,8 @@ const resolvePayoutWidgetConfig = (
   widgetConfig: Record<string, unknown> | null | undefined
 ): PayoutWidgetResolvedConfig => {
   const enabled = toBoolean(widgetConfig?.enabled);
+  const type =
+    typeof widgetConfig?.type === 'string' ? widgetConfig.type.trim().toLowerCase() : '';
   const accountId =
     typeof widgetConfig?.account_id === 'string'
       ? widgetConfig.account_id
@@ -161,8 +166,37 @@ const resolvePayoutWidgetConfig = (
         : '';
   const hasSavedCard =
     toBoolean(widgetConfig?.hasSavedCard) || toBoolean(widgetConfig?.has_saved_card);
-  return { enabled, accountId: accountId.trim(), hasSavedCard };
+  const card =
+    widgetConfig?.card && typeof widgetConfig.card === 'object'
+      ? (widgetConfig.card as Record<string, unknown>)
+      : null;
+  return { enabled, type, accountId: accountId.trim(), hasSavedCard, card };
 };
+
+const formatCardMask = (params: {
+  maskedLabel?: string | null;
+  first6?: string | null;
+  last4?: string | null;
+}) => {
+  const maskedLabel = params.maskedLabel?.trim();
+  if (maskedLabel) return maskedLabel;
+  const first6 = params.first6?.trim();
+  const last4 = params.last4?.trim();
+  if (first6 && last4) return `${first6} ****** ${last4}`;
+  if (last4) return `•••• ${last4}`;
+  return 'Банковская карта';
+};
+
+const parseRubAmountToKopecks = (value: string): number | null => {
+  const normalized = value.replace(',', '.').trim();
+  if (!normalized) return null;
+  if (!/^\d+([.]\d{0,2})?$/.test(normalized)) return null;
+  const numberValue = Number(normalized);
+  if (!Number.isFinite(numberValue)) return null;
+  return Math.round(numberValue * 100);
+};
+
+const kopecksToAmount = (value: number) => (value / 100).toFixed(2);
 
 const toKopecks = (value?: number | null) => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return 0;
@@ -473,6 +507,11 @@ export const SellerDashboardPage = () => {
   const [payoutWidgetStage, setPayoutWidgetStage] = useState<PayoutWidgetStage>('idle');
   const payoutWidgetRenderKeyRef = useRef<string | null>(null);
   const payoutWidgetInstanceRef = useRef<{ clearListeners?: () => void } | null>(null);
+  const [payoutAmountInput, setPayoutAmountInput] = useState('');
+  const [payoutDescription, setPayoutDescription] = useState('Выплата продавцу Print-Form');
+  const [payoutSubmitError, setPayoutSubmitError] = useState<string | null>(null);
+  const [isPayoutSubmitting, setPayoutSubmitting] = useState(false);
+  const [payoutCreated, setPayoutCreated] = useState<SellerPayoutCreateResponse | null>(null);
 
   // === Delivery profile ===
   const [dropoffPvzId, setDropoffPvzId] = useState('');
@@ -599,7 +638,7 @@ export const SellerDashboardPage = () => {
   ];
 
   const renderPayoutMethodsSettingsBlock = () => (
-    <div className={styles.settingsPanel}>
+    <div className={`${styles.settingsPanel} ${styles.payoutSettingsPanel}`}>
       <div className={styles.payoutMethodsHeader}>
         <div>
           <h3>Реквизиты для выплат</h3>
@@ -607,7 +646,7 @@ export const SellerDashboardPage = () => {
             Привяжите банковскую карту для выплат по безопасной сделке.
           </p>
         </div>
-        {payoutMethods.length > 0 && (
+        {hasSavedCard && (
           <Button
             type="button"
             variant="secondary"
@@ -626,74 +665,26 @@ export const SellerDashboardPage = () => {
           </Button>
         )}
       </div>
-      {payoutMethodsLoading ? (
-        <p className={styles.muted}>Загружаем реквизиты для выплат...</p>
-      ) : (
-        <div className={styles.payoutMethodsList}>
-          {payoutMethods.map((method) => (
-            <article key={method.id} className={styles.payoutMethodCard}>
-              <div className={styles.payoutMethodTop}>
-                <strong>{method.maskedLabel || 'Банковская карта'}</strong>
-                <div className={styles.payoutMethodBadges}>
-                  {method.isDefault && <Badge variant="primary">Основной</Badge>}
-                  <Badge
-                    variant={
-                      String(method.status).toUpperCase() === 'ACTIVE'
-                        ? 'success'
-                        : String(method.status).toUpperCase() === 'INVALID'
-                          ? 'danger'
-                          : 'warning'
-                    }
-                  >
-                    {String(method.status).toUpperCase() === 'ACTIVE'
-                      ? 'Активен'
-                      : String(method.status).toUpperCase() === 'INVALID'
-                        ? 'Требует проверки'
-                        : method.status}
-                  </Badge>
-                </div>
-              </div>
-              <p className={styles.muted}>
-                Провайдер: {method.provider} · Добавлен {formatDate(method.createdAt)}
-              </p>
-              <div className={styles.payoutMethodActions}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => {
-                    setPayoutBindExpanded(true);
-                    payoutWidgetRenderKeyRef.current = null;
-                    setPayoutWidgetInfo(null);
-                    setPayoutWidgetError(null);
-                    setPayoutWidgetLoading(false);
-                    setPayoutWidgetStage('idle');
-                    setPayoutMethodError(null);
-                    setPayoutMethodSuccess(null);
-                  }}
-                >
-                  Привязать другую
-                </Button>
-                {!method.isDefault && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => handleSetDefaultPayoutMethod(method.id)}
-                  >
-                    Сделать основным
-                  </Button>
-                )}
-                <Button type="button" variant="ghost" onClick={() => handleRevokePayoutMethod(method.id)}>
-                  Отключить
-                </Button>
-              </div>
-            </article>
-          ))}
-        </div>
+      {payoutMethodsLoading && <p className={styles.muted}>Загружаем реквизиты для выплат...</p>}
+      {!payoutMethodsLoading && hasSavedCard && !isPayoutBindExpanded && (
+        <article className={styles.payoutMethodCard}>
+          <div className={styles.payoutMethodTop}>
+            <strong>{savedCardMeta.cardType}</strong>
+            <Badge variant="success">Активна для выплат</Badge>
+          </div>
+          <p className={styles.payoutCardMask}>{savedCardMeta.maskedLabel}</p>
+          {savedCardMeta.issuerName && (
+            <p className={styles.muted}>Банк: {savedCardMeta.issuerName}</p>
+          )}
+          {savedCardMeta.updatedAt && (
+            <p className={styles.muted}>Обновлено: {formatDate(savedCardMeta.updatedAt)}</p>
+          )}
+        </article>
       )}
       {payoutMethodError && <p className={styles.error}>{payoutMethodError}</p>}
       {payoutMethodSuccess && <p className={styles.successMessage}>{payoutMethodSuccess}</p>}
 
-      {!payoutMethodError && (payoutMethods.length === 0 || isPayoutBindExpanded) && (
+      {!payoutMethodError && (!hasSavedCard || isPayoutBindExpanded) && (
         <div className={styles.payoutBindInlineBlock}>
           {payoutMethodsLoading && (
             <p className={styles.muted}>{YOOKASSA_WIDGET_LOADING_CONFIG_MESSAGE}</p>
@@ -1437,6 +1428,67 @@ export const SellerDashboardPage = () => {
     };
   }, [financeDashboard, ordersSearchQuery]);
 
+  const resolvedPayoutWidgetConfig = useMemo(
+    () => resolvePayoutWidgetConfig(payoutWidgetConfig),
+    [payoutWidgetConfig]
+  );
+  const savedPayoutMethod = payoutMethods[0] ?? null;
+  const savedCardMeta = useMemo(() => {
+    const fromConfig = resolvedPayoutWidgetConfig.card ?? {};
+    const first6 =
+      typeof fromConfig.first6 === 'string'
+        ? fromConfig.first6
+        : typeof fromConfig.first_6 === 'string'
+          ? fromConfig.first_6
+          : null;
+    const last4 =
+      typeof fromConfig.last4 === 'string'
+        ? fromConfig.last4
+        : typeof fromConfig.last_4 === 'string'
+          ? fromConfig.last_4
+          : savedPayoutMethod?.cardLast4 ?? null;
+    const issuerName =
+      typeof fromConfig.issuerName === 'string'
+        ? fromConfig.issuerName
+        : typeof fromConfig.issuer_name === 'string'
+          ? fromConfig.issuer_name
+          : null;
+    const cardType =
+      typeof fromConfig.cardType === 'string'
+        ? fromConfig.cardType
+        : typeof fromConfig.card_type === 'string'
+          ? fromConfig.card_type
+          : savedPayoutMethod?.cardType ?? null;
+    return {
+      cardType: cardType || 'Банковская карта',
+      maskedLabel: formatCardMask({
+        maskedLabel: savedPayoutMethod?.maskedLabel,
+        first6,
+        last4
+      }),
+      issuerName: issuerName || null,
+      updatedAt: savedPayoutMethod?.updatedAt ?? savedPayoutMethod?.createdAt ?? null
+    };
+  }, [resolvedPayoutWidgetConfig.card, savedPayoutMethod]);
+
+  const availableForPayoutKopecks = financeDashboard?.summary.awaitingPayoutKopecks ?? 0;
+  const payoutAmountKopecks = parseRubAmountToKopecks(payoutAmountInput);
+  const payoutMinKopecks = 100;
+  const payoutMaxKopecks = 15000000;
+  const hasSavedCard =
+    resolvedPayoutWidgetConfig.hasSavedCard || payoutMethods.some((method) => method.status === 'ACTIVE');
+  const isPayoutFormAvailable = hasSavedCard && availableForPayoutKopecks > 0;
+  const payoutValidationError = (() => {
+    if (!hasSavedCard) return 'Сначала привяжите карту для выплат в настройках.';
+    if (!payoutAmountInput.trim()) return 'Введите сумму выплаты.';
+    if (payoutAmountKopecks === null) return 'Введите корректную сумму (до 2 знаков после точки).';
+    if (payoutAmountKopecks < payoutMinKopecks) return 'Минимальная сумма выплаты — 1 ₽.';
+    if (payoutAmountKopecks > availableForPayoutKopecks) return 'Сумма больше доступного баланса.';
+    if (payoutAmountKopecks > payoutMaxKopecks)
+      return 'Максимальная выплата на карту — 150 000 ₽.';
+    return null;
+  })();
+
   const shouldShowSellerError =
     authStatus === 'authorized' &&
     contextStatus === 'error' &&
@@ -1479,36 +1531,6 @@ export const SellerDashboardPage = () => {
     }
   };
 
-  const handleSetDefaultPayoutMethod = async (id: string) => {
-    setPayoutMethodError(null);
-    setPayoutMethodSuccess(null);
-    try {
-      await sellerFinanceApi.makeDefaultPayoutMethod(id);
-      await loadPayoutSettings();
-      setPayoutMethodSuccess('Основной способ выплаты обновлён.');
-    } catch (error) {
-      const normalized = normalizeApiError(error);
-      setPayoutMethodError(
-        normalized.message ?? 'Не удалось сделать способ выплаты основным.'
-      );
-    }
-  };
-
-  const handleRevokePayoutMethod = async (id: string) => {
-    setPayoutMethodError(null);
-    setPayoutMethodSuccess(null);
-    try {
-      await sellerFinanceApi.revokePayoutMethod(id);
-      await loadPayoutSettings();
-      setPayoutMethodSuccess('Способ выплаты отключён.');
-    } catch (error) {
-      const normalized = normalizeApiError(error);
-      setPayoutMethodError(
-        normalized.message ?? 'Не удалось отключить способ выплаты.'
-      );
-    }
-  };
-
   const handleCreatePayoutMethod = async (payload: SellerPayoutMethodBindPayload) => {
     setPayoutMethodError(null);
     setPayoutMethodSuccess(null);
@@ -1525,6 +1547,51 @@ export const SellerDashboardPage = () => {
       setPayoutMethodError(
         normalized.message ?? 'Не удалось добавить способ выплаты.'
       );
+    }
+  };
+
+  const handleSetPayoutPart = (part: 0.25 | 0.5 | 1) => {
+    if (availableForPayoutKopecks <= 0) return;
+    const next = Math.max(0, Math.round(availableForPayoutKopecks * part));
+    setPayoutAmountInput(kopecksToAmount(next));
+    setPayoutSubmitError(null);
+  };
+
+  const handleSubmitPayout = async () => {
+    setPayoutSubmitError(null);
+    setPayoutCreated(null);
+    if (payoutValidationError || payoutAmountKopecks === null) {
+      setPayoutSubmitError(payoutValidationError ?? 'Проверьте сумму выплаты.');
+      return;
+    }
+
+    setPayoutSubmitting(true);
+    try {
+      const response = await sellerFinanceApi.triggerPayout({
+        amount: kopecksToAmount(payoutAmountKopecks),
+        description: payoutDescription.trim() || 'Выплата продавцу Print-Form'
+      });
+      const payload = (response?.data ?? {}) as SellerPayoutCreateResponse;
+      setPayoutCreated({
+        ...payload,
+        payoutId:
+          (typeof payload.payoutId === 'string' && payload.payoutId) ||
+          (typeof payload.id === 'string' && payload.id) ||
+          null,
+        status: typeof payload.status === 'string' ? payload.status : 'PENDING',
+        amount: payload.amount ?? kopecksToAmount(payoutAmountKopecks),
+        createdAt:
+          typeof payload.createdAt === 'string'
+            ? payload.createdAt
+            : new Date().toISOString()
+      });
+      setPayoutAmountInput('');
+      await loadFinanceData();
+    } catch (error) {
+      const normalized = normalizeApiError(error);
+      setPayoutSubmitError(normalized.message ?? 'Не удалось создать выплату.');
+    } finally {
+      setPayoutSubmitting(false);
     }
   };
 
@@ -1567,7 +1634,7 @@ export const SellerDashboardPage = () => {
       return;
     }
 
-    const resolvedConfig = resolvePayoutWidgetConfig(payoutWidgetConfig);
+    const resolvedConfig = resolvedPayoutWidgetConfig;
     console.log('[widget] script loaded', Boolean((window as Window & { PayoutsData?: unknown }).PayoutsData));
     console.log('[widget] accountId', resolvedConfig.accountId);
     console.log('[widget] enabled', resolvedConfig.enabled);
@@ -1577,6 +1644,13 @@ export const SellerDashboardPage = () => {
       setPayoutWidgetLoading(false);
       setPayoutWidgetStage('idle');
       setPayoutWidgetInfo(YOOKASSA_WIDGET_NOT_ENABLED_MESSAGE);
+      setPayoutWidgetError(null);
+      return;
+    }
+    if (resolvedConfig.type !== 'safedeal') {
+      setPayoutWidgetLoading(false);
+      setPayoutWidgetStage('idle');
+      setPayoutWidgetInfo(YOOKASSA_WIDGET_INVALID_CONFIG_MESSAGE);
       setPayoutWidgetError(null);
       return;
     }
@@ -1620,11 +1694,16 @@ export const SellerDashboardPage = () => {
   };
 
   useEffect(() => {
+    const widgetAllowed =
+      resolvedPayoutWidgetConfig.enabled &&
+      resolvedPayoutWidgetConfig.type === 'safedeal' &&
+      Boolean(resolvedPayoutWidgetConfig.accountId) &&
+      (!resolvedPayoutWidgetConfig.hasSavedCard || isPayoutBindExpanded);
     const shouldRender =
       activeItem === 'Настройки' &&
       !payoutMethodsLoading &&
       !payoutMethodError &&
-      (payoutMethods.length === 0 || isPayoutBindExpanded);
+      widgetAllowed;
 
     if (!shouldRender) {
       setPayoutWidgetStage('idle');
@@ -1656,7 +1735,7 @@ export const SellerDashboardPage = () => {
       return;
     }
 
-    const resolvedConfig = resolvePayoutWidgetConfig(payoutWidgetConfig);
+    const resolvedConfig = resolvedPayoutWidgetConfig;
     const mode = isPayoutBindExpanded ? 'rebind' : 'initial';
     const nextRenderKey = `${resolvedConfig.accountId}:${mode}`;
     if (!resolvedConfig.enabled) {
@@ -1677,7 +1756,7 @@ export const SellerDashboardPage = () => {
       clearPayoutWidgetContainer();
       return;
     }
-    if (resolvedConfig.hasSavedCard && !isPayoutBindExpanded && payoutMethods.length > 0) {
+    if (resolvedConfig.hasSavedCard && !isPayoutBindExpanded) {
       setPayoutWidgetLoading(false);
       setPayoutWidgetStage('idle');
       setPayoutWidgetInfo(null);
@@ -1696,9 +1775,8 @@ export const SellerDashboardPage = () => {
     isPayoutBindExpanded,
     payoutMethodError,
     payoutMethodsUnauthorized,
-    payoutMethods.length,
     payoutMethodsLoading,
-    payoutWidgetConfig
+    resolvedPayoutWidgetConfig
   ]);
 
   useEffect(
@@ -2587,6 +2665,114 @@ export const SellerDashboardPage = () => {
                       </div>
 
                       <div className={styles.financePanel}>
+                        <h3>Вывод средств</h3>
+                        <div className={styles.payoutFormTop}>
+                          <div>
+                            <p className={styles.muted}>Доступно к выплате</p>
+                            <strong>{formatMoney({ kopecks: availableForPayoutKopecks })}</strong>
+                          </div>
+                          <div>
+                            <p className={styles.muted}>Способ выплаты</p>
+                            {hasSavedCard ? (
+                              <strong>{savedCardMeta.maskedLabel}</strong>
+                            ) : (
+                              <span className={styles.muted}>Карта не привязана</span>
+                            )}
+                          </div>
+                        </div>
+                        {!hasSavedCard ? (
+                          <div className={styles.infoCard}>
+                            <strong>Сначала привяжите карту для выплат в настройках.</strong>
+                            <p className={styles.muted}>
+                              <button
+                                type="button"
+                                className={styles.inlineLinkButton}
+                                onClick={() => setActiveItem('Настройки')}
+                              >
+                                Перейти в настройки
+                              </button>
+                            </p>
+                          </div>
+                        ) : (
+                          <div className={styles.payoutForm}>
+                            <label className={styles.fieldLabel} htmlFor="payout-amount">
+                              Сумма выплаты
+                            </label>
+                            <input
+                              id="payout-amount"
+                              className={styles.ordersSearchInput}
+                              inputMode="decimal"
+                              placeholder="1000.00"
+                              value={payoutAmountInput}
+                              onChange={(event) => {
+                                setPayoutAmountInput(event.target.value);
+                                setPayoutSubmitError(null);
+                              }}
+                              disabled={availableForPayoutKopecks <= 0 || isPayoutSubmitting}
+                            />
+                            <div className={styles.payoutQuickActions}>
+                              <Button type="button" variant="ghost" onClick={() => handleSetPayoutPart(0.25)}>
+                                25%
+                              </Button>
+                              <Button type="button" variant="ghost" onClick={() => handleSetPayoutPart(0.5)}>
+                                50%
+                              </Button>
+                              <Button type="button" variant="ghost" onClick={() => handleSetPayoutPart(1)}>
+                                100%
+                              </Button>
+                            </div>
+                            <label className={styles.fieldLabel} htmlFor="payout-description">
+                              Комментарий / назначение
+                            </label>
+                            <input
+                              id="payout-description"
+                              className={styles.ordersSearchInput}
+                              value={payoutDescription}
+                              onChange={(event) => setPayoutDescription(event.target.value)}
+                              disabled={isPayoutSubmitting}
+                            />
+                            <div className={styles.infoCard}>
+                              <p>
+                                Сумма выплаты: <strong>{payoutAmountKopecks ? formatMoney({ kopecks: payoutAmountKopecks }) : '—'}</strong>
+                              </p>
+                              <p>К получению: <strong>{payoutAmountKopecks ? formatMoney({ kopecks: payoutAmountKopecks }) : '—'}</strong></p>
+                            </div>
+                            {availableForPayoutKopecks <= 0 && (
+                              <p className={styles.muted}>Сейчас нет доступной суммы для выплаты.</p>
+                            )}
+                            {(payoutSubmitError || payoutValidationError) && (
+                              <p className={styles.error}>{payoutSubmitError ?? payoutValidationError}</p>
+                            )}
+                            <Button
+                              type="button"
+                              onClick={() => void handleSubmitPayout()}
+                              disabled={!isPayoutFormAvailable || Boolean(payoutValidationError) || isPayoutSubmitting}
+                            >
+                              {isPayoutSubmitting ? 'Отправляем выплату...' : 'Вывести средства'}
+                            </Button>
+                            <p className={styles.muted}>
+                              Минимальная выплата: 1 ₽. Максимальная выплата на карту: 150 000 ₽. После отправки выплата может находиться в статусе обработки.
+                            </p>
+                          </div>
+                        )}
+
+                        {payoutCreated && (
+                          <div className={styles.infoCard}>
+                            <strong>Выплата создана</strong>
+                            <p>ID выплаты: {String(payoutCreated.payoutId ?? payoutCreated.id ?? '—')}</p>
+                            <p>Сумма: {typeof payoutCreated.amount === 'number' ? formatMoneyRub(payoutCreated.amount) : `${String(payoutCreated.amount ?? '—')} ₽`}</p>
+                            <p>Статус: {payoutStatusLabelRu(String(payoutCreated.status ?? 'PENDING'))}</p>
+                            <p>Дата создания: {payoutCreated.createdAt ? formatDate(String(payoutCreated.createdAt)) : '—'}</p>
+                            <div className={styles.payoutBindActions}>
+                              <Button type="button" variant="ghost" onClick={() => void loadFinanceData()}>
+                                Обновить статус
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className={styles.financePanel}>
                         <h3>Ближайшая выплата</h3>
                         {financeData.nextPayout.orderCount === 0 ? (
                           <div className={styles.infoCard}>
@@ -2866,15 +3052,9 @@ export const SellerDashboardPage = () => {
                           templateClassName={styles.financePayoutHistoryTemplate}
                           columns={[
                             {
-                              key: 'order',
-                              title: 'Заказ',
-                              render: (item) => (
-                                <CopyableOrderNumber
-                                  orderId={item.orderId}
-                                  publicNumber={item.publicNumber}
-                                  className={styles.orderIdText}
-                                />
-                              )
+                              key: 'payoutId',
+                              title: 'Payout ID',
+                              render: (item) => item.payoutId
                             },
                             {
                               key: 'date',
@@ -2884,25 +3064,18 @@ export const SellerDashboardPage = () => {
                             },
                             {
                               key: 'amount',
-                              title: 'Сумма заказа',
+                              title: 'Сумма',
                               render: (item) => formatMoney({ kopecks: item.amountKopecks })
-                            },
-                            {
-                              key: 'fee',
-                              title: 'Комиссия',
-                              render: (item) =>
-                                formatMoney({ kopecks: item.platformFeeKopecks })
-                            },
-                            {
-                              key: 'net',
-                              title: 'Выплачено продавцу',
-                              render: (item) =>
-                                formatMoney({ kopecks: item.sellerNetAmountKopecks })
                             },
                             {
                               key: 'method',
                               title: 'Способ выплаты',
                               render: (item) => item.payoutMethodSummary ?? '—'
+                            },
+                            {
+                              key: 'description',
+                              title: 'Описание',
+                              render: (item) => item.publicNumber ? `Заказ ${item.publicNumber}` : 'Выплата продавцу'
                             },
                             {
                               key: 'status',
@@ -2919,15 +3092,9 @@ export const SellerDashboardPage = () => {
                           labelClassName={styles.financeMobileLabel}
                           fields={[
                             {
-                              key: 'order',
-                              label: 'Заказ',
-                              render: (item) => (
-                                <CopyableOrderNumber
-                                  orderId={item.orderId}
-                                  publicNumber={item.publicNumber}
-                                  className={styles.orderIdText}
-                                />
-                              )
+                              key: 'payoutId',
+                              label: 'Payout ID',
+                              render: (item) => item.payoutId
                             },
                             {
                               key: 'date',
@@ -2937,25 +3104,18 @@ export const SellerDashboardPage = () => {
                             },
                             {
                               key: 'amount',
-                              label: 'Сумма заказа',
+                              label: 'Сумма',
                               render: (item) => formatMoney({ kopecks: item.amountKopecks })
-                            },
-                            {
-                              key: 'fee',
-                              label: 'Комиссия',
-                              render: (item) =>
-                                formatMoney({ kopecks: item.platformFeeKopecks })
-                            },
-                            {
-                              key: 'net',
-                              label: 'Выплачено продавцу',
-                              render: (item) =>
-                                formatMoney({ kopecks: item.sellerNetAmountKopecks })
                             },
                             {
                               key: 'method',
                               label: 'Способ выплаты',
                               render: (item) => item.payoutMethodSummary ?? '—'
+                            },
+                            {
+                              key: 'description',
+                              label: 'Описание',
+                              render: (item) => item.publicNumber ? `Заказ ${item.publicNumber}` : 'Выплата продавцу'
                             },
                             {
                               key: 'status',
