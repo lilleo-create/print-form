@@ -1524,9 +1524,10 @@ export const SellerDashboardPage = () => {
   const payoutMaxKopecks = 15000000;
   const hasSavedCard =
     resolvedPayoutWidgetConfig.hasSavedCard || payoutMethods.some((method) => method.status === 'ACTIVE');
+  const hasAvailableFunds = availableForPayoutKopecks > 0;
   const canEditPayoutAmount =
     hasSavedCard &&
-    availableForPayoutKopecks > 0 &&
+    hasAvailableFunds &&
     !financeLoading &&
     !payoutMethodsLoading &&
     !isPayoutSubmitting;
@@ -1542,6 +1543,12 @@ export const SellerDashboardPage = () => {
       return 'Максимальная выплата на карту — 150 000 ₽.';
     return null;
   })();
+  const payoutAvailabilityWarning = (() => {
+    if (!hasSavedCard) return 'Сначала привяжите карту для выплат в настройках.';
+    if (!hasAvailableFunds) return 'Сейчас нет доступной суммы для выплаты.';
+    return null;
+  })();
+  const isAmountValid = hasSavedCard && hasAvailableFunds && !payoutValidationError && payoutAmountKopecks !== null;
   const payoutSummaryAmount =
     typeof payoutAmountKopecks === 'number' && payoutAmountKopecks > 0
       ? formatMoney({ kopecks: payoutAmountKopecks })
@@ -1685,7 +1692,7 @@ export const SellerDashboardPage = () => {
   const handleDevTestPayout = async () => {
     const amountKopecks = 10000;
     await executePayoutRequest({
-      amountKopecks,
+      amountKopecks: 10000,
       description: 'DEV TEST: фиксированная выплата',
       successTitle: 'Тестовая выплата создана',
       includeDevRawResponse: true
@@ -2967,6 +2974,40 @@ export const SellerDashboardPage = () => {
                                 {JSON.stringify(lastPayoutRawResponse, null, 2)}
                               </pre>
                             )}
+                          </div>
+                        )}
+                        {isDevPayoutToolsEnabled && (
+                          <div className={styles.devPayoutPanel}>
+                            <h4 className={styles.devPayoutTitle}>Тестирование выплат</h4>
+                            <div className={styles.devDebugLabel}>
+                              <strong>DEV:</strong>
+                              <span>availableToPayoutMinor = {availableForPayoutKopecks}</span>
+                              <span>availableToPayout = {formatMoney({ kopecks: availableForPayoutKopecks })}</span>
+                              <span>amountInput = {payoutAmountInput || '∅'}</span>
+                              <span>isAmountValid = {String(Boolean(isAmountValid))}</span>
+                              <span>hasSavedCard = {String(Boolean(hasSavedCard))}</span>
+                              <span>canSubmit = {String(Boolean(canSubmit))}</span>
+                            </div>
+                            <div className={styles.payoutBindActions}>
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => void handleDevTestPayout()}
+                                disabled={isPayoutSubmitting}
+                              >
+                                Тестовая выплата 100 ₽
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => void handleDevInputPayout()}
+                                disabled={isPayoutSubmitting}
+                              >
+                                Тестовая выплата введенной суммы
+                              </Button>
+                            </div>
                           </div>
                         )}
                       </div>
