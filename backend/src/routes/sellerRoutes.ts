@@ -12,7 +12,7 @@ import { orderUseCases } from "../usecases/orderUseCases";
 import { sellerProductSchema } from "./productRoutes";
 import { writeLimiter } from "../middleware/rateLimiters";
 import { sellerDeliveryProfileService } from "../services/sellerDeliveryProfileService";
-import { payoutService } from "../services/payoutService";
+import { orderCompletionService } from "../services/orderCompletionService";
 import { shipmentService } from "../services/shipmentService";
 import { sellerOrderDocumentsService } from "../services/sellerOrderDocumentsService";
 import { cdekService } from "../services/cdekService";
@@ -1208,7 +1208,7 @@ sellerRoutes.patch('/orders/:id/status', writeLimiter, async (req: AuthRequest, 
       });
 
       if (payload.status === 'DELIVERED') {
-        await payoutService.releaseForDeliveredOrder(order.id, tx);
+        await orderCompletionService.releaseFundsForCompletedOrder(order.id, tx);
       }
       return nextOrder;
     });
