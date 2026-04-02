@@ -568,7 +568,8 @@ export const SellerDashboardPage = () => {
   const isDevPayoutToolsEnabled =
     import.meta.env.DEV ||
     import.meta.env.MODE === 'test' ||
-    import.meta.env.VITE_ENABLE_DEV_PAYOUT_TOOLS === 'true';
+    import.meta.env.VITE_ENABLE_DEV_PAYOUT_TOOLS === 'true' ||
+    import.meta.env.VITE_ENABLE_PAYOUT_DEV_TOOLS === 'true';
   const user = useAuthStore((state) => state.user);
   const userId = user?.id;
 
@@ -1523,16 +1524,15 @@ export const SellerDashboardPage = () => {
   const payoutMaxKopecks = 15000000;
   const hasSavedCard =
     resolvedPayoutWidgetConfig.hasSavedCard || payoutMethods.some((method) => method.status === 'ACTIVE');
+  const hasAvailableFunds = availableForPayoutKopecks > 0;
   const canEditPayoutAmount =
     hasSavedCard &&
-    availableForPayoutKopecks > 0 &&
+    hasAvailableFunds &&
     !financeLoading &&
     !payoutMethodsLoading &&
     !isPayoutSubmitting;
-  const isPayoutFormAvailable = hasSavedCard && availableForPayoutKopecks > 0 && !financeLoading;
   const payoutValidationError = (() => {
-    if (!hasSavedCard) return 'Сначала привяжите карту для выплат в настройках.';
-    if (availableForPayoutKopecks <= 0) return 'Сейчас нет доступной суммы для выплаты.';
+    if (!hasSavedCard || !hasAvailableFunds) return null;
     if (!payoutAmountInput.trim()) return 'Введите сумму выплаты.';
     if (payoutAmountKopecks === null) return 'Введите корректную сумму (до 2 знаков после точки).';
     if (payoutAmountKopecks < payoutMinKopecks) return 'Минимальная сумма выплаты — 1 ₽.';
@@ -1541,12 +1541,25 @@ export const SellerDashboardPage = () => {
       return 'Максимальная выплата на карту — 150 000 ₽.';
     return null;
   })();
+  const payoutAvailabilityWarning = (() => {
+    if (!hasSavedCard) return 'Сначала привяжите карту для выплат в настройках.';
+    if (!hasAvailableFunds) return 'Сейчас нет доступной суммы для выплаты.';
+    return null;
+  })();
+  const isAmountValid = hasSavedCard && hasAvailableFunds && !payoutValidationError && payoutAmountKopecks !== null;
   const payoutSummaryAmount =
     typeof payoutAmountKopecks === 'number' && payoutAmountKopecks > 0
       ? formatMoney({ kopecks: payoutAmountKopecks })
       : '—';
-  const isPayoutSubmitDisabled =
-    !isPayoutFormAvailable || Boolean(payoutValidationError) || isPayoutSubmitting;
+  const canSubmit =
+    hasSavedCard &&
+    hasAvailableFunds &&
+    isAmountValid &&
+    !financeLoading &&
+    !payoutMethodsLoading &&
+    !isPayoutSubmitting;
+  const isPayoutSubmitDisabled = !canSubmit;
+  const payoutUiMessage = payoutSubmitError ?? payoutAvailabilityWarning ?? payoutValidationError;
 
   const shouldShowSellerError =
     authStatus === 'authorized' &&
@@ -1684,13 +1697,8 @@ export const SellerDashboardPage = () => {
       setPayoutSubmitError('Нет привязанной карты для выплат.');
       return;
     }
-    if (availableForPayoutKopecks <= 0) {
-      setPayoutSubmitError('Сейчас нет доступной суммы для выплаты.');
-      return;
-    }
-    const amountKopecks = Math.min(10000, availableForPayoutKopecks);
     await executePayoutRequest({
-      amountKopecks,
+      amountKopecks: 10000,
       description: 'DEV TEST: фиксированная выплата',
       successTitle: 'Тестовая выплата создана',
       includeDevRawResponse: true
@@ -1698,8 +1706,12 @@ export const SellerDashboardPage = () => {
   };
 
   const handleDevInputPayout = async () => {
-    if (payoutValidationError || payoutAmountKopecks === null) {
-      setPayoutSubmitError(payoutValidationError ?? 'Проверьте сумму выплаты.');
+    if (!hasSavedCard) {
+      setPayoutSubmitError('Нет привязанной карты для выплат.');
+      return;
+    }
+    if (!payoutAmountInput.trim() || payoutAmountKopecks === null || payoutAmountKopecks < payoutMinKopecks) {
+      setPayoutSubmitError('Для dev payout введите сумму от 1 ₽.');
       return;
     }
     await executePayoutRequest({
@@ -2825,7 +2837,7 @@ export const SellerDashboardPage = () => {
                               id="payout-amount"
                               className={styles.ordersSearchInput}
                               inputMode="decimal"
-                              placeholder="1000.00"
+                              placeholder="0.00"
                               value={payoutAmountInput}
                               onChange={(event) => {
                                 setPayoutAmountInput(normalizePayoutAmountInput(event.target.value));
@@ -2876,11 +2888,10 @@ export const SellerDashboardPage = () => {
                               </p>
                               <p>К получению: <strong>{payoutSummaryAmount}</strong></p>
                             </div>
-                            {availableForPayoutKopecks <= 0 && (
-                              <p className={styles.muted}>Сейчас нет доступной суммы для выплаты.</p>
-                            )}
-                            {(payoutSubmitError || payoutValidationError) && (
-                              <p className={styles.error}>{payoutSubmitError ?? payoutValidationError}</p>
+                            {payoutUiMessage && (
+                              <p className={payoutAvailabilityWarning && !payoutSubmitError ? styles.muted : styles.error}>
+                                {payoutUiMessage}
+                              </p>
                             )}
                             <Button
                               type="button"
@@ -2889,28 +2900,6 @@ export const SellerDashboardPage = () => {
                             >
                               {isPayoutSubmitting ? 'Отправляем выплату...' : 'Вывести средства'}
                             </Button>
-                            {isDevPayoutToolsEnabled && (
-                              <div className={styles.payoutBindActions}>
-                                <Button
-                                  type="button"
-                                  variant="secondary"
-                                  size="sm"
-                                  onClick={() => void handleDevTestPayout()}
-                                  disabled={isPayoutSubmitting || !hasSavedCard || availableForPayoutKopecks <= 0}
-                                >
-                                  Тестовая выплата 100 ₽
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => void handleDevInputPayout()}
-                                  disabled={isPayoutSubmitting || isPayoutSubmitDisabled}
-                                >
-                                  Отправить dev payout
-                                </Button>
-                              </div>
-                            )}
                             <p className={styles.muted}>
                               Минимальная выплата: 1 ₽. Максимальная выплата на карту: 150 000 ₽. После отправки выплата может находиться в статусе обработки.
                             </p>
@@ -2945,6 +2934,40 @@ export const SellerDashboardPage = () => {
                                 {JSON.stringify(lastPayoutRawResponse, null, 2)}
                               </pre>
                             )}
+                          </div>
+                        )}
+                        {isDevPayoutToolsEnabled && (
+                          <div className={styles.devPayoutPanel}>
+                            <h4 className={styles.devPayoutTitle}>Тестирование выплат</h4>
+                            <div className={styles.devDebugLabel}>
+                              <strong>DEV:</strong>
+                              <span>availableToPayoutMinor = {availableForPayoutKopecks}</span>
+                              <span>availableToPayout = {formatMoney({ kopecks: availableForPayoutKopecks })}</span>
+                              <span>amountInput = {payoutAmountInput || '∅'}</span>
+                              <span>isAmountValid = {String(Boolean(isAmountValid))}</span>
+                              <span>hasSavedCard = {String(Boolean(hasSavedCard))}</span>
+                              <span>canSubmit = {String(Boolean(canSubmit))}</span>
+                            </div>
+                            <div className={styles.payoutBindActions}>
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => void handleDevTestPayout()}
+                                disabled={isPayoutSubmitting}
+                              >
+                                Тестовая выплата 100 ₽
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => void handleDevInputPayout()}
+                                disabled={isPayoutSubmitting}
+                              >
+                                Тестовая выплата введенной суммы
+                              </Button>
+                            </div>
                           </div>
                         )}
                       </div>
