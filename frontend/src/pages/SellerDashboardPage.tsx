@@ -369,6 +369,59 @@ const resolveOrderKopecks = (order: Order) => {
   return toKopecks(order.totalRubles);
 };
 
+const resolveServiceFeeKopecks = (params: {
+  totalKopecks: number;
+  sellerNetAmountKopecks: number;
+  platformFeeAmountRub?: number | null;
+}) => {
+  if (typeof params.platformFeeAmountRub === 'number') {
+    return Math.max(0, toKopecks(params.platformFeeAmountRub));
+  }
+  return Math.max(0, params.totalKopecks - params.sellerNetAmountKopecks);
+};
+
+const resolveSellerOrderBreakdown = (order: Order) => {
+  const source = order as unknown as Record<string, unknown>;
+  const rawBreakdown =
+    source.financeBreakdown ?? source.payoutBreakdown ?? source.breakdown;
+  const breakdown =
+    rawBreakdown && typeof rawBreakdown === 'object'
+      ? (rawBreakdown as Record<string, unknown>)
+      : null;
+  if (!breakdown) return null;
+
+  const amountKopecks =
+    typeof breakdown.amountKopecks === 'number'
+      ? breakdown.amountKopecks
+      : typeof breakdown.orderAmountKopecks === 'number'
+        ? breakdown.orderAmountKopecks
+        : null;
+  const commissionKopecks =
+    typeof breakdown.serviceFeeKopecks === 'number'
+      ? breakdown.serviceFeeKopecks
+      : typeof breakdown.commissionKopecks === 'number'
+        ? breakdown.commissionKopecks
+        : null;
+  const sellerPayoutKopecks =
+    typeof breakdown.sellerPayoutKopecks === 'number'
+      ? breakdown.sellerPayoutKopecks
+      : typeof breakdown.sellerNetAmountKopecks === 'number'
+        ? breakdown.sellerNetAmountKopecks
+        : null;
+  if (
+    amountKopecks === null &&
+    commissionKopecks === null &&
+    sellerPayoutKopecks === null
+  ) {
+    return null;
+  }
+  return {
+    amountKopecks,
+    commissionKopecks,
+    sellerPayoutKopecks
+  };
+};
+
 const payoutStatusLabelRu = (value?: string | null) => {
   switch (String(value ?? '').toUpperCase()) {
     case 'HOLD':
@@ -548,6 +601,9 @@ export const SellerDashboardPage = () => {
   const [ordersError, setOrdersError] = useState<string | null>(null);
 
   const [orderUpdateError, setOrderUpdateError] = useState<string | null>(null);
+  const [markReceivedOrderId, setMarkReceivedOrderId] = useState<string | null>(
+    null
+  );
 
   const [labelDownloaded, setLabelDownloaded] = useState<
     Record<string, boolean>
@@ -638,7 +694,7 @@ export const SellerDashboardPage = () => {
     import.meta.env.MODE === 'test' ||
     import.meta.env.VITE_ENABLE_PAYOUT_DEV_TOOLS === 'true' ||
     import.meta.env.VITE_ENABLE_DEV_PAYOUT_TOOLS === 'true';
-  const shouldShowDevPayoutTools = true;
+  const shouldShowDevPayoutTools = isDevPayoutToolsEnabled;
   const user = useAuthStore((state) => state.user);
   const userId = user?.id;
 
@@ -1417,6 +1473,22 @@ export const SellerDashboardPage = () => {
       setOrderUpdateError(
         'Не удалось создать заявку доставки. Проверьте точку отгрузки и данные ПВЗ.'
       );
+    }
+  };
+
+  const handleMarkOrderReceived = async (orderId: string) => {
+    setOrderUpdateError(null);
+    setMarkReceivedOrderId(orderId);
+    try {
+      await ordersApi.markReceived(orderId);
+      await Promise.all([loadOrders(), loadFinanceData()]);
+    } catch (error) {
+      const normalized = normalizeApiError(error);
+      setOrderUpdateError(
+        normalized.message ?? 'Не удалось отметить заказ как полученный.'
+      );
+    } finally {
+      setMarkReceivedOrderId(null);
     }
   };
 
@@ -2698,6 +2770,12 @@ export const SellerDashboardPage = () => {
                           typeof order.sellerNetAmount === 'number'
                             ? order.sellerNetAmount
                             : total;
+                        const serviceFeeKopecks = resolveServiceFeeKopecks({
+                          totalKopecks: total,
+                          sellerNetAmountKopecks: sellerNetAmount,
+                          platformFeeAmountRub: order.platformFeeAmount
+                        });
+                        const backendBreakdown = resolveSellerOrderBreakdown(order);
                         const isCancelled = order.status === 'CANCELLED';
                         const cancelPaymentHint =
                           order.paymentStatus === 'REFUND_PENDING'
@@ -2741,12 +2819,16 @@ export const SellerDashboardPage = () => {
                                 </p>
                                 <div className={styles.orderPayoutSummary}>
                                   <span className={styles.orderPayoutLabel}>
-                                    Получит продавец
+                                    К выплате продавцу
                                   </span>
                                   <strong>
                                     {formatPrice(sellerNetAmount)}
                                   </strong>
                                 </div>
+                                <p className={styles.muted}>
+                                  Комиссия сервиса:{' '}
+                                  {formatMoney({ kopecks: serviceFeeKopecks })}
+                                </p>
                                 <p className={styles.muted}>
                                   Статус: {displayStatus}
                                 </p>
@@ -2794,7 +2876,11 @@ export const SellerDashboardPage = () => {
                                   {payoutStatusLabelRu(order.payoutStatus)}
                                 </p>
                                 <p className={styles.muted}>
-                                  Сумма продавца: {formatPrice(sellerNetAmount)}
+                                  Комиссия сервиса:{' '}
+                                  {formatMoney({ kopecks: serviceFeeKopecks })}
+                                </p>
+                                <p className={styles.muted}>
+                                  К выплате продавцу: {formatPrice(sellerNetAmount)}
                                 </p>
                                 {order.yookassaDealId ? (
                                   <p className={styles.muted}>
@@ -2804,6 +2890,39 @@ export const SellerDashboardPage = () => {
                                     )}
                                   </p>
                                 ) : null}
+                                {backendBreakdown && (
+                                  <div className={styles.infoCard}>
+                                    <p>
+                                      Сумма заказа:{' '}
+                                      <strong>
+                                        {formatMoney({
+                                          kopecks:
+                                            backendBreakdown.amountKopecks ?? total
+                                        })}
+                                      </strong>
+                                    </p>
+                                    <p>
+                                      Комиссия сервиса:{' '}
+                                      <strong>
+                                        {formatMoney({
+                                          kopecks:
+                                            backendBreakdown.commissionKopecks ??
+                                            serviceFeeKopecks
+                                        })}
+                                      </strong>
+                                    </p>
+                                    <p>
+                                      К выплате продавцу:{' '}
+                                      <strong>
+                                        {formatMoney({
+                                          kopecks:
+                                            backendBreakdown.sellerPayoutKopecks ??
+                                            sellerNetAmount
+                                        })}
+                                      </strong>
+                                    </p>
+                                  </div>
+                                )}
                               </div>
                               <p className={styles.muted}>
                                 Статус доставки: {displayStatus}
@@ -2868,6 +2987,20 @@ export const SellerDashboardPage = () => {
                                       Синхронизировать CDEK
                                     </Button>
                                   )}
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    onClick={() => void handleMarkOrderReceived(order.id)}
+                                    disabled={
+                                      markReceivedOrderId === order.id ||
+                                      isCancelled ||
+                                      isCompletedOrder(order)
+                                    }
+                                  >
+                                    {markReceivedOrderId === order.id
+                                      ? 'Обновляем...'
+                                      : 'Заказ получен'}
+                                  </Button>
                                 </>
                               ) : (
                                 <p className={styles.muted}>
@@ -3054,19 +3187,16 @@ export const SellerDashboardPage = () => {
                             <p className={styles.muted}>Способ выплаты</p>
                             {hasSavedCard ? (
                               <>
-                                <strong>{savedCardMeta.cardLabel}</strong>
+                                <strong>
+                                  {savedCardMeta.hasCardMaskData
+                                    ? savedCardMeta.cardLabel
+                                    : 'Карта привязана'}
+                                </strong>
                                 {!savedCardMeta.hasCardMaskData && (
                                   <p className={styles.muted}>
-                                    Данные маски карты пока недоступны.
+                                    Данные маски карты пока недоступны
                                   </p>
                                 )}
-                                {!savedCardMeta.hasCardMaskData &&
-                                  isDevPayoutToolsEnabled && (
-                                    <p className={styles.muted}>
-                                      Данные маски карты пока не получены от
-                                      сервера.
-                                    </p>
-                                  )}
                                 {savedCardMeta.issuerName && (
                                   <p className={styles.muted}>
                                     Банк: {savedCardMeta.issuerName}
@@ -3080,9 +3210,9 @@ export const SellerDashboardPage = () => {
                                 </p>
                               </>
                             ) : (
-                              <span className={styles.muted}>
-                                Карта не привязана
-                              </span>
+                              <>
+                                <strong>Карта не привязана</strong>
+                              </>
                             )}
                           </div>
                         </div>
@@ -3199,9 +3329,7 @@ export const SellerDashboardPage = () => {
 
                         {payoutCreated && (
                           <div className={styles.infoCard}>
-                            <strong>
-                              {payoutResultTitle ?? 'Успех: выплата создана'}
-                            </strong>
+                            <strong>{payoutResultTitle ?? 'Выплата создана'}</strong>
                             <p>
                               ID выплаты:{' '}
                               {String(
@@ -3218,9 +3346,7 @@ export const SellerDashboardPage = () => {
                             </p>
                             <p>
                               Статус:{' '}
-                              {payoutStatusLabelRu(
-                                String(payoutCreated.status ?? 'PENDING')
-                              )}
+                              {String(payoutCreated.status ?? 'pending')}
                             </p>
                             <p>
                               Дата создания:{' '}
@@ -3399,7 +3525,7 @@ export const SellerDashboardPage = () => {
                                   },
                                   {
                                     key: 'fee',
-                                    title: 'Комиссия платформы',
+                                    title: 'Комиссия сервиса',
                                     render: (item) =>
                                       formatMoney({
                                         kopecks: item.platformFeeKopecks
@@ -3461,7 +3587,7 @@ export const SellerDashboardPage = () => {
                                   },
                                   {
                                     key: 'fee',
-                                    label: 'Комиссия платформы',
+                                    label: 'Комиссия сервиса',
                                     render: (item) =>
                                       formatMoney({
                                         kopecks: item.platformFeeKopecks

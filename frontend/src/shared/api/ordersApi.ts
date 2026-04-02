@@ -35,6 +35,10 @@ type ApiOrder = {
   orderLabels?: Array<{ packageNo: number; code: string }>;
   createdAt: string;
   payoutStatus?: string | null;
+  yookassaDealId?: string | null;
+  yookassaDealStatus?: string | null;
+  platformFeeAmount?: number | null;
+  sellerNetAmount?: number | null;
   paymentStatus?: string | null;
   paymentExpiresAt?: string | null;
   secondsUntilExpiry?: number | null;
@@ -95,6 +99,10 @@ const mapOrder = (order: ApiOrder): Order => ({
   orderLabels: order.orderLabels ?? [],
   createdAt: order.createdAt,
   payoutStatus: order.payoutStatus ?? null,
+  yookassaDealId: order.yookassaDealId ?? null,
+  yookassaDealStatus: order.yookassaDealStatus ?? null,
+  platformFeeAmount: order.platformFeeAmount ?? null,
+  sellerNetAmount: order.sellerNetAmount ?? null,
   paymentStatus: order.paymentStatus ?? null,
   paymentExpiresAt: order.paymentExpiresAt ?? null,
   secondsUntilExpiry:
@@ -206,6 +214,10 @@ export const ordersApi = {
   readyToShip: async (orderId: string) => {
     const result = await api.readyToShip(orderId);
     return result.data;
+  },
+  markReceived: async (orderId: string) => {
+    const result = await api.markOrderReceived(orderId);
+    return mapOrder(result.data as unknown as ApiOrder);
   },
   syncShipment: async (shipmentId: string) => {
     return api.syncShipment(shipmentId);
