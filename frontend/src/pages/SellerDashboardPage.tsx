@@ -1543,12 +1543,8 @@ export const SellerDashboardPage = () => {
       return 'Максимальная выплата на карту — 150 000 ₽.';
     return null;
   })();
-  const payoutAvailabilityWarning = (() => {
-    if (!hasSavedCard) return 'Сначала привяжите карту для выплат в настройках.';
-    if (!hasAvailableFunds) return 'Сейчас нет доступной суммы для выплаты.';
-    return null;
-  })();
-  const isAmountValid = hasSavedCard && hasAvailableFunds && !payoutValidationError && payoutAmountKopecks !== null;
+  const isAmountValid =
+    hasSavedCard && hasAvailableFunds && !payoutAmountValidationError && payoutAmountKopecks !== null;
   const payoutSummaryAmount =
     typeof payoutAmountKopecks === 'number' && payoutAmountKopecks > 0
       ? formatMoney({ kopecks: payoutAmountKopecks })
@@ -1556,7 +1552,6 @@ export const SellerDashboardPage = () => {
   const isPayoutSubmitDisabled =
     !isPayoutFormAvailable || Boolean(payoutAmountValidationError) || isPayoutSubmitting;
   const payoutInlineMessage = payoutSubmitError ?? payoutNoFundsMessage ?? payoutAmountValidationError;
-  const isAmountValid = !payoutAmountValidationError;
 
   const shouldShowSellerError =
     authStatus === 'authorized' &&
@@ -1690,7 +1685,6 @@ export const SellerDashboardPage = () => {
   };
 
   const handleDevTestPayout = async () => {
-    const amountKopecks = 10000;
     await executePayoutRequest({
       amountKopecks: 10000,
       description: 'DEV TEST: фиксированная выплата',
@@ -2986,7 +2980,7 @@ export const SellerDashboardPage = () => {
                               <span>amountInput = {payoutAmountInput || '∅'}</span>
                               <span>isAmountValid = {String(Boolean(isAmountValid))}</span>
                               <span>hasSavedCard = {String(Boolean(hasSavedCard))}</span>
-                              <span>canSubmit = {String(Boolean(canSubmit))}</span>
+                              <span>canSubmit = {String(Boolean(!isPayoutSubmitDisabled))}</span>
                             </div>
                             <div className={styles.payoutBindActions}>
                               <Button
