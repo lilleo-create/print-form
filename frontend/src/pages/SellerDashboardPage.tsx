@@ -393,18 +393,24 @@ const resolveSellerOrderBreakdown = (order: Order) => {
   const amountKopecks =
     typeof breakdown.amountKopecks === 'number'
       ? breakdown.amountKopecks
+      : typeof breakdown.grossAmountMinor === 'number'
+        ? breakdown.grossAmountMinor
       : typeof breakdown.orderAmountKopecks === 'number'
         ? breakdown.orderAmountKopecks
         : null;
   const commissionKopecks =
     typeof breakdown.serviceFeeKopecks === 'number'
       ? breakdown.serviceFeeKopecks
+      : typeof breakdown.serviceFeeMinor === 'number'
+        ? breakdown.serviceFeeMinor
       : typeof breakdown.commissionKopecks === 'number'
         ? breakdown.commissionKopecks
         : null;
   const sellerPayoutKopecks =
     typeof breakdown.sellerPayoutKopecks === 'number'
       ? breakdown.sellerPayoutKopecks
+      : typeof breakdown.sellerNetAmountMinor === 'number'
+        ? breakdown.sellerNetAmountMinor
       : typeof breakdown.sellerNetAmountKopecks === 'number'
         ? breakdown.sellerNetAmountKopecks
         : null;
@@ -544,6 +550,14 @@ const getSellerOrderDisplayStatus = (order: Order) => {
   if (!order.isPacked) return 'Ожидает упаковки';
 
   return 'Готов к отгрузке';
+};
+
+const getSellerOrderStatusLabel = (order: Order) => {
+  const status = String(order.status ?? '').toUpperCase();
+  if (status === 'CANCELLED') return 'Отменён';
+  if (status === 'DELIVERED') return 'Получен покупателем';
+  if (status === 'RETURNED') return 'Возврат';
+  return 'В работе';
 };
 
 const isAccessError = (error: unknown) => {
@@ -695,6 +709,8 @@ export const SellerDashboardPage = () => {
     import.meta.env.VITE_ENABLE_PAYOUT_DEV_TOOLS === 'true' ||
     import.meta.env.VITE_ENABLE_DEV_PAYOUT_TOOLS === 'true';
   const shouldShowDevPayoutTools = isDevPayoutToolsEnabled;
+  const shouldShowTestOrderActions =
+    import.meta.env.DEV || import.meta.env.MODE === 'test';
   const user = useAuthStore((state) => state.user);
   const userId = user?.id;
 
@@ -1230,6 +1246,14 @@ export const SellerDashboardPage = () => {
     userId
   ]);
 
+  useEffect(() => {
+    if (!isSellerReady || !userId) return;
+    const timer = window.setInterval(() => {
+      void Promise.all([loadOrders(), loadFinanceData()]);
+    }, 30000);
+    return () => window.clearInterval(timer);
+  }, [isSellerReady, loadFinanceData, loadOrders, userId]);
+
   const handleKycSubmit = async () => {
     if (!isSellerReady) {
       setKycMessage('Подключите профиль продавца, чтобы отправить заявку.');
@@ -1485,7 +1509,7 @@ export const SellerDashboardPage = () => {
     } catch (error) {
       const normalized = normalizeApiError(error);
       setOrderUpdateError(
-        normalized.message ?? 'Не удалось отметить заказ как полученный.'
+        normalized.message ?? 'Не удалось выполнить тестовое завершение заказа.'
       );
     } finally {
       setMarkReceivedOrderId(null);
@@ -2761,6 +2785,7 @@ export const SellerDashboardPage = () => {
                       {ordersView.map((order) => {
                         const displayStatus =
                           getSellerOrderDisplayStatus(order);
+                        const orderStatusLabel = getSellerOrderStatusLabel(order);
                         const total = order.items.reduce(
                           (sum, item) =>
                             sum + resolveOrderItemLineTotalKopecks(item),
@@ -2830,7 +2855,10 @@ export const SellerDashboardPage = () => {
                                   {formatMoney({ kopecks: serviceFeeKopecks })}
                                 </p>
                                 <p className={styles.muted}>
-                                  Статус: {displayStatus}
+                                  Заказ: {orderStatusLabel}
+                                </p>
+                                <p className={styles.muted}>
+                                  Доставка: {displayStatus}
                                 </p>
                                 {isCancelled && (
                                   <span className={styles.cancelledOrderBadge}>
@@ -2872,7 +2900,7 @@ export const SellerDashboardPage = () => {
                               </p>
                               <div className={styles.orderFinanceMeta}>
                                 <p className={styles.muted}>
-                                  Выплата:{' '}
+                                  Выплата продавцу:{' '}
                                   {payoutStatusLabelRu(order.payoutStatus)}
                                 </p>
                                 <p className={styles.muted}>
@@ -2924,6 +2952,16 @@ export const SellerDashboardPage = () => {
                                   </div>
                                 )}
                               </div>
+                              {orderStatusLabel === 'Получен покупателем' && (
+                                <p className={styles.muted}>
+                                  Завершён автоматически после вручения.
+                                </p>
+                              )}
+                              {!isCancelled && orderStatusLabel !== 'Получен покупателем' && (
+                                <p className={styles.muted}>
+                                  Средства станут доступны после получения заказа.
+                                </p>
+                              )}
                               <p className={styles.muted}>
                                 Статус доставки: {displayStatus}
                                 {order.shipment?.lastSyncAt
@@ -2987,20 +3025,31 @@ export const SellerDashboardPage = () => {
                                       Синхронизировать CDEK
                                     </Button>
                                   )}
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    onClick={() => void handleMarkOrderReceived(order.id)}
-                                    disabled={
-                                      markReceivedOrderId === order.id ||
-                                      isCancelled ||
-                                      isCompletedOrder(order)
-                                    }
-                                  >
-                                    {markReceivedOrderId === order.id
-                                      ? 'Обновляем...'
-                                      : 'Заказ получен'}
-                                  </Button>
+                                  {shouldShowTestOrderActions ? (
+                                    <>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        onClick={() =>
+                                          void handleMarkOrderReceived(order.id)
+                                        }
+                                        disabled={
+                                          markReceivedOrderId === order.id ||
+                                          isCancelled ||
+                                          isCompletedOrder(order)
+                                        }
+                                      >
+                                        {markReceivedOrderId === order.id
+                                          ? 'Обновляем...'
+                                          : 'Заказ получен (test-only)'}
+                                      </Button>
+                                      <p className={styles.muted}>
+                                        Тестовое действие: в production заказ
+                                        завершается автоматически после статуса
+                                        «Выдан» от СДЭК.
+                                      </p>
+                                    </>
+                                  ) : null}
                                 </>
                               ) : (
                                 <p className={styles.muted}>
