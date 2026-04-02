@@ -239,6 +239,18 @@ const resolvePayoutSubmitErrorMessage = (error: unknown) => {
   const message = normalized.message ?? '';
   const details = [code, message].join(' ').toLowerCase();
 
+  if (code === 'INVALID_PAYOUT_AMOUNT') return 'Некорректная сумма выплаты.';
+  if (code === 'INSUFFICIENT_AVAILABLE_BALANCE')
+    return 'Недостаточно доступных средств.';
+  if (code === 'DEFAULT_PAYOUT_METHOD_NOT_FOUND')
+    return 'Не найден способ выплаты по умолчанию.';
+  if (code === 'NO_FUNDS_AVAILABLE_FOR_PAYOUT')
+    return 'Нет средств, доступных к выплате.';
+  if (code === 'PAYOUT_ALREADY_IN_PROGRESS')
+    return 'Выплата уже обрабатывается.';
+  if (code === 'MULTI_DEAL_PAYOUT_NOT_SUPPORTED')
+    return 'Сейчас нельзя вывести эту сумму одной выплатой.';
+
   if (
     details.includes('card') &&
     (details.includes('missing') || details.includes('not found'))
@@ -261,8 +273,7 @@ const resolvePayoutSubmitErrorMessage = (error: unknown) => {
   if (details.includes('provider') || details.includes('yookassa')) {
     return 'Ошибка провайдера выплат. Повторите попытку позже.';
   }
-  if (message) return message;
-  return 'Не удалось создать выплату. Неизвестная ошибка.';
+  return 'Не удалось создать выплату. Попробуйте ещё раз позже.';
 };
 
 const toKopecks = (value?: number | null) => {
@@ -429,22 +440,30 @@ const resolveSellerOrderBreakdown = (order: Order) => {
 };
 
 const payoutStatusLabelRu = (value?: string | null) => {
-  switch (String(value ?? '').toUpperCase()) {
-    case 'HOLD':
-      return 'Заморожено';
-    case 'AWAITING_PAYOUT':
-      return 'Ожидает выплаты';
-    case 'PAYOUT_PENDING':
-      return 'Выплата создаётся';
-    case 'REFUNDED':
-      return 'Возвращено покупателю';
-    case 'FAILED':
-    case 'PAYOUT_CANCELED':
-      return 'Выплата не прошла';
-    case 'PAID_OUT':
-    case 'RELEASED':
+  switch (String(value ?? '').toLowerCase()) {
+    case 'pending':
+      return 'Выплата обрабатывается';
+    case 'processing':
+      return 'В обработке';
+    case 'succeeded':
       return 'Выплачено';
-    case 'BLOCKED':
+    case 'canceled':
+    case 'failed':
+      return 'Ошибка выплаты';
+    case 'hold':
+      return 'Заморожено';
+    case 'awaiting_payout':
+      return 'Ожидает выплаты';
+    case 'payout_pending':
+      return 'Выплата создаётся';
+    case 'refunded':
+      return 'Возвращено покупателю';
+    case 'payout_canceled':
+      return 'Выплата не прошла';
+    case 'paid_out':
+    case 'released':
+      return 'Выплачено';
+    case 'blocked':
       return 'Заблокировано';
     default:
       return 'В обработке';
@@ -1767,6 +1786,14 @@ export const SellerDashboardPage = () => {
     !isPayoutSubmitting;
   const isPayoutFormAvailable =
     hasSavedCard && availableForPayoutKopecks > 0 && !financeLoading;
+  const hasActivePayoutInQueue =
+    (financeDashboard?.payoutQueue ?? []).some((item) => {
+      const status = String(item.status ?? '').toLowerCase();
+      return status === 'pending' || status === 'processing';
+    });
+  const payoutInProgressMessage = hasActivePayoutInQueue
+    ? 'Выплата уже обрабатывается. Дождитесь обновления статуса.'
+    : null;
   const payoutNoFundsMessage =
     availableForPayoutKopecks <= 0
       ? 'Сейчас нет доступной суммы для выплаты.'
@@ -1794,11 +1821,15 @@ export const SellerDashboardPage = () => {
       : '—';
   const isPayoutSubmitDisabled =
     !isPayoutFormAvailable ||
+    hasActivePayoutInQueue ||
     Boolean(payoutAmountValidationError) ||
     isPayoutSubmitting;
   const canSubmit = !isPayoutSubmitDisabled;
   const payoutInlineMessage =
-    payoutSubmitError ?? payoutNoFundsMessage ?? payoutAmountValidationError;
+    payoutSubmitError ??
+    payoutInProgressMessage ??
+    payoutNoFundsMessage ??
+    payoutAmountValidationError;
 
   const shouldShowSellerError =
     authStatus === 'authorized' &&
@@ -1891,7 +1922,7 @@ export const SellerDashboardPage = () => {
 
     setPayoutSubmitting(true);
     try {
-      const response = await sellerFinanceApi.triggerPayout({
+      const response = await sellerFinanceApi.createPayout({
         amount: kopecksToAmount(amountKopecks),
         description: description.trim() || 'Выплата продавцу Print-Form'
       });
@@ -1902,7 +1933,7 @@ export const SellerDashboardPage = () => {
           (typeof payload.payoutId === 'string' && payload.payoutId) ||
           (typeof payload.id === 'string' && payload.id) ||
           null,
-        status: typeof payload.status === 'string' ? payload.status : 'PENDING',
+        status: typeof payload.status === 'string' ? payload.status : 'pending',
         amount: payload.amount ?? kopecksToAmount(amountKopecks),
         createdAt:
           typeof payload.createdAt === 'string'
@@ -1936,11 +1967,13 @@ export const SellerDashboardPage = () => {
 
   const handleSubmitPayout = async () => {
     if (
+      payoutInProgressMessage ||
       payoutNoFundsMessage ||
       payoutAmountValidationError ||
       payoutAmountKopecks === null
     ) {
       setPayoutSubmitError(
+        payoutInProgressMessage ??
         payoutNoFundsMessage ??
           payoutAmountValidationError ??
           'Проверьте сумму выплаты.'
@@ -1978,10 +2011,43 @@ export const SellerDashboardPage = () => {
     }
     await executePayoutRequest({
       amountKopecks: payoutAmountKopecks,
-      description: `${payoutDescription.trim() || 'DEV payout'} [dev trigger]`,
+      description: `${payoutDescription.trim() || 'DEV payout'} [dev tools]`,
       successTitle: 'Dev payout отправлен',
       includeDevRawResponse: true
     });
+  };
+
+  const handleSyncCreatedPayoutStatus = async () => {
+    const payoutId =
+      typeof payoutCreated?.payoutId === 'string' && payoutCreated.payoutId
+        ? payoutCreated.payoutId
+        : typeof payoutCreated?.id === 'string' && payoutCreated.id
+          ? payoutCreated.id
+          : null;
+    if (!payoutId) return;
+
+    setPayoutSubmitError(null);
+    setPayoutSubmitting(true);
+    try {
+      const response = await sellerFinanceApi.syncPayoutStatus(payoutId);
+      const nextStatus =
+        typeof response?.data?.status === 'string'
+          ? response.data.status
+          : payoutCreated?.status ?? 'pending';
+      setPayoutCreated((current) =>
+        current
+          ? {
+              ...current,
+              status: nextStatus
+            }
+          : current
+      );
+      await loadFinanceData();
+    } catch (error) {
+      setPayoutSubmitError('Не удалось обновить статус выплаты.');
+    } finally {
+      setPayoutSubmitting(false);
+    }
   };
 
   useEffect(() => {
@@ -3393,11 +3459,20 @@ export const SellerDashboardPage = () => {
                               Сумма:{' '}
                               {typeof payoutCreated.amount === 'number'
                                 ? formatMoneyRub(payoutCreated.amount)
+                                : payoutCreated.amount &&
+                                    typeof payoutCreated.amount === 'object'
+                                  ? `${String(
+                                      payoutCreated.amount.value ?? '—'
+                                    )} ${String(
+                                      payoutCreated.amount.currency ?? 'RUB'
+                                    )}`
                                 : `${String(payoutCreated.amount ?? '—')} ₽`}
                             </p>
                             <p>
                               Статус:{' '}
-                              {String(payoutCreated.status ?? 'pending')}
+                              {payoutStatusLabelRu(
+                                String(payoutCreated.status ?? 'pending')
+                              )}
                             </p>
                             <p>
                               Дата создания:{' '}
@@ -3419,7 +3494,8 @@ export const SellerDashboardPage = () => {
                               <Button
                                 type="button"
                                 variant="ghost"
-                                onClick={() => void loadFinanceData()}
+                                onClick={() => void handleSyncCreatedPayoutStatus()}
+                                disabled={isPayoutSubmitting}
                               >
                                 Обновить статус
                               </Button>

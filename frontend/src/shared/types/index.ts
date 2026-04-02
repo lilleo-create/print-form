@@ -601,8 +601,21 @@ export interface SellerPayoutCreateResponse {
   accepted?: boolean;
   id?: string | null;
   payoutId?: string | null;
+  externalId?: string | null;
   status?: string | null;
-  amount?: string | number | null;
+  amount?:
+    | string
+    | number
+    | {
+        value?: string | null;
+        currency?: string | null;
+      }
+    | null;
+  allocations?: Array<{
+    orderId: string;
+    publicNumber?: string | null;
+    amount: string;
+  }>;
   createdAt?: string | null;
   [key: string]: unknown;
 }

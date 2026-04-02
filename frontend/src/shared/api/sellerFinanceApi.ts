@@ -41,9 +41,9 @@ export const sellerFinanceApi = {
     );
   },
 
-  triggerPayout(payload: SellerPayoutCreatePayload) {
+  createPayout(payload: SellerPayoutCreatePayload) {
     return apiClient.request<SellerPayoutCreateResponse>(
-      '/seller/payouts/trigger',
+      '/seller/finance/payouts',
       {
         method: 'POST',
         body: payload
@@ -53,7 +53,7 @@ export const sellerFinanceApi = {
 
   syncPayoutStatus(payoutId: string) {
     return apiClient.request<{ status: string; payoutId: string }>(
-      `/seller/payouts/${payoutId}/sync`,
+      `/seller/finance/payouts/${payoutId}/sync`,
       {
         method: 'POST'
       }
