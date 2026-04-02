@@ -94,7 +94,7 @@ export const loadYooKassaWidgetScript = async (): Promise<void> => {
     runtime.__pfYooKassaPayoutWidgetLoadingPromise = new Promise<void>(
       (resolve, reject) => {
         const existingScript = document.querySelector<HTMLScriptElement>(
-          `script[src=\"${YOOKASSA_PAYOUT_WIDGET_SRC}\"]`
+          `script[src="${YOOKASSA_PAYOUT_WIDGET_SRC}"]`
         );
         console.log('[YK widget] script exists before load:', !!existingScript);
 
@@ -160,8 +160,11 @@ export const initYooKassaPayoutWidget = async (
     }
 
     console.log('[YK widget] create instance');
+    if (!options.accountId?.trim()) {
+      throw new Error('Не передан shopid для YooKassa Safe Deal.');
+    }
     const widget = new Widget({
-      type: options.type,
+      type: 'safedeal',
       account_id: options.accountId,
       lang: 'ru_RU',
       customization: {
