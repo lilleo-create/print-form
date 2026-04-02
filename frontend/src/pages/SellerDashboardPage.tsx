@@ -710,7 +710,9 @@ export const SellerDashboardPage = () => {
     import.meta.env.VITE_ENABLE_DEV_PAYOUT_TOOLS === 'true';
   const shouldShowDevPayoutTools = isDevPayoutToolsEnabled;
   const shouldShowTestOrderActions =
-    import.meta.env.DEV || import.meta.env.MODE === 'test';
+    import.meta.env.DEV ||
+    import.meta.env.MODE === 'test' ||
+    import.meta.env.VITE_ENABLE_TEST_ORDER_RECEIPT === 'true';
   const user = useAuthStore((state) => state.user);
   const userId = user?.id;
 
@@ -1245,14 +1247,6 @@ export const SellerDashboardPage = () => {
     loadProducts,
     userId
   ]);
-
-  useEffect(() => {
-    if (!isSellerReady || !userId) return;
-    const timer = window.setInterval(() => {
-      void Promise.all([loadOrders(), loadFinanceData()]);
-    }, 30000);
-    return () => window.clearInterval(timer);
-  }, [isSellerReady, loadFinanceData, loadOrders, userId]);
 
   const handleKycSubmit = async () => {
     if (!isSellerReady) {
@@ -2802,6 +2796,13 @@ export const SellerDashboardPage = () => {
                         });
                         const backendBreakdown = resolveSellerOrderBreakdown(order);
                         const isCancelled = order.status === 'CANCELLED';
+                        const isTestReceiptOrder =
+                          !isCancelled &&
+                          !isCompletedOrder(order) &&
+                          (Boolean(order.paidAt) ||
+                            ['PAID', 'READY_FOR_SHIPMENT', 'PRINTING'].includes(
+                              order.status
+                            ));
                         const cancelPaymentHint =
                           order.paymentStatus === 'REFUND_PENDING'
                             ? 'Деньги возвращаются покупателю'
@@ -3025,7 +3026,8 @@ export const SellerDashboardPage = () => {
                                       Синхронизировать CDEK
                                     </Button>
                                   )}
-                                  {shouldShowTestOrderActions ? (
+                                  {shouldShowTestOrderActions &&
+                                  isTestReceiptOrder ? (
                                     <>
                                       <Button
                                         type="button"
