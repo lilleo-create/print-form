@@ -24,6 +24,14 @@ export const useBuyerOrders = (user: User | null) => {
     }
   }, [loadBuyerOrders, user]);
 
+  useEffect(() => {
+    if (!user) return;
+    const timer = window.setInterval(() => {
+      void loadBuyerOrders(user);
+    }, 30000);
+    return () => window.clearInterval(timer);
+  }, [loadBuyerOrders, user]);
+
   const activeOrders = useMemo(
     () => orders.filter((order) => !['DELIVERED', 'RETURNED'].includes(order.status)),
     [orders]

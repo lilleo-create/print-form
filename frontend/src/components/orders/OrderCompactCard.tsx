@@ -43,6 +43,21 @@ const getPaymentStatusLabel = (paymentStatus?: string | null) => {
   }
 };
 
+const getOrderStatusLabel = (status: string) => {
+  switch (status) {
+    case 'DELIVERED':
+      return 'Получен покупателем';
+    case 'CANCELLED':
+      return 'Отменён';
+    case 'RETURNED':
+      return 'Возврат';
+    case 'EXPIRED':
+      return 'Просрочен';
+    default:
+      return 'В работе';
+  }
+};
+
 export const OrderCompactCard = ({
   order,
   highlighted = false,
@@ -66,7 +81,14 @@ export const OrderCompactCard = ({
       String(order.yookassaDealStatus ?? order.payoutStatus ?? '').toUpperCase()
     );
 
-  const status = isCancelled ? 'Заказ отменён' : `Статус доставки: ${getDeliveryStatusLabel(order)}`;
+  const orderStatusLabel = getOrderStatusLabel(String(order.status ?? '').toUpperCase());
+  const deliveryStatusLabel = isCancelled ? '—' : getDeliveryStatusLabel(order);
+  const payoutStatusLabel = isHeldBySafeDeal
+    ? 'Заморожено'
+    : isPaid
+      ? 'Доступно к выплате'
+      : 'Ожидает оплаты';
+  const status = isCancelled ? 'Заказ отменён' : `Заказ: ${orderStatusLabel}`;
   const subStatus = useMemo(() => {
     if (isCancelled) {
       if (isRefundPending) {
@@ -79,11 +101,15 @@ export const OrderCompactCard = ({
     }
 
     if (isHeldBySafeDeal) {
-      return 'Оплата принята, деньги зарезервированы до выполнения заказа';
+      return 'Средства станут доступны после получения заказа';
+    }
+
+    if (orderStatusLabel === 'Получен покупателем') {
+      return 'Завершён автоматически после вручения';
     }
 
     return `Статус оплаты: ${getPaymentStatusLabel(order.paymentStatus)}`;
-  }, [isCancelled, isHeldBySafeDeal, isRefundPending, isRefunded, order.paymentStatus]);
+  }, [isCancelled, isHeldBySafeDeal, isRefundPending, isRefunded, order.paymentStatus, orderStatusLabel]);
 
   const canCancel = !isCancelled && !hasActiveReturn && !isRefunded && isPaid && isCancellableDeliveryStage(order);
   const canCreateReturn = !isCancelled && !hasActiveReturn && !isRefunded && isPaid && isShipped;
@@ -138,6 +164,12 @@ export const OrderCompactCard = ({
 
       <div className={styles.statusSection}>
         <span className={`${styles.badge} ${isCancelled ? styles.badgeDanger : styles.badgeNeutral}`}>{status}</span>
+        {!isCancelled ? (
+          <>
+            <p className={styles.caption}>Доставка: {deliveryStatusLabel}</p>
+            <p className={styles.caption}>Выплата продавцу: {payoutStatusLabel}</p>
+          </>
+        ) : null}
         <p className={styles.substatus}>{subStatus}</p>
 
         {!isCancelled ? (
