@@ -645,6 +645,12 @@ export const api = {
     });
   },
 
+  async markOrderReceived(orderId: string) {
+    return apiClient.request<Order>(`/seller/orders/${orderId}/mark-received`, {
+      method: 'POST'
+    });
+  },
+
   async updateOrderFulfillmentSteps(
     orderId: string,
     payload: {
