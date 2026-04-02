@@ -169,10 +169,10 @@ export const initYooKassaPayoutWidget = async (
       lang: 'ru_RU',
       customization: {
         colors: {
-          background: '#0F1A2E',
-          text: '#EAF2FF',
-          border: '#2B426A',
-          control_secondary: '#8EA6C9',
+          background: '#08111F',
+          text: '#F3F7FF',
+          border: '#22385A',
+          control_secondary: '#7F97B8',
           control_primary: '#3B82F6',
           control_primary_content: '#FFFFFF'
         }

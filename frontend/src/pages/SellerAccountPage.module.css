@@ -945,7 +945,7 @@
 }
 
 .financePayoutHistoryTemplate {
-  grid-template-columns: minmax(160px, 1.2fr) minmax(108px, 0.8fr) minmax(120px, 0.9fr) minmax(120px, 0.9fr) minmax(128px, 1fr) minmax(150px, 1.1fr) minmax(110px, 0.9fr);
+  grid-template-columns: minmax(170px, 1.3fr) minmax(108px, 0.8fr) minmax(120px, 0.9fr) minmax(150px, 1fr) minmax(170px, 1.2fr) minmax(110px, 0.9fr);
 }
 
 .financeQueueTemplate > span:nth-child(3),
@@ -976,18 +976,30 @@
   gap: 12px;
 }
 
+.payoutSettingsPanel {
+  background: #08111f;
+  border: 1px solid #22385a;
+  border-radius: 16px;
+  padding: 16px;
+}
+
 .payoutMethodsList {
   display: grid;
   gap: 10px;
 }
 
 .payoutMethodCard {
-  border: 1px solid var(--border);
+  border: 1px solid #22385a;
   border-radius: 12px;
-  padding: 12px;
-  background: var(--bg-2);
+  padding: 14px;
+  background: #0d182b;
   display: grid;
   gap: 8px;
+}
+
+.payoutCardMask {
+  font-size: 18px;
+  font-weight: 600;
 }
 
 .payoutMethodTop {
@@ -1014,11 +1026,18 @@
   padding-top: 4px;
   display: grid;
   gap: 12px;
+  background: #0d182b;
+  border: 1px solid #22385a;
+  border-radius: 14px;
+  padding: 14px;
 }
 
 .payoutWidgetContainer {
   width: 100%;
   min-height: 220px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #08111f;
 }
 
 .payoutBindActions {
@@ -1037,6 +1056,36 @@
   display: grid;
   gap: 8px;
   color: var(--muted);
+}
+
+.payoutFormTop {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.payoutForm {
+  display: grid;
+  gap: 10px;
+}
+
+.fieldLabel {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.payoutQuickActions {
+  display: flex;
+  gap: 8px;
+}
+
+.inlineLinkButton {
+  border: 0;
+  background: transparent;
+  color: var(--primary);
+  padding: 0;
+  cursor: pointer;
 }
 
 @media (max-width: 860px) {
