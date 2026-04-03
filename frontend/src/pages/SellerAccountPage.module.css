@@ -855,14 +855,141 @@
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
-.financePanel {
-  background: var(--card);
-  border-radius: var(--radius-card);
-  padding: 20px;
-  box-shadow: var(--shadow-card);
-  border: 1px solid var(--border);
+.financeLoadingGrid {
   display: grid;
-  gap: 16px;
+  gap: 14px;
+}
+
+.financeLoadingBlock {
+  height: 96px;
+  border-radius: 16px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--card) 90%, #eaf0ff 10%) 25%,
+    color-mix(in srgb, var(--card) 70%, #f7f9ff 30%) 50%,
+    color-mix(in srgb, var(--card) 90%, #eaf0ff 10%) 75%
+  );
+  background-size: 200% 100%;
+  animation: financeLoadingPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes financeLoadingPulse {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.financePanel {
+  background: color-mix(in srgb, var(--card) 92%, #f8fbff 8%);
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 14px 40px rgba(15, 23, 42, 0.05);
+  border: 1px solid color-mix(in srgb, var(--border) 90%, #dbe7ff 10%);
+  display: grid;
+  gap: 18px;
+}
+
+.payoutCenter {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(280px, 0.9fr);
+  gap: 18px;
+}
+
+.payoutOrdersColumn,
+.payoutPreviewCard {
+  border: 1px solid color-mix(in srgb, var(--border) 85%, #dbe7ff 15%);
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.payoutOrdersColumn {
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+}
+
+.payoutOrdersHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.payoutOrdersList {
+  display: grid;
+  gap: 10px;
+  max-height: 360px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.payoutOrderItem {
+  border: 1px solid color-mix(in srgb, var(--border) 82%, #dbe7ff 18%);
+  background: color-mix(in srgb, var(--card) 94%, white 6%);
+  border-radius: 12px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.payoutOrderItem:hover {
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border) 60%);
+  transform: translateY(-1px);
+}
+
+.payoutOrderItem:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.payoutOrderItemSelected {
+  border-color: color-mix(in srgb, var(--primary) 70%, #9ab5ff 30%);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+.payoutOrderTop,
+.payoutOrderMeta,
+.payoutPreviewRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.payoutOrderMeta span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.payoutPreviewColumn {
+  display: grid;
+}
+
+.payoutPreviewCard {
+  padding: 18px;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.payoutPreviewRow span {
+  color: var(--muted);
+}
+
+.payoutNoMethodCard,
+.payoutEmptyStateCard {
+  border: 1px dashed color-mix(in srgb, var(--border) 72%, #9ab5ff 28%);
+  border-radius: 12px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+  justify-items: start;
 }
 
 .nextPayoutGrid {
@@ -1231,5 +1358,18 @@
   .payoutMethodTop {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .financePanel {
+    border-radius: 16px;
+    padding: 18px;
+  }
+
+  .payoutCenter {
+    grid-template-columns: 1fr;
+  }
+
+  .payoutOrdersList {
+    max-height: 280px;
   }
 }
