@@ -948,6 +948,15 @@
   opacity: 0.7;
 }
 
+.payoutOrderItemDisabled {
+  opacity: 0.82;
+  border-style: dashed;
+}
+
+.payoutOrderItemDisabled:hover {
+  transform: none;
+}
+
 .payoutOrderItemSelected {
   border-color: color-mix(in srgb, var(--primary) 70%, #9ab5ff 30%);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);

@@ -1879,7 +1879,7 @@ export const SellerDashboardPage = () => {
         const amountMinor =
           typeof item.availableAmountMinor === 'number'
             ? item.availableAmountMinor
-            : item.sellerNetAmountKopecks;
+            : 0;
         const canPayout =
           item.canPayout ?? (payoutState === 'AVAILABLE' && amountMinor > 0);
         const payoutStatusLabel =
@@ -2107,12 +2107,12 @@ export const SellerDashboardPage = () => {
     }
 
     const selectedExists = payoutOrders.some(
-      (item) => item.orderId === selectedPayoutOrderId && item.isSelectable
+      (item) => item.orderId === selectedPayoutOrderId
     );
     if (selectedExists) return;
 
     const firstEligible = payoutOrders.find((item) => item.isSelectable);
-    setSelectedPayoutOrderId(firstEligible?.orderId ?? null);
+    setSelectedPayoutOrderId(firstEligible?.orderId ?? payoutOrders[0].orderId);
   }, [payoutOrders, selectedPayoutOrderId]);
 
   const clearPayoutWidgetInstance = useCallback(() => {
@@ -3372,7 +3372,7 @@ export const SellerDashboardPage = () => {
                         <div className={styles.payoutCenter}>
                           <div className={styles.payoutOrdersColumn}>
                             <div className={styles.payoutOrdersHeader}>
-                              <span>Доступные заказы</span>
+                              <span>Заказы для выплаты</span>
                               <strong>
                                 {formatMoney({
                                   kopecks: availableForPayoutKopecks
@@ -3398,13 +3398,12 @@ export const SellerDashboardPage = () => {
                                     <button
                                       key={`${item.orderId}-${item.payoutId}`}
                                       type="button"
-                                      className={`${styles.payoutOrderItem} ${isSelected ? styles.payoutOrderItemSelected : ''}`}
+                                      className={`${styles.payoutOrderItem} ${isSelected ? styles.payoutOrderItemSelected : ''} ${!item.isSelectable ? styles.payoutOrderItemDisabled : ''}`}
                                       onClick={() => {
-                                        if (!item.isSelectable) return;
                                         setSelectedPayoutOrderId(item.orderId);
                                         setPayoutSubmitError(null);
                                       }}
-                                      disabled={!item.isSelectable}
+                                      aria-disabled={!item.isSelectable}
                                     >
                                       <div className={styles.payoutOrderTop}>
                                         <CopyableOrderNumber
@@ -3541,8 +3540,9 @@ export const SellerDashboardPage = () => {
                               {!hasEligiblePayoutOrders &&
                                 payoutOrders.length > 0 && (
                                   <p className={styles.muted}>
-                                    Сейчас нет заказов, которые можно вывести
-                                    вручную.
+                                    Выплата сейчас недоступна по выбранным
+                                    заказам. Проверьте статус и причину в
+                                    карточке заказа слева.
                                   </p>
                                 )}
                               <Button
