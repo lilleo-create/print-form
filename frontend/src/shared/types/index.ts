@@ -136,7 +136,12 @@ export interface Review {
   canEdit?: boolean;
   canDelete?: boolean;
   isOwn?: boolean;
-  user?: { id: string; name: string; nickname?: string | null; fullName?: string | null } | null;
+  user?: {
+    id: string;
+    name: string;
+    nickname?: string | null;
+    fullName?: string | null;
+  } | null;
   product?: { id: string; title: string; image?: string };
 }
 
@@ -150,8 +155,18 @@ export interface ReviewReply {
   moderationStatusLabelRu?: string | null;
   buyerNickname?: string | null;
   storeName?: string | null;
-  user?: { id?: string | null; name?: string | null; nickname?: string | null; fullName?: string | null } | null;
-  author?: { id?: string | null; name?: string | null; nickname?: string | null; fullName?: string | null } | null;
+  user?: {
+    id?: string | null;
+    name?: string | null;
+    nickname?: string | null;
+    fullName?: string | null;
+  } | null;
+  author?: {
+    id?: string | null;
+    name?: string | null;
+    nickname?: string | null;
+    fullName?: string | null;
+  } | null;
   isCurrentStoreReply?: boolean;
   canEdit?: boolean;
   canDelete?: boolean;
@@ -545,6 +560,18 @@ export interface SellerPayoutQueueItem {
   sellerNetAmountKopecks: number;
   platformFeeKopecks: number;
   status: SellerPayoutStatus;
+  payoutState?: string | null;
+  payoutStatusLabel?: string | null;
+  payoutStatusTone?: string | null;
+  canPayout?: boolean | null;
+  availableAmountMinor?: number | null;
+  availableAmountFormatted?: string | null;
+  reason?: string | null;
+  paymentMethodLabel?: string | null;
+  descriptionPreview?: string | null;
+  latestPayout?: {
+    status?: string | null;
+  } | null;
 }
 
 export interface SellerAdjustmentItem {
