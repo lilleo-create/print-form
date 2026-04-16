@@ -7,9 +7,12 @@ import {
   type CdekPvzSelection
 } from '../api/checkoutApi';
 import { useCartStore } from '../../../app/store/cartStore';
+import { useBuyNowStore } from '../../../app/store/buyNowStore';
 
-const mapCartToCheckoutItems = (): CheckoutDto['cartItems'] =>
-  useCartStore.getState().items.map((item) => ({
+const mapItemsToCheckoutItems = (
+  items: ReturnType<typeof useCartStore.getState>['items']
+): CheckoutDto['cartItems'] =>
+  items.map((item) => ({
     productId: item.product.id,
     title: item.product.title,
     price: item.product.price,
@@ -82,7 +85,11 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const data = await checkoutApi.fetchCheckout(controller.signal);
-      const cartItems = mapCartToCheckoutItems();
+      const buyNowState = useBuyNowStore.getState();
+      const sourceItems = buyNowState.isActive
+        ? buyNowState.items
+        : useCartStore.getState().items;
+      const cartItems = mapItemsToCheckoutItems(sourceItems);
       if (controller.signal.aborted) return;
       set({
         data: {

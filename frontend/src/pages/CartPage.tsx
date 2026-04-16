@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCartStore } from '../app/store/cartStore';
 import { useAuthStore } from '../app/store/authStore';
+import { useBuyNowStore } from '../app/store/buyNowStore';
 import styles from './CartPage.module.css';
 import { getProductMainImage } from '../shared/lib/productMedia';
 import { SmartImage } from '../shared/ui/SmartImage';
@@ -12,6 +13,7 @@ export const CartPage = () => {
   const updateQuantity = useCartStore((state) => state.updateQuantity);
   const removeItem = useCartStore((state) => state.removeItem);
   const user = useAuthStore((state) => state.user);
+  const clearBuyNow = useBuyNowStore((state) => state.clear);
   const navigate = useNavigate();
 
   const total = useMemo(
@@ -21,6 +23,7 @@ export const CartPage = () => {
   );
 
   const handleCheckout = () => {
+    clearBuyNow();
     if (!user) {
       navigate('/auth/login?redirectTo=/checkout');
       return;

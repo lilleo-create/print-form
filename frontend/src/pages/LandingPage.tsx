@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useInView } from 'react-intersection-observer';
 import { InfiniteCatalogBoot } from '../features/catalog/InfiniteCatalogBoot';
 import {
@@ -16,8 +16,6 @@ type LandingContentProps = {
   error: string | null;
   hasNextPage: boolean;
   fetchNextPage: () => void;
-  activeCategory: string;
-  onCategoryChange: (value: string) => void;
 };
 
 const LandingContent = ({
@@ -27,8 +25,6 @@ const LandingContent = ({
   error,
   hasNextPage,
   fetchNextPage,
-  activeCategory,
-  onCategoryChange
 }: LandingContentProps) => {
   const { ref, inView } = useInView({
     threshold: 0,
@@ -50,8 +46,6 @@ const LandingContent = ({
         loading={loading}
         loadingMore={loadingMore}
         error={error}
-        activeCategory={activeCategory}
-        onCategoryChange={onCategoryChange}
       />
 
       {hasNextPage ? (
@@ -64,16 +58,13 @@ const LandingContent = ({
 };
 
 export const LandingPage = () => {
-  const [activeCategory, setActiveCategory] = useState('Фигурки');
-
   const catalogFilters = useMemo(
     () => ({
-      category: activeCategory,
-      sort: 'rating' as const,
+      sort: 'createdAt' as const,
       order: 'desc' as const,
       limit: 18
     }),
-    [activeCategory]
+    []
   );
 
   return (
@@ -86,8 +77,6 @@ export const LandingPage = () => {
           error={error}
           hasNextPage={hasNextPage}
           fetchNextPage={fetchNextPage}
-          activeCategory={activeCategory}
-          onCategoryChange={setActiveCategory}
         />
       )}
     </InfiniteCatalogBoot>

@@ -4,6 +4,7 @@ import type { Product } from '../../shared/types';
 import { Rating } from '../../shared/ui/Rating';
 import { Button } from '../../shared/ui/Button';
 import { useCartStore } from '../../app/store/cartStore';
+import { useBuyNowStore } from '../../app/store/buyNowStore';
 import styles from '../../pages/ProductPage.module.css';
 import { ProductActionsInline } from '../../pages/ProductPage/components/ProductActionsInline/ProductActionsInline';
 import { useFavoritesStore } from '../../features/favorites/model/useFavoritesStore';
@@ -34,6 +35,7 @@ export const ProductDetails = ({
   const navigate = useNavigate();
   const location = useLocation();
   const addItem = useCartStore((state) => state.addItem);
+  const startBuyNow = useBuyNowStore((state) => state.start);
 
   const [isShareOpen, setIsShareOpen] = useState(false);
   const isFavorite = useFavoritesStore((state) => state.isFavorite(product.id));
@@ -159,7 +161,7 @@ export const ProductDetails = ({
         <Button
           className={styles.compactActionButton}
           onClick={() => {
-            addItem(product, 1);
+            startBuyNow(product, 1);
             navigate('/checkout');
           }}
         >

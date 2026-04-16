@@ -1,7 +1,7 @@
 .page {
   display: flex;
   flex-direction: column;
-  gap: 40px;
+  gap: 36px;
   padding: 20px 0 72px;
   width: 100%;
 }
@@ -29,122 +29,85 @@
   border-radius: 12px;
 }
 
-.catalogHeader {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.sectionTitle {
-  margin: 0;
-  font-family: var(--font-ui);
-  font-size: clamp(28px, 3vw, 40px);
-  line-height: 1.08;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-}
-
-.sectionLink {
-  color: #8fb8ff;
-  font-weight: 600;
-  white-space: nowrap;
-  text-decoration: none;
-}
-
-.categoryTabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.categoryTab {
-  height: 38px;
-  padding: 0 16px;
-  border: none;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.05);
-  color: #edf3ff;
-  cursor: pointer;
-  font-weight: 600;
-  transition: background-color 0.2s ease;
-}
-
-.categoryTab:hover {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.categoryTabActive {
-  background: #3b82f6;
-  color: #fff;
-  box-shadow: 0 10px 24px rgba(59, 130, 246, 0.24);
-}
-
 .feedState {
   color: var(--muted);
   font-size: 15px;
+  display: grid;
+  gap: 12px;
+  place-items: start;
+}
+
+.feedState button {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  height: 36px;
+  padding: 0 14px;
+  color: var(--text);
+  background: var(--bg-2);
+  cursor: pointer;
 }
 
 .productsGrid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 22px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
 }
 
 .productCard {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  border-radius: 22px;
+  border-radius: 18px;
   overflow: hidden;
-  background: transparent;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   transition:
     transform 0.2s ease,
     box-shadow 0.2s ease,
-    background-color 0.2s ease;
+    border-color 0.2s ease;
 }
 
 .productCard:hover {
-  transform: translateY(-2px);
-  background: rgba(255, 255, 255, 0.03);
-  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.14);
+  transform: translateY(-3px);
+  border-color: rgba(123, 163, 255, 0.35);
+  box-shadow: 0 24px 40px rgba(0, 0, 0, 0.28);
 }
 
 .productImageLink {
   display: block;
   text-decoration: none;
-  border-radius: 22px 22px 0 0;
+  border-radius: 18px 18px 0 0;
   overflow: hidden;
-  background: #ffffff;
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .productImage {
   display: block;
   width: 100%;
-  height: 300px;
-  object-fit: contain;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
   object-position: center;
   background: #ffffff;
-  border-radius: 22px;
+  border-radius: 18px;
 }
 
 .productImageSkeleton {
   width: 100%;
-  height: 300px;
-  border-radius: 22px 22px 0 0;
+  aspect-ratio: 1 / 1;
+  border-radius: 18px 18px 0 0;
 }
 
 .productBody {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 16px 10px 8px;
+  gap: 8px;
+  padding: 14px 12px 12px;
 }
 
 .productTitle {
   color: #fff;
-  font-size: 17px;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 600;
   line-height: 1.28;
   text-decoration: none;
   display: -webkit-box;
@@ -160,7 +123,7 @@
 }
 
 .productPrice {
-  font-size: 24px;
+  font-size: 22px;
   line-height: 1;
   font-weight: 800;
   letter-spacing: -0.03em;
@@ -215,18 +178,13 @@
 
 @media (max-width: 1500px) {
   .productsGrid {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 1280px) {
   .productsGrid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  .productImage,
-  .productImageSkeleton {
-    height: 270px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -240,39 +198,11 @@
   }
 
 }
-@media (max-width: 980px) {
-  .productImage,
-  .productImageSkeleton {
-    height: 240px;
-  }
-}
 
 @media (max-width: 640px) {
   .page {
     gap: 32px;
     padding: 16px 0 56px;
-  }
-
-  .catalogHeader {
-    align-items: center;
-  }
-
-  .sectionTitle {
-    font-size: 24px;
-  }
-
-  .sectionLink {
-    font-size: 13px;
-  }
-
-  .categoryTabs {
-    gap: 8px;
-  }
-
-  .categoryTab {
-    height: 34px;
-    padding: 0 12px;
-    font-size: 12px;
   }
 
   .productsGrid {
@@ -285,12 +215,6 @@
   }
 
   .productImageLink {
-    border-radius: 16px 16px 0 0;
-  }
-
-  .productImage,
-  .productImageSkeleton {
-    height: 210px;
     border-radius: 16px 16px 0 0;
   }
 

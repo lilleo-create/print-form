@@ -7,6 +7,7 @@ import {
   useSearchParams
 } from 'react-router-dom';
 import { useCartStore } from '../../app/store/cartStore';
+import { useBuyNowStore } from '../../app/store/buyNowStore';
 import { useAuthStore } from '../../app/store/authStore';
 import { useProductBoardStore } from '../../app/store/productBoardStore';
 import { useHeaderMenuStore } from '../../app/store/headerMenuStore';
@@ -22,6 +23,7 @@ import { resolveMediaUrl } from '../../shared/lib/resolveMediaUrl';
 export const Header = () => {
   const mobileCategoriesMenuId = 'mobile-categories-menu';
   const addItem = useCartStore((state) => state.addItem);
+  const startBuyNow = useBuyNowStore((state) => state.start);
   const user = useAuthStore((state) => state.user);
   const productBoard = useProductBoardStore((state) => state.product);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -388,7 +390,7 @@ export const Header = () => {
                     <Button
                       onClick={() => {
                         if (!productBoard) return;
-                        addItem(productBoard, 1);
+                        startBuyNow(productBoard, 1);
                         navigate('/checkout');
                       }}
                     >

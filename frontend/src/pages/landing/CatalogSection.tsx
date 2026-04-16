@@ -1,53 +1,22 @@
-import { Link } from 'react-router-dom';
 import { Product } from '../../shared/types';
 import { LandingProductCard } from './LandingProductCard';
 import { ProductCardSkeleton } from './ProductCardSkeleton';
 import styles from '../LandingPage.module.css';
-
-const CATEGORY_CHIPS = ['Фигурки', 'Декор', 'Запчасти', 'Прототипы', 'Подарки'];
 
 type CatalogSectionProps = {
   products: Product[];
   loading: boolean;
   loadingMore?: boolean;
   error: string | null;
-  activeCategory: string;
-  onCategoryChange: (value: string) => void;
 };
 
 export const CatalogSection = ({
   products,
   loading,
   loadingMore = false,
-  error,
-  activeCategory,
-  onCategoryChange
+  error
 }: CatalogSectionProps) => (
   <section className={`${styles.catalogSection} container`}>
-    <div className={styles.catalogHeader}>
-      <h2 className={styles.sectionTitle}>Популярные категории</h2>
-      <Link to="/catalog" className={styles.sectionLink}>
-        Весь каталог
-      </Link>
-    </div>
-
-    <div className={styles.categoryTabs}>
-      {CATEGORY_CHIPS.map((category) => (
-        <button
-          key={category}
-          type="button"
-          onClick={() => onCategoryChange(category)}
-          className={
-            activeCategory === category
-              ? `${styles.categoryTab} ${styles.categoryTabActive}`
-              : styles.categoryTab
-          }
-        >
-          {category}
-        </button>
-      ))}
-    </div>
-
     {loading ? (
       <div className={styles.productsGrid}>
         {Array.from({ length: 12 }).map((_, index) => (
@@ -55,7 +24,12 @@ export const CatalogSection = ({
         ))}
       </div>
     ) : error ? (
-      <p className={styles.feedState}>Не удалось загрузить товары.</p>
+      <div className={styles.feedState}>
+        <p>Не удалось загрузить товары.</p>
+        <button type="button" onClick={() => window.location.reload()}>
+          Повторить
+        </button>
+      </div>
     ) : (
       <>
         <div className={styles.productsGrid}>

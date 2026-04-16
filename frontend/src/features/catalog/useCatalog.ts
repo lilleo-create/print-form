@@ -7,7 +7,8 @@ export interface CatalogFilters {
   category?: string;
   material?: string;
   price?: string;
-  sort?: 'createdAt' | 'rating';
+  q?: string;
+  sort?: 'createdAt' | 'rating' | 'price';
   order?: 'asc' | 'desc';
   page?: number;
   limit?: number;
@@ -24,6 +25,7 @@ export const useCatalog = (filters: CatalogFilters, enabled = true) => {
         category: filters.category ?? '',
         material: filters.material ?? '',
         price: filters.price ?? '',
+        q: filters.q ?? '',
         sort: filters.sort ?? '',
         order: filters.order ?? '',
         page: filters.page ?? '',
@@ -33,6 +35,7 @@ export const useCatalog = (filters: CatalogFilters, enabled = true) => {
       filters.category,
       filters.material,
       filters.price,
+      filters.q,
       filters.sort,
       filters.order,
       filters.page,
@@ -100,7 +103,9 @@ const getCatalogRequest = (key: string, filters: CatalogFilters) => {
     return existing;
   }
   const controller = new AbortController();
-  const promise = api.getProducts({ ...filters }, { signal: controller.signal }).then((response) => response.data);
+  const promise = api
+    .getProducts({ ...filters }, { signal: controller.signal })
+    .then((response) => response.data);
   const entry: CatalogEntry = { controller, promise, subscribers: 0 };
   catalogRequests.set(key, entry);
   promise.finally(() => {

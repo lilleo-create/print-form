@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../shared/api';
 import type { Product, Review } from '../shared/types';
 import { useCartStore } from '../app/store/cartStore';
+import { useBuyNowStore } from '../app/store/buyNowStore';
 import { useAuthStore } from '../app/store/authStore';
 import { useProductBoardStore } from '../app/store/productBoardStore';
 import { resolveImageUrl } from '../shared/lib/resolveImageUrl';
@@ -45,6 +46,7 @@ export const ProductReviewsPage = () => {
   const location = useLocation();
 
   const addItem = useCartStore((s) => s.addItem);
+  const startBuyNow = useBuyNowStore((s) => s.start);
   const user = useAuthStore((s) => s.user);
   const setProductBoard = useProductBoardStore((s) => s.setProduct);
 
@@ -206,7 +208,7 @@ export const ProductReviewsPage = () => {
           onBack={handleBack}
           onAddToCart={() => addItem(product, 1)}
           onBuyNow={() => {
-            addItem(product, 1);
+            startBuyNow(product, 1);
             navigate('/checkout');
           }}
         />

@@ -11,8 +11,10 @@ import { CheckoutItemsList } from './CheckoutItemsList';
 import { CheckoutLegalLinks } from './CheckoutLegalLinks';
 import styles from './CheckoutLayout.module.css';
 import { formatPrice } from '../../../shared/lib/formatPrice';
+import { useBuyNowStore } from '../../../app/store/buyNowStore';
 
 export const CheckoutLayout = () => {
+  const isBuyNowFlow = useBuyNowStore((state) => state.isActive);
   const {
     data,
     error,
@@ -68,7 +70,7 @@ export const CheckoutLayout = () => {
     <div className={styles.layout}>
       <div className={styles.left}>
         <section className={styles.block}>
-          <h2>Доставка</h2>
+          <h2>{isBuyNowFlow ? 'Доставка · Купить сейчас' : 'Доставка'}</h2>
 
           <DeliveryMethodSelector
             methods={availableDeliveryMethods}
