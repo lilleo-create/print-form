@@ -114,10 +114,17 @@ export const CheckoutLayout = () => {
       <aside className={styles.right}>
         <div className={styles.block}>
           <div className={styles.summary}>
-            <div>Способ оплаты: {selectedPaymentMethod === 'SBP' ? 'СБП / YooKassa' : 'Банковская карта / YooKassa'}</div>
-            <div>Итого: {formatPrice(total)}</div>
+            <p className={styles.summaryRow}><span>{data.cartItems.length} товар(а)</span><strong>{formatPrice(total)}</strong></p>
+            <p className={styles.summaryRow}><span>Скидка</span><strong>−0 ₽</strong></p>
+            <p className={styles.summaryRow}><span>Доставка и сервисы</span><strong>149 ₽</strong></p>
+            <p className={styles.summaryTotal}><span>Итого</span><strong>{formatPrice(total + 149)}</strong></p>
+
+            <div className={styles.paymentNote}>
+              Способ оплаты: {selectedPaymentMethod === 'SBP' ? 'СБП / YooKassa' : 'Банковская карта / YooKassa'}
+            </div>
 
             <Button
+              className={styles.payButton}
               isLoading={isSubmittingOrder || isPaying}
               disabled={isPaying || !legalAccepted}
               onClick={() => void handlePayClick()}

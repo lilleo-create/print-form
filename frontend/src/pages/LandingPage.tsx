@@ -4,7 +4,6 @@ import { InfiniteCatalogBoot } from '../features/catalog/InfiniteCatalogBoot';
 import {
   PromoCarouselSection,
   CatalogSection,
-  StepsSection
 } from './landing/LandingSections';
 import styles from './LandingPage.module.css';
 import { Product } from '../shared/types';
@@ -52,7 +51,6 @@ const LandingContent = ({
         <div ref={ref} className={styles.loadMoreTrigger} aria-hidden="true" />
       ) : null}
 
-      <StepsSection />
     </div>
   );
 };

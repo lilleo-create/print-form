@@ -1,10 +1,10 @@
 .layout {
-  width: min(1280px, 100%);
+  width: min(1240px, 100%);
   margin: 0 auto;
   padding: 20px 16px 72px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
-  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 22px;
 }
 
 .left,
@@ -17,12 +17,11 @@
 
 .block {
   border: 1px solid var(--border);
-  border-radius: 18px;
+  border-radius: 16px;
   background: var(--card);
   padding: 16px;
   display: grid;
   gap: 12px;
-  box-shadow: var(--shadow-card);
 }
 
 .block h2 {
@@ -31,16 +30,46 @@
 
 .summary {
   display: grid;
-  gap: 12px;
+  gap: 10px;
 }
 
-.summary > div {
+.summaryRow {
+  margin: 0;
+  display: flex;
+  justify-content: space-between;
   color: var(--muted);
+  font-size: 14px;
 }
 
-.summary button {
-  height: 44px;
+.summaryRow strong { color: var(--text); }
+
+.summaryTotal {
+  margin: 2px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+}
+
+.summaryTotal span,
+.summaryTotal strong {
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.paymentNote {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  font-size: 13px;
+  color: var(--muted);
+  background: var(--bg-2);
+}
+
+.payButton {
+  height: 48px;
   border-radius: 12px;
+  font-size: 18px;
 }
 
 .error {

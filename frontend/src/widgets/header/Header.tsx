@@ -19,6 +19,7 @@ import { useIsSeller } from '../../shared/lib/useIsSeller';
 import styles from '../layout/Layout.module.css';
 import { useBodyScrollLock } from '../../shared/lib/useBodyScrollLock';
 import { resolveMediaUrl } from '../../shared/lib/resolveMediaUrl';
+import { getProductRatingMeta } from '../../shared/lib/productRating';
 
 export const Header = () => {
   const mobileCategoriesMenuId = 'mobile-categories-menu';
@@ -67,6 +68,7 @@ export const Header = () => {
   const mobileCategoriesRef = useRef<HTMLDivElement | null>(null);
   const productBoardRef = useRef<HTMLDivElement | null>(null);
   const scrollStateRef = useRef({ lastY: 0, acc: 0, ticking: false });
+  const searchDebounceRef = useRef<number | null>(null);
   const { categories } = useFilters();
 
   useEffect(() => {
@@ -231,14 +233,28 @@ export const Header = () => {
   const handleSearchUpdate = (value: string) => {
     setSearchValue(value);
     if (location.pathname !== '/catalog') return;
-    const params = new URLSearchParams(searchParams);
-    if (value) {
-      params.set('q', value);
-    } else {
-      params.delete('q');
+
+    if (searchDebounceRef.current) {
+      window.clearTimeout(searchDebounceRef.current);
     }
-    setSearchParams(params);
+
+    searchDebounceRef.current = window.setTimeout(() => {
+      const params = new URLSearchParams(searchParams);
+      if (value.trim()) {
+        params.set('q', value.trim());
+      } else {
+        params.delete('q');
+      }
+      params.delete('page');
+      setSearchParams(params, { replace: true });
+    }, 350);
   };
+
+  useEffect(() => () => {
+    if (searchDebounceRef.current) {
+      window.clearTimeout(searchDebounceRef.current);
+    }
+  }, []);
 
   const handleSearchSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -257,8 +273,10 @@ export const Header = () => {
 
   const showProductBoard =
     isCategoriesHidden && (isProductPage || isReviewPage) && productBoard;
-  const ratingValue = productBoard?.ratingAvg ?? 0;
-  const ratingCount = productBoard?.ratingCount ?? 0;
+  const ratingMeta = getProductRatingMeta({
+    ratingAvg: productBoard?.ratingAvg,
+    ratingCount: productBoard?.ratingCount
+  });
   const categoriesBarHeight = categoriesHeight || productBoardHeight;
   const { isSeller, sellerCabinetLink: sellLink } = useIsSeller();
   const handleLogout = () => {
@@ -376,13 +394,19 @@ export const Header = () => {
                     <div>
                       <h4>{productBoard.title}</h4>
                       <div className={styles.productBoardRating}>
-                        <Rating
-                          value={ratingValue}
-                          count={ratingCount}
-                          size="sm"
-                        />
-                        <span>{ratingValue.toFixed(1)}</span>
-                        <span>{ratingCount} оценок</span>
+                        {ratingMeta.hasReviews ? (
+                          <>
+                            <Rating
+                              value={ratingMeta.ratingValue}
+                              count={ratingMeta.ratingCount}
+                              size="sm"
+                            />
+                            <span>{ratingMeta.ratingValue.toFixed(1)}</span>
+                            <span>{ratingMeta.ratingCount} оценок</span>
+                          </>
+                        ) : (
+                          <span>Пока нет отзывов</span>
+                        )}
                       </div>
                     </div>
                   </div>

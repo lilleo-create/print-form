@@ -11,6 +11,7 @@ import { formatEtaDays } from '../../shared/lib/deliveryEta';
 import { SmartImage } from '../../shared/ui/SmartImage';
 import { formatPrice } from '../../utils/money';
 import { cmToMm } from '../../shared/lib/productDimensions';
+import { getProductRatingMeta } from '../../shared/lib/productRating';
 interface ProductCardProps {
   product: Product;
 }
@@ -29,6 +30,8 @@ export const ProductCard = ({ product }: ProductCardProps) => {
     }
     return [product];
   }, [product]);
+
+  const ratingMeta = useMemo(() => getProductRatingMeta(product), [product]);
 
   const handleOpen = () => {
     navigate(`/product/${product.id}`);
@@ -93,7 +96,11 @@ export const ProductCard = ({ product }: ProductCardProps) => {
 
         <div className={styles.footer}>
           <div className={styles.summary}>
-            <Rating value={product.ratingAvg} count={product.ratingCount} />
+            {ratingMeta.hasReviews ? (
+              <Rating value={ratingMeta.ratingValue} count={ratingMeta.ratingCount} />
+            ) : (
+              <span className={styles.noRating}>Без отзывов</span>
+            )}
             <p className={styles.price}>{formatPrice(product.price)}</p>
           </div>
 

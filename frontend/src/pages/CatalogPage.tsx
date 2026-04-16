@@ -10,6 +10,15 @@ import styles from './CatalogPage.module.css';
 
 type SortValue = 'createdAt' | 'rating' | 'price';
 
+type CatalogFiltersState = {
+  category: string;
+  material: string;
+  price: string;
+  color: string;
+  minRating: string;
+  inStock: boolean;
+};
+
 const sortOptions: Record<SortValue, string> = {
   createdAt: 'Сначала новые',
   rating: 'По рейтингу',
@@ -25,70 +34,70 @@ const parsePriceRange = (price: string) => {
   return 'Любая цена';
 };
 
+const parsePrice = (value: string) => {
+  const [minRaw, maxRaw] = value.split('-');
+  const min = Number(minRaw || 0);
+  const max = Number(maxRaw || Number.POSITIVE_INFINITY);
+  return { min, max };
+};
+
+const readFiltersFromUrl = (searchParams: URLSearchParams): CatalogFiltersState => ({
+  category: searchParams.get('category') ?? '',
+  material: searchParams.get('material') ?? '',
+  price: searchParams.get('price') ?? '',
+  color: searchParams.get('color') ?? '',
+  minRating: searchParams.get('minRating') ?? '',
+  inStock: searchParams.get('inStock') === '1'
+});
+
+const syncFiltersToParams = (params: URLSearchParams, filters: CatalogFiltersState) => {
+  if (filters.category) params.set('category', filters.category);
+  else params.delete('category');
+
+  if (filters.material) params.set('material', filters.material);
+  else params.delete('material');
+
+  if (filters.price) params.set('price', filters.price);
+  else params.delete('price');
+
+  if (filters.color) params.set('color', filters.color);
+  else params.delete('color');
+
+  if (filters.minRating) params.set('minRating', filters.minRating);
+  else params.delete('minRating');
+
+  if (filters.inStock) params.set('inStock', '1');
+  else params.delete('inStock');
+};
+
 export const CatalogPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [isModalOpen, setModalOpen] = useState(false);
-
-  const [searchInput, setSearchInput] = useState(searchParams.get('q') ?? '');
-
-  const [filters, setFilters] = useState({
-    category: searchParams.get('category') ?? '',
-    material: searchParams.get('material') ?? '',
-    price: searchParams.get('price') ?? ''
-  });
+  const [filters, setFilters] = useState<CatalogFiltersState>(() => readFiltersFromUrl(searchParams));
 
   useEffect(() => {
-    setFilters({
-      category: searchParams.get('category') ?? '',
-      material: searchParams.get('material') ?? '',
-      price: searchParams.get('price') ?? ''
-    });
-    setSearchInput(searchParams.get('q') ?? '');
+    setFilters(readFiltersFromUrl(searchParams));
   }, [searchParams]);
 
-  useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      const currentQ = searchParams.get('q') ?? '';
-      if (searchInput.trim() === currentQ.trim()) return;
-      const params = new URLSearchParams(searchParams);
-      if (searchInput.trim()) {
-        params.set('q', searchInput.trim());
-      } else {
-        params.delete('q');
-      }
-      params.delete('page');
-      setSearchParams(params, { replace: true });
-    }, 350);
-
-    return () => window.clearTimeout(timeout);
-  }, [searchInput, searchParams, setSearchParams]);
-
   const sort = (searchParams.get('sort') as SortValue) ?? 'createdAt';
-  const q = searchParams.get('q') ?? '';
 
   const catalogParams = useMemo(
     () => ({
-      ...filters,
-      q,
+      category: searchParams.get('category') ?? '',
+      material: searchParams.get('material') ?? '',
+      price: searchParams.get('price') ?? '',
+      q: searchParams.get('q') ?? '',
       sort,
       order: sort === 'price' ? ('asc' as const) : ('desc' as const)
     }),
-    [filters, q, sort]
+    [searchParams, sort]
   );
 
   const activeCategory = searchParams.get('category') ?? '';
 
   const applyFilters = () => {
     const params = new URLSearchParams(searchParams);
-    if (filters.category) params.set('category', filters.category);
-    else params.delete('category');
-
-    if (filters.material) params.set('material', filters.material);
-    else params.delete('material');
-
-    if (filters.price) params.set('price', filters.price);
-    else params.delete('price');
-
+    syncFiltersToParams(params, filters);
     params.delete('page');
     setSearchParams(params);
     setModalOpen(false);
@@ -96,13 +105,16 @@ export const CatalogPage = () => {
 
   const resetFilters = () => {
     const params = new URLSearchParams(searchParams);
-    params.delete('category');
-    params.delete('material');
-    params.delete('price');
-    params.delete('q');
-    params.delete('sort');
+    ['category', 'material', 'price', 'color', 'minRating', 'inStock', 'q', 'sort'].forEach((key) => params.delete(key));
     setSearchParams(params);
-    setSearchInput('');
+    setFilters({
+      category: '',
+      material: '',
+      price: '',
+      color: '',
+      minRating: '',
+      inStock: false
+    });
   };
 
   const handleSortChange = (value: SortValue) => {
@@ -116,20 +128,40 @@ export const CatalogPage = () => {
     if (category) params.set('category', category);
     else params.delete('category');
     setSearchParams(params);
+    setFilters((prev) => ({ ...prev, category: category ?? '' }));
   };
 
   return (
     <CatalogBoot filters={catalogParams}>
       {({ filterData, products, loading, error }) => {
+        const urlFilters = readFiltersFromUrl(searchParams);
+
+        const colors = Array.from(new Set(products.map((product) => product.color).filter(Boolean))).slice(0, 12);
+
+        const filteredProducts = products.filter((product) => {
+          if (urlFilters.color && product.color !== urlFilters.color) return false;
+          if (urlFilters.minRating && (product.ratingAvg ?? 0) < Number(urlFilters.minRating)) return false;
+          if (urlFilters.inStock && typeof product.stock === 'number' && product.stock <= 0) return false;
+          if (urlFilters.inStock && typeof product.stock !== 'number') return false;
+          if (urlFilters.price) {
+            const { min, max } = parsePrice(urlFilters.price);
+            if (product.price < min || product.price > max) return false;
+          }
+          return true;
+        });
+
         const categories = filterData.categories.length
           ? filterData.categories
           : Array.from(new Set(products.map((product) => product.category))).filter(Boolean);
 
         const activeFilters = [
-          filters.category ? `Категория: ${filters.category}` : null,
-          filters.material ? `Материал: ${filters.material}` : null,
-          filters.price ? parsePriceRange(filters.price) : null,
-          q ? `Поиск: ${q}` : null
+          urlFilters.category ? `Категория: ${urlFilters.category}` : null,
+          urlFilters.material ? `Материал: ${urlFilters.material}` : null,
+          urlFilters.price ? parsePriceRange(urlFilters.price) : null,
+          urlFilters.color ? `Цвет: ${urlFilters.color}` : null,
+          urlFilters.minRating ? `Рейтинг от ${urlFilters.minRating}` : null,
+          urlFilters.inStock ? 'Только в наличии' : null,
+          catalogParams.q ? `Поиск: ${catalogParams.q}` : null
         ].filter(Boolean) as string[];
 
         return (
@@ -199,6 +231,44 @@ export const CatalogPage = () => {
                   </select>
                 </label>
 
+                {colors.length > 0 ? (
+                  <label className={styles.field}>
+                    Цвет
+                    <select
+                      value={filters.color}
+                      onChange={(event) => setFilters((prev) => ({ ...prev, color: event.target.value }))}
+                    >
+                      <option value="">Любой цвет</option>
+                      {colors.map((color) => (
+                        <option key={color} value={color}>
+                          {color}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+
+                <label className={styles.field}>
+                  Минимальный рейтинг
+                  <select
+                    value={filters.minRating}
+                    onChange={(event) => setFilters((prev) => ({ ...prev, minRating: event.target.value }))}
+                  >
+                    <option value="">Любой</option>
+                    <option value="4">4.0+</option>
+                    <option value="3">3.0+</option>
+                  </select>
+                </label>
+
+                <label className={styles.checkField}>
+                  <input
+                    type="checkbox"
+                    checked={filters.inStock}
+                    onChange={(event) => setFilters((prev) => ({ ...prev, inStock: event.target.checked }))}
+                  />
+                  Только в наличии
+                </label>
+
                 <Button onClick={applyFilters}>Применить</Button>
               </aside>
 
@@ -206,7 +276,7 @@ export const CatalogPage = () => {
                 <div className={styles.header}>
                   <div>
                     <h1>Каталог</h1>
-                    <p>Поиск, фильтры и сортировка синхронизированы с URL.</p>
+                    <p>Один источник поиска: строка в хедере. Фильтры и сортировка синхронизированы с URL.</p>
                   </div>
                   <Button className={styles.mobileFilterButton} variant="secondary" onClick={() => setModalOpen(true)}>
                     Фильтры
@@ -214,12 +284,6 @@ export const CatalogPage = () => {
                 </div>
 
                 <div className={styles.topControls}>
-                  <input
-                    className={styles.search}
-                    placeholder="Поиск по товарам"
-                    value={searchInput}
-                    onChange={(event) => setSearchInput(event.target.value)}
-                  />
                   <select
                     className={styles.sortSelect}
                     value={sort}
@@ -234,7 +298,7 @@ export const CatalogPage = () => {
                 </div>
 
                 <div className={styles.resultMeta}>
-                  <span>Найдено: {loading ? '...' : products.length}</span>
+                  <span>Найдено: {loading ? '...' : filteredProducts.length}</span>
                   {activeFilters.length > 0 ? (
                     <div className={styles.activeFilters}>
                       {activeFilters.map((value) => (
@@ -264,7 +328,7 @@ export const CatalogPage = () => {
                       Повторить
                     </Button>
                   </div>
-                ) : products.length === 0 ? (
+                ) : filteredProducts.length === 0 ? (
                   <div className={styles.stateBox}>
                     <p>Ничего не найдено. Попробуйте изменить фильтры или запрос.</p>
                     <Button variant="secondary" onClick={resetFilters}>
@@ -273,7 +337,7 @@ export const CatalogPage = () => {
                   </div>
                 ) : (
                   <div className={styles.grid}>
-                    {products.map((product) => (
+                    {filteredProducts.map((product) => (
                       <ProductCard product={product} key={product.id} />
                     ))}
                   </div>
@@ -284,13 +348,14 @@ export const CatalogPage = () => {
             <FilterModal
               isOpen={isModalOpen}
               filters={filters}
-              filterOptions={filterData}
+              filterOptions={{ ...filterData, colors }}
               onChange={(key, value) =>
                 setFilters((prev) => ({
                   ...prev,
                   [key]: value
                 }))
               }
+              onToggleStock={(value) => setFilters((prev) => ({ ...prev, inStock: value }))}
               onApply={applyFilters}
               onReset={resetFilters}
               onClose={() => setModalOpen(false)}
