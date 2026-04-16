@@ -18,6 +18,7 @@ interface FilterModalProps {
   };
   onChange: (key: 'category' | 'material' | 'price', value: string) => void;
   onApply: () => void;
+  onReset: () => void;
   onClose: () => void;
 }
 
@@ -27,6 +28,7 @@ export const FilterModal = ({
   filterOptions,
   onChange,
   onApply,
+  onReset,
   onClose
 }: FilterModalProps) => {
   const modalRef = useRef<HTMLDivElement>(null);
@@ -88,8 +90,8 @@ export const FilterModal = ({
           </label>
         </div>
         <div className={styles.actions}>
-          <Button variant="secondary" onClick={onClose}>
-            Отмена
+          <Button variant="ghost" onClick={onReset}>
+            Сбросить
           </Button>
           <Button onClick={onApply}>Применить</Button>
         </div>
