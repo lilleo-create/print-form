@@ -3,7 +3,14 @@
   border-radius: var(--radius-card);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-card);
+}
+
+.padding-default {
   padding: 20px;
+}
+
+.padding-none {
+  padding: 0;
 }
 
 .muted {

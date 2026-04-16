@@ -1,7 +1,7 @@
 .skeleton {
   position: relative;
   overflow: hidden;
-  background: color-mix(in srgb, var(--surface-ghost-strong) 48%, transparent);
+  background: rgba(255, 255, 255, 0.05);
   border-radius: var(--radius-control);
   min-height: 16px;
   isolation: isolate;
@@ -11,7 +11,12 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: var(--skeleton-bg);
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 0%,
+    rgba(255, 255, 255, 0.12) 50%,
+    rgba(255, 255, 255, 0.04) 100%
+  );
   background-size: 220% 100%;
   animation: shimmer 1.35s ease-in-out infinite;
 }

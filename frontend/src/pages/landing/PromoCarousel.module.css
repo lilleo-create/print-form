@@ -1,0 +1,136 @@
+.promoSection {
+  display: flex;
+  flex-direction: column;
+}
+
+.marketCarouselWrap {
+  position: relative;
+  overflow: hidden;
+  border-radius: 24px;
+  user-select: none;
+}
+
+/* DESKTOP */
+
+.marketCarouselDesktopShell {
+  position: relative;
+  height: 350px;
+}
+
+.carouselViewport {
+  position: relative;
+  width: min(100%, 1280px);
+  height: 350px;
+  margin: 0 auto;
+  overflow: hidden;
+}
+
+.carouselTrack {
+  display: flex;
+  gap: 16px;
+  height: 100%;
+  will-change: transform;
+}
+
+.carouselTrackItem {
+  flex: 0 0 880px;
+  width: 880px;
+  height: 100%;
+}
+
+/* CARD */
+
+.carouselCard {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: block;
+  border: none;
+  padding: 0;
+  border-radius: 24px;
+  overflow: hidden;
+  background: #0f1730;
+  appearance: none;
+  cursor: pointer;
+  transform: translateZ(0);
+  transition:
+    opacity 0.35s ease,
+    box-shadow 0.35s ease,
+    filter 0.35s ease;
+}
+
+.carouselCard:disabled {
+  cursor: default;
+}
+
+.carouselCenter {
+  opacity: 1;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.22);
+  z-index: 2;
+}
+
+.carouselSide {
+  opacity: 0.96;
+  filter: saturate(0.96);
+}
+
+.carouselImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: none;
+}
+
+/* MOBILE */
+
+.marketCarouselMobile {
+  position: relative;
+  overflow: hidden;
+  height: 300px;
+  border-radius: 24px;
+  touch-action: pan-y;
+}
+
+.mobileCarouselSlide {
+  width: 100%;
+  height: 100%;
+  touch-action: pan-y;
+}
+
+/* BREAKPOINTS */
+
+@media (max-width: 1100px) {
+  .marketCarouselDesktopShell {
+    display: none;
+  }
+
+  .marketCarouselMobile {
+    display: block;
+    height: 300px;
+  }
+
+  .carouselCard {
+    height: 300px;
+  }
+}
+
+@media (min-width: 1101px) {
+  .marketCarouselMobile {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .marketCarouselMobile {
+    height: 210px;
+    border-radius: 18px;
+  }
+
+  .carouselCard {
+    height: 210px;
+    border-radius: 18px;
+  }
+}

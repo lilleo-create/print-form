@@ -1,47 +1,95 @@
-import { useMemo, useState } from 'react';
-import { CatalogBoot } from '../features/catalog/CatalogBoot';
+import { useEffect, useMemo, useState } from 'react';
+import { useInView } from 'react-intersection-observer';
+import { InfiniteCatalogBoot } from '../features/catalog/InfiniteCatalogBoot';
 import {
-  AudienceSection,
+  PromoCarouselSection,
   CatalogSection,
-  FinalCtaSection,
-  HeroSection,
-  StepsSection,
-  TrustSection,
-  UploadSection
+  StepsSection
 } from './landing/LandingSections';
 import styles from './LandingPage.module.css';
+import { Product } from '../shared/types';
+
+type LandingContentProps = {
+  products: Product[];
+  loading: boolean;
+  loadingMore: boolean;
+  error: string | null;
+  hasNextPage: boolean;
+  fetchNextPage: () => void;
+  activeCategory: string;
+  onCategoryChange: (value: string) => void;
+};
+
+const LandingContent = ({
+  products,
+  loading,
+  loadingMore,
+  error,
+  hasNextPage,
+  fetchNextPage,
+  activeCategory,
+  onCategoryChange
+}: LandingContentProps) => {
+  const { ref, inView } = useInView({
+    threshold: 0,
+    rootMargin: '600px 0px'
+  });
+
+  useEffect(() => {
+    if (inView && hasNextPage && !loadingMore && !loading) {
+      fetchNextPage();
+    }
+  }, [inView, hasNextPage, loadingMore, loading, fetchNextPage]);
+
+  return (
+    <div className={styles.page}>
+      <PromoCarouselSection />
+
+      <CatalogSection
+        products={products}
+        loading={loading}
+        loadingMore={loadingMore}
+        error={error}
+        activeCategory={activeCategory}
+        onCategoryChange={onCategoryChange}
+      />
+
+      {hasNextPage ? (
+        <div ref={ref} className={styles.loadMoreTrigger} aria-hidden="true" />
+      ) : null}
+
+      <StepsSection />
+    </div>
+  );
+};
 
 export const LandingPage = () => {
   const [activeCategory, setActiveCategory] = useState('Фигурки');
-  const catalogBootFilters = useMemo(
+
+  const catalogFilters = useMemo(
     () => ({
       category: activeCategory,
       sort: 'rating' as const,
       order: 'desc' as const,
-      limit: 8
+      limit: 18
     }),
     [activeCategory]
   );
 
   return (
-    <CatalogBoot filters={catalogBootFilters}>
-      {({ products, loading, error }) => (
-        <div className={styles.page}>
-          <HeroSection />
-          <CatalogSection
-            products={products.slice(0, 8)}
-            loading={loading}
-            error={error}
-            activeCategory={activeCategory}
-            onCategoryChange={setActiveCategory}
-          />
-          <UploadSection />
-          <StepsSection />
-          <AudienceSection />
-          <TrustSection />
-          <FinalCtaSection />
-        </div>
+    <InfiniteCatalogBoot filters={catalogFilters}>
+      {({ products, loading, loadingMore, error, hasNextPage, fetchNextPage }) => (
+        <LandingContent
+          products={products}
+          loading={loading}
+          loadingMore={loadingMore}
+          error={error}
+          hasNextPage={hasNextPage}
+          fetchNextPage={fetchNextPage}
+          activeCategory={activeCategory}
+          onCategoryChange={setActiveCategory}
+        />
       )}
-    </CatalogBoot>
+    </InfiniteCatalogBoot>
   );
 };

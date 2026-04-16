@@ -13,7 +13,7 @@ html {
 }
 
 body {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-ui);
   background: var(--bg);
   color: var(--text);
   line-height: 1.65;
@@ -24,6 +24,15 @@ body {
   max-width: 100%;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.font-ui {
+  font-family: var(--font-ui);
+}
+
+.font-accent {
+  font-family: var(--font-accent);
 }
 
 #root {
@@ -83,6 +92,9 @@ button {
   max-width: 1280px;
   width: 100%;
   margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .empty-state {
