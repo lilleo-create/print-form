@@ -25,15 +25,6 @@ const sortOptions: Record<SortValue, string> = {
   price: 'По цене'
 };
 
-const parsePriceRange = (price: string) => {
-  if (!price) return 'Любая цена';
-  const [min, max] = price.split('-');
-  if (min && max) return `${Number(min).toLocaleString('ru-RU')} – ${Number(max).toLocaleString('ru-RU')} ₽`;
-  if (!min && max) return `до ${Number(max).toLocaleString('ru-RU')} ₽`;
-  if (min && !max) return `от ${Number(min).toLocaleString('ru-RU')} ₽`;
-  return 'Любая цена';
-};
-
 const parsePrice = (value: string) => {
   const [minRaw, maxRaw] = value.split('-');
   const min = Number(minRaw || 0);
@@ -50,25 +41,51 @@ const readFiltersFromUrl = (searchParams: URLSearchParams): CatalogFiltersState 
   inStock: searchParams.get('inStock') === '1'
 });
 
-const syncFiltersToParams = (params: URLSearchParams, filters: CatalogFiltersState) => {
-  if (filters.category) params.set('category', filters.category);
-  else params.delete('category');
-
-  if (filters.material) params.set('material', filters.material);
-  else params.delete('material');
-
-  if (filters.price) params.set('price', filters.price);
-  else params.delete('price');
-
-  if (filters.color) params.set('color', filters.color);
-  else params.delete('color');
-
-  if (filters.minRating) params.set('minRating', filters.minRating);
-  else params.delete('minRating');
-
-  if (filters.inStock) params.set('inStock', '1');
-  else params.delete('inStock');
+const parsePriceInputs = (price: string) => {
+  const [minRaw = '', maxRaw = ''] = price.split('-');
+  return {
+    min: minRaw ? Number(minRaw) : null,
+    max: maxRaw ? Number(maxRaw) : null
+  };
 };
+
+const normalizePriceFilter = (min: number | null, max: number | null) => {
+  const safeMin = typeof min === 'number' && Number.isFinite(min) && min > 0 ? Math.floor(min) : null;
+  const safeMax = typeof max === 'number' && Number.isFinite(max) && max > 0 ? Math.floor(max) : null;
+
+  if (safeMin && safeMax) return `${Math.min(safeMin, safeMax)}-${Math.max(safeMin, safeMax)}`;
+  if (safeMin) return `${safeMin}-`;
+  if (safeMax) return `-${safeMax}`;
+  return '';
+};
+
+const COLOR_SWATCHES: Record<string, string> = {
+  white: '#e8ecf4',
+  'белый': '#e8ecf4',
+  black: '#111315',
+  'черный': '#111315',
+  'чёрный': '#111315',
+  gray: '#9fa8b8',
+  'серый': '#9fa8b8',
+  beige: '#d4b89c',
+  'бежевый': '#d4b89c',
+  blue: '#4d70ff',
+  'синий': '#4d70ff',
+  red: '#dd4e53',
+  'красный': '#dd4e53',
+  green: '#48aa63',
+  'зеленый': '#48aa63',
+  'зелёный': '#48aa63',
+  yellow: '#eabf3f',
+  'желтый': '#eabf3f',
+  'жёлтый': '#eabf3f',
+  orange: '#ef8a3a',
+  'оранжевый': '#ef8a3a',
+  pink: '#d67ac3',
+  'розовый': '#d67ac3'
+};
+
+const getColorSwatch = (name: string) => COLOR_SWATCHES[name.trim().toLowerCase()] ?? '#b8becb';
 
 export const CatalogPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -95,9 +112,42 @@ export const CatalogPage = () => {
 
   const activeCategory = searchParams.get('category') ?? '';
 
+  const updateParam = (key: string, value: string | null) => {
+    const params = new URLSearchParams(searchParams);
+    if (value) params.set(key, value);
+    else params.delete(key);
+    params.delete('page');
+    setSearchParams(params);
+  };
+
+  const setStockFilter = (isEnabled: boolean) => {
+    const params = new URLSearchParams(searchParams);
+    if (isEnabled) params.set('inStock', '1');
+    else params.delete('inStock');
+    params.delete('page');
+    setSearchParams(params);
+  };
+
   const applyFilters = () => {
     const params = new URLSearchParams(searchParams);
-    syncFiltersToParams(params, filters);
+    if (filters.category) params.set('category', filters.category);
+    else params.delete('category');
+
+    if (filters.material) params.set('material', filters.material);
+    else params.delete('material');
+
+    if (filters.price) params.set('price', filters.price);
+    else params.delete('price');
+
+    if (filters.color) params.set('color', filters.color);
+    else params.delete('color');
+
+    if (filters.minRating) params.set('minRating', filters.minRating);
+    else params.delete('minRating');
+
+    if (filters.inStock) params.set('inStock', '1');
+    else params.delete('inStock');
+
     params.delete('page');
     setSearchParams(params);
     setModalOpen(false);
@@ -105,7 +155,7 @@ export const CatalogPage = () => {
 
   const resetFilters = () => {
     const params = new URLSearchParams(searchParams);
-    ['category', 'material', 'price', 'color', 'minRating', 'inStock', 'q', 'sort'].forEach((key) => params.delete(key));
+    ['category', 'material', 'price', 'color', 'minRating', 'inStock', 'sort'].forEach((key) => params.delete(key));
     setSearchParams(params);
     setFilters({
       category: '',
@@ -124,10 +174,7 @@ export const CatalogPage = () => {
   };
 
   const handleCategorySelect = (category?: string) => {
-    const params = new URLSearchParams(searchParams);
-    if (category) params.set('category', category);
-    else params.delete('category');
-    setSearchParams(params);
+    updateParam('category', category ?? null);
     setFilters((prev) => ({ ...prev, category: category ?? '' }));
   };
 
@@ -154,15 +201,11 @@ export const CatalogPage = () => {
           ? filterData.categories
           : Array.from(new Set(products.map((product) => product.category))).filter(Boolean);
 
-        const activeFilters = [
-          urlFilters.category ? `Категория: ${urlFilters.category}` : null,
-          urlFilters.material ? `Материал: ${urlFilters.material}` : null,
-          urlFilters.price ? parsePriceRange(urlFilters.price) : null,
-          urlFilters.color ? `Цвет: ${urlFilters.color}` : null,
-          urlFilters.minRating ? `Рейтинг от ${urlFilters.minRating}` : null,
-          urlFilters.inStock ? 'Только в наличии' : null,
-          catalogParams.q ? `Поиск: ${catalogParams.q}` : null
-        ].filter(Boolean) as string[];
+        const materials = filterData.materials.length
+          ? filterData.materials
+          : Array.from(new Set(products.map((product) => product.material))).filter(Boolean);
+
+        const priceInputs = parsePriceInputs(urlFilters.price);
 
         return (
           <section className={styles.page}>
@@ -175,139 +218,140 @@ export const CatalogPage = () => {
             <div className={`container ${styles.wrapper}`}>
               <aside className={styles.sidebar}>
                 <div className={styles.sidebarHead}>
-                  <h2>Фильтры</h2>
+                  <h2>Все категории</h2>
                   <Button variant="ghost" size="sm" onClick={resetFilters}>
                     Сбросить
                   </Button>
                 </div>
 
-                <label className={styles.field}>
-                  Категория
-                  <select
-                    value={filters.category}
-                    onChange={(event) =>
-                      setFilters((prev) => ({ ...prev, category: event.target.value }))
-                    }
-                  >
-                    <option value="">Все категории</option>
-                    {filterData.categories.map((category) => (
-                      <option key={category} value={category}>
-                        {category}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <div className={styles.group}>
+                  {categories.map((category) => (
+                    <button
+                      key={category}
+                      type="button"
+                      className={urlFilters.category === category ? styles.listItemActive : styles.listItem}
+                      onClick={() => {
+                        setFilters((prev) => ({ ...prev, category }));
+                        updateParam('category', category);
+                      }}
+                    >
+                      {category}
+                    </button>
+                  ))}
+                </div>
 
-                <label className={styles.field}>
-                  Материал
-                  <select
-                    value={filters.material}
-                    onChange={(event) =>
-                      setFilters((prev) => ({ ...prev, material: event.target.value }))
-                    }
-                  >
-                    <option value="">Любой материал</option>
-                    {filterData.materials.map((material) => (
-                      <option key={material} value={material}>
-                        {material}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className={styles.field}>
-                  Диапазон цены
-                  <select
-                    value={filters.price}
-                    onChange={(event) =>
-                      setFilters((prev) => ({ ...prev, price: event.target.value }))
-                    }
-                  >
-                    <option value="">Любая</option>
-                    <option value="0-1000">до 1 000 ₽</option>
-                    <option value="1000-3000">1 000 – 3 000 ₽</option>
-                    <option value="3000-7000">3 000 – 7 000 ₽</option>
-                    <option value="7000-">от 7 000 ₽</option>
-                  </select>
-                </label>
+                <div className={styles.group}>
+                  <h3>Цена</h3>
+                  <div className={styles.priceFields}>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      placeholder="от"
+                      value={priceInputs.min ?? ''}
+                      onChange={(event) => {
+                        const min = event.target.value ? Number(event.target.value) : null;
+                        const nextPrice = normalizePriceFilter(min, priceInputs.max);
+                        setFilters((prev) => ({ ...prev, price: nextPrice }));
+                        updateParam('price', nextPrice || null);
+                      }}
+                    />
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      placeholder="до"
+                      value={priceInputs.max ?? ''}
+                      onChange={(event) => {
+                        const max = event.target.value ? Number(event.target.value) : null;
+                        const nextPrice = normalizePriceFilter(priceInputs.min, max);
+                        setFilters((prev) => ({ ...prev, price: nextPrice }));
+                        updateParam('price', nextPrice || null);
+                      }}
+                    />
+                  </div>
+                </div>
 
                 {colors.length > 0 ? (
-                  <label className={styles.field}>
-                    Цвет
-                    <select
-                      value={filters.color}
-                      onChange={(event) => setFilters((prev) => ({ ...prev, color: event.target.value }))}
-                    >
-                      <option value="">Любой цвет</option>
+                  <div className={styles.group}>
+                    <h3>Цвет</h3>
+                    <div className={styles.colorList}>
                       {colors.map((color) => (
-                        <option key={color} value={color}>
+                        <button
+                          key={color}
+                          type="button"
+                          className={urlFilters.color === color ? styles.colorItemActive : styles.colorItem}
+                          onClick={() => {
+                            const nextColor = urlFilters.color === color ? '' : color;
+                            setFilters((prev) => ({ ...prev, color: nextColor }));
+                            updateParam('color', nextColor || null);
+                          }}
+                        >
+                          <span
+                            className={styles.colorDot}
+                            style={{ backgroundColor: getColorSwatch(color) }}
+                            aria-hidden="true"
+                          />
                           {color}
-                        </option>
+                        </button>
                       ))}
-                    </select>
-                  </label>
+                    </div>
+                  </div>
                 ) : null}
 
-                <label className={styles.field}>
-                  Минимальный рейтинг
-                  <select
-                    value={filters.minRating}
-                    onChange={(event) => setFilters((prev) => ({ ...prev, minRating: event.target.value }))}
-                  >
-                    <option value="">Любой</option>
-                    <option value="4">4.0+</option>
-                    <option value="3">3.0+</option>
-                  </select>
-                </label>
+                <div className={styles.group}>
+                  <h3>Материал пластика</h3>
+                  <div className={styles.materialList}>
+                    {materials.map((material) => (
+                      <button
+                        key={material}
+                        type="button"
+                        className={urlFilters.material === material ? styles.listItemActive : styles.listItem}
+                        onClick={() => {
+                          const nextMaterial = urlFilters.material === material ? '' : material;
+                          setFilters((prev) => ({ ...prev, material: nextMaterial }));
+                          updateParam('material', nextMaterial || null);
+                        }}
+                      >
+                        {material}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
                 <label className={styles.checkField}>
                   <input
                     type="checkbox"
-                    checked={filters.inStock}
-                    onChange={(event) => setFilters((prev) => ({ ...prev, inStock: event.target.checked }))}
+                    checked={urlFilters.inStock}
+                    onChange={(event) => {
+                      setFilters((prev) => ({ ...prev, inStock: event.target.checked }));
+                      setStockFilter(event.target.checked);
+                    }}
                   />
                   Только в наличии
                 </label>
-
-                <Button onClick={applyFilters}>Применить</Button>
               </aside>
 
               <div className={styles.content}>
-                <div className={styles.header}>
-                  <div>
-                    <h1>Каталог</h1>
-                    <p>Один источник поиска: строка в хедере. Фильтры и сортировка синхронизированы с URL.</p>
-                  </div>
+                <div className={styles.controlsRow}>
                   <Button className={styles.mobileFilterButton} variant="secondary" onClick={() => setModalOpen(true)}>
                     Фильтры
                   </Button>
-                </div>
-
-                <div className={styles.topControls}>
-                  <select
-                    className={styles.sortSelect}
-                    value={sort}
-                    onChange={(event) => handleSortChange(event.target.value as SortValue)}
-                  >
-                    {Object.entries(sortOptions).map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
+                  <div className={styles.topControls}>
+                    <select
+                      className={styles.sortSelect}
+                      value={sort}
+                      onChange={(event) => handleSortChange(event.target.value as SortValue)}
+                    >
+                      {Object.entries(sortOptions).map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 <div className={styles.resultMeta}>
                   <span>Найдено: {loading ? '...' : filteredProducts.length}</span>
-                  {activeFilters.length > 0 ? (
-                    <div className={styles.activeFilters}>
-                      {activeFilters.map((value) => (
-                        <span key={value} className={styles.filterChip}>
-                          {value}
-                        </span>
-                      ))}
-                    </div>
-                  ) : null}
                 </div>
 
                 {loading ? (

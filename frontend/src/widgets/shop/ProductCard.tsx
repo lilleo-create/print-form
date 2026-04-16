@@ -3,15 +3,12 @@ import { getProductGroupKey, getProductVariants } from '../../shared/lib/product
 import { useNavigate } from 'react-router-dom';
 import { Product } from '../../shared/types';
 import { useCartStore } from '../../app/store/cartStore';
-import { Button } from '../../shared/ui/Button';
 import { Rating } from '../../shared/ui/Rating';
 import { getProductMainImage } from '../../shared/lib/productMedia';
 import styles from './ProductCard.module.css';
-import { formatEtaDays } from '../../shared/lib/deliveryEta';
 import { SmartImage } from '../../shared/ui/SmartImage';
 import { formatPrice } from '../../utils/money';
-import { cmToMm } from '../../shared/lib/productDimensions';
-import { getProductRatingMeta } from '../../shared/lib/productRating';
+
 interface ProductCardProps {
   product: Product;
 }
@@ -31,7 +28,8 @@ export const ProductCard = ({ product }: ProductCardProps) => {
     return [product];
   }, [product]);
 
-  const ratingMeta = useMemo(() => getProductRatingMeta(product), [product]);
+  const hasReviews = Number(product.ratingCount ?? 0) > 0;
+  const ratingValue = hasReviews && product.ratingAvg ? product.ratingAvg : 0;
 
   const handleOpen = () => {
     navigate(`/product/${product.id}`);
@@ -61,18 +59,11 @@ export const ProductCard = ({ product }: ProductCardProps) => {
       </div>
 
       <div className={styles.body}>
-        <div className={styles.meta}>
-          <span className={styles.metaItem}>{product.category}</span>
-          <span className={styles.metaItem}>{product.material}</span>
-          <span className={styles.metaItem}>Изготовление: {product.productionTimeHours ?? 24} ч</span>
-          {product.dxCm && product.dyCm && product.dzCm ? (
-            <span className={styles.metaItem}>Размер: {cmToMm(product.dxCm)} × {cmToMm(product.dyCm)} × {cmToMm(product.dzCm)} мм</span>
-          ) : null}
-        </div>
-
         <h3 className={styles.title} title={product.title}>
           {product.title}
         </h3>
+
+        <p className={styles.price}>{formatPrice(product.price)}</p>
 
         {groupKey && variantProducts.length > 1 ? (
           <div className={styles.variantChips} onClick={(event) => event.stopPropagation()}>
@@ -89,42 +80,23 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           </div>
         ) : null}
 
-        <p className={styles.deliveryMeta}>
-          Доставка СДЭК:{' '}
-          {formatEtaDays(product.deliveryDaysMin ?? null, product.deliveryDaysMax ?? null) ?? 'Срок уточняется'}
-        </p>
-
         <div className={styles.footer}>
-          <div className={styles.summary}>
-            {ratingMeta.hasReviews ? (
-              <Rating value={ratingMeta.ratingValue} count={ratingMeta.ratingCount} />
-            ) : (
-              <span className={styles.noRating}>Без отзывов</span>
-            )}
-            <p className={styles.price}>{formatPrice(product.price)}</p>
-          </div>
+          {hasReviews ? (
+            <Rating value={ratingValue} count={Number(product.ratingCount ?? 0)} />
+          ) : (
+            <span className={styles.noRating}>Пока нет отзывов</span>
+          )}
 
-          <div className={styles.actions}>
-            <Button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleOpen();
-              }}
-              aria-label={`Открыть ${product.title}`}
-            >
-              Подробнее
-            </Button>
-
-            <Button
-              variant="secondary"
-              onClick={(event) => {
-                event.stopPropagation();
-                addItem(product, 1);
-              }}
-            >
-              В корзину
-            </Button>
-          </div>
+          <button
+            type="button"
+            className={styles.cartBtn}
+            onClick={(event) => {
+              event.stopPropagation();
+              addItem(product, 1);
+            }}
+          >
+            В корзину
+          </button>
         </div>
       </div>
     </article>

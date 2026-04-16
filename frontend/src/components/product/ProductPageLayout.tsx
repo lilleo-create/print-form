@@ -8,6 +8,7 @@ import { useProductBoard } from '../../hooks/useProductBoard';
 import { toProductImageList } from '../../shared/lib/productMedia';
 import { ProductGallery } from './ProductGallery';
 import { ProductDetails } from './ProductDetails';
+import { ProductPurchasePanel } from './ProductPurchasePanel';
 import { ProductReviewsPreview } from './ProductReviewsPreview';
 import { ProductFeed } from './ProductFeed';
 import {
@@ -107,7 +108,6 @@ export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
 
   const productImages = toProductImageList(activeProduct);
   const reviewsCount = summary?.total ?? 0;
-  const ratingCount = activeProduct.ratingCount ?? reviewsCount;
 
   return (
     <section className={styles.page}>
@@ -121,19 +121,21 @@ export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
       </Helmet>
       <div className={styles.container}>
         <div className={styles.hero}>
-          <div className={styles.leftCol}>
+          <div className={styles.galleryCol}>
             <ProductGallery images={productImages} title={activeProduct.title} />
           </div>
-          <div className={styles.rightCol}>
+          <div className={styles.infoCol}>
             <ProductDetails
               product={activeProduct}
               baseProductId={product?.id ?? activeProduct.id}
               variantProducts={variantProducts}
               activeVariantId={activeVariantId}
               onVariantChange={setActiveVariantId}
-              ratingCount={ratingCount}
               reviewsCount={reviewsCount}
             />
+          </div>
+          <div className={styles.buyCol}>
+            <ProductPurchasePanel product={activeProduct} />
           </div>
         </div>
 
@@ -142,7 +144,7 @@ export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
             <h2>Описание</h2>
             <p>{activeProduct.descriptionFull ?? activeProduct.description}</p>
           </div>
-          <ProductSpecs items={specs} isLoading={status === 'loading'} />
+          <div id="specs"><ProductSpecs items={specs} isLoading={status === 'loading'} /></div>
         </div>
 
         <ProductReviewsPreview productId={activeProduct.id} product={activeProduct} reviews={reviews} summary={summary} />

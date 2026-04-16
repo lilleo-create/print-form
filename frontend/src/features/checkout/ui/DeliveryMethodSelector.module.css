@@ -1,4 +1,38 @@
-.wrap { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
-.item,.active { border:1px solid var(--border); border-radius:12px; background:var(--bg-2); padding:12px; text-align:left; }
-.active { border-color: var(--primary); background: var(--card); }
-small { color:var(--muted); display:block; }
+.wrap {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.item,
+.active {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: transparent;
+  padding: 10px;
+  text-align: left;
+}
+
+.active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.item span,
+.active span {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+small {
+  color: var(--muted);
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+@media (max-width: 760px) {
+  .wrap {
+    grid-template-columns: 1fr;
+  }
+}

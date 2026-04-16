@@ -1,32 +1,33 @@
 .page {
   width: 100%;
   align-self: stretch;
-  padding: 40px 0 88px;
+  padding: 24px 0 72px;
 }
 
 .container {
   width: 100%;
-  max-width: 1200px;
+  max-width: 1220px;
   margin: 0 auto;
   padding: 0 16px;
 }
 
 .hero {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
-  gap: 24px;
+  grid-template-columns: minmax(0, 78px) minmax(0, 420px) minmax(0, 1fr) 274px;
+  gap: 16px;
   align-items: start;
-  margin-bottom: 48px;
+  margin-bottom: 34px;
 }
 
-.leftCol,
-.rightCol {
+.galleryCol,
+.infoCol,
+.buyCol {
   min-width: 0;
 }
 
 .gallery {
   display: grid;
-  grid-template-columns: 90px minmax(0, 1fr);
+  grid-template-columns: 78px minmax(0, 1fr);
   gap: 14px;
   align-items: start;
 }
@@ -36,8 +37,8 @@
   padding: 0;
   cursor: zoom-in;
   background: #0f1116;
-  border-radius: 20px;
-  min-height: 320px;
+  border-radius: 18px;
+  min-height: 360px;
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -47,7 +48,7 @@
   width: 100%;
   object-fit: contain;
   background: #fff;
-  height: clamp(320px, 55vw, 620px);
+  height: clamp(360px, 52vw, 640px);
 }
 
 .thumbs {
@@ -57,7 +58,7 @@
 
 .thumb {
   border: 1px solid transparent;
-  border-radius: 12px;
+  border-radius: 10px;
   padding: 3px;
   background: var(--bg-2);
   cursor: pointer;
@@ -68,7 +69,7 @@
   aspect-ratio: 1 / 1;
   object-fit: cover;
   background: var(--surface-ghost);
-  border-radius: 9px;
+  border-radius: 8px;
 }
 
 .thumbActive {
@@ -77,33 +78,27 @@
 
 .details {
   display: grid;
-  gap: 18px;
+  gap: 14px;
   min-width: 0;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  padding: 18px;
-  box-shadow: var(--shadow-card);
-  position: sticky;
-  top: 102px;
+  padding-top: 4px;
 }
 
 .header {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .header h1 {
   margin: 0;
-  font-size: clamp(28px, 3.2vw, 44px);
-  line-height: 1.04;
+  font-size: clamp(34px, 2.8vw, 52px);
+  line-height: 1.01;
 }
 
 .ratingRow {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
   min-width: 0;
 }
@@ -114,24 +109,17 @@
 }
 
 .reviewLink {
-  color: var(--primary);
-  font-weight: 600;
+  color: var(--muted);
   text-decoration: none;
+  font-size: 14px;
 }
 
-.priceBlock {
-  display: grid;
-  gap: 6px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border);
+.variantTitle {
+  font-weight: 600;
+  color: var(--text);
 }
 
-.variantSummary { display: grid; gap: 4px; }
-.variantTitle { font-weight: 600; }
 .variantText { color: var(--muted); font-size: 14px; }
-.price { font-size: 40px; font-weight: 800; letter-spacing: -0.03em; }
-.delivery { color: var(--muted); font-size: 14px; }
-.sku { color: var(--muted); font-size: 13px; }
 
 .variantBlock { display: grid; gap: 10px; font-size: 14px; color: var(--muted); }
 .variantList { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -151,22 +139,108 @@
   font-weight: 700;
 }
 
-.actions { display: grid; gap: 8px; grid-template-columns: 1fr 1fr; }
-.compactActionButton { font-size: 13px; border-radius: 12px; height: 44px; }
-.shortDescription { color: var(--muted); font-size: 14px; margin: 0; }
+.shortDescription { color: var(--text); font-size: 21px; line-height: 1.32; margin: 0; max-width: 420px; }
+
+.specRows {
+  display: grid;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.specRows p {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 10px;
+  font-size: 14px;
+}
+
+.specRows span {
+  color: var(--muted);
+}
+
+.specRows strong {
+  font-weight: 500;
+}
+
+.allSpecsLink {
+  color: var(--text);
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.purchasePanel {
+  display: grid;
+  gap: 10px;
+  position: sticky;
+  top: 100px;
+}
+
+.buyPrice {
+  margin: 0;
+  font-size: 46px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.installmentBlock {
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  padding: 10px 12px;
+  display: grid;
+  gap: 3px;
+}
+
+.installmentBlock span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.buyButtons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.buyButtons button {
+  border-radius: 10px;
+  height: 42px;
+  font-size: 14px;
+}
+
+.deliveryCard {
+  border-radius: 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  padding: 12px;
+  display: grid;
+  gap: 7px;
+}
+
+.deliveryCard h3 {
+  margin: 0;
+  font-size: 28px;
+}
+
+.deliveryCard p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
 
 .sections {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 28px;
-  margin-bottom: 48px;
+  gap: 24px;
+  margin-bottom: 36px;
 }
 
-.description { display: grid; gap: 12px; min-width: 0; }
+.description { display: grid; gap: 10px; min-width: 0; }
 .description h2 { margin: 0; }
 .description p { margin: 0; color: var(--muted); line-height: 1.55; }
 
-.reviewsPreview { display: grid; gap: 24px; margin-bottom: 48px; max-width: 100%; overflow: hidden; }
+.reviewsPreview { display: grid; gap: 24px; margin-bottom: 36px; max-width: 100%; overflow: hidden; }
 .reviewsHeader { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
 .reviewsHint { color: var(--muted); font-size: 14px; }
 .reviewsContent { display: grid; grid-template-columns: minmax(0, 280px) minmax(0, 1fr); gap: 24px; max-width: 100%; }
@@ -201,9 +275,16 @@
 .reviewPhotos { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
 .reviewPhotos img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; }
 
-@media (max-width: 1100px) {
+@media (max-width: 1260px) {
+  .hero { grid-template-columns: minmax(0, 68px) minmax(0, 370px) minmax(0, 1fr) 250px; }
+  .gallery { grid-template-columns: 68px minmax(0, 1fr); }
+}
+
+@media (max-width: 1080px) {
   .hero { grid-template-columns: 1fr; }
-  .details { position: static; }
+  .gallery { grid-template-columns: 82px minmax(0, 1fr); }
+  .purchasePanel { position: static; max-width: 360px; }
+  .buyButtons { grid-template-columns: 1fr 1fr; }
 }
 
 @media (max-width: 900px) {
@@ -212,8 +293,10 @@
 }
 
 @media (max-width: 720px) {
-  .page { padding-top: 22px; }
+  .page { padding-top: 18px; }
   .gallery { grid-template-columns: 1fr; }
   .thumbs { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-  .actions { grid-template-columns: 1fr; }
+  .buyButtons { grid-template-columns: 1fr; }
+  .shortDescription { font-size: 17px; }
+  .specRows p { grid-template-columns: 1fr; gap: 4px; }
 }

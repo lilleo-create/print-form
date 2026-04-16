@@ -1,25 +1,24 @@
 .page {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
   padding: 16px 0 72px;
   width: 100%;
 }
 
 .wrapper {
   display: grid;
-  grid-template-columns: 250px minmax(0, 1fr);
-  gap: 28px;
+  grid-template-columns: 204px minmax(0, 1fr);
+  gap: 26px;
 }
 
 .sidebar {
   position: sticky;
-  top: 104px;
+  top: 98px;
   align-self: start;
   display: grid;
   gap: 14px;
   padding-right: 10px;
-  border-right: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .sidebarHead {
@@ -30,23 +29,80 @@
 
 .sidebarHead h2 {
   margin: 0;
-  font-size: 18px;
+  font-size: 17px;
 }
 
-.field {
+.group {
   display: grid;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--muted);
+  gap: 7px;
 }
 
-.field select {
-  height: 38px;
-  border-radius: 10px;
+.group h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.listItem,
+.listItemActive {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  text-align: left;
+  padding: 0;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.listItemActive {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.priceFields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.priceFields input {
+  height: 34px;
+  border-radius: 9px;
   border: 1px solid var(--border);
   background: transparent;
   color: var(--text);
   padding: 0 10px;
+}
+
+.colorList,
+.materialList {
+  display: grid;
+  gap: 6px;
+}
+
+.colorItem,
+.colorItemActive {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  text-align: left;
+  padding: 0;
+  font-size: 15px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.colorItemActive {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.colorDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .checkField {
@@ -59,28 +115,18 @@
 
 .content {
   display: grid;
-  gap: 16px;
+  gap: 14px;
 }
 
-.header {
+.controlsRow {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 16px;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
 }
 
 .mobileFilterButton {
   display: none;
-}
-
-.header h1 {
-  margin: 0;
-  font-size: clamp(30px, 3vw, 42px);
-}
-
-.header p {
-  margin: 6px 0 0;
-  color: var(--muted);
 }
 
 .topControls {
@@ -90,7 +136,7 @@
 }
 
 .sortSelect {
-  height: 40px;
+  height: 38px;
   border-radius: 10px;
   border: 1px solid var(--border);
   background: var(--bg-2);
@@ -107,25 +153,10 @@
   font-size: 14px;
 }
 
-.activeFilters {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.filterChip {
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--bg-2);
-  padding: 4px 10px;
-  font-size: 12px;
-  color: var(--text);
-}
-
 .grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 18px;
+  gap: 14px;
   align-items: start;
 }
 
@@ -150,13 +181,14 @@
 .stateBox p { margin: 0; color: var(--muted); }
 
 @media (max-width: 1280px) {
-  .wrapper { grid-template-columns: 220px minmax(0, 1fr); gap: 18px; }
+  .wrapper { grid-template-columns: 190px minmax(0, 1fr); gap: 16px; }
   .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 @media (max-width: 960px) {
   .wrapper { grid-template-columns: 1fr; }
   .sidebar { display: none; }
+  .controlsRow { justify-content: space-between; }
   .mobileFilterButton { display: inline-flex; }
   .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
@@ -164,5 +196,5 @@
 @media (max-width: 640px) {
   .page { padding-bottom: 54px; }
   .topControls { grid-template-columns: 1fr; }
-  .grid { gap: 12px; }
+  .grid { gap: 10px; }
 }
