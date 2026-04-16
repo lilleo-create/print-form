@@ -1,17 +1,17 @@
 .layout {
-  width: min(1240px, 100%);
+  width: min(1080px, 100%);
   margin: 0 auto;
-  padding: 20px 16px 72px;
+  padding: 24px 16px 72px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
-  gap: 22px;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 18px;
 }
 
 .left,
 .right {
   min-width: 0;
   display: grid;
-  gap: 14px;
+  gap: 10px;
   align-content: start;
 }
 
@@ -19,18 +19,19 @@
   border: 1px solid var(--border);
   border-radius: 16px;
   background: var(--card);
-  padding: 16px;
+  padding: 14px;
   display: grid;
-  gap: 12px;
+  gap: 10px;
 }
 
 .block h2 {
   margin: 0;
+  font-size: 29px;
 }
 
 .summary {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .summaryRow {
@@ -38,14 +39,14 @@
   display: flex;
   justify-content: space-between;
   color: var(--muted);
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .summaryRow strong { color: var(--text); }
 
 .summaryTotal {
   margin: 2px 0 0;
-  padding-top: 10px;
+  padding-top: 8px;
   border-top: 1px solid var(--border);
   display: flex;
   justify-content: space-between;
@@ -53,7 +54,8 @@
 
 .summaryTotal span,
 .summaryTotal strong {
-  font-size: 28px;
+  font-size: 44px;
+  line-height: 1;
   font-weight: 700;
 }
 
@@ -67,9 +69,10 @@
 }
 
 .payButton {
-  height: 48px;
+  height: 54px;
   border-radius: 12px;
-  font-size: 18px;
+  font-size: 42px;
+  line-height: 1;
 }
 
 .error {

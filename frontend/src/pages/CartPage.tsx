@@ -36,11 +36,8 @@ export const CartPage = () => {
 
   return (
     <section className={styles.page}>
-      <div className="container">
-        <div className={styles.header}>
-          <h1>Корзина</h1>
-          <p>Проверьте состав заказа перед оформлением.</p>
-        </div>
+      <div className={`container ${styles.container}`}>
+        <h1 className={styles.title}>Корзина</h1>
         {items.length === 0 ? (
           <p className={styles.empty}>Корзина пуста.</p>
         ) : (
@@ -60,11 +57,19 @@ export const CartPage = () => {
 
                     <div className={styles.info}>
                       <h3>{item.product.title}</h3>
-                      <p>{formatPrice(item.product.price)}</p>
-                      <p className={styles.delivery}>СДЭК: доставка считается на checkout</p>
+                      <p className={styles.stock}>Осталось {item.product.stock ?? 1} шт</p>
+                      <p className={styles.delivery}>• 24 – 27 апр, курьером 149₽</p>
+                      <p className={styles.price}>{formatPrice(item.product.price)}</p>
                     </div>
 
-                    <div className={styles.controls}>
+                    <div className={styles.rightControls}>
+                      <div className={styles.iconRow}>
+                        <button type="button" aria-label="В избранное" className={styles.iconBtn}>♡</button>
+                        <button className={styles.iconBtn} onClick={() => removeItem(item.product.id)}>
+                          ✕
+                        </button>
+                      </div>
+
                       <div className={styles.qtyRow}>
                         <button onClick={() => updateQuantity(item.product.id, Math.max(1, item.quantity - 1))} aria-label="Уменьшить количество">−</button>
                         <input
@@ -75,12 +80,7 @@ export const CartPage = () => {
                         />
                         <button onClick={() => updateQuantity(item.product.id, item.quantity + 1)} aria-label="Увеличить количество">+</button>
                       </div>
-                      <button className={styles.remove} onClick={() => removeItem(item.product.id)}>
-                        Удалить
-                      </button>
                     </div>
-
-                    <div className={styles.sum}>{formatPrice(item.product.price * item.quantity)}</div>
                   </article>
                 );
               })}
@@ -91,13 +91,12 @@ export const CartPage = () => {
               </button>
 
               <label className={styles.promo}>
-                <span>Промокод</span>
-                <input type="text" placeholder="Введите код" />
+                <input type="text" placeholder="Промокод" />
               </label>
 
               <div className={styles.totals}>
-                <p><span>{items.length} товар(а)</span><strong>{formatPrice(subtotal)}</strong></p>
-                <p><span>Скидка</span><strong>−{formatPrice(discount)}</strong></p>
+                <p><span>{items.length} товар</span><strong>{formatPrice(subtotal)}</strong></p>
+                <p><span>Выгода</span><strong>−{formatPrice(discount)}</strong></p>
                 <p><span>Доставка и сервисы</span><strong>{formatPrice(delivery)}</strong></p>
                 <p className={styles.grandTotal}><span>Итого</span><strong>{formatPrice(total)}</strong></p>
               </div>

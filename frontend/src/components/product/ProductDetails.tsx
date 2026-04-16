@@ -1,18 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import type { Product } from '../../shared/types';
 import { Rating } from '../../shared/ui/Rating';
-import { Button } from '../../shared/ui/Button';
-import { useCartStore } from '../../app/store/cartStore';
-import { useBuyNowStore } from '../../app/store/buyNowStore';
 import styles from '../../pages/ProductPage.module.css';
 import { ProductActionsInline } from '../../pages/ProductPage/components/ProductActionsInline/ProductActionsInline';
 import { useFavoritesStore } from '../../features/favorites/model/useFavoritesStore';
 import { ShareModal } from '../../features/share/ui/ShareModal';
-import { formatReadyToShipLabel } from '../../shared/lib/dateLabels';
-import { formatPrice } from '../../utils/money';
 import { cmToMm } from '../../shared/lib/productDimensions';
-import { getProductRatingMeta } from '../../shared/lib/productRating';
 
 type ProductDetailsProps = {
   product: Product;
@@ -20,7 +14,6 @@ type ProductDetailsProps = {
   variantProducts: Product[];
   activeVariantId: string;
   onVariantChange: (variantId: string) => void;
-  ratingCount: number;
   reviewsCount: number;
 };
 
@@ -30,13 +23,9 @@ export const ProductDetails = ({
   variantProducts,
   activeVariantId,
   onVariantChange,
-  ratingCount,
   reviewsCount
 }: ProductDetailsProps) => {
-  const navigate = useNavigate();
   const location = useLocation();
-  const addItem = useCartStore((state) => state.addItem);
-  const startBuyNow = useBuyNowStore((state) => state.start);
 
   const [isShareOpen, setIsShareOpen] = useState(false);
   const isFavorite = useFavoritesStore((state) => state.isFavorite(product.id));
@@ -56,15 +45,8 @@ export const ProductDetails = ({
     void fetchFavorites();
   }, [fetchFavorites, product.id]);
 
-  const openShareModal = () => {
-    setIsShareOpen(true);
-  };
-
-  const readyToShipLabel = formatReadyToShipLabel(product.productionTimeHours);
-  const ratingMeta = getProductRatingMeta({
-    ratingAvg: product.ratingAvg,
-    ratingCount: ratingCount || product.ratingCount
-  });
+  const hasReviews = reviewsCount > 0;
+  const ratingValue = hasReviews && product.ratingAvg ? product.ratingAvg : 0;
 
   return (
     <div className={styles.details}>
@@ -82,15 +64,15 @@ export const ProductDetails = ({
               shortSpec: product.descriptionShort
             });
           }}
-          onShareClick={openShareModal}
+          onShareClick={() => setIsShareOpen(true)}
         />
         <h1>{product.title}</h1>
         <div className={styles.ratingRow}>
-          {ratingMeta.hasReviews ? (
+          {hasReviews ? (
             <>
               <Rating
-                value={ratingMeta.ratingValue}
-                count={ratingMeta.ratingCount}
+                value={ratingValue}
+                count={reviewsCount}
                 size="md"
               />
               <Link
@@ -105,7 +87,7 @@ export const ProductDetails = ({
                   fallback: `/product/${baseProductId}`
                 }}
               >
-                {ratingMeta.ratingCount} оценки · {reviewsCount} отзывов
+                {reviewsCount} отзывов
               </Link>
             </>
           ) : (
@@ -114,40 +96,16 @@ export const ProductDetails = ({
         </div>
       </div>
 
-      <div className={styles.priceBlock}>
-        {hasGroupedVariants ? (
-          <div className={styles.variantSummary}>
-            <span className={styles.variantTitle}>Вариант</span>
-            <span className={styles.variantText}>
-              {activeVariantLabel.key}: {activeVariantLabel.value}
-            </span>
-          </div>
-        ) : null}
-        <span className={styles.price}>
-          {formatPrice(Number((product as any).price ?? 0))}
-        </span>
-        <span className={styles.delivery}>
-          Готово к отправке: {readyToShipLabel}
-        </span>
-        <span className={styles.delivery}>СДЭК: уточняется при оформлении</span>
-        {'stock' in product && typeof (product as Product & { stock?: number }).stock === 'number' ? (
-          <span className={styles.delivery}>В наличии: {(product as Product & { stock?: number }).stock} шт.</span>
-        ) : null}
-        {product.dxCm && product.dyCm && product.dzCm ? (
-          <span className={styles.delivery}>
-            Размер: {cmToMm(product.dxCm)} × {cmToMm(product.dyCm)} × {cmToMm(product.dzCm)} мм
-            {product.weightGrossG ? `, вес: ${product.weightGrossG} г` : ''}
-          </span>
-        ) : product.weightGrossG ? (
-          <span className={styles.delivery}>Вес: {product.weightGrossG} г</span>
-        ) : null}
-      </div>
-
-      <div className={styles.sku}>Артикул: {(product as any).sku ?? '—'}</div>
+      <p className={styles.shortDescription}>
+        {product.descriptionShort ?? product.description}
+      </p>
 
       {hasGroupedVariants ? (
         <div className={styles.variantBlock}>
-          <span>Выберите вариант</span>
+          <span className={styles.variantTitle}>Вариант</span>
+          <span className={styles.variantText}>
+            {activeVariantLabel.key}: {activeVariantLabel.value}
+          </span>
           <div className={styles.variantList}>
             {variantProducts.map((variant) => (
               <button
@@ -168,29 +126,18 @@ export const ProductDetails = ({
         </div>
       ) : null}
 
-      <div className={styles.actions}>
-        <Button
-          className={styles.compactActionButton}
-          onClick={() => {
-            startBuyNow(product, 1);
-            navigate('/checkout');
-          }}
-        >
-          Купить сейчас
-        </Button>
-
-        <Button
-          variant="secondary"
-          className={styles.compactActionButton}
-          onClick={() => addItem(product, 1)}
-        >
-          В корзину
-        </Button>
+      <div className={styles.specRows}>
+        <p><span>Материал</span><strong>{product.material || '—'}</strong></p>
+        <p><span>Тип печати</span><strong>{product.technology || '—'}</strong></p>
+        {product.dxCm && product.dyCm && product.dzCm ? (
+          <p><span>Размер</span><strong>{cmToMm(product.dxCm)} × {cmToMm(product.dyCm)} × {cmToMm(product.dzCm)} мм</strong></p>
+        ) : (
+          <p><span>Размер</span><strong>—</strong></p>
+        )}
+        <p><span>Вес</span><strong>{product.weightGrossG ? `${product.weightGrossG} г` : '—'}</strong></p>
+        <Link to="#specs" className={styles.allSpecsLink}>Все характеристики</Link>
       </div>
 
-      <p className={styles.shortDescription}>
-        {product.descriptionShort ?? product.description}
-      </p>
       <ShareModal
         isOpen={isShareOpen}
         onClose={() => setIsShareOpen(false)}
