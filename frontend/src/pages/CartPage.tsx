@@ -16,11 +16,14 @@ export const CartPage = () => {
   const clearBuyNow = useBuyNowStore((state) => state.clear);
   const navigate = useNavigate();
 
-  const total = useMemo(
-    () =>
-      items.reduce((sum, item) => sum + item.product.price * item.quantity, 0),
+  const subtotal = useMemo(
+    () => items.reduce((sum, item) => sum + item.product.price * item.quantity, 0),
     [items]
   );
+
+  const discount = 0;
+  const delivery = items.length > 0 ? 149 : 0;
+  const total = subtotal - discount + delivery;
 
   const handleCheckout = () => {
     clearBuyNow();
@@ -46,47 +49,63 @@ export const CartPage = () => {
               {items.map((item) => {
                 const imageSrc = getProductMainImage(item.product);
                 return (
-                  <div key={item.product.id} className={styles.item}>
-                    {imageSrc ? (
-                      <SmartImage src={imageSrc} alt={item.product.title} sizePreset="card" />
-                    ) : (
-                      <div aria-hidden="true" />
-                    )}
+                  <article key={item.product.id} className={styles.item}>
+                    <div className={styles.imageWrap}>
+                      {imageSrc ? (
+                        <SmartImage src={imageSrc} alt={item.product.title} sizePreset="card" />
+                      ) : (
+                        <div aria-hidden="true" className={styles.imageFallback}>Нет фото</div>
+                      )}
+                    </div>
+
                     <div className={styles.info}>
                       <h3>{item.product.title}</h3>
-                      <p>{formatPrice(item.product.price)} ₽</p>
+                      <p>{formatPrice(item.product.price)}</p>
+                      <p className={styles.delivery}>СДЭК: доставка считается на checkout</p>
                     </div>
+
                     <div className={styles.controls}>
-                      <input
-                        type="number"
-                        min={1}
-                        value={item.quantity}
-                        onChange={(event) =>
-                          updateQuantity(
-                            item.product.id,
-                            Number(event.target.value)
-                          )
-                        }
-                      />
-                      <button onClick={() => removeItem(item.product.id)}>
+                      <div className={styles.qtyRow}>
+                        <button onClick={() => updateQuantity(item.product.id, Math.max(1, item.quantity - 1))} aria-label="Уменьшить количество">−</button>
+                        <input
+                          type="number"
+                          min={1}
+                          value={item.quantity}
+                          onChange={(event) => updateQuantity(item.product.id, Math.max(1, Number(event.target.value) || 1))}
+                        />
+                        <button onClick={() => updateQuantity(item.product.id, item.quantity + 1)} aria-label="Увеличить количество">+</button>
+                      </div>
+                      <button className={styles.remove} onClick={() => removeItem(item.product.id)}>
                         Удалить
                       </button>
                     </div>
-                    <div className={styles.sum}>
-                      {formatPrice(item.product.price * item.quantity)}
-                    </div>
-                  </div>
+
+                    <div className={styles.sum}>{formatPrice(item.product.price * item.quantity)}</div>
+                  </article>
                 );
               })}
             </div>
             <aside className={styles.summary}>
-              <div>
-                <span>Итого</span>
-                <strong>{formatPrice(total)}</strong>
-              </div>
               <button className={styles.cta} onClick={handleCheckout}>
-                Оформить заказ
+                Перейти к оформлению
               </button>
+
+              <label className={styles.promo}>
+                <span>Промокод</span>
+                <input type="text" placeholder="Введите код" />
+              </label>
+
+              <div className={styles.totals}>
+                <p><span>{items.length} товар(а)</span><strong>{formatPrice(subtotal)}</strong></p>
+                <p><span>Скидка</span><strong>−{formatPrice(discount)}</strong></p>
+                <p><span>Доставка и сервисы</span><strong>{formatPrice(delivery)}</strong></p>
+                <p className={styles.grandTotal}><span>Итого</span><strong>{formatPrice(total)}</strong></p>
+              </div>
+
+              <div className={styles.installments}>
+                <strong>12×{Math.max(1, Math.round(total / 12))}₽</strong>
+                <span>12 месяцев, без переплат</span>
+              </div>
             </aside>
           </div>
         )}

@@ -32,3 +32,7 @@
 .wrapper[data-size='md'] {
   font-size: 18px;
 }
+
+.starsNeutral .starActive {
+  color: var(--star-muted);
+}

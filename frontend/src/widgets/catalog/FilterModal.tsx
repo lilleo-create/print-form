@@ -11,12 +11,17 @@ interface FilterModalProps {
     category: string;
     material: string;
     price: string;
+    color: string;
+    minRating: string;
+    inStock: boolean;
   };
   filterOptions: {
     categories: string[];
     materials: string[];
+    colors: string[];
   };
-  onChange: (key: 'category' | 'material' | 'price', value: string) => void;
+  onChange: (key: 'category' | 'material' | 'price' | 'color' | 'minRating', value: string) => void;
+  onToggleStock: (next: boolean) => void;
   onApply: () => void;
   onReset: () => void;
   onClose: () => void;
@@ -27,6 +32,7 @@ export const FilterModal = ({
   filters,
   filterOptions,
   onChange,
+  onToggleStock,
   onApply,
   onReset,
   onClose
@@ -83,10 +89,39 @@ export const FilterModal = ({
             Цена
             <select value={filters.price} onChange={(event) => onChange('price', event.target.value)}>
               <option value="">Любая</option>
-              <option value="0-2000">до 2 000 ₽</option>
-              <option value="2000-5000">2 000 - 5 000 ₽</option>
-              <option value="5000-10000">5 000 - 10 000 ₽</option>
+              <option value="0-1000">до 1 000 ₽</option>
+              <option value="1000-3000">1 000 - 3 000 ₽</option>
+              <option value="3000-7000">3 000 - 7 000 ₽</option>
+              <option value="7000-">от 7 000 ₽</option>
             </select>
+          </label>
+
+          {filterOptions.colors.length > 0 ? (
+            <label className={styles.field}>
+              Цвет
+              <select value={filters.color} onChange={(event) => onChange('color', event.target.value)}>
+                <option value="">Любой</option>
+                {filterOptions.colors.map((color) => (
+                  <option key={color} value={color}>
+                    {color}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+
+          <label className={styles.field}>
+            Минимальный рейтинг
+            <select value={filters.minRating} onChange={(event) => onChange('minRating', event.target.value)}>
+              <option value="">Любой</option>
+              <option value="4">4.0+</option>
+              <option value="3">3.0+</option>
+            </select>
+          </label>
+
+          <label className={styles.checkbox}>
+            <input type="checkbox" checked={filters.inStock} onChange={(event) => onToggleStock(event.target.checked)} />
+            Только в наличии
           </label>
         </div>
         <div className={styles.actions}>

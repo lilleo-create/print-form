@@ -12,6 +12,7 @@ import { ShareModal } from '../../features/share/ui/ShareModal';
 import { formatReadyToShipLabel } from '../../shared/lib/dateLabels';
 import { formatPrice } from '../../utils/money';
 import { cmToMm } from '../../shared/lib/productDimensions';
+import { getProductRatingMeta } from '../../shared/lib/productRating';
 
 type ProductDetailsProps = {
   product: Product;
@@ -60,6 +61,10 @@ export const ProductDetails = ({
   };
 
   const readyToShipLabel = formatReadyToShipLabel(product.productionTimeHours);
+  const ratingMeta = getProductRatingMeta({
+    ratingAvg: product.ratingAvg,
+    ratingCount: ratingCount || product.ratingCount
+  });
 
   return (
     <div className={styles.details}>
@@ -81,25 +86,31 @@ export const ProductDetails = ({
         />
         <h1>{product.title}</h1>
         <div className={styles.ratingRow}>
-          <Rating
-            value={product.ratingAvg ?? 0}
-            count={ratingCount}
-            size="md"
-          />
-          <Link
-            to={`/product/${baseProductId}/reviews`}
-            className={styles.reviewLink}
-            state={{
-              from: {
-                pathname: location.pathname,
-                search: location.search,
-                hash: location.hash
-              },
-              fallback: `/product/${baseProductId}`
-            }}
-          >
-            {ratingCount} оценки · {reviewsCount} отзывов
-          </Link>
+          {ratingMeta.hasReviews ? (
+            <>
+              <Rating
+                value={ratingMeta.ratingValue}
+                count={ratingMeta.ratingCount}
+                size="md"
+              />
+              <Link
+                to={`/product/${baseProductId}/reviews`}
+                className={styles.reviewLink}
+                state={{
+                  from: {
+                    pathname: location.pathname,
+                    search: location.search,
+                    hash: location.hash
+                  },
+                  fallback: `/product/${baseProductId}`
+                }}
+              >
+                {ratingMeta.ratingCount} оценки · {reviewsCount} отзывов
+              </Link>
+            </>
+          ) : (
+            <span className={styles.noReviewsText}>Пока нет отзывов</span>
+          )}
         </div>
       </div>
 

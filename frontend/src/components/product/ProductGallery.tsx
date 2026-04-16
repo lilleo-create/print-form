@@ -35,15 +35,6 @@ export const ProductGallery = ({ images, title }: ProductGalleryProps) => {
 
   return (
     <div className={styles.gallery}>
-      <button
-        type="button"
-        className={styles.mainImageButton}
-        onClick={() => openLightbox(activeIndex)}
-        aria-label={`Открыть увеличенное изображение ${title}`}
-      >
-        <SmartImage src={activeImage} alt={title} className={styles.mainImage} sizePreset="detail" />
-      </button>
-
       <div className={styles.thumbs}>
         {resolvedImages.map((image, index) => (
           <button
@@ -57,6 +48,15 @@ export const ProductGallery = ({ images, title }: ProductGalleryProps) => {
           </button>
         ))}
       </div>
+
+      <button
+        type="button"
+        className={styles.mainImageButton}
+        onClick={() => openLightbox(activeIndex)}
+        aria-label={`Открыть увеличенное изображение ${title}`}
+      >
+        <SmartImage src={activeImage} alt={title} className={styles.mainImage} sizePreset="detail" />
+      </button>
 
       <ImageLightbox
         isOpen={isLightboxOpen}

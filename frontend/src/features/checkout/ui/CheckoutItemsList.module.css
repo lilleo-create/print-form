@@ -3,14 +3,19 @@
   gap: 10px;
 }
 
+.list h3 {
+  margin: 0 0 4px;
+}
+
 .item {
   display: grid;
-  grid-template-columns: 82px minmax(0, 1fr);
+  grid-template-columns: 82px minmax(0, 1fr) auto;
   gap: 12px;
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 10px;
   background: var(--bg-2);
+  align-items: center;
 }
 
 .item img {
@@ -20,13 +25,27 @@
   border-radius: 10px;
 }
 
-.item h4 {
+.meta h4 {
   margin: 0;
   font-size: 15px;
 }
 
-.item p {
+.meta p {
   margin: 6px 0 0;
   color: var(--muted);
   font-size: 13px;
+}
+
+.total {
+  font-size: 18px;
+}
+
+@media (max-width: 640px) {
+  .item {
+    grid-template-columns: 82px minmax(0, 1fr);
+  }
+
+  .total {
+    grid-column: span 2;
+  }
 }
