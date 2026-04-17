@@ -1,23 +1,25 @@
 .actionsInline {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   font-size: 12px;
   font-weight: 500;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: flex-start;
+  white-space: nowrap;
 }
 
 .actionLink {
-  background: none;
-  border: 0;
-  padding: 0;
-  color: inherit;
-  opacity: 0.8;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 10px;
+  color: var(--muted);
   cursor: pointer;
+  line-height: 1;
 }
 
 .actionLink:hover {
-  opacity: 1;
-  text-decoration: underline;
+  color: var(--text);
+  border-color: var(--text);
 }
