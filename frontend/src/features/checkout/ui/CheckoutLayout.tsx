@@ -9,6 +9,8 @@ import { RecipientModal } from './RecipientModal';
 import { DeliveryDatesSection } from './DeliveryDatesSection';
 import { CheckoutItemsList } from './CheckoutItemsList';
 import { CheckoutLegalLinks } from './CheckoutLegalLinks';
+import { PaymentMethodSelector } from './PaymentMethodSelector';
+import { AddCardModal } from './AddCardModal';
 import styles from './CheckoutLayout.module.css';
 import { formatPrice } from '../../../shared/lib/formatPrice';
 import { useBuyNowStore } from '../../../app/store/buyNowStore';
@@ -25,11 +27,14 @@ export const CheckoutLayout = () => {
     setPickupPoint,
     updateRecipient,
     updateAddress,
+    setPaymentMethod,
+    addCard,
     placeOrder
   } = useCheckoutStore();
 
   const [isPvzOpen, setPvzOpen] = useState(false);
   const [isRecipientOpen, setRecipientOpen] = useState(false);
+  const [isAddCardOpen, setAddCardOpen] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
   const [legalAccepted, setLegalAccepted] = useState(false);
 
@@ -69,7 +74,7 @@ export const CheckoutLayout = () => {
   return (
     <div className={styles.layout}>
       <div className={styles.left}>
-        <section className={styles.block}>
+        <section className={styles.sectionCard}>
           <h2>{isBuyNowFlow ? 'Доставка · Купить сейчас' : 'Доставка'}</h2>
 
           <DeliveryMethodSelector
@@ -101,44 +106,61 @@ export const CheckoutLayout = () => {
             />
           )}
 
-          <Button variant="ghost" onClick={() => setRecipientOpen(true)}>
-            Получатель: {data.recipient.name || 'Указать'}
-          </Button>
+          <button
+            type="button"
+            className={styles.recipientTrigger}
+            onClick={() => setRecipientOpen(true)}
+          >
+            <strong>Получатель</strong>
+            <span>{data.recipient.name || 'Указать ФИО и контакты'}</span>
+          </button>
+
+          <DeliveryDatesSection items={data.cartItems} />
         </section>
 
-        <DeliveryDatesSection items={data.cartItems} />
-        <CheckoutItemsList items={data.cartItems} />
+        <section className={styles.sectionCard}>
+          <CheckoutItemsList items={data.cartItems} />
+        </section>
+
         <CheckoutLegalLinks accepted={legalAccepted} onAcceptedChange={setLegalAccepted} />
       </div>
 
       <aside className={styles.right}>
-        <div className={styles.block}>
+        <div className={styles.summaryCard}>
+          <h3 className={styles.summaryTitle}>Ваш заказ</h3>
           <div className={styles.summary}>
             <p className={styles.summaryRow}><span>{data.cartItems.length} товар(а)</span><strong>{formatPrice(total)}</strong></p>
             <p className={styles.summaryRow}><span>Скидка</span><strong>−0 ₽</strong></p>
             <p className={styles.summaryRow}><span>Доставка и сервисы</span><strong>149 ₽</strong></p>
             <p className={styles.summaryTotal}><span>Итого</span><strong>{formatPrice(total + 149)}</strong></p>
-
-            <div className={styles.paymentNote}>
-              Способ оплаты: {selectedPaymentMethod === 'SBP' ? 'СБП / YooKassa' : 'Банковская карта / YooKassa'}
-            </div>
-
-            <Button
-              className={styles.payButton}
-              isLoading={isSubmittingOrder || isPaying}
-              disabled={isPaying || !legalAccepted}
-              onClick={() => void handlePayClick()}
-            >
-              Оплатить
-            </Button>
-
-            {!legalAccepted ? (
-              <p className={styles.error}>
-                Подтвердите согласие с правилами сервиса и политикой персональных данных.
-              </p>
-            ) : null}
-            {error ? <p className={styles.error}>{error}</p> : null}
           </div>
+
+          <PaymentMethodSelector
+            data={data}
+            onSelectMethod={(method, cardId) => void setPaymentMethod(method, cardId)}
+            onOpenAddCard={() => setAddCardOpen(true)}
+          />
+
+          <Button
+            className={styles.payButton}
+            isLoading={isSubmittingOrder || isPaying}
+            disabled={isPaying || !legalAccepted}
+            onClick={() => void handlePayClick()}
+          >
+            Оплатить
+          </Button>
+
+          {!legalAccepted ? (
+            <p className={styles.error}>
+              Подтвердите согласие с правилами сервиса и политикой персональных данных.
+            </p>
+          ) : null}
+          {error ? <p className={styles.error}>{error}</p> : null}
+          <p className={styles.paymentNote}>
+            {selectedPaymentMethod === 'SBP'
+              ? 'Оплата через СБП / YooKassa'
+              : 'Оплата банковской картой / YooKassa'}
+          </p>
         </div>
       </aside>
 
@@ -165,6 +187,12 @@ export const CheckoutLayout = () => {
         onClose={() => setRecipientOpen(false)}
         initial={data.recipient}
         onSave={updateRecipient}
+      />
+
+      <AddCardModal
+        isOpen={isAddCardOpen}
+        onClose={() => setAddCardOpen(false)}
+        onSubmit={addCard}
       />
     </div>
   );

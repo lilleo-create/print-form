@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import type { Product } from '../../shared/types';
 import styles from '../../pages/ProductPage.module.css';
@@ -28,6 +28,8 @@ export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
   const { data: product, status, error } = useProduct(productId, { keepPreviousData: false });
   const [variantProducts, setVariantProducts] = useState<Product[]>([]);
   const [activeVariantId, setActiveVariantId] = useState<string>(productId);
+  const [specsExpanded, setSpecsExpanded] = useState(false);
+  const specsRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setActiveVariantId(productId);
@@ -62,6 +64,10 @@ export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
     if (!variantProducts.length) return product;
     return variantProducts.find((item) => item.id === activeVariantId) ?? product;
   }, [activeVariantId, product, variantProducts]);
+
+  useEffect(() => {
+    setSpecsExpanded(false);
+  }, [activeProduct?.id]);
 
   const { reviews, summary } = useProductReviews(activeProduct?.id ?? productId, { keepPreviousData: false });
 
@@ -132,6 +138,10 @@ export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
               activeVariantId={activeVariantId}
               onVariantChange={setActiveVariantId}
               reviewsCount={reviewsCount}
+              onShowAllSpecs={() => {
+                setSpecsExpanded(true);
+                specsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
             />
           </div>
           <div className={styles.buyCol}>
@@ -144,7 +154,14 @@ export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
             <h2>Описание</h2>
             <p>{activeProduct.descriptionFull ?? activeProduct.description}</p>
           </div>
-          <div id="specs"><ProductSpecs items={specs} isLoading={status === 'loading'} /></div>
+          <div id="specs" ref={specsRef}>
+            <ProductSpecs
+              items={specs}
+              isLoading={status === 'loading'}
+              expanded={specsExpanded}
+              onExpandedChange={setSpecsExpanded}
+            />
+          </div>
         </div>
 
         <ProductReviewsPreview productId={activeProduct.id} product={activeProduct} reviews={reviews} summary={summary} />

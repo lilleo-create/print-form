@@ -1,38 +1,70 @@
 .layout {
-  width: min(1160px, 100%);
+  width: min(1220px, 100%);
   margin: 0 auto;
   padding: 24px 16px 64px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
-  gap: 20px;
+  grid-template-columns: minmax(0, 1fr) 356px;
+  gap: 24px;
 }
 
 .left,
 .right {
   min-width: 0;
   display: grid;
-  gap: 12px;
+  gap: 14px;
   align-content: start;
 }
 
-.block {
+.sectionCard {
   border: 1px solid var(--border);
   border-radius: 16px;
   background: var(--card);
-  padding: 14px;
+  padding: 18px;
   display: grid;
-  gap: 10px;
+  gap: 14px;
 }
 
-.block h2 {
+.sectionCard h2 {
   margin: 0;
-  font-size: 28px;
-  line-height: 1.1;
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.recipientTrigger {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-2);
+  padding: 12px;
+  display: grid;
+  gap: 6px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.recipientTrigger span {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.summaryCard {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--card);
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  position: sticky;
+  top: 94px;
+}
+
+.summaryTitle {
+  margin: 0;
+  font-size: 18px;
 }
 
 .summary {
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 
 .summaryRow {
@@ -46,8 +78,8 @@
 .summaryRow strong { color: var(--text); }
 
 .summaryTotal {
-  margin: 2px 0 0;
-  padding-top: 10px;
+  margin: 0;
+  padding-top: 12px;
   border-top: 1px solid var(--border);
   display: flex;
   justify-content: space-between;
@@ -55,18 +87,15 @@
 
 .summaryTotal span,
 .summaryTotal strong {
-  font-size: 38px;
-  line-height: 1.05;
+  font-size: 26px;
+  line-height: 1.1;
   font-weight: 700;
 }
 
 .paymentNote {
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 10px;
+  margin: 0;
   font-size: 12px;
   color: var(--muted);
-  background: var(--bg-2);
 }
 
 .payButton {
@@ -90,5 +119,9 @@
   .layout {
     grid-template-columns: 1fr;
     padding-top: 14px;
+  }
+
+  .summaryCard {
+    position: static;
   }
 }

@@ -7,17 +7,27 @@ export type SpecItem = { name: string; value: string };
 interface ProductSpecsProps {
   items: SpecItem[];
   isLoading?: boolean;
+  expanded?: boolean;
+  onExpandedChange?: (expanded: boolean) => void;
 }
 
 const PREVIEW_LIMIT = 8;
 
-export const ProductSpecs = ({ items, isLoading = false }: ProductSpecsProps) => {
-  const [expanded, setExpanded] = useState(false);
+export const ProductSpecs = ({ items, isLoading = false, expanded, onExpandedChange }: ProductSpecsProps) => {
+  const [internalExpanded, setInternalExpanded] = useState(false);
+  const isExpanded = expanded ?? internalExpanded;
+
+  const setExpanded = (value: boolean) => {
+    onExpandedChange?.(value);
+    if (expanded === undefined) {
+      setInternalExpanded(value);
+    }
+  };
 
   const visibleItems = useMemo(() => {
-    if (expanded) return items;
+    if (isExpanded) return items;
     return items.slice(0, PREVIEW_LIMIT);
-  }, [expanded, items]);
+  }, [isExpanded, items]);
 
   return (
     <section className={styles.specsSection}>
@@ -43,8 +53,8 @@ export const ProductSpecs = ({ items, isLoading = false }: ProductSpecsProps) =>
           </ul>
 
           {items.length > PREVIEW_LIMIT ? (
-            <button type="button" className={styles.toggle} onClick={() => setExpanded((value) => !value)}>
-              {expanded ? 'Скрыть' : 'Показать все'}
+            <button type="button" className={styles.toggle} onClick={() => setExpanded(!isExpanded)}>
+              {isExpanded ? 'Скрыть' : 'Показать все'}
             </button>
           ) : null}
         </>

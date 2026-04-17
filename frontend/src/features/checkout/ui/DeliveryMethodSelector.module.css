@@ -1,6 +1,6 @@
 .wrap {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -8,9 +8,10 @@
 .active {
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: transparent;
-  padding: 10px;
+  background: var(--bg-2);
+  padding: 12px;
   text-align: left;
+  cursor: pointer;
 }
 
 .active {
@@ -21,7 +22,7 @@
 .item span,
 .active span {
   font-weight: 600;
-  font-size: 14px;
+  font-size: 15px;
 }
 
 small {
