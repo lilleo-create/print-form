@@ -3,112 +3,134 @@
   margin: 0 auto;
   padding: 24px 16px 64px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 356px;
-  gap: 24px;
+  grid-template-columns: minmax(0, 1fr) 332px;
+  gap: 20px;
 }
 
-.left,
-.right {
+.leftColumn,
+.rightColumn {
   min-width: 0;
   display: grid;
-  gap: 14px;
+  gap: 12px;
   align-content: start;
 }
 
-.sectionCard {
+.deliveryCard,
+.fulfillmentCard,
+.summaryCard,
+.paymentCard {
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: 14px;
   background: var(--card);
-  padding: 18px;
+  padding: 14px;
   display: grid;
-  gap: 14px;
+  gap: 12px;
 }
 
-.sectionCard h2 {
+.cardHead h2 {
   margin: 0;
-  font-size: 24px;
+  font-size: 21px;
   line-height: 1.2;
 }
 
 .recipientTrigger {
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--bg-2);
-  padding: 12px;
+  padding: 10px;
   display: grid;
-  gap: 6px;
+  gap: 4px;
   text-align: left;
   cursor: pointer;
 }
 
 .recipientTrigger span {
   color: var(--muted);
-  font-size: 14px;
+  font-size: 13px;
 }
 
-.summaryCard {
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  background: var(--card);
-  display: grid;
-  gap: 14px;
-  padding: 16px;
-  position: sticky;
-  top: 94px;
-}
-
-.summaryTitle {
-  margin: 0;
-  font-size: 18px;
-}
-
-.summary {
-  display: grid;
-  gap: 12px;
-}
-
-.summaryRow {
-  margin: 0;
+.fulfillmentTop {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  color: var(--muted);
-  font-size: 14px;
+  gap: 10px;
 }
 
-.summaryRow strong { color: var(--text); }
+.fulfillmentLabel {
+  font-weight: 700;
+}
 
+.fulfillmentMethod {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.orderItem {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+}
+
+.orderItem img {
+  width: 72px;
+  height: 72px;
+  border-radius: 10px;
+  object-fit: cover;
+}
+
+.orderItemMeta h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.orderItemMeta p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.summaryCard h3 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.summaryRow,
 .summaryTotal {
   margin: 0;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
   display: flex;
   justify-content: space-between;
+  gap: 10px;
+  font-size: 14px;
 }
 
-.summaryTotal span,
-.summaryTotal strong {
-  font-size: 26px;
-  line-height: 1.1;
+.summaryRow span {
+  color: var(--muted);
+}
+
+.summaryTotal {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  font-weight: 700;
+}
+
+.payButton {
+  height: 52px;
+  border-radius: 12px;
+  font-size: 18px;
   font-weight: 700;
 }
 
 .paymentNote {
   margin: 0;
-  font-size: 12px;
   color: var(--muted);
-}
-
-.payButton {
-  height: 56px;
-  border-radius: 12px;
-  font-size: 18px;
-  font-weight: 700;
-  line-height: 1;
+  font-size: 12px;
 }
 
 .error {
   color: var(--danger);
   margin: 0;
+  font-size: 13px;
 }
 
 .state {
@@ -119,9 +141,5 @@
   .layout {
     grid-template-columns: 1fr;
     padding-top: 14px;
-  }
-
-  .summaryCard {
-    position: static;
   }
 }

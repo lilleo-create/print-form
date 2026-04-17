@@ -168,15 +168,24 @@
   font-weight: 500;
 }
 
-.allSpecsLink {
-  border: 0;
-  background: transparent;
+.allSpecsControl {
+  margin-top: 4px;
   width: fit-content;
-  padding: 0;
-  color: var(--primary);
-  text-decoration: underline;
-  font-size: 14px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
+}
+
+.fullSpecs {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  background: var(--card);
 }
 
 .purchasePanel {
@@ -191,29 +200,15 @@
   border-radius: 16px;
   background: var(--card);
   display: grid;
-  gap: 12px;
-  padding: 16px;
+  gap: 14px;
+  padding: 14px;
 }
 
 .buyPrice {
   margin: 0;
-  font-size: clamp(38px, 3vw, 52px);
+  font-size: clamp(32px, 2.3vw, 44px);
   font-weight: 700;
-  line-height: 1;
-}
-
-.installmentBlock {
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: var(--bg-2);
-  padding: 8px 10px;
-  display: grid;
-  gap: 3px;
-}
-
-.installmentBlock span {
-  color: var(--muted);
-  font-size: 12px;
+  line-height: 1.05;
 }
 
 .buyButtons {
@@ -229,10 +224,11 @@
 }
 
 .deliveryCard {
-  border-top: 1px solid var(--border);
-  padding-top: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px;
   display: grid;
-  gap: 5px;
+  gap: 6px;
 }
 
 .deliveryCard h3 {
@@ -248,7 +244,7 @@
 
 .sections {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 20px;
   margin-bottom: 30px;
 }

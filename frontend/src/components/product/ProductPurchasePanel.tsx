@@ -4,7 +4,6 @@ import { Button } from '../../shared/ui/Button';
 import { useBuyNowStore } from '../../app/store/buyNowStore';
 import { useCartStore } from '../../app/store/cartStore';
 import { formatPrice } from '../../utils/money';
-import { formatReadyToShipLabel } from '../../shared/lib/dateLabels';
 import styles from '../../pages/ProductPage.module.css';
 
 type ProductPurchasePanelProps = {
@@ -16,17 +15,10 @@ export const ProductPurchasePanel = ({ product }: ProductPurchasePanelProps) => 
   const addItem = useCartStore((state) => state.addItem);
   const startBuyNow = useBuyNowStore((state) => state.start);
 
-  const readyToShipLabel = formatReadyToShipLabel(product.productionTimeHours);
-
   return (
     <aside className={styles.purchasePanel}>
       <div className={styles.buyBoxCard}>
         <p className={styles.buyPrice}>{formatPrice(product.price)}</p>
-
-        <div className={styles.installmentBlock}>
-          <strong>В рассрочку 12×{Math.max(1, Math.round(product.price / 12))}₽</strong>
-          <span>12 месяцев, без переплат</span>
-        </div>
 
         <div className={styles.buyButtons}>
           <Button
@@ -48,9 +40,8 @@ export const ProductPurchasePanel = ({ product }: ProductPurchasePanelProps) => 
 
         <div className={styles.deliveryCard}>
           <h3>Доставка</h3>
-          <p>Готово к отправке: {readyToShipLabel}</p>
-          <p>Курьером: 149 ₽</p>
-          <p>Самовывоз: 0 ₽</p>
+          <p>Курьером: появится позже</p>
+          <p>Самовывоз: бесплатно</p>
         </div>
       </div>
     </aside>

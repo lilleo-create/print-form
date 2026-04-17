@@ -6,14 +6,12 @@ import { AddressBlock } from './AddressBlock';
 import { PickupPointBlock } from './PickupPointBlock';
 import { CdekPvzPickerModal } from '../../../components/checkout/CdekPvzPickerModal';
 import { RecipientModal } from './RecipientModal';
-import { DeliveryDatesSection } from './DeliveryDatesSection';
-import { CheckoutItemsList } from './CheckoutItemsList';
 import { CheckoutLegalLinks } from './CheckoutLegalLinks';
 import { PaymentMethodSelector } from './PaymentMethodSelector';
-import { AddCardModal } from './AddCardModal';
 import styles from './CheckoutLayout.module.css';
 import { formatPrice } from '../../../shared/lib/formatPrice';
 import { useBuyNowStore } from '../../../app/store/buyNowStore';
+import { SmartImage } from '../../../shared/ui/SmartImage';
 
 export const CheckoutLayout = () => {
   const isBuyNowFlow = useBuyNowStore((state) => state.isActive);
@@ -28,13 +26,11 @@ export const CheckoutLayout = () => {
     updateRecipient,
     updateAddress,
     setPaymentMethod,
-    addCard,
     placeOrder
   } = useCheckoutStore();
 
   const [isPvzOpen, setPvzOpen] = useState(false);
   const [isRecipientOpen, setRecipientOpen] = useState(false);
-  const [isAddCardOpen, setAddCardOpen] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
   const [legalAccepted, setLegalAccepted] = useState(false);
 
@@ -43,15 +39,29 @@ export const CheckoutLayout = () => {
   }, [fetchCheckout]);
 
   const total = useMemo(
-    () =>
-      data?.cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0) ??
-      0,
+    () => data?.cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0) ?? 0,
     [data?.cartItems]
   );
 
+  const deliveryFee = 0;
   const selectedDeliveryMethod = data?.selectedDeliveryMethod ?? 'COURIER';
   const selectedPaymentMethod = data?.selectedPaymentMethod ?? 'CARD';
   const availableDeliveryMethods = data?.deliveryMethods ?? [];
+  const firstItem = data?.cartItems[0];
+
+  const fulfillmentLabel = useMemo(() => {
+    if (!firstItem) return 'Способ доставки уточняется';
+    if (selectedDeliveryMethod === 'PICKUP_POINT') {
+      return 'Пункт выдачи';
+    }
+    if (firstItem.etaMinDays && firstItem.etaMaxDays) {
+      return `Ориентировочно ${firstItem.etaMinDays}-${firstItem.etaMaxDays} дн.`;
+    }
+    if (firstItem.deliveryDays) {
+      return `Ориентировочно ${firstItem.deliveryDays} дн.`;
+    }
+    return 'Срок уточняется';
+  }, [firstItem, selectedDeliveryMethod]);
 
   const handlePayClick = async () => {
     if (isPaying) return;
@@ -66,16 +76,17 @@ export const CheckoutLayout = () => {
   };
 
   if (isLoading && !data) return <p className={styles.state}>Загрузка checkout…</p>;
-
   if (!data) {
     return <p className={styles.state}>{error ?? 'Не удалось загрузить checkout'}</p>;
   }
 
   return (
     <div className={styles.layout}>
-      <div className={styles.left}>
-        <section className={styles.sectionCard}>
-          <h2>{isBuyNowFlow ? 'Доставка · Купить сейчас' : 'Доставка'}</h2>
+      <div className={styles.leftColumn}>
+        <section className={styles.deliveryCard}>
+          <header className={styles.cardHead}>
+            <h2>{isBuyNowFlow ? 'Доставка · Купить сейчас' : 'Доставка'}</h2>
+          </header>
 
           <DeliveryMethodSelector
             methods={availableDeliveryMethods}
@@ -84,12 +95,7 @@ export const CheckoutLayout = () => {
           />
 
           {selectedDeliveryMethod === 'PICKUP_POINT' ? (
-            <PickupPointBlock
-              point={data.selectedPickupPoint ?? null}
-              onOpen={() => {
-                setPvzOpen(true);
-              }}
-            />
+            <PickupPointBlock point={data.selectedPickupPoint ?? null} onOpen={() => setPvzOpen(true)} />
           ) : (
             <AddressBlock
               address={data.address}
@@ -106,71 +112,71 @@ export const CheckoutLayout = () => {
             />
           )}
 
-          <button
-            type="button"
-            className={styles.recipientTrigger}
-            onClick={() => setRecipientOpen(true)}
-          >
+          <button type="button" className={styles.recipientTrigger} onClick={() => setRecipientOpen(true)}>
             <strong>Получатель</strong>
             <span>{data.recipient.name || 'Указать ФИО и контакты'}</span>
           </button>
-
-          <DeliveryDatesSection items={data.cartItems} />
         </section>
 
-        <section className={styles.sectionCard}>
-          <CheckoutItemsList items={data.cartItems} />
+        <section className={styles.fulfillmentCard}>
+          <div className={styles.fulfillmentTop}>
+            <span className={styles.fulfillmentLabel}>{fulfillmentLabel}</span>
+            <span className={styles.fulfillmentMethod}>
+              {selectedDeliveryMethod === 'PICKUP_POINT' ? 'Самовывоз из ПВЗ' : 'Доставка'}
+            </span>
+          </div>
+
+          {firstItem ? (
+            <article className={styles.orderItem}>
+              <SmartImage src={firstItem.image ?? ''} alt={firstItem.title} sizePreset="card" />
+              <div className={styles.orderItemMeta}>
+                <h3>{firstItem.title}</h3>
+                <p>{firstItem.shortSpec ?? 'SKU/variant'}</p>
+                <p>{firstItem.quantity} × {formatPrice(firstItem.price)}</p>
+              </div>
+              <strong>{formatPrice(firstItem.price * firstItem.quantity)}</strong>
+            </article>
+          ) : null}
         </section>
 
         <CheckoutLegalLinks accepted={legalAccepted} onAcceptedChange={setLegalAccepted} />
       </div>
 
-      <aside className={styles.right}>
-        <div className={styles.summaryCard}>
-          <h3 className={styles.summaryTitle}>Ваш заказ</h3>
-          <div className={styles.summary}>
-            <p className={styles.summaryRow}><span>{data.cartItems.length} товар(а)</span><strong>{formatPrice(total)}</strong></p>
-            <p className={styles.summaryRow}><span>Скидка</span><strong>−0 ₽</strong></p>
-            <p className={styles.summaryRow}><span>Доставка и сервисы</span><strong>149 ₽</strong></p>
-            <p className={styles.summaryTotal}><span>Итого</span><strong>{formatPrice(total + 149)}</strong></p>
-          </div>
+      <aside className={styles.rightColumn}>
+        <section className={styles.summaryCard}>
+          <h3>Ваш заказ</h3>
+          <p className={styles.summaryRow}><span>{data.cartItems.length} товар(а)</span><strong>{formatPrice(total)}</strong></p>
+          <p className={styles.summaryRow}><span>Скидка / выгода</span><strong>−0 ₽</strong></p>
+          <p className={styles.summaryRow}><span>Доставка и сервисы</span><strong>{formatPrice(deliveryFee)}</strong></p>
+          <p className={styles.summaryTotal}><span>Итого</span><strong>{formatPrice(total + deliveryFee)}</strong></p>
+        </section>
 
-          <PaymentMethodSelector
-            data={data}
-            onSelectMethod={(method, cardId) => void setPaymentMethod(method, cardId)}
-            onOpenAddCard={() => setAddCardOpen(true)}
-          />
-
-          <Button
-            className={styles.payButton}
-            isLoading={isSubmittingOrder || isPaying}
-            disabled={isPaying || !legalAccepted}
-            onClick={() => void handlePayClick()}
-          >
-            Оплатить
-          </Button>
-
-          {!legalAccepted ? (
-            <p className={styles.error}>
-              Подтвердите согласие с правилами сервиса и политикой персональных данных.
-            </p>
-          ) : null}
-          {error ? <p className={styles.error}>{error}</p> : null}
+        <section className={styles.paymentCard}>
+          <PaymentMethodSelector data={data} onSelectMethod={(method, cardId) => void setPaymentMethod(method, cardId)} />
           <p className={styles.paymentNote}>
-            {selectedPaymentMethod === 'SBP'
-              ? 'Оплата через СБП / YooKassa'
-              : 'Оплата банковской картой / YooKassa'}
+            {selectedPaymentMethod === 'SBP' ? 'Оплата через СБП / YooKassa' : 'Оплата банковской картой / YooKassa'}
           </p>
-        </div>
+        </section>
+
+        <Button
+          className={styles.payButton}
+          isLoading={isSubmittingOrder || isPaying}
+          disabled={isPaying || !legalAccepted}
+          onClick={() => void handlePayClick()}
+        >
+          Оплатить
+        </Button>
+
+        {!legalAccepted ? (
+          <p className={styles.error}>Подтвердите согласие с правилами сервиса и политикой персональных данных.</p>
+        ) : null}
+        {error ? <p className={styles.error}>{error}</p> : null}
       </aside>
 
       <CdekPvzPickerModal
         isOpen={isPvzOpen}
         onClose={() => setPvzOpen(false)}
         onSelect={(sel) => {
-          if (import.meta.env.DEV) {
-            console.debug('[Checkout] CDEK PVZ selected', sel);
-          }
           void setPickupPoint({
             provider: 'CDEK',
             pvzId: sel.pvzCode,
@@ -187,12 +193,6 @@ export const CheckoutLayout = () => {
         onClose={() => setRecipientOpen(false)}
         initial={data.recipient}
         onSave={updateRecipient}
-      />
-
-      <AddCardModal
-        isOpen={isAddCardOpen}
-        onClose={() => setAddCardOpen(false)}
-        onSubmit={addCard}
       />
     </div>
   );

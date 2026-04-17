@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import type { Product } from '../../shared/types';
 import styles from '../../pages/ProductPage.module.css';
@@ -11,10 +11,7 @@ import { ProductDetails } from './ProductDetails';
 import { ProductPurchasePanel } from './ProductPurchasePanel';
 import { ProductReviewsPreview } from './ProductReviewsPreview';
 import { ProductFeed } from './ProductFeed';
-import {
-  ProductSpecs,
-  type SpecItem
-} from '../../pages/ProductPage/components/ProductSpecs/ProductSpecs';
+import { type SpecItem } from '../../pages/ProductPage/components/ProductSpecs/ProductSpecs';
 import { api } from '../../shared/api';
 import { getProductGroupKey, getProductVariants } from '../../shared/lib/productGrouping';
 import { normalizeProductSpecs } from '../../shared/lib/productSpecs';
@@ -29,7 +26,6 @@ export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
   const [variantProducts, setVariantProducts] = useState<Product[]>([]);
   const [activeVariantId, setActiveVariantId] = useState<string>(productId);
   const [specsExpanded, setSpecsExpanded] = useState(false);
-  const specsRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setActiveVariantId(productId);
@@ -138,10 +134,9 @@ export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
               activeVariantId={activeVariantId}
               onVariantChange={setActiveVariantId}
               reviewsCount={reviewsCount}
-              onShowAllSpecs={() => {
-                setSpecsExpanded(true);
-                specsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              }}
+              specs={specs}
+              specsExpanded={specsExpanded}
+              onSpecsExpandedChange={setSpecsExpanded}
             />
           </div>
           <div className={styles.buyCol}>
@@ -153,14 +148,6 @@ export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
           <div className={styles.description}>
             <h2>Описание</h2>
             <p>{activeProduct.descriptionFull ?? activeProduct.description}</p>
-          </div>
-          <div id="specs" ref={specsRef}>
-            <ProductSpecs
-              items={specs}
-              isLoading={status === 'loading'}
-              expanded={specsExpanded}
-              onExpandedChange={setSpecsExpanded}
-            />
           </div>
         </div>
 

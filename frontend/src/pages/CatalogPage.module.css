@@ -6,7 +6,7 @@
   width: 100%;
 }
 
-.wrapper {
+.catalogLayout {
   display: grid;
   grid-template-columns: 204px minmax(0, 1fr);
   gap: 26px;
@@ -173,12 +173,12 @@
 .stateBox p { margin: 0; color: var(--muted); }
 
 @media (max-width: 1280px) {
-  .wrapper { grid-template-columns: 190px minmax(0, 1fr); gap: 16px; }
+  .catalogLayout { grid-template-columns: 190px minmax(0, 1fr); gap: 16px; }
   .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 @media (max-width: 960px) {
-  .wrapper { grid-template-columns: 1fr; }
+  .catalogLayout { grid-template-columns: 1fr; }
   .sidebar { display: none; }
   .controlsRow { justify-content: space-between; }
   .mobileFilterButton { display: inline-flex; }
