@@ -11,7 +11,7 @@ export const ProductFeed = ({ productId }: ProductFeedProps) => {
 
   return (
     <div className={styles.feed}>
-      <h2>Ещё товары</h2>
+      <h2>Ещё может подойти</h2>
       <div className={styles.feedGrid}>
         {items.map((item) => (
           <ProductCard key={item.id} product={item} />

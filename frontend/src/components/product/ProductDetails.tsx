@@ -7,6 +7,7 @@ import { ProductActionsInline } from '../../pages/ProductPage/components/Product
 import { useFavoritesStore } from '../../features/favorites/model/useFavoritesStore';
 import { ShareModal } from '../../features/share/ui/ShareModal';
 import { cmToMm } from '../../shared/lib/productDimensions';
+import { getProductRatingMeta } from '../../shared/lib/productRating';
 
 type ProductDetailsProps = {
   product: Product;
@@ -45,8 +46,10 @@ export const ProductDetails = ({
     void fetchFavorites();
   }, [fetchFavorites, product.id]);
 
-  const hasReviews = reviewsCount > 0;
-  const ratingValue = hasReviews && product.ratingAvg ? product.ratingAvg : 0;
+  const ratingMeta = getProductRatingMeta({
+    ratingAvg: product.ratingAvg,
+    ratingCount: reviewsCount
+  });
 
   return (
     <div className={styles.details}>
@@ -68,11 +71,11 @@ export const ProductDetails = ({
         />
         <h1>{product.title}</h1>
         <div className={styles.ratingRow}>
-          {hasReviews ? (
+          {ratingMeta.hasReviews ? (
             <>
               <Rating
-                value={ratingValue}
-                count={reviewsCount}
+                value={ratingMeta.ratingValue}
+                count={ratingMeta.ratingCount}
                 size="md"
               />
               <Link
@@ -87,7 +90,7 @@ export const ProductDetails = ({
                   fallback: `/product/${baseProductId}`
                 }}
               >
-                {reviewsCount} отзывов
+                {ratingMeta.ratingCount} отзывов
               </Link>
             </>
           ) : (
