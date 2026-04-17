@@ -215,7 +215,7 @@ export const CatalogPage = () => {
               onSelect={handleCategorySelect}
             />
 
-            <div className={`container ${styles.wrapper}`}>
+            <div className={`container ${styles.catalogLayout}`}>
               <aside className={styles.sidebar}>
                 <div className={styles.sidebarHead}>
                   <h2>Все категории</h2>
@@ -330,7 +330,7 @@ export const CatalogPage = () => {
                 </label>
               </aside>
 
-              <div className={styles.content}>
+              <main className={styles.content}>
                 <div className={styles.controlsRow}>
                   <Button className={styles.mobileFilterButton} variant="secondary" onClick={() => setModalOpen(true)}>
                     Фильтры
@@ -382,7 +382,7 @@ export const CatalogPage = () => {
                     ))}
                   </div>
                 )}
-              </div>
+              </main>
             </div>
 
             <FilterModal

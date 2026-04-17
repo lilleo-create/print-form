@@ -8,6 +8,7 @@ import { useFavoritesStore } from '../../features/favorites/model/useFavoritesSt
 import { ShareModal } from '../../features/share/ui/ShareModal';
 import { cmToMm } from '../../shared/lib/productDimensions';
 import { getProductRatingMeta } from '../../shared/lib/productRating';
+import { ProductSpecs, type SpecItem } from '../../pages/ProductPage/components/ProductSpecs/ProductSpecs';
 
 type ProductDetailsProps = {
   product: Product;
@@ -16,7 +17,9 @@ type ProductDetailsProps = {
   activeVariantId: string;
   onVariantChange: (variantId: string) => void;
   reviewsCount: number;
-  onShowAllSpecs: () => void;
+  specs: SpecItem[];
+  specsExpanded: boolean;
+  onSpecsExpandedChange: (expanded: boolean) => void;
 };
 
 export const ProductDetails = ({
@@ -26,7 +29,9 @@ export const ProductDetails = ({
   activeVariantId,
   onVariantChange,
   reviewsCount,
-  onShowAllSpecs
+  specs,
+  specsExpanded,
+  onSpecsExpandedChange
 }: ProductDetailsProps) => {
   const location = useLocation();
 
@@ -140,10 +145,22 @@ export const ProductDetails = ({
           <p><span>Размер</span><strong>—</strong></p>
         )}
         <p><span>Вес</span><strong>{product.weightGrossG ? `${product.weightGrossG} г` : '—'}</strong></p>
-        <button type="button" className={styles.allSpecsLink} onClick={onShowAllSpecs}>
-          Все характеристики
+        <button
+          type="button"
+          className={styles.allSpecsControl}
+          onClick={() => onSpecsExpandedChange(!specsExpanded)}
+          aria-expanded={specsExpanded}
+          aria-controls="product-full-specs"
+        >
+          {specsExpanded ? 'Скрыть характеристики' : 'Все характеристики'}
         </button>
       </div>
+
+      {specsExpanded ? (
+        <div className={styles.fullSpecs} id="product-full-specs">
+          <ProductSpecs items={specs} expanded={true} onExpandedChange={onSpecsExpandedChange} />
+        </div>
+      ) : null}
 
       <ShareModal
         isOpen={isShareOpen}
