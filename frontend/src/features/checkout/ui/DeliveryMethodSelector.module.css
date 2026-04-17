@@ -8,16 +8,16 @@
 .active {
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: var(--bg-2);
-  padding: 10px;
+  background: transparent;
+  padding: 10px 11px;
   text-align: left;
   cursor: pointer;
-  min-height: 72px;
+  min-height: 66px;
 }
 
 .active {
   border-color: var(--primary);
-  background: var(--primary-soft);
+  box-shadow: inset 0 0 0 1px var(--primary-soft);
 }
 
 .item:disabled {

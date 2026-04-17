@@ -1,42 +1,48 @@
 .layout {
   width: min(1220px, 100%);
   margin: 0 auto;
-  padding: 24px 16px 64px;
+  padding: 18px 16px 64px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 332px;
-  gap: 20px;
+  grid-template-columns: minmax(0, 1fr) 312px;
+  gap: 18px;
 }
 
 .leftColumn,
 .rightColumn {
   min-width: 0;
   display: grid;
-  gap: 12px;
+  gap: 10px;
   align-content: start;
 }
 
-.deliveryCard,
-.fulfillmentCard,
+.orderFlowCard,
 .summaryCard,
 .paymentCard {
   border: 1px solid var(--border);
   border-radius: 14px;
-  background: var(--card);
+  background: color-mix(in oklab, var(--card) 88%, transparent);
   padding: 14px;
   display: grid;
-  gap: 12px;
+  gap: 10px;
+}
+
+.orderFlowSection {
+  display: grid;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
 }
 
 .cardHead h2 {
   margin: 0;
-  font-size: 21px;
+  font-size: 22px;
   line-height: 1.2;
 }
 
 .recipientTrigger {
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: var(--bg-2);
+  background: transparent;
   padding: 10px;
   display: grid;
   gap: 4px;
@@ -57,7 +63,8 @@
 }
 
 .fulfillmentLabel {
-  font-weight: 700;
+  font-weight: 600;
+  font-size: 14px;
 }
 
 .fulfillmentMethod {
@@ -81,7 +88,7 @@
 
 .orderItemMeta h3 {
   margin: 0;
-  font-size: 15px;
+  font-size: 14px;
 }
 
 .orderItemMeta p {
@@ -92,7 +99,7 @@
 
 .summaryCard h3 {
   margin: 0;
-  font-size: 17px;
+  font-size: 18px;
 }
 
 .summaryRow,
@@ -117,7 +124,7 @@
 .payButton {
   height: 52px;
   border-radius: 12px;
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 700;
 }
 
@@ -131,6 +138,13 @@
   color: var(--danger);
   margin: 0;
   font-size: 13px;
+}
+
+.helperText {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .state {

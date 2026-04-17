@@ -8,7 +8,7 @@ import { useFavoritesStore } from '../../features/favorites/model/useFavoritesSt
 import { ShareModal } from '../../features/share/ui/ShareModal';
 import { cmToMm } from '../../shared/lib/productDimensions';
 import { getProductRatingMeta } from '../../shared/lib/productRating';
-import { ProductSpecs, type SpecItem } from '../../pages/ProductPage/components/ProductSpecs/ProductSpecs';
+import type { SpecItem } from '../../pages/ProductPage/components/ProductSpecs/ProductSpecs';
 
 type ProductDetailsProps = {
   product: Product;
@@ -57,26 +57,41 @@ export const ProductDetails = ({
     ratingAvg: product.ratingAvg,
     ratingCount: reviewsCount
   });
+  const previewSpecRows = [
+    { label: 'Материал', value: product.material || '—' },
+    { label: 'Тип печати', value: product.technology || '—' },
+    {
+      label: 'Размер',
+      value: product.dxCm && product.dyCm && product.dzCm
+        ? `${cmToMm(product.dxCm)} × ${cmToMm(product.dyCm)} × ${cmToMm(product.dzCm)} мм`
+        : '—'
+    },
+    { label: 'Вес', value: product.weightGrossG ? `${product.weightGrossG} г` : '—' }
+  ];
+
+  const additionalSpecs = specs.filter((item) => !previewSpecRows.some((row) => row.label === item.name));
 
   return (
     <div className={styles.details}>
       <div className={styles.header}>
-        <ProductActionsInline
-          isFavorite={isFavorite}
-          onFavoriteClick={() => {
-            void toggleFavorite(product.id, {
-              id: product.id,
-              title: product.title,
-              price: product.price,
-              image: product.image,
-              ratingAvg: product.ratingAvg,
-              ratingCount: product.ratingCount,
-              shortSpec: product.descriptionShort
-            });
-          }}
-          onShareClick={() => setIsShareOpen(true)}
-        />
-        <h1>{product.title}</h1>
+        <div className={styles.headerTop}>
+          <h1>{product.title}</h1>
+          <ProductActionsInline
+            isFavorite={isFavorite}
+            onFavoriteClick={() => {
+              void toggleFavorite(product.id, {
+                id: product.id,
+                title: product.title,
+                price: product.price,
+                image: product.image,
+                ratingAvg: product.ratingAvg,
+                ratingCount: product.ratingCount,
+                shortSpec: product.descriptionShort
+              });
+            }}
+            onShareClick={() => setIsShareOpen(true)}
+          />
+        </div>
         <div className={styles.ratingRow}>
           {ratingMeta.hasReviews ? (
             <>
@@ -137,14 +152,21 @@ export const ProductDetails = ({
       ) : null}
 
       <div className={styles.specRows}>
-        <p><span>Материал</span><strong>{product.material || '—'}</strong></p>
-        <p><span>Тип печати</span><strong>{product.technology || '—'}</strong></p>
-        {product.dxCm && product.dyCm && product.dzCm ? (
-          <p><span>Размер</span><strong>{cmToMm(product.dxCm)} × {cmToMm(product.dyCm)} × {cmToMm(product.dzCm)} мм</strong></p>
-        ) : (
-          <p><span>Размер</span><strong>—</strong></p>
-        )}
-        <p><span>Вес</span><strong>{product.weightGrossG ? `${product.weightGrossG} г` : '—'}</strong></p>
+        {previewSpecRows.map((row) => (
+          <p key={row.label}><span>{row.label}</span><strong>{row.value}</strong></p>
+        ))}
+        <div
+          id="product-full-specs"
+          className={specsExpanded ? styles.expandedSpecs : styles.expandedSpecsCollapsed}
+          aria-hidden={!specsExpanded}
+        >
+          {additionalSpecs.map((item, index) => (
+            <p key={`${item.name}-${index}`}>
+              <span>{item.name}</span>
+              <strong>{item.value}</strong>
+            </p>
+          ))}
+        </div>
         <button
           type="button"
           className={styles.allSpecsControl}
@@ -155,12 +177,6 @@ export const ProductDetails = ({
           {specsExpanded ? 'Скрыть характеристики' : 'Все характеристики'}
         </button>
       </div>
-
-      {specsExpanded ? (
-        <div className={styles.fullSpecs} id="product-full-specs">
-          <ProductSpecs items={specs} expanded={true} onExpandedChange={onSpecsExpandedChange} />
-        </div>
-      ) : null}
 
       <ShareModal
         isOpen={isShareOpen}
