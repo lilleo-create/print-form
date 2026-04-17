@@ -14,7 +14,7 @@
 .card {
   width: 100%;
   max-width: 400px;
-  border-radius: 16px;
+  border-radius: 12px;
   background: var(--color-surface, #fff);
   box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
   padding: 24px;

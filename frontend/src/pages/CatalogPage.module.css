@@ -162,7 +162,7 @@
 
 .stateBox {
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: 12px;
   padding: 24px;
   background: var(--card);
   display: grid;

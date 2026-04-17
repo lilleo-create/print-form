@@ -862,7 +862,7 @@
 
 .financeLoadingBlock {
   height: 96px;
-  border-radius: 16px;
+  border-radius: 12px;
   background: linear-gradient(
     90deg,
     color-mix(in srgb, var(--card) 90%, #eaf0ff 10%) 25%,
@@ -901,7 +901,7 @@
 .payoutOrdersColumn,
 .payoutPreviewCard {
   border: 1px solid color-mix(in srgb, var(--border) 85%, #dbe7ff 15%);
-  border-radius: 16px;
+  border-radius: 12px;
   background: var(--surface);
 }
 
@@ -1133,7 +1133,7 @@
 .payoutSettingsPanel {
   background: #08111f;
   border: 1px solid #22385a;
-  border-radius: 16px;
+  border-radius: 12px;
   padding: 16px;
 }
 
@@ -1370,7 +1370,7 @@
   }
 
   .financePanel {
-    border-radius: 16px;
+    border-radius: 12px;
     padding: 18px;
   }
 

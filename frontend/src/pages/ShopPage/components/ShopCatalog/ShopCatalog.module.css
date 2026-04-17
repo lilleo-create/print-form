@@ -36,7 +36,7 @@
 
 .cardSkeleton {
   height: 360px;
-  border-radius: 16px;
+  border-radius: 12px;
 }
 
 .error {

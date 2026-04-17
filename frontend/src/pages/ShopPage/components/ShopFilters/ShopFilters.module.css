@@ -1,7 +1,7 @@
 .sidebar {
   background: var(--bg-2);
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: 12px;
   padding: 16px;
   position: sticky;
   top: 120px;

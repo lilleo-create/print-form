@@ -2,7 +2,6 @@ import { KeyboardEvent, useMemo } from 'react';
 import { getProductGroupKey, getProductVariants } from '../../shared/lib/productGrouping';
 import { useNavigate } from 'react-router-dom';
 import { Product } from '../../shared/types';
-import { useCartStore } from '../../app/store/cartStore';
 import { Rating } from '../../shared/ui/Rating';
 import { getProductMainImage } from '../../shared/lib/productMedia';
 import { getProductRatingMeta } from '../../shared/lib/productRating';
@@ -16,7 +15,6 @@ interface ProductCardProps {
 
 export const ProductCard = ({ product }: ProductCardProps) => {
   const navigate = useNavigate();
-  const addItem = useCartStore((state) => state.addItem);
 
   const imageSrc = useMemo(() => getProductMainImage(product), [product]);
 
@@ -86,17 +84,6 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           ) : (
             <span className={styles.noRating}>Пока нет отзывов</span>
           )}
-
-          <button
-            type="button"
-            className={styles.cartBtn}
-            onClick={(event) => {
-              event.stopPropagation();
-              addItem(product, 1);
-            }}
-          >
-            В корзину
-          </button>
         </div>
       </div>
     </article>

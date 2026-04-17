@@ -43,7 +43,7 @@
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  border-radius: 16px;
+  border-radius: 12px;
   background: var(--card-secondary, rgba(127, 127, 127, 0.08));
   margin-bottom: 20px;
 }

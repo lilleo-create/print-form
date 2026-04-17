@@ -41,7 +41,7 @@
   padding: 0;
   cursor: zoom-in;
   background: transparent;
-  border-radius: 16px;
+  border-radius: 12px;
   min-height: 460px;
   display: grid;
   place-items: center;
@@ -52,7 +52,7 @@
   width: 100%;
   object-fit: cover;
   background: var(--bg-2);
-  border-radius: 16px;
+  border-radius: 12px;
   height: clamp(460px, 58vw, 720px);
 }
 
@@ -144,7 +144,7 @@
   font-weight: 700;
 }
 
-.shortDescription { color: var(--text); font-size: 19px; line-height: 1.4; margin: 0; max-width: 420px; }
+.shortDescription { color: var(--text); font-size: 12px; line-height: 1.8; margin: 0; max-width: 420px; }
 
 .specRows {
   display: grid;
@@ -197,7 +197,7 @@
 
 .buyBoxCard {
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: 12px;
   background: var(--card);
   display: grid;
   gap: 14px;

@@ -61,7 +61,7 @@
   width: 48px;
   height: 48px;
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: 12px;
   box-shadow: var(--shadow-sm);
   color: var(--text);
   background: var(--card);
@@ -578,7 +578,7 @@
   flex-direction: column;
   width: min(360px, 92vw);
   max-height: min(72vh, 640px);
-  border-radius: 16px;
+  border-radius: 12px;
   padding: 12px;
   box-shadow: var(--shadow-card);
   overflow: hidden;
@@ -686,7 +686,7 @@
   width: 320px;
   max-width: 100%;
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: 12px;
   padding: 16px;
   box-shadow: var(--shadow-sm);
   background: var(--card);

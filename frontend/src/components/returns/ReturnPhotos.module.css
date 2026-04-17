@@ -55,12 +55,12 @@
 .modalContent img {
   max-width: 90vw;
   max-height: 80vh;
-  border-radius: 16px;
+  border-radius: 12px;
 }
 
 .modalFallback {
   padding: 24px;
   background: var(--card);
-  border-radius: 16px;
+  border-radius: 12px;
   border: 1px solid var(--border);
 }
