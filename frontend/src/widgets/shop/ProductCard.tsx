@@ -5,6 +5,7 @@ import { Product } from '../../shared/types';
 import { useCartStore } from '../../app/store/cartStore';
 import { Rating } from '../../shared/ui/Rating';
 import { getProductMainImage } from '../../shared/lib/productMedia';
+import { getProductRatingMeta } from '../../shared/lib/productRating';
 import styles from './ProductCard.module.css';
 import { SmartImage } from '../../shared/ui/SmartImage';
 import { formatPrice } from '../../utils/money';
@@ -28,8 +29,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
     return [product];
   }, [product]);
 
-  const hasReviews = Number(product.ratingCount ?? 0) > 0;
-  const ratingValue = hasReviews && product.ratingAvg ? product.ratingAvg : 0;
+  const ratingMeta = getProductRatingMeta(product);
 
   const handleOpen = () => {
     navigate(`/product/${product.id}`);
@@ -81,8 +81,8 @@ export const ProductCard = ({ product }: ProductCardProps) => {
         ) : null}
 
         <div className={styles.footer}>
-          {hasReviews ? (
-            <Rating value={ratingValue} count={Number(product.ratingCount ?? 0)} />
+          {ratingMeta.hasReviews ? (
+            <Rating value={ratingMeta.ratingValue} count={ratingMeta.ratingCount} />
           ) : (
             <span className={styles.noRating}>Пока нет отзывов</span>
           )}

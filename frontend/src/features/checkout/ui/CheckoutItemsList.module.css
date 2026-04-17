@@ -5,7 +5,7 @@
 
 .list h3 {
   margin: 0 0 2px;
-  font-size: 32px;
+  font-size: 26px;
 }
 
 .item {
@@ -28,8 +28,8 @@
 
 .meta h4 {
   margin: 0;
-  font-size: 34px;
-  line-height: 1.02;
+  font-size: 26px;
+  line-height: 1.08;
 }
 
 .meta p {
@@ -39,7 +39,7 @@
 }
 
 .total {
-  font-size: 40px;
+  font-size: 32px;
   line-height: 1;
 }
 

@@ -350,10 +350,6 @@ export const CatalogPage = () => {
                   </div>
                 </div>
 
-                <div className={styles.resultMeta}>
-                  <span>Найдено: {loading ? '...' : filteredProducts.length}</span>
-                </div>
-
                 {loading ? (
                   <div className={styles.grid}>
                     {Array.from({ length: 8 }).map((_, index) => (
