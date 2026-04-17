@@ -83,60 +83,68 @@ export const CheckoutLayout = () => {
   return (
     <div className={styles.layout}>
       <div className={styles.leftColumn}>
-        <section className={styles.deliveryCard}>
+        <section className={styles.orderFlowCard}>
           <header className={styles.cardHead}>
             <h2>{isBuyNowFlow ? 'Доставка · Купить сейчас' : 'Доставка'}</h2>
           </header>
 
-          <DeliveryMethodSelector
-            methods={availableDeliveryMethods}
-            selected={selectedDeliveryMethod}
-            onSelect={(code) => void setDeliveryMethod(code)}
-          />
-
-          {selectedDeliveryMethod === 'PICKUP_POINT' ? (
-            <PickupPointBlock point={data.selectedPickupPoint ?? null} onOpen={() => setPvzOpen(true)} />
-          ) : (
-            <AddressBlock
-              address={data.address}
-              onEdit={() => {
-                void updateAddress(
-                  data.address ?? {
-                    line1: '',
-                    city: 'Москва',
-                    postalCode: '125040',
-                    country: 'Россия'
-                  }
-                );
-              }}
+          <div className={styles.orderFlowSection}>
+            <DeliveryMethodSelector
+              methods={availableDeliveryMethods}
+              selected={selectedDeliveryMethod}
+              onSelect={(code) => void setDeliveryMethod(code)}
             />
-          )}
-
-          <button type="button" className={styles.recipientTrigger} onClick={() => setRecipientOpen(true)}>
-            <strong>Получатель</strong>
-            <span>{data.recipient.name || 'Указать ФИО и контакты'}</span>
-          </button>
-        </section>
-
-        <section className={styles.fulfillmentCard}>
-          <div className={styles.fulfillmentTop}>
-            <span className={styles.fulfillmentLabel}>{fulfillmentLabel}</span>
-            <span className={styles.fulfillmentMethod}>
-              {selectedDeliveryMethod === 'PICKUP_POINT' ? 'Самовывоз из ПВЗ' : 'Доставка'}
-            </span>
           </div>
 
-          {firstItem ? (
-            <article className={styles.orderItem}>
-              <SmartImage src={firstItem.image ?? ''} alt={firstItem.title} sizePreset="card" />
-              <div className={styles.orderItemMeta}>
-                <h3>{firstItem.title}</h3>
-                <p>{firstItem.shortSpec ?? 'SKU/variant'}</p>
-                <p>{firstItem.quantity} × {formatPrice(firstItem.price)}</p>
-              </div>
-              <strong>{formatPrice(firstItem.price * firstItem.quantity)}</strong>
-            </article>
-          ) : null}
+          <div className={styles.orderFlowSection}>
+            {selectedDeliveryMethod === 'PICKUP_POINT' ? (
+              <PickupPointBlock point={data.selectedPickupPoint ?? null} onOpen={() => setPvzOpen(true)} />
+            ) : (
+              <AddressBlock
+                address={data.address}
+                onEdit={() => {
+                  void updateAddress(
+                    data.address ?? {
+                      line1: '',
+                      city: 'Москва',
+                      postalCode: '125040',
+                      country: 'Россия'
+                    }
+                  );
+                }}
+              />
+            )}
+          </div>
+
+          <div className={styles.orderFlowSection}>
+            <button type="button" className={styles.recipientTrigger} onClick={() => setRecipientOpen(true)}>
+              <strong>Получатель</strong>
+              <span>{data.recipient.name || 'Указать ФИО и контакты'}</span>
+            </button>
+          </div>
+
+          <div className={styles.orderFlowSection}>
+            <div className={styles.fulfillmentTop}>
+              <span className={styles.fulfillmentLabel}>{fulfillmentLabel}</span>
+              <span className={styles.fulfillmentMethod}>
+                {selectedDeliveryMethod === 'PICKUP_POINT' ? 'Самовывоз из ПВЗ' : 'Доставка'}
+              </span>
+            </div>
+
+            {firstItem ? (
+              <article className={styles.orderItem}>
+                <SmartImage src={firstItem.image ?? ''} alt={firstItem.title} sizePreset="card" />
+                <div className={styles.orderItemMeta}>
+                  <h3>{firstItem.title}</h3>
+                  <p>{firstItem.shortSpec ?? 'SKU/variant'}</p>
+                  <p>{firstItem.quantity} × {formatPrice(firstItem.price)}</p>
+                </div>
+                <strong>{formatPrice(firstItem.price * firstItem.quantity)}</strong>
+              </article>
+            ) : null}
+          </div>
+
+          <p className={styles.helperText}>Проверим данные перед оплатой и отправим подтверждение на указанные контакты.</p>
         </section>
 
         <CheckoutLegalLinks accepted={legalAccepted} onAcceptedChange={setLegalAccepted} />

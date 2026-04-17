@@ -83,21 +83,28 @@
 
 .details {
   display: grid;
-  gap: 12px;
+  gap: 14px;
   min-width: 0;
-  padding-top: 2px;
 }
 
 .header {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
+}
+
+.headerTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .header h1 {
   margin: 0;
-  font-size: clamp(34px, 2.8vw, 50px);
-  line-height: 1.04;
+  font-size: clamp(28px, 2.3vw, 36px);
+  line-height: 1.12;
+  font-weight: 700;
 }
 
 .ratingRow {
@@ -110,13 +117,13 @@
 
 .noReviewsText {
   color: var(--muted);
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .reviewLink {
   color: var(--muted);
   text-decoration: none;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .variantTitle {
@@ -144,20 +151,21 @@
   font-weight: 700;
 }
 
-.shortDescription { color: var(--text); font-size: 19px; line-height: 1.4; margin: 0; max-width: 420px; }
+.shortDescription { color: var(--text); font-size: 15px; line-height: 1.5; margin: 0; max-width: 480px; }
 
 .specRows {
   display: grid;
-  gap: 8px;
-  padding-top: 4px;
+  gap: 7px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
 }
 
 .specRows p {
   margin: 0;
   display: grid;
-  grid-template-columns: 110px minmax(0, 1fr);
+  grid-template-columns: 124px minmax(0, 1fr);
   gap: 10px;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .specRows span {
@@ -165,27 +173,40 @@
 }
 
 .specRows strong {
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .allSpecsControl {
-  margin-top: 4px;
+  margin-top: 2px;
   width: fit-content;
-  border: 1px solid var(--border);
-  background: var(--bg-2);
+  border: 0;
+  background: transparent;
   color: var(--text);
-  border-radius: 999px;
-  padding: 8px 14px;
+  border-radius: 0;
+  padding: 2px 0;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
-.fullSpecs {
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 14px;
-  background: var(--card);
+.expandedSpecs,
+.expandedSpecsCollapsed {
+  display: grid;
+  gap: 7px;
+  overflow: hidden;
+  transition: max-height 0.28s ease, opacity 0.2s ease;
+}
+
+.expandedSpecs {
+  max-height: 460px;
+  opacity: 1;
+}
+
+.expandedSpecsCollapsed {
+  max-height: 0;
+  opacity: 0;
 }
 
 .purchasePanel {
@@ -198,17 +219,17 @@
 .buyBoxCard {
   border: 1px solid var(--border);
   border-radius: 16px;
-  background: var(--card);
+  background: color-mix(in oklab, var(--card) 88%, transparent);
   display: grid;
-  gap: 14px;
-  padding: 14px;
+  gap: 12px;
+  padding: 14px 14px 12px;
 }
 
 .buyPrice {
   margin: 0;
-  font-size: clamp(32px, 2.3vw, 44px);
+  font-size: clamp(28px, 2vw, 34px);
   font-weight: 700;
-  line-height: 1.05;
+  line-height: 1.1;
 }
 
 .buyButtons {
@@ -218,28 +239,29 @@
 }
 
 .buyButtons button {
-  border-radius: 12px;
-  height: 46px;
-  font-size: 14px;
+  border-radius: 10px;
+  height: 42px;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .deliveryCard {
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 10px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
   display: grid;
-  gap: 6px;
+  gap: 4px;
 }
 
 .deliveryCard h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: 15px;
+  font-weight: 600;
 }
 
 .deliveryCard p {
   margin: 0;
   color: var(--muted);
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .sections {
@@ -250,8 +272,8 @@
 }
 
 .description { display: grid; gap: 10px; min-width: 0; }
-.description h2 { margin: 0; }
-.description p { margin: 0; color: var(--muted); line-height: 1.55; }
+.description h2 { margin: 0; font-size: 20px; }
+.description p { margin: 0; color: var(--muted); line-height: 1.6; font-size: 14px; }
 
 .feed { display: grid; gap: 14px; margin-bottom: 28px; }
 .feed h2 { margin: 0; font-size: clamp(30px, 2.5vw, 44px); }
@@ -317,6 +339,7 @@
   .gallery { grid-template-columns: 1fr; }
   .thumbs { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   .buyButtons { grid-template-columns: 1fr; }
-  .shortDescription { font-size: 17px; }
+  .shortDescription { font-size: 14px; }
+  .headerTop { flex-direction: column; }
   .specRows p { grid-template-columns: 1fr; gap: 4px; }
 }

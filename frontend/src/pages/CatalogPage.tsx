@@ -101,7 +101,7 @@ export const CatalogPage = () => {
   const catalogParams = useMemo(
     () => ({
       category: searchParams.get('category') ?? '',
-      material: searchParams.get('material') ?? '',
+      material: '',
       price: searchParams.get('price') ?? '',
       q: searchParams.get('q') ?? '',
       sort,
@@ -187,6 +187,7 @@ export const CatalogPage = () => {
 
         const filteredProducts = products.filter((product) => {
           if (urlFilters.color && product.color !== urlFilters.color) return false;
+          if (urlFilters.material && product.material !== urlFilters.material) return false;
           if (urlFilters.minRating && (product.ratingAvg ?? 0) < Number(urlFilters.minRating)) return false;
           if (urlFilters.inStock && typeof product.stock === 'number' && product.stock <= 0) return false;
           if (urlFilters.inStock && typeof product.stock !== 'number') return false;
@@ -204,6 +205,9 @@ export const CatalogPage = () => {
         const materials = filterData.materials.length
           ? filterData.materials
           : Array.from(new Set(products.map((product) => product.material))).filter(Boolean);
+
+        const categoryOptions = categories;
+        const materialOptions = materials;
 
         const priceInputs = parsePriceInputs(urlFilters.price);
 
@@ -225,7 +229,7 @@ export const CatalogPage = () => {
                 </div>
 
                 <div className={styles.group}>
-                  {categories.map((category) => (
+                  {categoryOptions.map((category) => (
                     <button
                       key={category}
                       type="button"
@@ -235,6 +239,7 @@ export const CatalogPage = () => {
                         updateParam('category', category);
                       }}
                     >
+                      <span className={styles.optionBullet} aria-hidden="true" />
                       {category}
                     </button>
                   ))}
@@ -290,6 +295,7 @@ export const CatalogPage = () => {
                             style={{ backgroundColor: getColorSwatch(color) }}
                             aria-hidden="true"
                           />
+                          <span className={styles.optionBullet} aria-hidden="true" />
                           {color}
                         </button>
                       ))}
@@ -300,7 +306,7 @@ export const CatalogPage = () => {
                 <div className={styles.group}>
                   <h3>Материал пластика</h3>
                   <div className={styles.materialList}>
-                    {materials.map((material) => (
+                    {materialOptions.map((material) => (
                       <button
                         key={material}
                         type="button"
@@ -311,13 +317,14 @@ export const CatalogPage = () => {
                           updateParam('material', nextMaterial || null);
                         }}
                       >
+                        <span className={styles.optionBullet} aria-hidden="true" />
                         {material}
                       </button>
                     ))}
                   </div>
                 </div>
 
-                <label className={styles.checkField}>
+                <label className={urlFilters.inStock ? styles.checkFieldActive : styles.checkField}>
                   <input
                     type="checkbox"
                     checked={urlFilters.inStock}
@@ -326,6 +333,7 @@ export const CatalogPage = () => {
                       setStockFilter(event.target.checked);
                     }}
                   />
+                  <span className={styles.checkIndicator} aria-hidden="true" />
                   Только в наличии
                 </label>
               </aside>
