@@ -169,31 +169,44 @@
 }
 
 .allSpecsLink {
-  color: var(--text);
-  text-decoration: none;
+  border: 0;
+  background: transparent;
+  width: fit-content;
+  padding: 0;
+  color: var(--primary);
+  text-decoration: underline;
   font-size: 14px;
+  cursor: pointer;
 }
 
 .purchasePanel {
-  display: grid;
-  gap: 10px;
+  display: block;
   position: sticky;
   top: 100px;
   width: 100%;
 }
 
+.buyBoxCard {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--card);
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
 .buyPrice {
   margin: 0;
-  font-size: 50px;
+  font-size: clamp(38px, 3vw, 52px);
   font-weight: 700;
   line-height: 1;
 }
 
 .installmentBlock {
-  border-radius: 14px;
+  border-radius: 10px;
   border: 1px solid var(--border);
-  background: var(--card);
-  padding: 10px 12px;
+  background: var(--bg-2);
+  padding: 8px 10px;
   display: grid;
   gap: 3px;
 }
@@ -210,23 +223,21 @@
 }
 
 .buyButtons button {
-  border-radius: 10px;
-  height: 42px;
+  border-radius: 12px;
+  height: 46px;
   font-size: 14px;
 }
 
 .deliveryCard {
-  border-radius: 14px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  padding: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
   display: grid;
-  gap: 7px;
+  gap: 5px;
 }
 
 .deliveryCard h3 {
   margin: 0;
-  font-size: 32px;
+  font-size: 18px;
 }
 
 .deliveryCard p {
@@ -295,7 +306,7 @@
   .hero { grid-template-columns: 1fr; }
   .galleryCol { grid-column: auto; }
   .gallery { grid-template-columns: 82px minmax(0, 1fr); }
-  .purchasePanel { position: static; max-width: 360px; }
+  .purchasePanel { position: static; max-width: 420px; }
   .buyButtons { grid-template-columns: 1fr 1fr; }
 }
 

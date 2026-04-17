@@ -16,6 +16,7 @@ type ProductDetailsProps = {
   activeVariantId: string;
   onVariantChange: (variantId: string) => void;
   reviewsCount: number;
+  onShowAllSpecs: () => void;
 };
 
 export const ProductDetails = ({
@@ -24,7 +25,8 @@ export const ProductDetails = ({
   variantProducts,
   activeVariantId,
   onVariantChange,
-  reviewsCount
+  reviewsCount,
+  onShowAllSpecs
 }: ProductDetailsProps) => {
   const location = useLocation();
 
@@ -138,7 +140,9 @@ export const ProductDetails = ({
           <p><span>Размер</span><strong>—</strong></p>
         )}
         <p><span>Вес</span><strong>{product.weightGrossG ? `${product.weightGrossG} г` : '—'}</strong></p>
-        <Link to="#specs" className={styles.allSpecsLink}>Все характеристики</Link>
+        <button type="button" className={styles.allSpecsLink} onClick={onShowAllSpecs}>
+          Все характеристики
+        </button>
       </div>
 
       <ShareModal

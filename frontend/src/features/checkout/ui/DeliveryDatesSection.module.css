@@ -1,1 +1,20 @@
-.block{border:1px solid var(--border);border-radius:12px;padding:12px;background:var(--bg-2);display:grid;gap:6px}
+.block {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--bg-2);
+  display: grid;
+  gap: 8px;
+}
+
+.block h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.block p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.4;
+}
