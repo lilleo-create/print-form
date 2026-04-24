@@ -1,2 +1,0 @@
-ALTER TABLE "Order"
-  ADD COLUMN IF NOT EXISTS "fulfillmentUpdatedAt" TIMESTAMP(3);
