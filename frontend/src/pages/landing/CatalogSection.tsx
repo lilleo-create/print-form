@@ -17,6 +17,11 @@ export const CatalogSection = ({
   error
 }: CatalogSectionProps) => (
   <section className={`${styles.catalogSection} container`}>
+    <header className={styles.sectionHeader}>
+      <span className={styles.sectionLabel}>Каталог</span>
+      <h2 className={styles.sectionTitle}>Новые поступления</h2>
+    </header>
+
     {loading ? (
       <div className={styles.productsGrid}>
         {Array.from({ length: 12 }).map((_, index) => (
@@ -39,7 +44,7 @@ export const CatalogSection = ({
         </div>
 
         {loadingMore ? (
-          <div className={styles.productsGrid}>
+          <div className={styles.productsGrid} style={{ marginTop: '20px' }}>
             {Array.from({ length: 6 }).map((_, index) => (
               <ProductCardSkeleton key={`more-${index}`} />
             ))}

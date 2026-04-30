@@ -1,494 +1,305 @@
-import { FormEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { useFilters } from '../../features/catalog/useFilters';
-import {
-  Link,
-  useLocation,
-  useNavigate,
-  useSearchParams
-} from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useCartStore } from '../../app/store/cartStore';
-import { useBuyNowStore } from '../../app/store/buyNowStore';
 import { useAuthStore } from '../../app/store/authStore';
-import { useProductBoardStore } from '../../app/store/productBoardStore';
 import { useHeaderMenuStore } from '../../app/store/headerMenuStore';
-import { Rating } from '../../shared/ui/Rating';
-import { Button } from '../../shared/ui/Button';
-import { HeaderActions } from './HeaderActions';
 import { ProfileMenu } from '../../shared/layout/ProfileMenu';
 import { useIsSeller } from '../../shared/lib/useIsSeller';
-import styles from '../layout/Layout.module.css';
 import { useBodyScrollLock } from '../../shared/lib/useBodyScrollLock';
-import { resolveMediaUrl } from '../../shared/lib/resolveMediaUrl';
-import { getProductRatingMeta } from '../../shared/lib/productRating';
+import styles from './Header.module.css';
 
+/* ---- Icons ---- */
+const SearchIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85">
+    <circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>
+  </svg>
+);
+const MenuIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M3 6h18M3 12h18M3 18h18"/>
+  </svg>
+);
+const HeartIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+    <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 1 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/>
+  </svg>
+);
+const CartIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+    <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+    <path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/>
+  </svg>
+);
+const BellIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+    <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>
+    <path d="M13.7 21a2 2 0 0 1-3.4 0"/>
+  </svg>
+);
+const SunIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+    <circle cx="12" cy="12" r="4"/>
+    <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+  </svg>
+);
+const MoonIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+    <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>
+  </svg>
+);
+const ArrowIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+    <path d="M5 12h14"/><path d="M13 5l7 7-7 7"/>
+  </svg>
+);
+
+const getInitials = (name?: string | null, email?: string | null) => {
+  const src = name ?? email ?? '';
+  return src.split(' ').filter(Boolean).slice(0, 2).map((p) => p[0]).join('').toUpperCase() || 'АМ';
+};
+
+/* ---- Category bar (chips) ---- */
+const CategoryBar = ({ hidden }: { hidden: boolean }) => {
+  const { categories } = useFilters();
+  const [active, setActive] = useState('');
+  const navigate = useNavigate();
+  const { isSeller, sellerCabinetLink } = useIsSeller();
+
+  return (
+    <div className={`${styles.catbar} ${hidden ? styles.catbarHidden : ''}`}>
+      <div className={styles.catbarInner}>
+        <span className={styles.catbarTitle}>Категории</span>
+        <button
+          className={active === '' ? styles.chipOn : styles.chip}
+          onClick={() => { setActive(''); navigate('/catalog'); }}
+        >
+          Все
+        </button>
+        {categories.slice(0, 8).map((cat) => (
+          <button
+            key={cat}
+            className={active === cat ? styles.chipOn : styles.chip}
+            onClick={() => { setActive(cat); navigate(`/catalog?category=${encodeURIComponent(cat)}`); }}
+          >
+            {cat}
+          </button>
+        ))}
+        <Link to={sellerCabinetLink} className={styles.sellLink}>
+          {isSeller ? 'Кабинет продавца' : 'Продавайте на PrintForm'} <ArrowIcon />
+        </Link>
+      </div>
+    </div>
+  );
+};
+
+/* ---- Main Header ---- */
 export const Header = () => {
   const mobileCategoriesMenuId = 'mobile-categories-menu';
-  const addItem = useCartStore((state) => state.addItem);
-  const startBuyNow = useBuyNowStore((state) => state.start);
-  const user = useAuthStore((state) => state.user);
-  const productBoard = useProductBoardStore((state) => state.product);
+  const user = useAuthStore((s) => s.user);
+  const cartCount = useCartStore((s) => s.items.reduce((n, i) => n + i.quantity, 0));
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
   const [searchValue, setSearchValue] = useState(searchParams.get('q') ?? '');
-  const [isCategoriesHidden, setIsCategoriesHidden] = useState(false);
-  const [categoriesHeight, setCategoriesHeight] = useState(0);
-  const [productBoardHeight, setProductBoardHeight] = useState(0);
-  const isProfileMenuOpen = useHeaderMenuStore(
-    (state) => state.isProfileMenuOpen
+  const [catHidden, setCatHidden] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>(() =>
+    typeof window !== 'undefined' && window.localStorage.getItem('theme') === 'light' ? 'light' : 'dark'
   );
-  const isSellerMenuOpen = useHeaderMenuStore(
-    (state) => state.isSellerMenuOpen
-  );
-  const isCategoriesMenuOpen = useHeaderMenuStore(
-    (state) => state.isCategoriesMenuOpen
-  );
-  const openProfileMenu = useHeaderMenuStore((state) => state.openProfileMenu);
-  const closeProfileMenu = useHeaderMenuStore(
-    (state) => state.closeProfileMenu
-  );
-  const closeSellerMenu = useHeaderMenuStore((state) => state.closeSellerMenu);
-  const toggleSellerMenu = useHeaderMenuStore(
-    (state) => state.toggleSellerMenu
-  );
-  const closeCategoriesMenu = useHeaderMenuStore(
-    (state) => state.closeCategoriesMenu
-  );
-  const toggleCategoriesMenu = useHeaderMenuStore(
-    (state) => state.toggleCategoriesMenu
-  );
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    if (typeof window === 'undefined') {
-      return 'dark';
-    }
-    const stored = window.localStorage.getItem('theme');
-    return stored === 'light' ? 'light' : 'dark';
-  });
-  const categoriesRef = useRef<HTMLDivElement | null>(null);
-  const mobileCategoriesRef = useRef<HTMLDivElement | null>(null);
-  const productBoardRef = useRef<HTMLDivElement | null>(null);
-  const scrollStateRef = useRef({ lastY: 0, acc: 0, ticking: false });
   const searchDebounceRef = useRef<number | null>(null);
-  const { categories } = useFilters();
+  const scrollRef = useRef({ lastY: 0, acc: 0, ticking: false });
 
+  const isProfileMenuOpen = useHeaderMenuStore((s) => s.isProfileMenuOpen);
+  const isCategoriesMenuOpen = useHeaderMenuStore((s) => s.isCategoriesMenuOpen);
+  const isSellerMenuOpen = useHeaderMenuStore((s) => s.isSellerMenuOpen);
+  const openProfileMenu = useHeaderMenuStore((s) => s.openProfileMenu);
+  const closeProfileMenu = useHeaderMenuStore((s) => s.closeProfileMenu);
+  const closeCategoriesMenu = useHeaderMenuStore((s) => s.closeCategoriesMenu);
+  const toggleCategoriesMenu = useHeaderMenuStore((s) => s.toggleCategoriesMenu);
+  const closeSellerMenu = useHeaderMenuStore((s) => s.closeSellerMenu);
+  const toggleSellerMenu = useHeaderMenuStore((s) => s.toggleSellerMenu);
+  const isSellerPage = location.pathname.startsWith('/seller');
+
+  useBodyScrollLock(isProfileMenuOpen || isCategoriesMenuOpen || isSellerMenuOpen);
+
+  // Sync search with URL
   useEffect(() => {
-    if (!user) return;
     if (location.pathname === '/catalog') {
       setSearchValue(searchParams.get('q') ?? '');
     }
-  }, [location.pathname, searchParams, user]);
+  }, [location.pathname, searchParams]);
 
-  const showCatalogHeader = location.pathname === '/catalog';
-  const CONTENT_MAX = 1120; // твоя max-width контейнера
-  const SIDE_PAD = 16;
-
+  // Theme persistence
   useEffect(() => {
-    if (!isProfileMenuOpen) return;
+    document.documentElement.dataset.theme = theme;
+    window.localStorage.setItem('theme', theme);
+  }, [theme]);
 
-    const updateGutter = () => {
-      const w = window.innerWidth;
-      const containerWidth = Math.min(CONTENT_MAX, w);
-      const gutter = Math.max(
-        SIDE_PAD,
-        Math.floor((w - containerWidth) / 2) - SIDE_PAD
-      );
-
-      document.documentElement.style.setProperty(
-        '--container-gutter',
-        `${gutter}px`
-      );
-    };
-
-    updateGutter();
-    window.addEventListener('resize', updateGutter);
-    return () => window.removeEventListener('resize', updateGutter);
-  }, [isProfileMenuOpen]);
-  const openProfileMenuHandler = () => {
-    closeCategoriesMenu();
-    openProfileMenu();
-  };
-
-  const isSellerPage = location.pathname.startsWith('/seller');
-
-  const toggleCategoriesMenuHandler = () => {
-    closeProfileMenu();
-    toggleCategoriesMenu();
-  };
-
-  useLayoutEffect(() => {
-    if (!categoriesRef.current && !productBoardRef.current) return;
-    const updateHeight = () => {
-      if (categoriesRef.current) {
-        setCategoriesHeight(categoriesRef.current.offsetHeight);
-      }
-      if (productBoardRef.current) {
-        setProductBoardHeight(productBoardRef.current.offsetHeight);
-      }
-    };
-    updateHeight();
-    if (typeof ResizeObserver === 'undefined') {
-      return undefined;
-    }
-    const observer = new ResizeObserver(updateHeight);
-    if (categoriesRef.current) {
-      observer.observe(categoriesRef.current);
-    }
-    if (productBoardRef.current) {
-      observer.observe(productBoardRef.current);
-    }
-    return () => observer.disconnect();
-  }, [location.pathname]);
-
+  // Close menus on route change
   useEffect(() => {
-    if (!showCatalogHeader) {
-      setCategoriesHeight(0);
-    }
-  }, [showCatalogHeader]);
+    closeProfileMenu(); closeCategoriesMenu(); closeSellerMenu();
+  }, [location.pathname, location.search, closeProfileMenu, closeCategoriesMenu, closeSellerMenu]);
 
-  useBodyScrollLock(
-    isProfileMenuOpen || isCategoriesMenuOpen || isSellerMenuOpen
-  );
-
+  // Esc key
   useEffect(() => {
-    if (!isProfileMenuOpen && !isCategoriesMenuOpen && !isSellerMenuOpen)
-      return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        closeProfileMenu();
-        closeCategoriesMenu();
-        closeSellerMenu();
-      }
+    if (!isProfileMenuOpen && !isCategoriesMenuOpen && !isSellerMenuOpen) return;
+    const h = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { closeProfileMenu(); closeCategoriesMenu(); closeSellerMenu(); }
     };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [
-    closeCategoriesMenu,
-    closeProfileMenu,
-    closeSellerMenu,
-    isCategoriesMenuOpen,
-    isProfileMenuOpen,
-    isSellerMenuOpen
-  ]);
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [isProfileMenuOpen, isCategoriesMenuOpen, isSellerMenuOpen, closeProfileMenu, closeCategoriesMenu, closeSellerMenu]);
 
-  const isHome = location.pathname === '/';
-  const isProductPage = /^\/product\/[^/]+$/.test(location.pathname);
-  const isReviewPage = /^\/product\/[^/]+\/reviews$/.test(location.pathname);
-  const hideOnScroll = isHome || isProductPage || isReviewPage;
-
+  // Hide categories bar on scroll (home + product pages)
+  const hideOnScroll = ['/', '/product'].some((p) => location.pathname === p || location.pathname.startsWith('/product/'));
   useEffect(() => {
-    if (!hideOnScroll) {
-      setIsCategoriesHidden(false);
-      return;
-    }
+    if (!hideOnScroll) { setCatHidden(false); return; }
     const threshold = 12;
-    scrollStateRef.current.lastY = window.scrollY;
-    scrollStateRef.current.acc = 0;
+    scrollRef.current.lastY = window.scrollY;
     const handleScroll = () => {
-      if (scrollStateRef.current.ticking) return;
-      scrollStateRef.current.ticking = true;
+      if (scrollRef.current.ticking) return;
+      scrollRef.current.ticking = true;
       requestAnimationFrame(() => {
-        const currentY = window.scrollY;
-        const delta = currentY - scrollStateRef.current.lastY;
-        scrollStateRef.current.lastY = currentY;
-        scrollStateRef.current.ticking = false;
+        const y = window.scrollY;
+        const delta = y - scrollRef.current.lastY;
+        scrollRef.current.lastY = y;
+        scrollRef.current.ticking = false;
         if (Math.abs(delta) < 2) return;
-        if (currentY <= 8) {
-          scrollStateRef.current.acc = 0;
-          setIsCategoriesHidden(false);
-          return;
-        }
-        scrollStateRef.current.acc += delta;
-        if (scrollStateRef.current.acc > threshold) {
-          setIsCategoriesHidden(true);
-          scrollStateRef.current.acc = 0;
-        } else if (scrollStateRef.current.acc < -threshold) {
-          setIsCategoriesHidden(false);
-          scrollStateRef.current.acc = 0;
-        }
+        if (y <= 8) { setCatHidden(false); scrollRef.current.acc = 0; return; }
+        scrollRef.current.acc += delta;
+        if (scrollRef.current.acc > threshold) { setCatHidden(true); scrollRef.current.acc = 0; }
+        else if (scrollRef.current.acc < -threshold) { setCatHidden(false); scrollRef.current.acc = 0; }
       });
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, [hideOnScroll]);
 
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    window.localStorage.setItem('theme', theme);
-  }, [theme]);
-
-  useEffect(() => {
-    closeProfileMenu();
-    closeCategoriesMenu();
-    closeSellerMenu();
-  }, [
-    closeCategoriesMenu,
-    closeProfileMenu,
-    closeSellerMenu,
-    location.pathname,
-    location.search
-  ]);
-
   const handleSearchUpdate = (value: string) => {
     setSearchValue(value);
     if (location.pathname !== '/catalog') return;
-
-    if (searchDebounceRef.current) {
-      window.clearTimeout(searchDebounceRef.current);
-    }
-
+    if (searchDebounceRef.current) window.clearTimeout(searchDebounceRef.current);
     searchDebounceRef.current = window.setTimeout(() => {
       const params = new URLSearchParams(searchParams);
-      if (value.trim()) {
-        params.set('q', value.trim());
-      } else {
-        params.delete('q');
-      }
+      value.trim() ? params.set('q', value.trim()) : params.delete('q');
       params.delete('page');
       setSearchParams(params, { replace: true });
     }, 350);
   };
 
-  useEffect(() => () => {
-    if (searchDebounceRef.current) {
-      window.clearTimeout(searchDebounceRef.current);
-    }
-  }, []);
-
-  const handleSearchSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const handleSearchSubmit = (e: FormEvent) => {
+    e.preventDefault();
     const params = new URLSearchParams(searchParams);
-    if (searchValue) {
-      params.set('q', searchValue);
-    } else {
-      params.delete('q');
-    }
-    if (location.pathname === '/catalog') {
-      setSearchParams(params);
-    } else {
-      navigate(`/catalog?${params.toString()}`);
-    }
+    searchValue.trim() ? params.set('q', searchValue.trim()) : params.delete('q');
+    if (location.pathname === '/catalog') setSearchParams(params);
+    else navigate(`/catalog?${params.toString()}`);
   };
 
-  const showProductBoard =
-    isCategoriesHidden && (isProductPage || isReviewPage) && productBoard;
-  const ratingMeta = getProductRatingMeta({
-    ratingAvg: productBoard?.ratingAvg,
-    ratingCount: productBoard?.ratingCount
-  });
-  const categoriesBarHeight = categoriesHeight || productBoardHeight;
-  const { isSeller, sellerCabinetLink: sellLink } = useIsSeller();
   const handleLogout = () => {
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new Event('auth:logout'));
-    }
+    window.dispatchEvent(new Event('auth:logout'));
     closeProfileMenu();
   };
 
+  const initials = getInitials(user?.name, user?.email);
+
   return (
-    <header className={styles.header}>
-      <div className={`${styles.headerInner} ${styles.desktopHeader}`}>
-        <div className={styles.brand}>
-          <Link to="/" className={styles.logo}>
-            Print-Form
-          </Link>
-          <Link to="/catalog" className={styles.catalogButton}>
-            Каталог
-          </Link>
-        </div>
-        <form className={styles.search} onSubmit={handleSearchSubmit}>
-          <input
-            type="search"
-            placeholder="Поиск по товарам"
-            value={searchValue}
-            onChange={(event) => handleSearchUpdate(event.target.value)}
-          />
-          <button type="submit" aria-label="Найти">
-            🔍
-          </button>
-        </form>
-        <HeaderActions onProfileClick={openProfileMenuHandler} />
-      </div>
-      <div className={styles.mobileHeader}>
-        <div className={styles.mobileSearchRow}>
-          <button
-            type="button"
-            className={styles.mobileBurger}
-            onClick={
-              isSellerPage ? toggleSellerMenu : toggleCategoriesMenuHandler
-            }
-            aria-label={
-              isSellerPage
-                ? isSellerMenuOpen
-                  ? 'Закрыть меню продавца'
-                  : 'Открыть меню продавца'
-                : isCategoriesMenuOpen
-                  ? 'Закрыть категории'
-                  : 'Открыть категории'
-            }
-            aria-expanded={
-              isSellerPage ? isSellerMenuOpen : isCategoriesMenuOpen
-            }
-            aria-controls={
-              isSellerPage ? 'seller-sidebar' : mobileCategoriesMenuId
-            }
-          >
-            {isSellerPage ? (
-              '☰'
-            ) : (
-              <span className={styles.mobileGridIcon} aria-hidden>
-                <span />
-                <span />
-                <span />
-                <span />
-              </span>
-            )}
-          </button>
-          <form className={styles.mobileSearch} onSubmit={handleSearchSubmit}>
+    <header className={styles.shell}>
+      {/* ── Desktop + tablet row ── */}
+      <div className={styles.container}>
+        <div className={styles.row}>
+          {/* Left */}
+          <div className={styles.left}>
+            <Link to="/" className={styles.brand}>
+              Print<span className={styles.dot} />Form
+            </Link>
+            <button
+              className={styles.catBtn}
+              onClick={isSellerPage ? toggleSellerMenu : toggleCategoriesMenu}
+              aria-label="Открыть каталог"
+            >
+              <MenuIcon /> Каталог
+            </button>
+          </div>
+
+          {/* Center: search */}
+          <form className={styles.search} onSubmit={handleSearchSubmit}>
+            <button type="submit" className={styles.searchIc} aria-label="Найти">
+              <SearchIcon />
+            </button>
             <input
               type="search"
-              placeholder="Найти товары"
+              name="q"
+              placeholder="Поиск моделей, материалов, продавцов"
               value={searchValue}
-              onChange={(event) => handleSearchUpdate(event.target.value)}
+              autoComplete="off"
+              onChange={(e) => handleSearchUpdate(e.target.value)}
             />
-            <button type="submit" aria-label="Найти">
-              🔍
-            </button>
           </form>
-        </div>
-      </div>
-      <div
-        className={`${styles.categoriesWrap} ${isCategoriesHidden ? styles.categoriesWrapHidden : ''}`}
-        style={{
-          maxHeight: `${isCategoriesHidden ? 0 : categoriesBarHeight}px`
-        }}
-      >
-        <div className={styles.categoriesBar}>
-          <div className={styles.categoriesSurface}>
-            {showCatalogHeader && (
-              <div
-                ref={categoriesRef}
-                className={`${styles.categoriesInner} ${isCategoriesHidden ? styles.categoriesInnerHidden : ''}`}
-              >
-                <div className={styles.categoriesMeta}>
-                  <div className={styles.categoriesTitle}>Категории</div>
-                </div>
-                <div id="catalog-category-buttons" />
-                <Link to={sellLink} className={styles.sellCta}>
-                  {isSeller ? 'Кабинет продавца' : 'Продавайте на PrintForm'}
-                </Link>
-              </div>
-            )}
-            <div
-              ref={productBoardRef}
-              className={`${styles.productBoard} ${showProductBoard ? styles.productBoardVisible : ''}`}
+
+          {/* Right */}
+          <div className={styles.right}>
+            <Link to="/favorites" className={styles.hLink}>
+              <HeartIcon /> <span className={styles.hLinkText}>Избранные</span>
+            </Link>
+            <Link to="/cart" className={styles.hLink}>
+              <CartIcon /> <span className={styles.hLinkText}>Корзина</span>
+              {cartCount > 0 && <span className={styles.badge}>{cartCount}</span>}
+            </Link>
+            <button className={styles.iconBtn} title="Уведомления" aria-label="Уведомления">
+              <BellIcon />
+            </button>
+            <button
+              className={styles.iconBtn}
+              title="Переключить тему"
+              onClick={() => setTheme((t) => t === 'dark' ? 'light' : 'dark')}
+              aria-label="Тема"
             >
-              {productBoard && (
-                <>
-                  <div className={styles.productBoardInfo}>
-                    <img
-                      src={resolveMediaUrl(productBoard.image) ?? ''}
-                      alt={productBoard.title}
-                    />
-                    <div>
-                      <h4>{productBoard.title}</h4>
-                      <div className={styles.productBoardRating}>
-                        {ratingMeta.hasReviews ? (
-                          <>
-                            <Rating
-                              value={ratingMeta.ratingValue}
-                              count={ratingMeta.ratingCount}
-                              size="sm"
-                            />
-                            <span>{ratingMeta.ratingValue.toFixed(1)}</span>
-                            <span>{ratingMeta.ratingCount} оценок</span>
-                          </>
-                        ) : (
-                          <span>Пока нет отзывов</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className={styles.productBoardActions}>
-                    <Button
-                      onClick={() => {
-                        if (!productBoard) return;
-                        startBuyNow(productBoard, 1);
-                        navigate('/checkout');
-                      }}
-                    >
-                      Купить сейчас
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      onClick={() => {
-                        if (!productBoard) return;
-                        addItem(productBoard, 1);
-                      }}
-                    >
-                      В корзину
-                    </Button>
-                  </div>
-                </>
-              )}
-            </div>
+              {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+            </button>
+            <button
+              className={styles.avatar}
+              onClick={() => { closeCategoriesMenu(); openProfileMenu(); }}
+              aria-label="Профиль"
+              title={user?.name ?? 'Профиль'}
+            >
+              {initials}
+            </button>
           </div>
         </div>
       </div>
 
+      {/* ── Category bar ── */}
+      <CategoryBar hidden={catHidden} />
+
+      {/* ── Mobile categories sheet ── */}
       {isCategoriesMenuOpen && (
         <div
-          className={styles.mobileCategoriesOverlay}
+          className={styles.mobileOverlay}
           role="dialog"
           aria-modal="true"
           onClick={closeCategoriesMenu}
         >
           <div
             id={mobileCategoriesMenuId}
-            className={styles.mobileCategoriesSheet}
-            ref={mobileCategoriesRef}
-            onClick={(event) => event.stopPropagation()}
+            className={styles.mobileSheet}
+            onClick={(e) => e.stopPropagation()}
           >
-            <div className={styles.mobileCategoriesHeader}>
-              <div className={styles.mobileCategoriesTitleGroup}>
-                <span className={styles.mobileCategoriesEyebrow}>Каталог</span>
-                <span className={styles.mobileCategoriesTitle}>Категории</span>
-                <span className={styles.mobileCategoriesSubtitle}>
-                  Выберите раздел и перейдите к подборке товаров.
-                </span>
+            <div className={styles.mobileSheetHead}>
+              <div>
+                <div className={styles.mobileSheetEyebrow}>Каталог</div>
+                <div className={styles.mobileSheetTitle}>Категории</div>
+                <div className={styles.mobileSheetSub}>Выберите раздел и перейдите к подборке товаров.</div>
               </div>
-              <button
-                type="button"
-                className={styles.mobileCategoriesClose}
-                onClick={closeCategoriesMenu}
-                aria-label="Закрыть категории"
-              >
-                ✕
-              </button>
+              <button className={styles.mobileSheetClose} onClick={closeCategoriesMenu} aria-label="Закрыть">✕</button>
             </div>
-            <div className={styles.mobileCategoriesList}>
-              <Link
-                to="/catalog"
-                className={styles.mobileCategoryItem}
-                onClick={closeCategoriesMenu}
-              >
-                <span>Все категории</span>
-              </Link>
-              {categories.map((category) => (
-                <Link
-                  key={category}
-                  to={`/catalog?category=${encodeURIComponent(category)}`}
-                  className={styles.mobileCategoryItem}
-                  onClick={closeCategoriesMenu}
-                >
-                  <span>{category}</span>
-                </Link>
-              ))}
+            <div className={styles.mobileSheetList}>
+              <Link to="/catalog" className={styles.mobileSheetItem} onClick={closeCategoriesMenu}>Все категории</Link>
+              {/* categories rendered dynamically by CategoryBar */}
             </div>
           </div>
         </div>
       )}
+
       <ProfileMenu
         isOpen={isProfileMenuOpen}
         pathname={location.pathname}
@@ -496,9 +307,7 @@ export const Header = () => {
         onClose={closeProfileMenu}
         onLogout={handleLogout}
         theme={theme}
-        onToggleTheme={() =>
-          setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))
-        }
+        onToggleTheme={() => setTheme((t) => t === 'dark' ? 'light' : 'dark')}
       />
     </header>
   );

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
+import { Link } from 'react-router-dom';
 import type { Product } from '../../shared/types';
 import styles from '../../pages/ProductPage.module.css';
 import { useProduct } from '../../hooks/useProduct';
@@ -122,6 +123,22 @@ export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
         <link rel="canonical" href={canonicalUrl} />
       </Helmet>
       <div className={styles.container}>
+        <nav className={styles.breadcrumb} aria-label="Навигация">
+          <Link to="/">Главная</Link>
+          <span className={styles.breadcrumbSep}>›</span>
+          <Link to="/catalog">Каталог</Link>
+          {activeProduct.category ? (
+            <>
+              <span className={styles.breadcrumbSep}>›</span>
+              <Link to={`/catalog?category=${encodeURIComponent(activeProduct.category)}`}>
+                {activeProduct.category}
+              </Link>
+            </>
+          ) : null}
+          <span className={styles.breadcrumbSep}>›</span>
+          <span className={styles.breadcrumbCurrent}>{activeProduct.title}</span>
+        </nav>
+
         <div className={styles.hero}>
           <div className={styles.galleryCol}>
             <ProductGallery images={productImages} title={activeProduct.title} />

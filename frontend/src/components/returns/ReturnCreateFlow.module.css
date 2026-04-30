@@ -1,0 +1,42 @@
+.flow {
+  display: grid;
+  gap: 20px;
+}
+
+.step {
+  display: grid;
+  gap: 14px;
+}
+
+.stepTitle {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.field {
+  display: grid;
+  gap: 8px;
+}
+
+.label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.errorText {
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.successText {
+  color: var(--success);
+  font-size: 14px;
+}

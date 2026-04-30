@@ -82,6 +82,21 @@ export const CheckoutLayout = () => {
 
   return (
     <div className={styles.layout}>
+      <div className={styles.stepRow} aria-label="Шаги оформления заказа">
+        <div className={styles.step}>
+          <span className={styles.stepNum}>1</span>
+          <span className={styles.stepLabel}>Доставка</span>
+        </div>
+        <div className={styles.step}>
+          <span className={styles.stepNum}>2</span>
+          <span className={styles.stepLabel}>Получатель</span>
+        </div>
+        <div className={styles.step}>
+          <span className={styles.stepNum}>3</span>
+          <span className={styles.stepLabel}>Оплата</span>
+        </div>
+      </div>
+
       <div className={styles.leftColumn}>
         <section className={styles.orderFlowCard}>
           <header className={styles.cardHead}>

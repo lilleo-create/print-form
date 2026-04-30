@@ -1,47 +1,64 @@
 .page {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  padding: 16px 0 72px;
+  gap: 0;
+  padding: 0 0 72px;
   width: 100%;
 }
 
 .catalogLayout {
   display: grid;
-  grid-template-columns: 176px minmax(0, 1fr);
-  gap: 22px;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 24px;
   align-items: start;
+  padding-top: 24px;
 }
 
 .sidebar {
   position: sticky;
-  top: 98px;
+  top: 88px;
   align-self: start;
   display: grid;
-  gap: 14px;
-  padding-right: 10px;
+  gap: 0;
+  background: color-mix(in oklab, var(--card) 70%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  overflow: hidden;
 }
 
 .sidebarHead {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 16px 18px 14px;
+  border-bottom: 1px solid var(--border);
 }
 
 .sidebarHead h2 {
   margin: 0;
-  font-size: 17px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 .group {
   display: grid;
-  gap: 7px;
+  gap: 4px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.group:last-child {
+  border-bottom: none;
 }
 
 .group h3 {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
+  margin: 0 0 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-2);
 }
 
 .listItem,
@@ -50,16 +67,25 @@
   background: transparent;
   color: var(--muted);
   text-align: left;
-  padding: 0;
-  font-size: 14px;
+  padding: 6px 10px;
+  font-size: 13px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  border-radius: 8px;
+  transition: background 0.12s ease, color 0.12s ease;
+  width: 100%;
+}
+
+.listItem:hover {
+  background: var(--surface-ghost);
+  color: var(--text);
 }
 
 .listItemActive {
-  color: var(--text);
+  background: var(--primary-soft);
+  color: var(--primary);
   font-weight: 600;
 }
 
@@ -70,18 +96,26 @@
 }
 
 .priceFields input {
-  height: 34px;
-  border-radius: 9px;
+  height: 36px;
+  border-radius: var(--radius-control);
   border: 1px solid var(--border);
-  background: transparent;
+  background: var(--bg-2);
   color: var(--text);
   padding: 0 10px;
+  font-size: 13px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.priceFields input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: var(--focus-ring);
 }
 
 .colorList,
 .materialList {
   display: grid;
-  gap: 6px;
+  gap: 2px;
 }
 
 .colorItem,
@@ -90,33 +124,45 @@
   background: transparent;
   color: var(--muted);
   text-align: left;
-  padding: 0;
-  font-size: 14px;
+  padding: 6px 10px;
+  font-size: 13px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  border-radius: 8px;
+  transition: background 0.12s ease, color 0.12s ease;
+  width: 100%;
+}
+
+.colorItem:hover {
+  background: var(--surface-ghost);
+  color: var(--text);
 }
 
 .colorItemActive {
-  color: var(--text);
+  background: var(--primary-soft);
+  color: var(--primary);
   font-weight: 600;
 }
 
 .colorDot {
-  width: 9px;
-  height: 9px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
 
 .optionBullet {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
-  border: 1px solid var(--border);
+  border: 1.5px solid var(--border);
   background: transparent;
   flex-shrink: 0;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
 
 .listItemActive .optionBullet,
@@ -133,6 +179,8 @@
   color: var(--muted);
   font-size: 13px;
   cursor: pointer;
+  padding: 14px 18px;
+  transition: color 0.12s ease;
 }
 
 .checkFieldActive {
@@ -147,22 +195,23 @@
 }
 
 .checkIndicator {
-  width: 14px;
-  height: 14px;
-  border-radius: 4px;
-  border: 1px solid var(--border);
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  border: 1.5px solid var(--border);
   background: transparent;
+  flex-shrink: 0;
+  transition: background 0.12s ease, border-color 0.12s ease;
 }
 
 .checkFieldActive .checkIndicator {
   background: var(--primary);
   border-color: var(--primary);
-  box-shadow: inset 0 0 0 2px var(--bg-1);
 }
 
 .content {
   display: grid;
-  gap: 14px;
+  gap: 16px;
 }
 
 .controlsRow {
@@ -178,22 +227,31 @@
 
 .topControls {
   display: grid;
-  grid-template-columns: 220px;
+  grid-template-columns: 200px;
   justify-content: end;
 }
 
 .sortSelect {
   height: 38px;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   border: 1px solid var(--border);
   background: var(--bg-2);
   color: var(--text);
   padding: 0 12px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.sortSelect:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: var(--focus-ring);
 }
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
   align-items: start;
 }
@@ -201,25 +259,25 @@
 .grid > * { min-width: 0; }
 
 .cardSkeleton { display: grid; gap: 12px; }
-.cardSkeletonMedia { width: 100%; aspect-ratio: 1 / 1; border-radius: 18px; }
-.cardSkeletonTitle { width: 100%; height: 42px; border-radius: 12px; }
-.cardSkeletonPrice { width: 55%; height: 24px; border-radius: 12px; }
-.cardSkeletonMeta { width: 70%; height: 16px; border-radius: 12px; }
+.cardSkeletonMedia { width: 100%; aspect-ratio: 1 / 1; border-radius: 14px; }
+.cardSkeletonTitle { width: 100%; height: 42px; border-radius: 10px; }
+.cardSkeletonPrice { width: 55%; height: 24px; border-radius: 10px; }
+.cardSkeletonMeta { width: 70%; height: 16px; border-radius: 10px; }
 
 .stateBox {
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 24px;
+  border-radius: var(--radius-card);
+  padding: 32px 24px;
   background: var(--card);
   display: grid;
-  gap: 12px;
+  gap: 14px;
   justify-items: start;
 }
 
-.stateBox p { margin: 0; color: var(--muted); }
+.stateBox p { margin: 0; color: var(--muted); font-size: 15px; }
 
 @media (max-width: 1280px) {
-  .catalogLayout { grid-template-columns: 164px minmax(0, 1fr); gap: 14px; }
+  .catalogLayout { grid-template-columns: 200px minmax(0, 1fr); gap: 18px; }
   .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 

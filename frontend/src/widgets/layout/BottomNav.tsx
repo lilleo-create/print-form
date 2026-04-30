@@ -1,145 +1,121 @@
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { useCartStore } from '../../app/store/cartStore';
 import { useAuthStore } from '../../app/store/authStore';
 import { useHeaderMenuStore } from '../../app/store/headerMenuStore';
 import styles from './Layout.module.css';
 
+const HomeIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+    <path d="M3 11l9-8 9 8v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V11z"/>
+    <path d="M9 21v-7h6v7"/>
+  </svg>
+);
+
 const GridIcon = () => (
-  <span className={styles.bottomNavGridIcon} aria-hidden>
-    <span />
-    <span />
-    <span />
-    <span />
-  </span>
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+    <rect x="3" y="3" width="7" height="7" rx="1.5"/>
+    <rect x="14" y="3" width="7" height="7" rx="1.5"/>
+    <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+    <rect x="14" y="14" width="7" height="7" rx="1.5"/>
+  </svg>
+);
+
+const HeartIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+    <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 1 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/>
+  </svg>
+);
+
+const CartIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+    <circle cx="9" cy="21" r="1"/>
+    <circle cx="20" cy="21" r="1"/>
+    <path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/>
+  </svg>
+);
+
+const PersonIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+    <circle cx="12" cy="8" r="4"/>
+    <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+  </svg>
 );
 
 const getAvatarText = (name?: string | null, email?: string | null) => {
-  const source = name ?? email ?? 'Пользователь';
-  return source
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join('')
-    .toUpperCase();
+  const src = name ?? email ?? '';
+  return src.split(' ').filter(Boolean).slice(0, 2).map((p) => p[0]).join('').toUpperCase() || 'АМ';
 };
 
-type BottomNavProps = {
-  forceShow?: boolean;
-  onNavigate?: () => void;
-};
-
-export const BottomNav = ({
-  forceShow = false,
-  onNavigate
-}: BottomNavProps) => {
+export const BottomNav = ({ forceShow = false, onNavigate }: { forceShow?: boolean; onNavigate?: () => void }) => {
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const user = useAuthStore((state) => state.user);
-  const openProfileMenu = useHeaderMenuStore((state) => state.openProfileMenu);
-  const toggleCategoriesMenu = useHeaderMenuStore(
-    (state) => state.toggleCategoriesMenu
-  );
-  const closeProfileMenu = useHeaderMenuStore(
-    (state) => state.closeProfileMenu
-  );
-  const closeCategoriesMenu = useHeaderMenuStore(
-    (state) => state.closeCategoriesMenu
-  );
-  const isCategoriesMenuOpen = useHeaderMenuStore(
-    (state) => state.isCategoriesMenuOpen
-  );
-  const showBottomNav =
-    (forceShow || !location.pathname.startsWith('/seller')) &&
-    !location.pathname.startsWith('/auth');
-  const isOrdersActive =
-    location.pathname === '/orders' ||
-    (location.pathname === '/account' &&
-      (searchParams.get('tab') === 'orders' ||
-        searchParams.get('tab') === 'purchases'));
-  const isProfile =
-    location.pathname === '/account' ||
-    location.pathname === '/favorites' ||
-    location.pathname === '/returns';
-  const avatarText = getAvatarText(user?.name, user?.email);
+  const user = useAuthStore((s) => s.user);
+  const cartCount = useCartStore((s) => s.items.reduce((n, i) => n + i.quantity, 0));
+  const openProfileMenu = useHeaderMenuStore((s) => s.openProfileMenu);
+  const toggleCategoriesMenu = useHeaderMenuStore((s) => s.toggleCategoriesMenu);
+  const closeProfileMenu = useHeaderMenuStore((s) => s.closeProfileMenu);
+  const closeCategoriesMenu = useHeaderMenuStore((s) => s.closeCategoriesMenu);
+  const isCategoriesOpen = useHeaderMenuStore((s) => s.isCategoriesMenuOpen);
 
-  if (!showBottomNav) {
-    return null;
-  }
+  const show = (forceShow || !location.pathname.startsWith('/seller')) && !location.pathname.startsWith('/auth');
+  if (!show) return null;
+
+  const isHome = location.pathname === '/';
+  const isFav = location.pathname === '/favorites';
+  const isCart = location.pathname === '/cart';
+  const isProfile = location.pathname === '/account' || location.pathname === '/returns';
+  const isOrders = location.pathname === '/orders' || (location.pathname === '/account' && (searchParams.get('tab') === 'orders' || searchParams.get('tab') === 'purchases'));
+
+  const item = (active: boolean) =>
+    `${styles.bottomNavItem} ${active ? styles.bottomNavItemActive : ''}`;
 
   return (
-    <nav className={styles.bottomNav} aria-label="Основная навигация">
-      <Link
-        to="/"
-        className={`${styles.bottomNavItem} ${location.pathname === '/' ? styles.bottomNavItemActive : ''}`}
-        onClick={onNavigate}
-      >
-        <span className={styles.bottomNavIcon} aria-hidden>
-          🏠
-        </span>
+    <nav className={styles.bottomNav} aria-label="Навигация">
+      <Link to="/" className={item(isHome)} onClick={onNavigate}>
+        <span className={styles.bottomNavIcon}><HomeIcon /></span>
         <span className={styles.bottomNavLabel}>Главная</span>
       </Link>
+
       <button
         type="button"
-        className={`${styles.bottomNavItem} ${styles.bottomNavButton} ${isCategoriesMenuOpen ? styles.bottomNavItemActive : ''}`}
-        onClick={() => {
-          onNavigate?.();
-          closeProfileMenu();
-          toggleCategoriesMenu();
-        }}
-        aria-label="Открыть категории"
+        className={`${item(isCategoriesOpen)} ${styles.bottomNavButton}`}
+        onClick={() => { onNavigate?.(); closeProfileMenu(); toggleCategoriesMenu(); }}
+        aria-label="Каталог"
       >
-        <span className={styles.bottomNavIcon} aria-hidden>
-          <GridIcon />
-        </span>
-        <span className={styles.bottomNavLabel}>Категории</span>
+        <span className={styles.bottomNavIcon}><GridIcon /></span>
+        <span className={styles.bottomNavLabel}>Каталог</span>
       </button>
-      <Link
-        to="/orders"
-        className={`${styles.bottomNavItem} ${isOrdersActive ? styles.bottomNavItemActive : ''}`}
-        onClick={onNavigate}
-      >
-        <span className={styles.bottomNavIcon} aria-hidden>
-          🧾
-        </span>
-        <span className={styles.bottomNavLabel}>Заказы</span>
+
+      <Link to="/favorites" className={item(isFav)} onClick={onNavigate}>
+        <span className={styles.bottomNavIcon}><HeartIcon /></span>
+        <span className={styles.bottomNavLabel}>Избранные</span>
       </Link>
-      <Link
-        to="/cart"
-        className={`${styles.bottomNavItem} ${location.pathname === '/cart' ? styles.bottomNavItemActive : ''}`}
-        onClick={onNavigate}
-      >
-        <span className={styles.bottomNavIcon} aria-hidden>
-          🛒
+
+      <Link to="/cart" className={item(isCart)} onClick={onNavigate} style={{ position: 'relative' }}>
+        <span className={styles.bottomNavIcon} style={{ position: 'relative' }}>
+          <CartIcon />
+          {cartCount > 0 && (
+            <span className={styles.bottomNavBadge}>{cartCount > 9 ? '9+' : cartCount}</span>
+          )}
         </span>
         <span className={styles.bottomNavLabel}>Корзина</span>
       </Link>
+
       {user ? (
         <button
           type="button"
-          className={`${styles.bottomNavItem} ${styles.bottomNavButton} ${isProfile ? styles.bottomNavItemActive : ''}`}
-          onClick={() => {
-            onNavigate?.();
-            closeCategoriesMenu();
-            openProfileMenu();
-          }}
-          aria-label="Открыть меню профиля"
+          className={`${item(isProfile || isOrders)} ${styles.bottomNavButton}`}
+          onClick={() => { onNavigate?.(); closeCategoriesMenu(); openProfileMenu(); }}
+          aria-label="Профиль"
         >
-          <span
-            className={`${styles.avatarCircle} ${styles.bottomNavAvatar} ${styles.bottomNavIcon}`}
-          >
-            {avatarText}
+          <span className={`${styles.bottomNavAvatar} ${styles.bottomNavIcon}`}>
+            {getAvatarText(user.name, user.email)}
           </span>
           <span className={styles.bottomNavLabel}>Профиль</span>
         </button>
       ) : (
-        <Link
-          to="/auth/login"
-          className={`${styles.bottomNavItem} ${location.pathname.startsWith('/auth') ? styles.bottomNavItemActive : ''}`}
-          onClick={onNavigate}
-        >
-          <span className={styles.bottomNavIcon} aria-hidden>
-            👤
-          </span>
+        <Link to="/auth/login" className={item(location.pathname.startsWith('/auth'))} onClick={onNavigate}>
+          <span className={styles.bottomNavIcon}><PersonIcon /></span>
           <span className={styles.bottomNavLabel}>Войти</span>
         </Link>
       )}

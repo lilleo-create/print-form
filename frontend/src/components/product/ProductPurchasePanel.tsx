@@ -21,9 +21,7 @@ export const ProductPurchasePanel = ({ product }: ProductPurchasePanelProps) => 
         <p className={styles.buyPrice}>{formatPrice(product.price)}</p>
 
         <div className={styles.buyButtons}>
-          <Button
-            onClick={() => addItem(product, 1)}
-          >
+          <Button onClick={() => addItem(product, 1)}>
             В корзину
           </Button>
 
@@ -38,10 +36,12 @@ export const ProductPurchasePanel = ({ product }: ProductPurchasePanelProps) => 
           </Button>
         </div>
 
+        <p className={styles.trustRow}>Защита покупателя · Возврат 14 дней</p>
+
         <div className={styles.deliveryCard}>
           <h3>Доставка</h3>
-          <p>Курьером: появится позже</p>
-          <p>Самовывоз: бесплатно</p>
+          <p>Курьером — уточняется при оформлении</p>
+          <p>Самовывоз из ПВЗ — бесплатно</p>
         </div>
       </div>
     </aside>

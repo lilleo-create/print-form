@@ -1,0 +1,53 @@
+.wrap {
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-2);
+}
+
+.wrap::-webkit-scrollbar {
+  display: none;
+}
+
+.inner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.pill,
+.pillActive {
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+  background: var(--surface-ghost);
+  color: var(--muted);
+}
+
+.pill:hover {
+  background: var(--surface-ghost-strong);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.pillActive {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  font-weight: 600;
+}

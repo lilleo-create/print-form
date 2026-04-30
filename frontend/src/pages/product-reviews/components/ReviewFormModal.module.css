@@ -1,0 +1,47 @@
+.form {
+  display: grid;
+  gap: 16px;
+}
+
+.stars {
+  display: flex;
+  gap: 6px;
+}
+
+.star {
+  font-size: 28px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  color: var(--star-muted);
+  transition: color 0.1s ease;
+}
+
+.starActive {
+  color: var(--warning);
+}
+
+.textarea {
+  width: 100%;
+  min-height: 100px;
+  padding: 12px 14px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--text);
+  font-size: 14px;
+  resize: vertical;
+  font-family: var(--font-ui);
+}
+
+.textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: var(--focus-ring);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}

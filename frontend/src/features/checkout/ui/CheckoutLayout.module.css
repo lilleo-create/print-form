@@ -1,53 +1,119 @@
 .layout {
   width: min(1220px, 100%);
   margin: 0 auto;
-  padding: 18px 16px 64px;
+  padding: 28px 16px 72px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 312px;
-  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 24px;
 }
 
+/* Step indicator — spans both columns */
+.stepRow {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: color-mix(in oklab, var(--card) 80%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  padding: 14px 20px;
+  overflow: hidden;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.step + .step::before {
+  content: '';
+  display: block;
+  width: 32px;
+  height: 1px;
+  background: var(--border);
+  flex-shrink: 0;
+  margin-right: 10px;
+}
+
+.stepNum {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.stepLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+/* Columns */
 .leftColumn,
 .rightColumn {
   min-width: 0;
   display: grid;
-  gap: 10px;
+  gap: 12px;
   align-content: start;
 }
 
+/* Cards */
 .orderFlowCard,
 .summaryCard,
 .paymentCard {
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 18px;
   background: color-mix(in oklab, var(--card) 88%, transparent);
-  padding: 14px;
+  padding: 20px;
   display: grid;
-  gap: 10px;
+  gap: 14px;
 }
 
 .orderFlowSection {
   display: grid;
-  gap: 10px;
-  padding-top: 10px;
+  gap: 12px;
+  padding-top: 12px;
   border-top: 1px solid var(--border);
 }
 
 .cardHead h2 {
   margin: 0;
   font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   line-height: 1.2;
 }
 
 .recipientTrigger {
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
   background: transparent;
-  padding: 10px;
+  padding: 14px;
   display: grid;
   gap: 4px;
   text-align: left;
   cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.recipientTrigger:hover {
+  background: var(--surface-hover);
+  border-color: var(--primary-soft-strong);
+}
+
+.recipientTrigger strong {
+  font-size: 14px;
 }
 
 .recipientTrigger span {
@@ -74,32 +140,37 @@
 
 .orderItem {
   display: grid;
-  grid-template-columns: 72px minmax(0, 1fr) auto;
-  gap: 10px;
+  grid-template-columns: 88px minmax(0, 1fr) auto;
+  gap: 12px;
   align-items: start;
 }
 
 .orderItem img {
-  width: 72px;
-  height: 72px;
-  border-radius: 10px;
+  width: 88px;
+  height: 88px;
+  border-radius: 12px;
   object-fit: cover;
 }
 
 .orderItemMeta h3 {
   margin: 0;
   font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
 }
 
 .orderItemMeta p {
-  margin: 3px 0 0;
+  margin: 4px 0 0;
   color: var(--muted);
   font-size: 13px;
 }
 
+/* Summary card */
 .summaryCard h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 .summaryRow,
@@ -117,34 +188,45 @@
 
 .summaryTotal {
   border-top: 1px solid var(--border);
-  padding-top: 10px;
+  padding-top: 14px;
+  font-size: 16px;
   font-weight: 700;
 }
 
+/* Pay button */
 .payButton {
-  height: 52px;
-  border-radius: 12px;
+  height: 56px;
+  border-radius: 14px;
   font-size: 17px;
   font-weight: 700;
+  box-shadow: var(--shadow-primary);
+}
+
+.payButton:disabled {
+  box-shadow: none;
 }
 
 .paymentNote {
   margin: 0;
   color: var(--muted);
   font-size: 12px;
+  text-align: center;
 }
 
 .error {
   color: var(--danger);
   margin: 0;
   font-size: 13px;
+  background: var(--danger-soft);
+  border-radius: 10px;
+  padding: 10px 12px;
 }
 
 .helperText {
   margin: 0;
   color: var(--muted);
   font-size: 12px;
-  line-height: 1.4;
+  line-height: 1.5;
 }
 
 .state {
@@ -154,6 +236,20 @@
 @media (max-width: 960px) {
   .layout {
     grid-template-columns: 1fr;
-    padding-top: 14px;
+    padding-top: 18px;
+  }
+
+  .stepRow {
+    gap: 0;
+    padding: 12px 16px;
+  }
+
+  .stepLabel {
+    display: none;
+  }
+
+  .step + .step::before {
+    width: 20px;
+    margin-right: 6px;
   }
 }
