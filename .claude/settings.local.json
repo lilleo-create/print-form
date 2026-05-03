@@ -5,7 +5,12 @@
       "Bash(curl -s -I \"https://api.anthropic.com/v1/design/h/4GE6asstqe-WUW3Y3GlXvQ\")",
       "Bash(xargs ls *)",
       "Bash(npm run *)",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "Bash(file webfetch-1777823918747-rg7c52.bin)",
+      "Bash(python3 -c ' *)",
+      "Bash(python3)",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\Funtik Funy Cat\\\\AppData\\\\Local\\\\Temp\\\\design-extract\" -Recurse | ForEach-Object { $_.FullName })",
+      "Bash(npx tsc *)"
     ]
   }
 }

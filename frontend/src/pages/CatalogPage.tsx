@@ -3,7 +3,6 @@ import { useSearchParams } from 'react-router-dom';
 import { ProductCard } from '../widgets/shop/ProductCard';
 import { CatalogBoot } from '../features/catalog/CatalogBoot';
 import { FilterModal } from '../widgets/catalog/FilterModal';
-import { CatalogHeader } from '../widgets/catalog/CatalogHeader';
 import { Button } from '../shared/ui/Button';
 import { Skeleton } from '../shared/ui/Skeleton';
 import styles from './CatalogPage.module.css';
@@ -213,12 +212,6 @@ export const CatalogPage = () => {
 
         return (
           <section className={styles.page}>
-            <CatalogHeader
-              categories={categories}
-              activeCategory={activeCategory}
-              onSelect={handleCategorySelect}
-            />
-
             <div className={`container ${styles.catalogLayout}`}>
               <aside className={styles.sidebar}>
                 <div className={styles.sidebarHead}>

@@ -4,6 +4,7 @@ import { useAuthStore } from '../../app/store/authStore';
 import { useHeaderMenuStore } from '../../app/store/headerMenuStore';
 import styles from './Layout.module.css';
 
+
 const HomeIcon = () => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
     <path d="M3 11l9-8 9 8v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V11z"/>
@@ -11,14 +12,6 @@ const HomeIcon = () => (
   </svg>
 );
 
-const GridIcon = () => (
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
-    <rect x="3" y="3" width="7" height="7" rx="1.5"/>
-    <rect x="14" y="3" width="7" height="7" rx="1.5"/>
-    <rect x="3" y="14" width="7" height="7" rx="1.5"/>
-    <rect x="14" y="14" width="7" height="7" rx="1.5"/>
-  </svg>
-);
 
 const HeartIcon = () => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
@@ -52,10 +45,7 @@ export const BottomNav = ({ forceShow = false, onNavigate }: { forceShow?: boole
   const user = useAuthStore((s) => s.user);
   const cartCount = useCartStore((s) => s.items.reduce((n, i) => n + i.quantity, 0));
   const openProfileMenu = useHeaderMenuStore((s) => s.openProfileMenu);
-  const toggleCategoriesMenu = useHeaderMenuStore((s) => s.toggleCategoriesMenu);
-  const closeProfileMenu = useHeaderMenuStore((s) => s.closeProfileMenu);
   const closeCategoriesMenu = useHeaderMenuStore((s) => s.closeCategoriesMenu);
-  const isCategoriesOpen = useHeaderMenuStore((s) => s.isCategoriesMenuOpen);
 
   const show = (forceShow || !location.pathname.startsWith('/seller')) && !location.pathname.startsWith('/auth');
   if (!show) return null;
@@ -75,16 +65,6 @@ export const BottomNav = ({ forceShow = false, onNavigate }: { forceShow?: boole
         <span className={styles.bottomNavIcon}><HomeIcon /></span>
         <span className={styles.bottomNavLabel}>Главная</span>
       </Link>
-
-      <button
-        type="button"
-        className={`${item(isCategoriesOpen)} ${styles.bottomNavButton}`}
-        onClick={() => { onNavigate?.(); closeProfileMenu(); toggleCategoriesMenu(); }}
-        aria-label="Каталог"
-      >
-        <span className={styles.bottomNavIcon}><GridIcon /></span>
-        <span className={styles.bottomNavLabel}>Каталог</span>
-      </button>
 
       <Link to="/favorites" className={item(isFav)} onClick={onNavigate}>
         <span className={styles.bottomNavIcon}><HeartIcon /></span>

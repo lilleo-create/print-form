@@ -127,6 +127,8 @@
 }
 
 @media (max-width: 760px) {
+  .page { padding: 16px 16px 72px; }
+
   .title,
   .info h3,
   .price,

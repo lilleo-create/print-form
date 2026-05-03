@@ -90,7 +90,7 @@
 }
 
 @media (max-width: 720px) {
-  .page { gap: 36px; padding: 16px 0 56px; }
+  .page { gap: 36px; padding: 16px 16px 56px; }
   .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   .sectionTitle { font-size: 22px; }
 }

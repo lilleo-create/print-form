@@ -501,6 +501,8 @@
   align-self: stretch;
   width: 100%;
   min-width: 0;
+  /* offset for fixed desktop header (pill ~68px) */
+  padding-top: 68px;
 }
 
 .footer {
@@ -563,7 +565,7 @@
   left: 0;
   z-index: 20;
   display: none;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 4px;
   border-top: 1px solid var(--border);
   padding: 8px 10px calc(10px + env(safe-area-inset-bottom));
@@ -666,18 +668,39 @@
 
 .profileMenuPage {
   position: fixed;
-  top: 30px;
-  right: max(16px, calc(var(--container-gutter, 16px) - 50px));
+  /* appear just below the header pill (~70px from top) */
+  top: 70px;
+  /* align right edge with the pill right edge (max-width 900px + 24px shell padding) */
+  right: max(16px, calc((100vw - 900px) / 2 + 20px));
   z-index: 61;
   display: flex;
   flex-direction: column;
-  width: min(360px, 92vw);
-  max-height: min(72vh, 640px);
-  border-radius: 12px;
-  padding: 12px;
-  box-shadow: var(--shadow-card);
+  width: min(340px, 92vw);
+  max-height: min(72vh, 620px);
+  border-radius: 16px;
+  padding: 10px;
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.20),
+    0 20px 48px -8px rgba(0, 0, 0, 0.36),
+    0 0 0 1px rgba(255, 255, 255, 0.06) inset;
   overflow: hidden;
   background: var(--card);
+  /* subtle glass effect */
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  backdrop-filter: blur(24px) saturate(160%);
+}
+
+/* On mobile: appear as a bottom sheet */
+@media (max-width: 767px) {
+  .profileMenuPage {
+    top: auto;
+    bottom: calc(72px + env(safe-area-inset-bottom));
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-height: 70vh;
+    border-radius: 20px;
+  }
 }
 
 .profileMenuHeader {
@@ -911,12 +934,13 @@
   }
 
   .main {
-    padding-top: 12px;
-    padding-bottom: calc(112px + env(safe-area-inset-bottom));
+    /* mobile header height: ~62px + safe-area-inset-top */
+    padding-top: calc(62px + env(safe-area-inset-top));
+    padding-bottom: calc(100px + env(safe-area-inset-bottom));
   }
 
   .footer {
-    padding-bottom: calc(112px + env(safe-area-inset-bottom));
+    padding-bottom: calc(100px + env(safe-area-inset-bottom));
   }
 }
 

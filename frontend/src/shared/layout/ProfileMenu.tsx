@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import styles from '../../widgets/layout/Layout.module.css';
 import { useIsSeller } from '../lib/useIsSeller';
@@ -28,29 +27,6 @@ export const ProfileMenu = ({
   const user = useAuthStore((state) => state.user);
   const showAdminLink = canAccessAdmin(user);
 
-  useEffect(() => {
-    if (!isOpen || typeof window === 'undefined') return;
-
-    const CONTENT_MAX = 1120;
-    const SIDE_PAD = 16;
-
-    const updateGutter = () => {
-      const width = window.innerWidth;
-      const containerWidth = Math.min(CONTENT_MAX, width);
-      const gutter = Math.max(
-        SIDE_PAD,
-        Math.floor((width - containerWidth) / 2) - SIDE_PAD
-      );
-      document.documentElement.style.setProperty(
-        '--container-gutter',
-        `${gutter}px`
-      );
-    };
-
-    updateGutter();
-    window.addEventListener('resize', updateGutter);
-    return () => window.removeEventListener('resize', updateGutter);
-  }, [isOpen]);
 
   if (!isOpen) {
     return null;

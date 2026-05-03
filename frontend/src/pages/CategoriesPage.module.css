@@ -1,0 +1,56 @@
+.page {
+  padding: 24px 16px 120px;
+  max-width: 560px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 20px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+@media (max-width: 360px) {
+  .grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.card {
+  aspect-ratio: 1;
+  border-radius: 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: none;
+  cursor: pointer;
+  padding: 12px 8px;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.card:active {
+  transform: scale(0.94);
+  opacity: 0.88;
+}
+
+.emoji {
+  font-size: 34px;
+  line-height: 1;
+}
+
+.name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  text-align: center;
+  line-height: 1.3;
+  word-break: break-word;
+}
