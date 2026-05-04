@@ -8,8 +8,8 @@
 
 .catalogLayout {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
-  gap: 28px;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 20px;
   align-items: start;
   padding: 24px 24px 0;
 }
@@ -216,6 +216,45 @@
   gap: 16px;
 }
 
+.categoryBar {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 0 0 2px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.categoryBar::-webkit-scrollbar { display: none; }
+
+.categoryChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.categoryChipClear {
+  border: none;
+  background: transparent;
+  color: var(--primary);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  opacity: 0.7;
+}
+
 .controlsRow {
   display: flex;
   justify-content: flex-end;
@@ -251,9 +290,33 @@
   box-shadow: var(--focus-ring);
 }
 
+.sortChip {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.sortChip:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
 .grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
   align-items: start;
 }
@@ -293,8 +356,8 @@
 .stateBox p { margin: 0; color: var(--muted); font-size: 15px; }
 
 @media (max-width: 1280px) {
-  .catalogLayout { grid-template-columns: 200px minmax(0, 1fr); gap: 18px; }
-  .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .catalogLayout { grid-template-columns: 180px minmax(0, 1fr); gap: 16px; }
+  .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
 @media (max-width: 960px) {
@@ -302,6 +365,10 @@
   .sidebar { display: none; }
   .controlsRow { justify-content: space-between; }
   .mobileFilterButton { display: inline-flex; }
+  .sortSelect { display: none; }
+  .topControls { grid-template-columns: auto; }
+  .sortChip { display: inline-flex; }
+  .categoryBar { display: flex; }
   .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 

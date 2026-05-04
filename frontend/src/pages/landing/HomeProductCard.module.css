@@ -3,7 +3,8 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  background: transparent;
+  background: var(--surface-ghost);
+  border: 1px solid var(--border);
   cursor: pointer;
   transition: transform 0.2s ease;
   position: relative;

@@ -2,22 +2,17 @@
    Header — Print-Form Design System
    ==================================================== */
 
-/* ── Desktop pill shell (position: fixed) ── */
+/* ── Desktop pill shell ── */
 .shell {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
+  top: 0; left: 0; right: 0;
   z-index: 30;
   display: flex;
   justify-content: center;
   padding: 10px 24px;
   pointer-events: none;
 }
-
-@media (max-width: 767px) {
-  .shell { display: none; }
-}
+@media (max-width: 767px) { .shell { display: none; } }
 
 /* ── Pill nav ── */
 .pill {
@@ -26,7 +21,6 @@
   align-items: center;
   gap: 3px;
   padding: 4px;
-  width: 100%;
   max-width: 1200px;
   background: rgba(10, 15, 32, 0.56);
   border: 1px solid rgba(255, 255, 255, 0.10);
@@ -36,7 +30,6 @@
   box-shadow: 0 1px 0 rgba(255,255,255,0.10) inset, 0 8px 32px rgba(0,0,0,0.28);
   color: #fff;
 }
-
 [data-theme="light"] .pill {
   background: rgba(255, 255, 255, 0.88);
   border-color: rgba(0, 0, 0, 0.07);
@@ -49,7 +42,8 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 20px;
+  height: 53px;
+  padding: 0 22px;
   background: #fff;
   color: #0b1226;
   border-radius: 999px;
@@ -60,7 +54,7 @@
   text-decoration: none;
   white-space: nowrap;
   flex-shrink: 0;
-  transition: opacity 0.2s ease, background 0.2s ease, color 0.2s ease;
+  transition: opacity 0.2s ease;
 }
 .brand:hover { opacity: 0.88; }
 [data-theme="light"] .brand { background: var(--primary); color: #fff; }
@@ -104,45 +98,33 @@
 
 /* ── Search trigger button ── */
 .searchTrigger {
-  flex: 1;
-  min-width: 0;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 16px;
+  justify-content: center;
+  gap: 8px;
+  height: 53px;
+  padding: 0 20px;
+  min-width: 110px;
   background: rgba(255, 255, 255, 0.07);
   border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: 999px;
   cursor: pointer;
-  color: rgba(255, 255, 255, 0.42);
-  font-size: 13px;
+  color: rgba(255, 255, 255, 0.70);
+  font-size: 14px;
+  font-weight: 600;
   font-family: var(--font-ui);
-  text-align: left;
   white-space: nowrap;
-  overflow: hidden;
+  flex-shrink: 0;
   transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
 }
 .searchTrigger:hover {
   background: rgba(255, 255, 255, 0.12);
   border-color: rgba(255, 255, 255, 0.16);
-  color: rgba(255, 255, 255, 0.70);
+  color: #fff;
 }
-[data-theme="light"] .searchTrigger {
-  background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.08); color: var(--muted);
-}
-[data-theme="light"] .searchTrigger:hover {
-  background: rgba(0,0,0,0.07); color: var(--text);
-}
-
-.searchTriggerIcon { display: inline-flex; flex-shrink: 0; }
-.searchTriggerIcon svg { width: 16px; height: 16px; stroke: currentColor; fill: none; }
-
-.searchTriggerText {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
-}
+[data-theme="light"] .searchTrigger { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.08); color: var(--text); }
+[data-theme="light"] .searchTrigger:hover { background: rgba(0,0,0,0.07); }
+.searchTrigger svg { width: 16px; height: 16px; stroke: currentColor; fill: none; flex-shrink: 0; }
 
 /* ── Divider ── */
 .divider {
@@ -167,11 +149,12 @@
 /* ── Avatar pill ── */
 .avatarPill {
   display: inline-flex; align-items: center; gap: 8px;
-  padding: 4px 16px 4px 4px;
+  height: 53px;
+  padding: 0 18px 0 6px;
   background: rgba(255,255,255,0.10); border: 1px solid rgba(255,255,255,0.14);
   border-radius: 999px; color: rgba(255,255,255,0.90);
-  font-size: 13px; font-weight: 600; font-family: var(--font-ui);
-  cursor: pointer; flex-shrink: 0;
+  font-size: 14px; font-weight: 600; font-family: var(--font-ui);
+  cursor: pointer; flex-shrink: 0; white-space: nowrap;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 .avatarPill:hover { background: rgba(255,255,255,0.16); border-color: rgba(255,255,255,0.24); }
@@ -179,15 +162,15 @@
 [data-theme="light"] .avatarPill:hover { background: var(--surface-hover); border-color: rgba(47,124,255,0.25); }
 
 .avatarCircle {
-  width: 30px; height: 30px; border-radius: 999px;
+  width: 38px; height: 38px; border-radius: 999px;
   background: linear-gradient(135deg, #5398ff, var(--primary));
   display: inline-flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 700; color: #fff; flex-shrink: 0;
+  font-size: 13px; font-weight: 700; color: #fff; flex-shrink: 0;
 }
 
-@media (max-width: 1100px) {
-  .avatarName { display: none; }
-  .avatarPill { padding: 4px; }
+.avatarName {
+  font-size: 14px; font-weight: 600; font-family: var(--font-ui);
+  white-space: nowrap;
 }
 
 /* ====================================================
@@ -200,8 +183,8 @@
   z-index: 30;
   display: none;
   align-items: center;
-  gap: 8px;
-  padding: calc(10px + env(safe-area-inset-top)) 12px 10px;
+  gap: 6px;
+  padding: calc(10px + env(safe-area-inset-top)) 10px 10px;
   background: rgba(10, 15, 32, 0.65);
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
   -webkit-backdrop-filter: blur(22px) saturate(160%);
@@ -210,8 +193,9 @@
 @media (max-width: 767px) { .mobileShell { display: flex; } }
 [data-theme="light"] .mobileShell { background: rgba(255,255,255,0.92); border-bottom-color: rgba(0,0,0,0.06); }
 
+
 .mobileIconBtn {
-  width: 42px; height: 42px;
+  width: 38px; height: 38px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.09);
   border: 1px solid rgba(255, 255, 255, 0.10);
@@ -223,29 +207,18 @@
   -webkit-tap-highlight-color: transparent;
 }
 .mobileIconBtn:active { background: rgba(255,255,255,0.14); }
-.mobileIconBtn svg { width: 20px; height: 20px; stroke: currentColor; fill: none; }
+.mobileIconBtn svg { width: 18px; height: 18px; stroke: currentColor; fill: none; }
 [data-theme="light"] .mobileIconBtn { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.08); color: var(--text); }
 
-.mobileCartBtn { /* keeps position:relative */ }
-.mobileBadge {
-  position: absolute; top: -4px; right: -4px;
-  min-width: 16px; height: 16px; padding: 0 4px;
-  background: var(--primary); color: #fff;
-  border-radius: 999px; font-size: 9px; font-weight: 700;
-  display: flex; align-items: center; justify-content: center;
-  border: 2px solid rgba(10,15,32,0.8); line-height: 1; pointer-events: none;
-}
-[data-theme="light"] .mobileBadge { border-color: rgba(255,255,255,0.9); }
 
 .mobileSearch {
   flex: 1;
   display: flex; align-items: center; gap: 8px;
-  height: 42px; padding: 0 14px;
+  height: 38px; padding: 0 12px;
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.10);
   border-radius: 999px;
   cursor: pointer;
-  text-align: left;
   -webkit-tap-highlight-color: transparent;
   transition: background 0.15s ease;
 }
@@ -264,7 +237,7 @@
 [data-theme="light"] .mobileSearchText { color: var(--muted); }
 
 /* ====================================================
-   Search overlay (shared desktop + mobile)
+   Search overlay
    ==================================================== */
 
 .searchOverlay {
@@ -277,18 +250,17 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 72px 16px 32px;
+  padding: 10px 24px 32px;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
-
 @media (max-width: 767px) {
-  .searchOverlay { padding: calc(16px + env(safe-area-inset-top)) 12px 24px; }
+  .searchOverlay { padding: calc(10px + env(safe-area-inset-top)) 10px 24px; }
 }
 
 .searchOverlayBox {
   width: 100%;
-  max-width: 620px;
+  max-width: 520px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -298,31 +270,29 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 14px 18px;
+  padding: 8px 18px;
   background: rgba(255, 255, 255, 0.10);
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 999px;
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
-  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  transition: border-color 0.18s ease;
 }
-.searchOverlayForm:focus-within {
-  border-color: rgba(255, 255, 255, 0.32);
-  box-shadow: 0 0 0 3px rgba(47, 124, 255, 0.28);
-}
-[data-theme="light"] .searchOverlayForm {
-  background: #fff; border-color: rgba(0,0,0,0.12);
-}
+.searchOverlayForm:focus-within { border-color: rgba(255, 255, 255, 0.32); }
+[data-theme="light"] .searchOverlayForm { background: #fff; border-color: rgba(0,0,0,0.12); }
 
 .searchOverlayIcon { display: inline-flex; flex-shrink: 0; color: rgba(255,255,255,0.55); }
-.searchOverlayIcon svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.searchOverlayIcon svg { width: 20px; height: 20px; stroke: currentColor; fill: none; }
 [data-theme="light"] .searchOverlayIcon { color: var(--muted); }
 .searchOverlayForm:focus-within .searchOverlayIcon { color: rgba(255,255,255,0.9); }
 
 .searchOverlayForm input {
-  flex: 1; border: none; background: transparent; outline: none;
+  flex: 1; border: none; background: transparent;
+  outline: none !important; box-shadow: none !important;
   color: #fff; font-size: 16px; font-family: var(--font-ui); min-width: 0;
+  -webkit-appearance: none; appearance: none;
 }
+.searchOverlayForm input:focus { outline: none !important; box-shadow: none !important; }
 .searchOverlayForm input::placeholder { color: rgba(255,255,255,0.40); }
 [data-theme="light"] .searchOverlayForm input { color: var(--text); }
 [data-theme="light"] .searchOverlayForm input::placeholder { color: var(--muted); }
@@ -335,10 +305,10 @@
   transition: background 0.15s ease;
 }
 .searchOverlayClear:hover { background: rgba(255,255,255,0.20); }
-.searchOverlayClear svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2.2; stroke-linecap: round; }
+.searchOverlayClear svg { width: 14px; height: 14px; stroke: currentColor; fill: none; }
 [data-theme="light"] .searchOverlayClear { background: rgba(0,0,0,0.08); color: var(--muted); }
 
-/* Suggestions card */
+/* ── Suggestions card ── */
 .searchSuggest {
   background: rgba(14, 18, 36, 0.90);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -372,5 +342,5 @@
 [data-theme="light"] .searchSuggestItem:hover { background: var(--surface-hover); }
 
 .searchSuggestIcon { display: inline-flex; flex-shrink: 0; color: rgba(255,255,255,0.30); }
-.searchSuggestIcon svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.searchSuggestIcon svg { width: 15px; height: 15px; stroke: currentColor; fill: none; }
 [data-theme="light"] .searchSuggestIcon { color: var(--muted-2); }

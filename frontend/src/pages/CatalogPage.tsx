@@ -109,8 +109,6 @@ export const CatalogPage = () => {
     [searchParams, sort]
   );
 
-  const activeCategory = searchParams.get('category') ?? '';
-
   const updateParam = (key: string, value: string | null) => {
     const params = new URLSearchParams(searchParams);
     if (value) params.set(key, value);
@@ -170,11 +168,6 @@ export const CatalogPage = () => {
     const params = new URLSearchParams(searchParams);
     params.set('sort', value);
     setSearchParams(params);
-  };
-
-  const handleCategorySelect = (category?: string) => {
-    updateParam('category', category ?? null);
-    setFilters((prev) => ({ ...prev, category: category ?? '' }));
   };
 
   return (
@@ -288,7 +281,6 @@ export const CatalogPage = () => {
                             style={{ backgroundColor: getColorSwatch(color) }}
                             aria-hidden="true"
                           />
-                          <span className={styles.optionBullet} aria-hidden="true" />
                           {color}
                         </button>
                       ))}
@@ -317,6 +309,25 @@ export const CatalogPage = () => {
                   </div>
                 </div>
 
+                <div className={styles.group}>
+                  <h3>Рейтинг</h3>
+                  {[['4.5', '★★★★★ 4.5+'], ['4', '★★★★ 4.0+'], ['3', '★★★ 3.0+']].map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={urlFilters.minRating === value ? styles.listItemActive : styles.listItem}
+                      onClick={() => {
+                        const next = urlFilters.minRating === value ? '' : value;
+                        setFilters((prev) => ({ ...prev, minRating: next }));
+                        updateParam('minRating', next || null);
+                      }}
+                    >
+                      <span className={styles.optionBullet} aria-hidden="true" />
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
                 <label className={urlFilters.inStock ? styles.checkFieldActive : styles.checkField}>
                   <input
                     type="checkbox"
@@ -332,6 +343,20 @@ export const CatalogPage = () => {
               </aside>
 
               <main className={styles.content}>
+                {urlFilters.category && (
+                  <div className={styles.categoryBar}>
+                    <span className={styles.categoryChip}>
+                      {urlFilters.category}
+                      <button
+                        className={styles.categoryChipClear}
+                        aria-label="Убрать категорию"
+                        onClick={() => updateParam('category', null)}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  </div>
+                )}
                 <div className={styles.controlsRow}>
                   <Button className={styles.mobileFilterButton} variant="secondary" onClick={() => setModalOpen(true)}>
                     Фильтры
@@ -345,6 +370,17 @@ export const CatalogPage = () => {
                       {Object.entries(sortOptions).map(([value, label]) => (
                         <option key={value} value={value}>
                           {label}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      className={styles.sortChip}
+                      value={sort}
+                      onChange={(event) => handleSortChange(event.target.value as SortValue)}
+                    >
+                      {Object.entries(sortOptions).map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label} ▾
                         </option>
                       ))}
                     </select>

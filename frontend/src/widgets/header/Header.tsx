@@ -13,6 +13,14 @@ const SearchIcon = () => (
     <circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>
   </svg>
 );
+const GridIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="7" height="7" rx="1.5"/>
+    <rect x="14" y="3" width="7" height="7" rx="1.5"/>
+    <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+    <rect x="14" y="14" width="7" height="7" rx="1.5"/>
+  </svg>
+);
 const MenuIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M4 6h16M4 12h16M4 18h10"/>
@@ -21,14 +29,6 @@ const MenuIcon = () => (
 const CloseIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M18 6 6 18M6 6l12 12"/>
-  </svg>
-);
-const GridIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="3" width="7" height="7" rx="1.5"/>
-    <rect x="14" y="3" width="7" height="7" rx="1.5"/>
-    <rect x="3" y="14" width="7" height="7" rx="1.5"/>
-    <rect x="14" y="14" width="7" height="7" rx="1.5"/>
   </svg>
 );
 const HeartIcon = () => (
@@ -144,7 +144,6 @@ const SearchOverlay = ({ initialValue, onClose }: { initialValue: string; onClos
 /* ── Mobile header (≤767px) ── */
 const MobileHeader = ({ onSearchOpen }: { onSearchOpen: () => void }) => {
   const location = useLocation();
-  const cartCount = useCartStore((s) => s.items.reduce((n, i) => n + i.quantity, 0));
   const currentQuery = new URLSearchParams(location.search).get('q') ?? '';
 
   return (
@@ -164,16 +163,9 @@ const MobileHeader = ({ onSearchOpen }: { onSearchOpen: () => void }) => {
         </span>
       </button>
 
-      <Link
-        to="/cart"
-        className={`${styles.mobileIconBtn} ${styles.mobileCartBtn}`}
-        aria-label="Корзина"
-      >
-        <CartIcon />
-        {cartCount > 0 && (
-          <span className={styles.mobileBadge}>{cartCount > 9 ? '9+' : cartCount}</span>
-        )}
-      </Link>
+      <button className={styles.mobileIconBtn} aria-label="Уведомления">
+        <BellIcon />
+      </button>
     </div>
   );
 };
@@ -237,10 +229,8 @@ export const Header = () => {
             onClick={() => setSearchOpen(true)}
             aria-label="Поиск"
           >
-            <span className={styles.searchTriggerIcon}><SearchIcon /></span>
-            <span className={styles.searchTriggerText}>
-              {currentQuery || 'Поиск моделей, материалов, продавцов'}
-            </span>
+            <SearchIcon />
+            Найти товар
           </button>
 
           <span className={styles.divider} aria-hidden="true" />
@@ -278,7 +268,7 @@ export const Header = () => {
             title={user?.name ?? 'Профиль'}
           >
             <span className={styles.avatarCircle}>{initials}</span>
-            {firstName && <span className={styles.avatarName}>{firstName}</span>}
+            <span className={styles.avatarName}>{firstName ?? 'Профиль'}</span>
           </button>
         </nav>
       </header>

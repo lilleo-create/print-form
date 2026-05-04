@@ -78,7 +78,6 @@ export const HomeProductCard = ({ product }: Props) => {
           ) : (
             <span className={styles.noRating}>Нет отзывов</span>
           )}
-          {product.material ? <span>{product.material}</span> : null}
         </div>
       </div>
     </article>
