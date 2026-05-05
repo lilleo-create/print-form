@@ -7,7 +7,6 @@ import { PickupPointBlock } from './PickupPointBlock';
 import { CdekPvzPickerModal } from '../../../components/checkout/CdekPvzPickerModal';
 import { RecipientModal } from './RecipientModal';
 import { CheckoutLegalLinks } from './CheckoutLegalLinks';
-import { PaymentMethodSelector } from './PaymentMethodSelector';
 import styles from './CheckoutLayout.module.css';
 import { formatPrice } from '../../../shared/lib/formatPrice';
 import { useBuyNowStore } from '../../../app/store/buyNowStore';
@@ -25,7 +24,6 @@ export const CheckoutLayout = () => {
     setPickupPoint,
     updateRecipient,
     updateAddress,
-    setPaymentMethod,
     placeOrder
   } = useCheckoutStore();
 
@@ -33,6 +31,7 @@ export const CheckoutLayout = () => {
   const [isRecipientOpen, setRecipientOpen] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
   const [legalAccepted, setLegalAccepted] = useState(false);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
 
   useEffect(() => {
     void fetchCheckout();
@@ -45,7 +44,6 @@ export const CheckoutLayout = () => {
 
   const deliveryFee = 0;
   const selectedDeliveryMethod = data?.selectedDeliveryMethod ?? 'COURIER';
-  const selectedPaymentMethod = data?.selectedPaymentMethod ?? 'CARD';
   const availableDeliveryMethods = data?.deliveryMethods ?? [];
   const firstItem = data?.cartItems[0];
 
@@ -65,6 +63,12 @@ export const CheckoutLayout = () => {
 
   const handlePayClick = async () => {
     if (isPaying) return;
+    if (!data?.recipient.phone?.trim()) {
+      setPhoneError('Укажите номер телефона');
+      setRecipientOpen(true);
+      return;
+    }
+    setPhoneError(null);
     setIsPaying(true);
     try {
       const result = await placeOrder();
@@ -174,13 +178,6 @@ export const CheckoutLayout = () => {
           <p className={styles.summaryTotal}><span>Итого</span><strong>{formatPrice(total + deliveryFee)}</strong></p>
         </section>
 
-        <section className={styles.paymentCard}>
-          <PaymentMethodSelector data={data} onSelectMethod={(method, cardId) => void setPaymentMethod(method, cardId)} />
-          <p className={styles.paymentNote}>
-            {selectedPaymentMethod === 'SBP' ? 'Оплата через СБП / YooKassa' : 'Оплата банковской картой / YooKassa'}
-          </p>
-        </section>
-
         <Button
           className={styles.payButton}
           isLoading={isSubmittingOrder || isPaying}
@@ -190,10 +187,11 @@ export const CheckoutLayout = () => {
           Оплатить
         </Button>
 
-        {!legalAccepted ? (
+        {!legalAccepted && (
           <p className={styles.error}>Подтвердите согласие с правилами сервиса и политикой персональных данных.</p>
-        ) : null}
-        {error ? <p className={styles.error}>{error}</p> : null}
+        )}
+        {phoneError && <p className={styles.error}>{phoneError}</p>}
+        {error && <p className={styles.error}>{error}</p>}
       </aside>
 
       <CdekPvzPickerModal

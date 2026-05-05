@@ -37,12 +37,6 @@ export const ProductPurchasePanel = ({ product }: ProductPurchasePanelProps) => 
         </div>
 
         <p className={styles.trustRow}>Защита покупателя · Возврат 14 дней</p>
-
-        <div className={styles.deliveryCard}>
-          <h3>Доставка</h3>
-          <p>Курьером — уточняется при оформлении</p>
-          <p>Самовывоз из ПВЗ — бесплатно</p>
-        </div>
       </div>
     </aside>
   );

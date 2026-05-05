@@ -47,7 +47,7 @@ export const BottomNav = ({ forceShow = false, onNavigate }: { forceShow?: boole
   const openProfileMenu = useHeaderMenuStore((s) => s.openProfileMenu);
   const closeCategoriesMenu = useHeaderMenuStore((s) => s.closeCategoriesMenu);
 
-  const show = (forceShow || !location.pathname.startsWith('/seller')) && !location.pathname.startsWith('/auth');
+  const show = (forceShow || !location.pathname.startsWith('/seller') || location.pathname === '/seller/onboarding') && !location.pathname.startsWith('/auth');
   if (!show) return null;
 
   const isHome = location.pathname === '/';

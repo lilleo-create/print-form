@@ -336,12 +336,13 @@
   width: 100%;
   aspect-ratio: 1 / 1;
   border-radius: 0;
-  min-height: 0;
   flex-shrink: 0;
+  /* Remove min-height:0 override — let aspect-ratio handle sizing */
+  min-height: unset;
 }
-.cardSkeletonTitle { margin: 2px 14px 0; width: calc(100% - 28px); height: 38px; border-radius: 10px; }
-.cardSkeletonPrice { margin: 0 14px; width: calc(50% - 14px); height: 22px; border-radius: 8px; }
-.cardSkeletonMeta { margin: 0 14px; width: calc(65% - 14px); height: 14px; border-radius: 8px; }
+.cardSkeletonTitle { margin: 2px 14px 0; width: calc(100% - 28px); height: 36px; border-radius: 10px; min-height: unset; }
+.cardSkeletonPrice { margin: 0 14px; width: calc(50% - 14px); height: 22px; border-radius: 8px; min-height: unset; }
+.cardSkeletonMeta { margin: 0 14px; width: calc(65% - 14px); height: 14px; border-radius: 8px; min-height: unset; }
 
 .stateBox {
   border: 1px solid var(--border);
