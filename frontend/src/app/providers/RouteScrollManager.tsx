@@ -3,8 +3,13 @@ import { useLocation, useNavigationType } from 'react-router-dom';
 
 const SCROLL_ROOT_SELECTOR = '[data-route-scroll-root]';
 
+/* Prevent the browser from auto-restoring scroll on PUSH/REPLACE navigations */
+if (typeof window !== 'undefined' && 'scrollRestoration' in window.history) {
+  window.history.scrollRestoration = 'manual';
+}
+
 const scrollToTop = () => {
-  window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  window.scrollTo(0, 0);
   document.documentElement.scrollTop = 0;
   document.body.scrollTop = 0;
 
@@ -20,14 +25,8 @@ export const RouteScrollManager = () => {
   const navigationType = useNavigationType();
 
   useEffect(() => {
-    if (navigationType === 'POP') {
-      return;
-    }
-
-    if (location.hash) {
-      return;
-    }
-
+    if (navigationType === 'POP') return;
+    if (location.hash) return;
     scrollToTop();
   }, [location.pathname, location.search, location.hash, navigationType]);
 

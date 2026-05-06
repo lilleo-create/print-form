@@ -11,7 +11,7 @@ export const CatalogHeader = ({ categories, activeCategory, onSelect }: CatalogH
 
   return (
     <nav className={styles.wrap} aria-label="Категории каталога">
-      <div className={`${styles.inner} container`}>
+      <div className={styles.inner}>
         <button
           type="button"
           className={!activeCategory ? styles.pillActive : styles.pill}

@@ -1,24 +1,38 @@
 .wrap {
+  position: sticky;
+  /* desktop: pill header is ~73px tall */
+  top: 73px;
+  z-index: 10;
   width: 100%;
   overflow-x: auto;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
   border-bottom: 1px solid var(--border);
   background: var(--bg-2);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
 }
 
 .wrap::-webkit-scrollbar {
   display: none;
 }
 
+/* On mobile: fixed header is ~62px, account for safe-area too */
+@media (max-width: 767px) {
+  .wrap {
+    top: calc(62px + env(safe-area-inset-top, 0px));
+  }
+}
+
 .inner {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding-top: 12px;
-  padding-bottom: 12px;
+  padding: 10px 16px;
   flex-wrap: nowrap;
-  min-width: 0;
+  /* explicit width so the flex row never gets constrained to column */
+  width: max-content;
+  min-width: 100%;
 }
 
 .pill,

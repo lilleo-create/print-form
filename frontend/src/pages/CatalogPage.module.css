@@ -19,7 +19,8 @@
 
 .sidebar {
   position: sticky;
-  top: 72px;
+  /* below fixed pill header (~73px) + sticky category bar (~50px) */
+  top: 128px;
   align-self: start;
   display: grid;
   gap: 0;
@@ -262,10 +263,13 @@
   border-bottom: 1px solid var(--border);
   background: var(--card);
   position: sticky;
-  top: 56px;
-  z-index: 10;
-  margin: 0 -24px;
-  overflow: hidden;
+  /* mobile fixed header ≈ 62px + CatalogHeader ≈ 50px + safe area */
+  top: calc(112px + env(safe-area-inset-top, 0px));
+  z-index: 5;
+  /* no negative margins — they shift content off-screen when container padding < 24px */
+  margin: 0;
+  /* padding-left shifts buttons away from the edge so they're always visible */
+  padding-left: 4px;
 }
 
 .mobileBarBtn {
@@ -455,6 +459,7 @@
   background: var(--card);
   display: grid;
   gap: 14px;
+  margin-top: 16px;
   justify-items: start;
 }
 
@@ -466,7 +471,7 @@
 }
 
 @media (max-width: 960px) {
-  .catalogLayout { grid-template-columns: 1fr; padding-top: 0; }
+  .catalogLayout { grid-template-columns: 1fr; padding-top: 16px; }
   .sidebar { display: none; }
   .controlsRow { display: none; }
   .mobileBar { display: flex; }
