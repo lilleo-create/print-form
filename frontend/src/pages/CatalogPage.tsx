@@ -89,6 +89,7 @@ const getColorSwatch = (name: string) => COLOR_SWATCHES[name.trim().toLowerCase(
 export const CatalogPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [isModalOpen, setModalOpen] = useState(false);
+  const [isSortOpen, setSortOpen] = useState(false);
   const [filters, setFilters] = useState<CatalogFiltersState>(() => readFiltersFromUrl(searchParams));
 
   useEffect(() => {
@@ -205,7 +206,7 @@ export const CatalogPage = () => {
 
         return (
           <section className={styles.page}>
-            <div className={`container ${styles.catalogLayout}`}>
+            <div className={styles.catalogLayout}>
               <aside className={styles.sidebar}>
                 <div className={styles.sidebarHead}>
                   <h2>Все категории</h2>
@@ -343,24 +344,8 @@ export const CatalogPage = () => {
               </aside>
 
               <main className={styles.content}>
-                {urlFilters.category && (
-                  <div className={styles.categoryBar}>
-                    <span className={styles.categoryChip}>
-                      {urlFilters.category}
-                      <button
-                        className={styles.categoryChipClear}
-                        aria-label="Убрать категорию"
-                        onClick={() => updateParam('category', null)}
-                      >
-                        ×
-                      </button>
-                    </span>
-                  </div>
-                )}
+                {/* Desktop sort row */}
                 <div className={styles.controlsRow}>
-                  <Button className={styles.mobileFilterButton} variant="secondary" onClick={() => setModalOpen(true)}>
-                    Фильтры
-                  </Button>
                   <div className={styles.topControls}>
                     <select
                       className={styles.sortSelect}
@@ -373,17 +358,64 @@ export const CatalogPage = () => {
                         </option>
                       ))}
                     </select>
-                    <select
-                      className={styles.sortChip}
-                      value={sort}
-                      onChange={(event) => handleSortChange(event.target.value as SortValue)}
+                  </div>
+                </div>
+
+                {/* Mobile bar */}
+                <div className={styles.mobileBar}>
+                  <button className={styles.mobileBarBtn} aria-label="Сортировка" onClick={() => setSortOpen(true)}>
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                      <path d="M3 5h14M5 10h10M7 15h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                  <button className={styles.mobileBarBtn} aria-label="Фильтры" onClick={() => setModalOpen(true)}>
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                      <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                      <circle cx="7" cy="5" r="2" fill="var(--card)" stroke="currentColor" strokeWidth="1.5" />
+                      <circle cx="13" cy="10" r="2" fill="var(--card)" stroke="currentColor" strokeWidth="1.5" />
+                      <circle cx="7" cy="15" r="2" fill="var(--card)" stroke="currentColor" strokeWidth="1.5" />
+                    </svg>
+                  </button>
+                  <div className={styles.mobileBarSep} />
+                  <div className={styles.mobileChips}>
+                    {urlFilters.category && (
+                      <button
+                        className={styles.mobileChipActive}
+                        onClick={() => updateParam('category', null)}
+                      >
+                        {urlFilters.category} ×
+                      </button>
+                    )}
+                    <button
+                      className={urlFilters.inStock ? styles.mobileChipActive : styles.mobileChip}
+                      onClick={() => {
+                        const next = !urlFilters.inStock;
+                        setFilters((prev) => ({ ...prev, inStock: next }));
+                        setStockFilter(next);
+                      }}
                     >
-                      {Object.entries(sortOptions).map(([value, label]) => (
-                        <option key={value} value={value}>
-                          {label} ▾
-                        </option>
-                      ))}
-                    </select>
+                      В наличии
+                    </button>
+                    <button
+                      className={urlFilters.minRating === '4.5' ? styles.mobileChipActive : styles.mobileChip}
+                      onClick={() => {
+                        const next = urlFilters.minRating === '4.5' ? '' : '4.5';
+                        setFilters((prev) => ({ ...prev, minRating: next }));
+                        updateParam('minRating', next || null);
+                      }}
+                    >
+                      ★ 4.5+
+                    </button>
+                    <button
+                      className={urlFilters.minRating === '4' ? styles.mobileChipActive : styles.mobileChip}
+                      onClick={() => {
+                        const next = urlFilters.minRating === '4' ? '' : '4';
+                        setFilters((prev) => ({ ...prev, minRating: next }));
+                        updateParam('minRating', next || null);
+                      }}
+                    >
+                      ★ 4.0+
+                    </button>
                   </div>
                 </div>
 
@@ -437,6 +469,30 @@ export const CatalogPage = () => {
               onReset={resetFilters}
               onClose={() => setModalOpen(false)}
             />
+
+            {isSortOpen && (
+              <div className={styles.sortOverlay} onClick={() => setSortOpen(false)}>
+                <div className={styles.sortSheet} onClick={(e) => e.stopPropagation()}>
+                  <p className={styles.sortSheetTitle}>Показывать сначала</p>
+                  {Object.entries(sortOptions).map(([value, label]) => (
+                    <button
+                      key={value}
+                      className={sort === value ? styles.sortOptionActive : styles.sortOption}
+                      onClick={() => {
+                        handleSortChange(value as SortValue);
+                        setSortOpen(false);
+                      }}
+                    >
+                      <span>{label}</span>
+                      <span className={sort === value ? styles.sortDotActive : styles.sortDot} />
+                    </button>
+                  ))}
+                  <button className={styles.sortCancel} onClick={() => setSortOpen(false)}>
+                    Отменить
+                  </button>
+                </div>
+              </div>
+            )}
           </section>
         );
       }}

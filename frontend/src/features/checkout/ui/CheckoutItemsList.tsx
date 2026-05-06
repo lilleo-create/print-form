@@ -13,7 +13,6 @@ export const CheckoutItemsList = ({ items }: Props) => (
         <SmartImage src={item.image ?? ''} alt={item.title} sizePreset="card" />
         <div className={styles.meta}>
           <h4>{item.title}</h4>
-          <p>{item.shortSpec ?? 'SKU/variant'}</p>
           <p>{item.quantity} × {formatPrice(item.price)}</p>
         </div>
         <strong className={styles.total}>{formatPrice(item.quantity * item.price)}</strong>

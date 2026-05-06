@@ -45,7 +45,6 @@ export const CategoriesPage = () => {
 
   if (selectedCategory) {
     const subs = SUBCATEGORIES[selectedCategory] ?? [];
-    const meta = CATEGORY_META[selectedCategory];
     return (
       <div className={styles.page}>
         <div className={styles.subHeader}>
@@ -59,7 +58,6 @@ export const CategoriesPage = () => {
             <button
               key={sub}
               className={styles.subItem}
-              style={{ background: meta?.gradient ?? FALLBACK_GRADIENT }}
               onClick={() => navigate(`/catalog?category=${encodeURIComponent(selectedCategory)}`)}
             >
               <span className={styles.subItemName}>{sub}</span>

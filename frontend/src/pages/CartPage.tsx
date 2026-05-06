@@ -101,10 +101,6 @@ export const CartPage = () => {
                 <p className={styles.grandTotal}><span>Итого</span><strong>{formatPrice(total)}</strong></p>
               </div>
 
-              <div className={styles.installments}>
-                <strong>12×{Math.max(1, Math.round(total / 12))}₽</strong>
-                <span>12 месяцев, без переплат</span>
-              </div>
             </aside>
           </div>
         )}

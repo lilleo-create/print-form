@@ -155,7 +155,6 @@ export const CheckoutLayout = () => {
                 <SmartImage src={firstItem.image ?? ''} alt={firstItem.title} sizePreset="card" />
                 <div className={styles.orderItemMeta}>
                   <h3>{firstItem.title}</h3>
-                  <p>{firstItem.shortSpec ?? 'SKU/variant'}</p>
                   <p>{firstItem.quantity} × {formatPrice(firstItem.price)}</p>
                 </div>
                 <strong>{formatPrice(firstItem.price * firstItem.quantity)}</strong>

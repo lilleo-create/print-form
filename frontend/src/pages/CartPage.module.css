@@ -73,8 +73,15 @@
   overflow: hidden;
 }
 
-.qtyRow button { width: 26px; height: 28px; border: 0; background: var(--bg-2); color: var(--text); cursor: pointer; }
-.qtyRow input { width: 40px; height: 28px; border: 0; text-align: center; background: var(--bg-2); color: var(--text); }
+.qtyRow button { width: 26px; height: 28px; border: 0; background: var(--bg-2); color: var(--text); cursor: pointer; font-size: 15px; }
+.qtyRow input {
+  width: 40px; height: 28px; border: 0; text-align: center;
+  background: var(--bg-2); color: var(--text);
+  font-size: 14px; font-family: inherit; font-weight: 600;
+  -webkit-appearance: textfield; -moz-appearance: textfield; appearance: textfield;
+}
+.qtyRow input::-webkit-outer-spin-button,
+.qtyRow input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
 .summary {
   background: var(--card);
@@ -127,7 +134,7 @@
 }
 
 @media (max-width: 760px) {
-  .page { padding: 16px 16px 72px; }
+  .page { padding: 16px 0 72px; }
 
   .title,
   .info h3,
