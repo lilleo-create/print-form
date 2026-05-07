@@ -1,5 +1,4 @@
-import type { DeliveryMethodCode } from '../api/checkoutApi';
-import type { CheckoutDto } from '../api/checkoutApi';
+import type { DeliveryMethodCode, CheckoutDto } from '../api/checkoutApi';
 import styles from './DeliveryMethodSelector.module.css';
 
 type Props = {
@@ -8,32 +7,30 @@ type Props = {
   onSelect: (code: DeliveryMethodCode) => void;
 };
 
-const methodLabels: Record<DeliveryMethodCode, string> = {
-  COURIER: 'Курьером',
-  PICKUP_POINT: 'В пункт выдачи'
-};
+const ALL_METHODS: { code: DeliveryMethodCode; label: string }[] = [
+  { code: 'PICKUP_POINT', label: 'В пункт выдачи' },
+  { code: 'COURIER', label: 'Курьером' },
+];
 
-export const DeliveryMethodSelector = ({ methods, selected, onSelect }: Props) => {
-  const pickupPoint = methods.find((method) => method.code === 'PICKUP_POINT');
-
-  return (
-    <div className={styles.wrap}>
-      {/* Courier — disabled until available */}
-      <button type="button" className={styles.item} disabled>
-        <span>{methodLabels.COURIER}</span>
-        <small>Появится позже</small>
-      </button>
-
-      {/* Pickup point */}
-      <button
-        type="button"
-        className={selected === 'PICKUP_POINT' ? styles.active : styles.item}
-        onClick={() => onSelect('PICKUP_POINT')}
-        disabled={!pickupPoint}
-      >
-        <span>{methodLabels.PICKUP_POINT}</span>
-        <small>{pickupPoint?.description ?? 'Выберите пункт CDEK'}</small>
-      </button>
-    </div>
-  );
-};
+export const DeliveryMethodSelector = ({ methods, selected, onSelect }: Props) => (
+  <div className={styles.carousel}>
+    {ALL_METHODS.map(({ code, label }) => {
+      const method = methods.find((m) => m.code === code);
+      const isActive = selected === code;
+      return (
+        <button
+          key={code}
+          type="button"
+          className={isActive ? styles.cardActive : styles.card}
+          disabled={!method}
+          onClick={() => method && onSelect(code)}
+        >
+          <span className={styles.cardLabel}>{label}</span>
+          <span className={styles.cardDate}>
+            {method ? (method.description ?? 'Послезавтра') : 'Недоступно'}
+          </span>
+        </button>
+      );
+    })}
+  </div>
+);
