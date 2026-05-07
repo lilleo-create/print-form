@@ -100,17 +100,9 @@ export const ProfileMenu = ({
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        {/* Mobile: drag handle row with close button */}
+        {/* Mobile: drag handle */}
         <div className={styles.profileMenuHandleRow}>
           <span className={styles.profileMenuHandleBar} />
-          <button
-            type="button"
-            className={styles.profileMenuClose}
-            onClick={onClose}
-            aria-label="Закрыть"
-          >
-            <IcClose />
-          </button>
         </div>
 
         {/* Header: avatar + name + close */}
