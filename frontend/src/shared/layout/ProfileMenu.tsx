@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { Link } from 'react-router-dom';
 import styles from '../../widgets/layout/Layout.module.css';
 import { useIsSeller } from '../lib/useIsSeller';
@@ -50,6 +51,36 @@ export const ProfileMenu = ({
   const initials = getInitials(user?.name, user?.email);
   const displayName = user?.name ?? user?.email ?? 'Профиль';
 
+  const panelRef = useRef<HTMLDivElement>(null);
+  const dragStartY = useRef<number | null>(null);
+  const dragDelta = useRef(0);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    dragStartY.current = e.touches[0].clientY;
+    dragDelta.current = 0;
+    if (panelRef.current) panelRef.current.style.transition = 'none';
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (dragStartY.current === null) return;
+    const delta = e.touches[0].clientY - dragStartY.current;
+    if (delta < 0) return;
+    dragDelta.current = delta;
+    if (panelRef.current) panelRef.current.style.transform = `translateY(${delta}px)`;
+  };
+
+  const handleTouchEnd = () => {
+    dragStartY.current = null;
+    if (!panelRef.current) return;
+    panelRef.current.style.transition = '';
+    if (dragDelta.current > 80) {
+      onClose();
+    } else {
+      panelRef.current.style.transform = '';
+    }
+    dragDelta.current = 0;
+  };
+
   if (!isOpen) return null;
 
   const isAccountTab = (tab: string) => pathname === '/account' && searchTab === tab;
@@ -62,9 +93,26 @@ export const ProfileMenu = ({
       onClick={onClose}
     >
       <div
+        ref={panelRef}
         className={styles.profileMenuPage}
         onClick={(e) => e.stopPropagation()}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
       >
+        {/* Mobile: drag handle row with close button */}
+        <div className={styles.profileMenuHandleRow}>
+          <span className={styles.profileMenuHandleBar} />
+          <button
+            type="button"
+            className={styles.profileMenuClose}
+            onClick={onClose}
+            aria-label="Закрыть"
+          >
+            <IcClose />
+          </button>
+        </div>
+
         {/* Header: avatar + name + close */}
         <div className={styles.profileMenuHeader}>
           <div className={styles.profileMenuHeaderUser}>

@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
 import type { Product } from '../../shared/types';
 import { Rating } from '../../shared/ui/Rating';
+import { getProductRatingMeta } from '../../shared/lib/productRating';
 import styles from '../../pages/ProductPage.module.css';
 import { ProductActionsInline } from '../../pages/ProductPage/components/ProductActionsInline/ProductActionsInline';
 import { useFavoritesStore } from '../../features/favorites/model/useFavoritesStore';
 import { ShareModal } from '../../features/share/ui/ShareModal';
 import { cmToMm } from '../../shared/lib/productDimensions';
-import { getProductRatingMeta } from '../../shared/lib/productRating';
 import type { SpecItem } from '../../pages/ProductPage/components/ProductSpecs/ProductSpecs';
 
 type ProductDetailsProps = {
@@ -24,7 +23,7 @@ type ProductDetailsProps = {
 
 export const ProductDetails = ({
   product,
-  baseProductId,
+  baseProductId: _baseProductId,
   variantProducts,
   activeVariantId,
   onVariantChange,
@@ -33,8 +32,6 @@ export const ProductDetails = ({
   specsExpanded,
   onSpecsExpandedChange
 }: ProductDetailsProps) => {
-  const location = useLocation();
-
   const [isShareOpen, setIsShareOpen] = useState(false);
   const isFavorite = useFavoritesStore((state) => state.isFavorite(product.id));
   const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
@@ -53,10 +50,8 @@ export const ProductDetails = ({
     void fetchFavorites();
   }, [fetchFavorites, product.id]);
 
-  const ratingMeta = getProductRatingMeta({
-    ratingAvg: product.ratingAvg,
-    ratingCount: reviewsCount
-  });
+  const ratingMeta = getProductRatingMeta({ ratingAvg: product.ratingAvg, ratingCount: reviewsCount });
+
   const previewSpecRows = [
     { label: 'Материал', value: product.material || '—' },
     { label: 'Тип печати', value: product.technology || '—' },
@@ -93,30 +88,13 @@ export const ProductDetails = ({
           />
         </div>
         <div className={styles.ratingRow}>
-          {ratingMeta.hasReviews ? (
-            <>
-              <Rating
-                value={ratingMeta.ratingValue}
-                count={ratingMeta.ratingCount}
-                size="md"
-              />
-              <Link
-                to={`/product/${baseProductId}/reviews`}
-                className={styles.reviewLink}
-                state={{
-                  from: {
-                    pathname: location.pathname,
-                    search: location.search,
-                    hash: location.hash
-                  },
-                  fallback: `/product/${baseProductId}`
-                }}
-              >
-                {ratingMeta.ratingCount} отзывов
-              </Link>
-            </>
-          ) : (
-            <span className={styles.noReviewsText}>Пока нет отзывов</span>
+          <Rating
+            value={ratingMeta.hasReviews ? ratingMeta.ratingValue : 0}
+            count={ratingMeta.hasReviews ? ratingMeta.ratingCount : 0}
+            size="md"
+          />
+          {ratingMeta.hasReviews && (
+            <span className={styles.reviewLink}>{ratingMeta.ratingCount} отзывов</span>
           )}
         </div>
       </div>

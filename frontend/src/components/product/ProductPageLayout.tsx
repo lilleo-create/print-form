@@ -146,21 +146,22 @@ export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
           <span className={styles.breadcrumbCurrent}>{activeProduct.title}</span>
         </nav>
 
+        {/* Mobile: back button above gallery */}
+        <div className={styles.mobileTopBar}>
+          <button
+            type="button"
+            className={styles.mobileBackBtn}
+            onClick={() => navigate(-1)}
+            aria-label="Назад"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          </button>
+        </div>
+
         <div className={styles.hero}>
           <div className={styles.galleryCol}>
-            {/* Mobile: back button overlaid on image */}
-            <div className={styles.mobileTopBar}>
-              <button
-                type="button"
-                className={styles.mobileBackBtn}
-                onClick={() => navigate(-1)}
-                aria-label="Назад"
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M15 18l-6-6 6-6" />
-                </svg>
-              </button>
-            </div>
             <ProductGallery images={productImages} title={activeProduct.title} />
           </div>
           {/* Mobile-only price under gallery */}

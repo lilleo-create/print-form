@@ -659,6 +659,22 @@
   background: var(--primary-soft);
 }
 
+/* ── Profile menu handle row (mobile only) ── */
+.profileMenuHandleRow {
+  display: none;
+}
+
+.profileMenuHandleBar {
+  width: 36px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  flex-shrink: 0;
+}
+[data-theme="light"] .profileMenuHandleBar {
+  background: rgba(0, 0, 0, 0.14);
+}
+
 /* ── Profile menu overlay ── */
 .profileMenuOverlay {
   position: fixed;
@@ -1000,19 +1016,13 @@
     animation: profileMenuSlideUp 0.2s ease;
   }
 
-  /* Drag handle */
-  .profileMenuPage::before {
-    content: '';
-    display: block;
-    width: 36px;
-    height: 4px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.22);
-    margin: 0 auto 10px;
+  .profileMenuHandleRow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    padding: 0 8px 10px;
     flex-shrink: 0;
-  }
-  [data-theme="light"] .profileMenuPage::before {
-    background: rgba(0, 0, 0, 0.14);
   }
 
   .main {
