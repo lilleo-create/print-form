@@ -255,8 +255,8 @@
   border-bottom: 1px solid var(--border);
   background: var(--card);
   position: sticky;
-  /* mobile fixed header ≈ 62px + CatalogHeader ≈ 50px + safe area */
-  top: calc(112px + env(safe-area-inset-top, 0px));
+  /* mobile fixed header ≈ 58px + safe area */
+  top: calc(58px + env(safe-area-inset-top, 0px));
   z-index: 5;
   overflow: hidden;
   /* no negative margins — they shift content off-screen when container padding < 24px */
@@ -464,7 +464,7 @@
 }
 
 @media (max-width: 960px) {
-  .catalogLayout { grid-template-columns: 1fr; padding-top: 16px; }
+  .catalogLayout { grid-template-columns: 1fr; }
   .sidebar { display: none; }
   .controlsRow { display: none; }
   .mobileBar { display: flex; }
@@ -473,6 +473,6 @@
 
 @media (max-width: 640px) {
   .page { padding-bottom: 54px; }
-  .catalogLayout { padding: 0 12px; }
+  .catalogLayout { padding: 16px 12px 0; }
   .grid { gap: 10px; }
 }

@@ -1021,13 +1021,15 @@
     align-items: center;
     justify-content: center;
     position: relative;
-    padding: 0 8px 10px;
+    padding: 10px 8px 14px;
     flex-shrink: 0;
+    touch-action: none;
+    cursor: grab;
   }
 
   .main {
-    /* mobile header height: ~62px + safe-area-inset-top */
-    padding-top: calc(62px + env(safe-area-inset-top));
+    /* mobile header height: ~58px + safe-area-inset-top */
+    padding-top: calc(58px + env(safe-area-inset-top));
     padding-bottom: calc(100px + env(safe-area-inset-bottom));
   }
 

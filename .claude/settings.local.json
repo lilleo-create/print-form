@@ -10,7 +10,8 @@
       "Bash(python3 -c ' *)",
       "Bash(python3)",
       "PowerShell(Get-ChildItem \"C:\\\\Users\\\\Funtik Funy Cat\\\\AppData\\\\Local\\\\Temp\\\\design-extract\" -Recurse | ForEach-Object { $_.FullName })",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "PowerShell(Head -50)"
     ]
   }
 }
