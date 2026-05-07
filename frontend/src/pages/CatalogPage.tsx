@@ -4,6 +4,7 @@ import { ProductCard } from '../widgets/shop/ProductCard';
 import { CatalogBoot } from '../features/catalog/CatalogBoot';
 import { FilterModal } from '../widgets/catalog/FilterModal';
 import { Button } from '../shared/ui/Button';
+import { Select } from '../shared/ui/Select';
 import { Skeleton } from '../shared/ui/Skeleton';
 import styles from './CatalogPage.module.css';
 
@@ -171,10 +172,11 @@ export const CatalogPage = () => {
     setSearchParams(params);
   };
 
+  const urlFilters = readFiltersFromUrl(searchParams);
+
   return (
     <CatalogBoot filters={catalogParams}>
       {({ filterData, products, loading, error }) => {
-        const urlFilters = readFiltersFromUrl(searchParams);
 
         const colors = Array.from(new Set(products.map((product) => product.color).filter(Boolean))).slice(0, 12);
 
@@ -206,6 +208,64 @@ export const CatalogPage = () => {
 
         return (
           <section className={styles.page}>
+            {/* Mobile bar — at page level so sticky doesn't overlap the grid */}
+            <div className={styles.mobileBar}>
+                  <button className={styles.mobileBarBtn} aria-label="Сортировка" onClick={() => setSortOpen(true)}>
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                      <path d="M3 5h14M5 10h10M7 15h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                  <button className={styles.mobileBarBtn} aria-label="Фильтры" onClick={() => setModalOpen(true)}>
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                      <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                      <circle cx="7" cy="5" r="2" fill="var(--card)" stroke="currentColor" strokeWidth="1.5" />
+                      <circle cx="13" cy="10" r="2" fill="var(--card)" stroke="currentColor" strokeWidth="1.5" />
+                      <circle cx="7" cy="15" r="2" fill="var(--card)" stroke="currentColor" strokeWidth="1.5" />
+                    </svg>
+                  </button>
+                  <div className={styles.mobileBarSep} />
+                  <div className={styles.mobileChips}>
+                    {urlFilters.category && (
+                      <button
+                        className={styles.mobileChipActive}
+                        onClick={() => updateParam('category', null)}
+                      >
+                        {urlFilters.category} ×
+                      </button>
+                    )}
+                    <button
+                      className={urlFilters.inStock ? styles.mobileChipActive : styles.mobileChip}
+                      onClick={() => {
+                        const next = !urlFilters.inStock;
+                        setFilters((prev) => ({ ...prev, inStock: next }));
+                        setStockFilter(next);
+                      }}
+                    >
+                      В наличии
+                    </button>
+                    <button
+                      className={urlFilters.minRating === '4.5' ? styles.mobileChipActive : styles.mobileChip}
+                      onClick={() => {
+                        const next = urlFilters.minRating === '4.5' ? '' : '4.5';
+                        setFilters((prev) => ({ ...prev, minRating: next }));
+                        updateParam('minRating', next || null);
+                      }}
+                    >
+                      ★ 4.5+
+                    </button>
+                    <button
+                      className={urlFilters.minRating === '4' ? styles.mobileChipActive : styles.mobileChip}
+                      onClick={() => {
+                        const next = urlFilters.minRating === '4' ? '' : '4';
+                        setFilters((prev) => ({ ...prev, minRating: next }));
+                        updateParam('minRating', next || null);
+                      }}
+                    >
+                      ★ 4.0+
+                    </button>
+                  </div>
+                </div>
+
             <div className={styles.catalogLayout}>
               <aside className={styles.sidebar}>
                 <div className={styles.sidebarHead}>
@@ -347,8 +407,7 @@ export const CatalogPage = () => {
                 {/* Desktop sort row */}
                 <div className={styles.controlsRow}>
                   <div className={styles.topControls}>
-                    <select
-                      className={styles.sortSelect}
+                    <Select
                       value={sort}
                       onChange={(event) => handleSortChange(event.target.value as SortValue)}
                     >
@@ -357,65 +416,7 @@ export const CatalogPage = () => {
                           {label}
                         </option>
                       ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* Mobile bar */}
-                <div className={styles.mobileBar}>
-                  <button className={styles.mobileBarBtn} aria-label="Сортировка" onClick={() => setSortOpen(true)}>
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                      <path d="M3 5h14M5 10h10M7 15h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                    </svg>
-                  </button>
-                  <button className={styles.mobileBarBtn} aria-label="Фильтры" onClick={() => setModalOpen(true)}>
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                      <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                      <circle cx="7" cy="5" r="2" fill="var(--card)" stroke="currentColor" strokeWidth="1.5" />
-                      <circle cx="13" cy="10" r="2" fill="var(--card)" stroke="currentColor" strokeWidth="1.5" />
-                      <circle cx="7" cy="15" r="2" fill="var(--card)" stroke="currentColor" strokeWidth="1.5" />
-                    </svg>
-                  </button>
-                  <div className={styles.mobileBarSep} />
-                  <div className={styles.mobileChips}>
-                    {urlFilters.category && (
-                      <button
-                        className={styles.mobileChipActive}
-                        onClick={() => updateParam('category', null)}
-                      >
-                        {urlFilters.category} ×
-                      </button>
-                    )}
-                    <button
-                      className={urlFilters.inStock ? styles.mobileChipActive : styles.mobileChip}
-                      onClick={() => {
-                        const next = !urlFilters.inStock;
-                        setFilters((prev) => ({ ...prev, inStock: next }));
-                        setStockFilter(next);
-                      }}
-                    >
-                      В наличии
-                    </button>
-                    <button
-                      className={urlFilters.minRating === '4.5' ? styles.mobileChipActive : styles.mobileChip}
-                      onClick={() => {
-                        const next = urlFilters.minRating === '4.5' ? '' : '4.5';
-                        setFilters((prev) => ({ ...prev, minRating: next }));
-                        updateParam('minRating', next || null);
-                      }}
-                    >
-                      ★ 4.5+
-                    </button>
-                    <button
-                      className={urlFilters.minRating === '4' ? styles.mobileChipActive : styles.mobileChip}
-                      onClick={() => {
-                        const next = urlFilters.minRating === '4' ? '' : '4';
-                        setFilters((prev) => ({ ...prev, minRating: next }));
-                        updateParam('minRating', next || null);
-                      }}
-                    >
-                      ★ 4.0+
-                    </button>
+                    </Select>
                   </div>
                 </div>
 

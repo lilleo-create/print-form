@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import type { Product } from '../../shared/types';
 import styles from '../../pages/ProductPage.module.css';
 import { useProduct } from '../../hooks/useProduct';
@@ -17,16 +17,23 @@ import { api } from '../../shared/api';
 import { getProductGroupKey, getProductVariants } from '../../shared/lib/productGrouping';
 import { normalizeProductSpecs } from '../../shared/lib/productSpecs';
 import { normalizeProductDtoList } from '../../shared/lib/normalizeProductDto';
+import { formatPrice } from '../../utils/money';
 
 type ProductPageLayoutProps = {
   productId: string;
 };
 
 export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
+  const navigate = useNavigate();
   const { data: product, status, error } = useProduct(productId, { keepPreviousData: false });
   const [variantProducts, setVariantProducts] = useState<Product[]>([]);
   const [activeVariantId, setActiveVariantId] = useState<string>(productId);
   const [specsExpanded, setSpecsExpanded] = useState(false);
+
+  useEffect(() => {
+    document.body.classList.add('hide-bottom-nav');
+    return () => document.body.classList.remove('hide-bottom-nav');
+  }, []);
 
   useEffect(() => {
     setActiveVariantId(productId);
@@ -141,8 +148,23 @@ export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
 
         <div className={styles.hero}>
           <div className={styles.galleryCol}>
+            {/* Mobile: back button overlaid on image */}
+            <div className={styles.mobileTopBar}>
+              <button
+                type="button"
+                className={styles.mobileBackBtn}
+                onClick={() => navigate(-1)}
+                aria-label="Назад"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M15 18l-6-6 6-6" />
+                </svg>
+              </button>
+            </div>
             <ProductGallery images={productImages} title={activeProduct.title} />
           </div>
+          {/* Mobile-only price under gallery */}
+          <p className={styles.mobilePriceRow}>{formatPrice(activeProduct.price)}</p>
           <div className={styles.infoCol}>
             <ProductDetails
               product={activeProduct}

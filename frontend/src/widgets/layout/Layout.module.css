@@ -1026,6 +1026,15 @@
   }
 }
 
+/* Product page: hide bottom nav, remove its bottom padding from main */
+:global(body.hide-bottom-nav) .bottomNav {
+  display: none !important;
+}
+
+:global(body.hide-bottom-nav) .main {
+  padding-bottom: 0;
+}
+
 @media (max-width: 640px) {
   .actionMenuOverlay {
     padding: calc(16px + env(safe-area-inset-top)) 16px 24px;
