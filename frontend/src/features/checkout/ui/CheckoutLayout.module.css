@@ -377,6 +377,24 @@
   letter-spacing: -0.02em;
 }
 
+/* ── Phone hint ── */
+.phoneHint {
+  margin: 0 16px;
+  font-size: 13px;
+  color: var(--danger);
+  text-align: center;
+}
+
+.phoneHintLink {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--primary);
+  font-size: 13px;
+  text-decoration: underline;
+}
+
 /* ── Error ── */
 .error {
   margin: 0 16px;

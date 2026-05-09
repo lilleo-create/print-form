@@ -16,18 +16,20 @@ export const DeliveryMethodSelector = ({ methods, selected, onSelect }: Props) =
   <div className={styles.carousel}>
     {ALL_METHODS.map(({ code, label }) => {
       const method = methods.find((m) => m.code === code);
-      const isActive = selected === code;
+      const isCourier = code === 'COURIER';
+      const isActive = selected === code && !isCourier;
+      const isDisabled = isCourier || !method;
       return (
         <button
           key={code}
           type="button"
           className={isActive ? styles.cardActive : styles.card}
-          disabled={!method}
-          onClick={() => method && onSelect(code)}
+          disabled={isDisabled}
+          onClick={() => !isDisabled && onSelect(code)}
         >
           <span className={styles.cardLabel}>{label}</span>
           <span className={styles.cardDate}>
-            {method ? (method.description ?? 'Послезавтра') : 'Недоступно'}
+            {isCourier ? 'Появится позже' : (method?.description ?? 'Послезавтра')}
           </span>
         </button>
       );

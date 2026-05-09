@@ -1,4 +1,5 @@
-import { Modal } from '../../../shared/ui/Modal';
+import { createPortal } from 'react-dom';
+import { useBodyScrollLock } from '../../../shared/lib/useBodyScrollLock';
 import type { CheckoutDto, CdekPvzSelection } from '../api/checkoutApi';
 import styles from './AddressModal.module.css';
 
@@ -19,25 +20,37 @@ export const AddressModal = ({
   onEditRecipient,
   onAddPickupPoint,
 }: Props) => {
-  const recipientLabel = [recipient.name, recipient.email, recipient.phone]
-    .filter(Boolean)
-    .join('  ');
+  useBodyScrollLock(isOpen);
+
+  if (!isOpen) return null;
+
+  const recipientSub = [recipient.email, recipient.phone].filter(Boolean).join('  ');
 
   const handleRecipient = () => {
     onClose();
-    setTimeout(onEditRecipient, 180);
+    setTimeout(onEditRecipient, 200);
   };
 
   const handlePickup = () => {
     onClose();
-    setTimeout(onAddPickupPoint, 180);
+    setTimeout(onAddPickupPoint, 200);
   };
 
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} className={styles.modal}>
-      <div className={styles.inner}>
+  return createPortal(
+    <div
+      className={styles.overlay}
+      onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className={styles.sheet}>
         <div className={styles.handle} />
 
+        <button type="button" className={styles.closeBtn} onClick={onClose} aria-label="Закрыть">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <path d="M18 6 6 18M6 6l12 12"/>
+          </svg>
+        </button>
+
+        {/* ── Recipient ── */}
         <section className={styles.section}>
           <h3 className={styles.sectionTitle}>Получатель</h3>
           <button type="button" className={styles.row} onClick={handleRecipient}>
@@ -50,8 +63,8 @@ export const AddressModal = ({
               <span className={styles.rowMain}>
                 {recipient.name || 'Укажите получателя'}
               </span>
-              {recipientLabel && (
-                <span className={styles.rowSub}>{recipientLabel}</span>
+              {recipientSub && (
+                <span className={styles.rowSub}>{recipientSub}</span>
               )}
             </div>
             <svg className={styles.chevron} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -60,6 +73,7 @@ export const AddressModal = ({
           </button>
         </section>
 
+        {/* ── Pickup points ── */}
         <section className={styles.section}>
           <h3 className={styles.sectionTitle}>Пункты выдачи</h3>
 
@@ -71,17 +85,10 @@ export const AddressModal = ({
                 </svg>
               </span>
               <div className={styles.rowBody}>
-                <span className={styles.rowMain}>
-                  {pickupPoint.addressFull ?? pickupPoint.pvzId}
-                </span>
+                <span className={styles.rowMain}>{pickupPoint.addressFull ?? pickupPoint.pvzId}</span>
                 <span className={styles.rowSub}>7 дней хранения · Пункт выдачи</span>
               </div>
-              <button
-                type="button"
-                className={styles.editBtn}
-                onClick={handlePickup}
-                aria-label="Изменить пункт выдачи"
-              >
+              <button type="button" className={styles.editBtn} onClick={handlePickup} aria-label="Изменить">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                   <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -95,6 +102,7 @@ export const AddressModal = ({
           </button>
         </section>
       </div>
-    </Modal>
+    </div>,
+    document.body,
   );
 };

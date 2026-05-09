@@ -5,6 +5,7 @@
 .list {
   display: grid;
   gap: 16px;
+  max-width: 720px;
 }
 
 .paymentBanner {

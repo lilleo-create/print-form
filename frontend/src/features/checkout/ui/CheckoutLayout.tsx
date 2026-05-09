@@ -7,7 +7,6 @@ import { RecipientModal } from './RecipientModal';
 import { SmartImage } from '../../../shared/ui/SmartImage';
 import { Button } from '../../../shared/ui/Button';
 import { formatPrice } from '../../../shared/lib/formatPrice';
-import { useBuyNowStore } from '../../../app/store/buyNowStore';
 import styles from './CheckoutLayout.module.css';
 
 const getDeliveryLabel = (days: number | null | undefined): string => {
@@ -20,7 +19,6 @@ const getDeliveryLabel = (days: number | null | undefined): string => {
 };
 
 export const CheckoutLayout = () => {
-  const isBuyNowFlow = useBuyNowStore((s) => s.isActive);
   const {
     data, error, isLoading, isSubmittingOrder,
     fetchCheckout, setDeliveryMethod, setPickupPoint,
@@ -31,9 +29,7 @@ export const CheckoutLayout = () => {
   const [isPvzOpen, setPvzOpen] = useState(false);
   const [isRecipientOpen, setRecipientOpen] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
-  const [payOnDelivery, setPayOnDelivery] = useState(false);
   const [promoCode, setPromoCode] = useState('');
-  const [phoneError, setPhoneError] = useState<string | null>(null);
 
   useEffect(() => { void fetchCheckout(); }, [fetchCheckout]);
 
@@ -50,14 +46,10 @@ export const CheckoutLayout = () => {
   const deliveryDateLabel = getDeliveryLabel(deliveryDays);
   const deliverySubLabel = selectedMethod === 'PICKUP_POINT' ? 'Привезём в ПВЗ' : 'Курьером';
 
+  const hasPhone = !!(data?.recipient.phone?.trim());
+
   const handlePay = async () => {
-    if (isPaying) return;
-    if (!data?.recipient.phone?.trim()) {
-      setPhoneError('Укажите номер телефона');
-      setAddressOpen(true);
-      return;
-    }
-    setPhoneError(null);
+    if (isPaying || !hasPhone) return;
     setIsPaying(true);
     try {
       const result = await placeOrder();
@@ -81,16 +73,7 @@ export const CheckoutLayout = () => {
     ? [data.recipient.name, data.recipient.phone].filter(Boolean).join(' · ')
     : null;
 
-  /* ── Shared blocks used in both columns ── */
-
-  const brandHeader = (
-    <header className={styles.brandRow}>
-      <span className={styles.brandLogo}>М</span>
-      <span className={styles.brandName}>
-        {isBuyNowFlow ? 'Купить сейчас' : 'Доставка Маркета'}
-      </span>
-    </header>
-  );
+  /* ── Reusable JSX blocks ── */
 
   const carousel = (
     <DeliveryMethodSelector
@@ -153,24 +136,6 @@ export const CheckoutLayout = () => {
 
   const totalsCard = (
     <div className={styles.totalsCard}>
-      {/* Pay on delivery */}
-      <div className={styles.toggleRow}>
-        <span className={styles.toggleLabel}>
-          Оплата при получении
-          <button type="button" className={styles.infoBtn} aria-label="Информация">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
-            </svg>
-          </button>
-        </span>
-        <label className={styles.toggle}>
-          <input type="checkbox" checked={payOnDelivery} onChange={(e) => setPayOnDelivery(e.target.checked)} />
-          <span className={styles.toggleTrack} />
-        </label>
-      </div>
-
-      <div className={styles.divider} />
-
       {/* Price rows */}
       <div className={styles.priceList}>
         <div className={styles.priceRow}>
@@ -190,7 +155,7 @@ export const CheckoutLayout = () => {
           <span>0 ₽</span>
         </div>
 
-        {/* Promo input */}
+        {/* Promo */}
         <div className={styles.promoRow}>
           <input
             type="text"
@@ -200,9 +165,7 @@ export const CheckoutLayout = () => {
             onChange={(e) => setPromoCode(e.target.value)}
           />
           {promoCode.trim() && (
-            <button type="button" className={styles.promoApply}>
-              Применить
-            </button>
+            <button type="button" className={styles.promoApply}>Применить</button>
           )}
         </div>
       </div>
@@ -217,11 +180,20 @@ export const CheckoutLayout = () => {
     </div>
   );
 
+  const phoneHint = !hasPhone && (
+    <p className={styles.phoneHint}>
+      Укажите номер телефона получателя —{' '}
+      <button type="button" className={styles.phoneHintLink} onClick={() => setAddressOpen(true)}>
+        добавить
+      </button>
+    </p>
+  );
+
   const payBtn = (
     <Button
       className={styles.payBtn}
       isLoading={isSubmittingOrder || isPaying}
-      disabled={isPaying || isSubmittingOrder}
+      disabled={!hasPhone || isPaying || isSubmittingOrder}
       onClick={() => void handlePay()}
     >
       Оплатить
@@ -236,7 +208,6 @@ export const CheckoutLayout = () => {
         {/* ── Left column ── */}
         <div className={styles.leftCol}>
           <div className={styles.mainCard}>
-            {brandHeader}
             {carousel}
             {addressRow}
           </div>
@@ -246,9 +217,8 @@ export const CheckoutLayout = () => {
         {/* ── Right column ── */}
         <div className={styles.rightCol}>
           {totalsCard}
-          {(phoneError || error) && (
-            <p className={styles.error}>{phoneError ?? error}</p>
-          )}
+          {error && <p className={styles.error}>{error}</p>}
+          {phoneHint}
           {payBtn}
         </div>
       </div>

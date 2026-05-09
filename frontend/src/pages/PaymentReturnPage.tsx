@@ -88,7 +88,7 @@ export const PaymentReturnPage = () => {
             <div className={styles.actions}>
               <Button
                 type="button"
-                onClick={() => navigate(`/orders/${orderId}`)}
+                onClick={() => navigate(`/account?tab=orders&orderId=${orderId}`)}
                 disabled={!orderId}
                 className={styles.actionButton}
               >

@@ -8,43 +8,119 @@
   font-size: 13px;
 }
 
-.cancelModal {
-  display: grid;
-  gap: 12px;
-  max-height: 88vh;
-  min-width: min(560px, 92vw);
-  overflow-y: auto;
-}
-
-.modalActions {
+/* ── Cancel sheet overlay ── */
+.sheetOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 10, 24, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 1000;
+  padding: 0;
+}
+
+.sheet {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  background: var(--card);
+  border-radius: 24px 24px 0 0;
+  padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  max-height: 90vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.sheetHandle {
+  width: 36px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+  margin: 12px auto 4px;
+}
+[data-theme="light"] .sheetHandle { background: rgba(0, 0, 0, 0.15); }
+
+.sheetClose {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  transition: background 0.14s;
+}
+.sheetClose:hover { background: rgba(255, 255, 255, 0.2); }
+[data-theme="light"] .sheetClose { background: rgba(0, 0, 0, 0.08); }
+
+.sheetInner {
+  padding: 8px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sheetTitle {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+.sheetCaption {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.sheetActions {
+  display: flex;
+  flex-direction: column;
   gap: 8px;
-  justify-content: flex-end;
+  margin-top: 6px;
 }
 
-.modalActions :global(button) {
-  min-height: 44px;
+.sheetActions :global(button) {
+  width: 100%;
+  height: 50px;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 600;
 }
 
-@media (max-width: 720px) {
-  .cancelModal {
-    min-width: 100%;
-    border-radius: 16px 16px 0 0;
-    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+/* Desktop: centered modal */
+@media (min-width: 640px) {
+  .sheetOverlay {
+    align-items: center;
+    padding: 24px;
   }
 
-  .modalActions {
-    position: sticky;
-    bottom: 0;
-    background: var(--card);
-    padding-top: 8px;
-    padding-bottom: calc(4px + env(safe-area-inset-bottom));
-    flex-direction: column-reverse;
-    justify-content: stretch;
+  .sheet {
+    border-radius: 20px;
+    max-height: 80vh;
   }
 
-  .modalActions :global(button) {
-    width: 100%;
+  .sheetHandle { display: none; }
+
+  .sheetActions {
+    flex-direction: row-reverse;
+  }
+
+  .sheetActions :global(button) {
+    width: auto;
+    flex: 1;
   }
 }
 

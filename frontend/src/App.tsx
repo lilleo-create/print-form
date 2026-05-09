@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { Layout } from './widgets/layout/Layout';
 import { LandingPage } from './pages/LandingPage';
 import { CatalogPage } from './pages/CatalogPage';
@@ -17,6 +17,8 @@ import { OfferPage } from './pages/OfferPage';
 import { CategoriesPage } from './pages/CategoriesPage';
 import { SellerOnboardingPage } from './pages/SellerOnboardingPage';
 import { OrdersPage } from './pages/OrdersPage';
+import { CartSavedPage } from './pages/CartSavedPage';
+import { CartSharedPage } from './pages/CartSharedPage';
 import { AdminLayout } from './pages/admin/AdminLayout';
 import { AdminKycPage } from './pages/admin/AdminKycPage';
 import { AdminProductsPage } from './pages/admin/AdminProductsPage';
@@ -33,6 +35,11 @@ import { RouteProgressBar } from './app/providers/RouteProgressBar';
 import { SellerProductDetailPage } from './pages/SellerProductDetailPage';
 import { PaymentReturnPage } from './pages/PaymentReturnPage';
 
+const OrderRedirect = () => {
+  const { orderId } = useParams<{ orderId: string }>();
+  return <Navigate to={`/account?tab=orders${orderId ? `&orderId=${orderId}` : ''}`} replace />;
+};
+
 const App = () => {
   return (
     <>
@@ -47,6 +54,8 @@ const App = () => {
         <Route path="/product/:id/reviews" element={<ProductReviewsPage />} />
         <Route path="/categories" element={<CategoriesPage />} />
         <Route path="/cart" element={<CartPage />} />
+        <Route path="/cart/saved" element={<CartSavedPage />} />
+        <Route path="/cart/shared" element={<CartSharedPage />} />
         <Route path="/favorites" element={<FavoritesPage />} />
         <Route path="/returns" element={<ReturnsPage />} />
 
@@ -63,6 +72,14 @@ const App = () => {
           element={
             <ProtectedRoute>
               <OrdersPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/orders/:orderId"
+          element={
+            <ProtectedRoute>
+              <OrderRedirect />
             </ProtectedRoute>
           }
         />

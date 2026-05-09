@@ -6,7 +6,6 @@ import { useAuthStore } from '../../app/store/authStore';
 import { canAccessAdmin } from '../lib/authAccess';
 
 /* ── Minimal SVG icons (1.7px stroke, consistent with header) ── */
-const IcBag    = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>;
 const IcOrders = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg>;
 const IcBox    = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>;
 const IcReturn = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>;
@@ -130,9 +129,6 @@ export const ProfileMenu = ({
             <div className={styles.profileMenuSection}>
               <div className={styles.profileMenuSectionLabel}>Покупки</div>
 
-              <Link to="/account?tab=purchases" className={`${styles.profileMenuItem} ${isAccountTab('purchases') ? styles.profileMenuItemActive : ''}`} onClick={onClose}>
-                <span className={styles.profileMenuIcon}><IcBag /></span>Покупки
-              </Link>
               <Link to="/orders" className={`${styles.profileMenuItem} ${pathname === '/orders' ? styles.profileMenuItemActive : ''}`} onClick={onClose}>
                 <span className={styles.profileMenuIcon}><IcOrders /></span>Заказы
               </Link>
