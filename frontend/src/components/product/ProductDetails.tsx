@@ -81,7 +81,8 @@ export const ProductDetails = ({
                 image: product.image,
                 ratingAvg: product.ratingAvg,
                 ratingCount: product.ratingCount,
-                shortSpec: product.descriptionShort
+                shortSpec: product.descriptionShort,
+                category: product.category,
               });
             }}
             onShareClick={() => setIsShareOpen(true)}

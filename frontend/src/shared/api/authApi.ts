@@ -10,7 +10,7 @@ interface StoredSession {
   user: User;
 }
 
-type VerificationChannel = 'PHONE_CALL' | 'SMS' | 'PUSH' | 'UNKNOWN';
+type VerificationChannel = 'PHONE_CALL' | 'PUSH' | 'UNKNOWN';
 
 type DeviceVerification = {
   channel: VerificationChannel;
@@ -32,7 +32,7 @@ export type RegistrationPurpose =
 export type OtpRequestResponse = {
   requestId: string;
   provider?: string;
-  verificationType: 'call_to_auth' | 'code';
+  verificationType: 'call_to_auth';
   callToAuthNumber?: string | null;
   phone?: string;
   status?: string;
@@ -148,7 +148,7 @@ const normalizeUser = (u?: RawUser): User => ({
 
 const normalizeVerificationChannel = (channel?: string): VerificationChannel => {
   const normalized = (channel ?? '').toUpperCase();
-  if (normalized === 'PHONE_CALL' || normalized === 'SMS' || normalized === 'PUSH') {
+  if (normalized === 'PHONE_CALL' || normalized === 'PUSH') {
     return normalized;
   }
   return 'UNKNOWN';
@@ -371,15 +371,15 @@ export const authApi = {
 
     const data = unwrapNestedData<{ accessToken?: string; user?: RawUser }>(result);
 
-    const session = {
-      token: data.accessToken ?? '',
-      user: normalizeUser(data.user)
-    };
-
-    if (!session.token || !session.user.id) {
-      throw new Error('OTP verify: invalid response');
+    // Registration/login flows return a full session.
+    // Phone-change flows (buyer_change_phone, etc.) return just { verified: true } — no session.
+    if (data.accessToken && data.user?.id) {
+      return {
+        token: data.accessToken,
+        user: normalizeUser(data.user)
+      };
     }
-    return session;
+    return null;
   },
 
   verifyDeviceLoginOtp: async (payload: { phone: string; requestId?: string }, tempToken: string) => {

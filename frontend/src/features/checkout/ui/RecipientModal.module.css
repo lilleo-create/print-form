@@ -30,13 +30,19 @@
 
 /* ── Handle ── */
 .handle {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0 6px;
+  cursor: grab;
+}
+
+.handleBar {
   width: 36px;
   height: 4px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.2);
-  margin: 12px auto 4px;
 }
-[data-theme="light"] .handle { background: rgba(0, 0, 0, 0.15); }
+[data-theme="light"] .handleBar { background: rgba(0, 0, 0, 0.15); }
 
 /* ── Close ── */
 .closeBtn {
@@ -60,7 +66,7 @@
 
 /* ── Inner content ── */
 .inner {
-  padding: 8px 20px 20px;
+  padding: 8px 24px 24px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -95,7 +101,7 @@
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 14px;
-  padding: 10px 14px 10px;
+  padding: 10px 14px;
   cursor: text;
   transition: border-color 0.15s;
 }
@@ -159,6 +165,61 @@
 
 .saveBtn:active { transform: scale(0.98); }
 .saveBtn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ── OTP step ── */
+.backBtn {
+  border: none;
+  background: transparent;
+  color: var(--primary);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+
+.otpHint {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.error {
+  font-size: 13px;
+  color: var(--danger);
+}
+
+.retryLink {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-align: center;
+}
+
+.retryLink:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.otpSpinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid color-mix(in srgb, var(--primary) 18%, transparent);
+  border-top-color: var(--primary);
+  animation: spin 0.9s linear infinite;
+  margin: 8px auto 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
 
 /* ── Desktop ── */
 @media (min-width: 640px) {

@@ -210,7 +210,6 @@ export const Header = () => {
             to="/"
             className={`${styles.brand} ${isCatalogPage ? styles.brandInactive : ''}`}
           >
-            <span className={styles.dot} />
             Print·Form
           </Link>
 

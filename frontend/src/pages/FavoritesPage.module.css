@@ -1,26 +1,130 @@
 .page {
   width: 100%;
-  padding: 24px 16px;
+  align-self: stretch;
+  padding: 28px 0 72px;
 }
 
 .container {
-  width: min(1280px, 100%);
+  width: 100%;
+  max-width: 1280px;
   margin: 0 auto;
+  padding: 0 24px;
   display: grid;
-  gap: 18px;
+  gap: 16px;
+  align-content: start;
 }
 
-.placeholder,
-.stateCard {
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 18px;
-  background: var(--card);
+.title {
+  margin: 0;
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* ── Empty state ── */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 64px 24px;
+  text-align: center;
+}
+
+.emptyIcon {
+  width: 56px;
+  height: 56px;
+  color: var(--muted-2);
+}
+
+.emptyText {
+  margin: 0;
   color: var(--muted);
+  font-size: 15px;
 }
 
-.stateCard {
+.emptyBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 42px;
+  padding: 0 24px;
+  border-radius: 12px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.15s ease;
+}
+
+.emptyBtn:hover {
+  background: var(--primary-2);
+}
+
+/* ── Filter chips ── */
+.chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 2px;
+}
+
+.chips::-webkit-scrollbar { display: none; }
+
+.chip,
+.chipActive {
+  flex-shrink: 0;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1.5px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.12s ease, background 0.12s ease, color 0.12s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.chip:hover {
+  border-color: var(--primary-soft-strong);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.chipActive {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+/* ── Product grid ── */
+.grid {
   display: grid;
-  gap: 12px;
-  justify-items: start;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 768px) {
+  .page { padding-top: 20px; }
+  .title { font-size: 26px; }
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .container { padding: 0 16px; }
+}
+
+@media (max-width: 480px) {
+  .grid { gap: 8px; }
 }

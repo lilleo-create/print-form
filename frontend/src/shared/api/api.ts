@@ -880,7 +880,7 @@ export const api = {
       data?: {
         requestId: string;
         provider?: string;
-        verificationType: 'call_to_auth' | 'code';
+        verificationType: 'call_to_auth';
         callToAuthNumber?: string | null;
         phone?: string;
         status?: string;

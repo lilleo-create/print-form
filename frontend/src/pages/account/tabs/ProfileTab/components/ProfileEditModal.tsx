@@ -3,6 +3,7 @@ import { useAuthStore } from '../../../../../app/store/authStore';
 import { Button } from '../../../../../shared/ui/Button';
 import { useBodyScrollLock } from '../../../../../shared/lib/useBodyScrollLock';
 import { useOverlayClose } from '../../../../../shared/lib/useOverlayClose';
+import { useSwipeToClose } from '../../../../../shared/lib/useSwipeToClose';
 import styles from './ProfileEditModal.module.css';
 
 interface ProfileEditModalProps {
@@ -37,9 +38,8 @@ export const ProfileEditModal = ({ isOpen, onClose, onSaved }: ProfileEditModalP
   }, [initialValues, isOpen]);
 
   useBodyScrollLock(isOpen);
-
   const { handlePointerDown, handleClick } = useOverlayClose(onClose);
-
+  const { panelRef, handleTouchStart, handleTouchMove, handleTouchEnd } = useSwipeToClose(onClose);
 
   if (!isOpen) return null;
 
@@ -62,7 +62,15 @@ export const ProfileEditModal = ({ isOpen, onClose, onSaved }: ProfileEditModalP
 
   return (
     <div className={styles.overlay} onPointerDown={handlePointerDown} onClick={handleClick} role="dialog" aria-modal="true">
-      <div className={styles.modal} onClick={(event) => event.stopPropagation()}>
+      <div ref={panelRef} className={styles.modal} onClick={(event) => event.stopPropagation()}>
+        <div
+          className={styles.handle}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >
+          <span className={styles.handleBar} />
+        </div>
         <header className={styles.header}>
           <h2>Профиль</h2>
           <button type="button" className={styles.close} onClick={onClose} aria-label="Закрыть">

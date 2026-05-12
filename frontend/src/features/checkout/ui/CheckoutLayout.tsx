@@ -7,6 +7,7 @@ import { RecipientModal } from './RecipientModal';
 import { SmartImage } from '../../../shared/ui/SmartImage';
 import { Button } from '../../../shared/ui/Button';
 import { formatPrice } from '../../../shared/lib/formatPrice';
+import { PageLoader } from '../../../shared/ui/PageLoader';
 import styles from './CheckoutLayout.module.css';
 
 const getDeliveryLabel = (days: number | null | undefined): string => {
@@ -59,7 +60,7 @@ export const CheckoutLayout = () => {
     }
   };
 
-  if (isLoading && !data) return <p className={styles.state}>Загрузка…</p>;
+  if (isLoading && !data) return <PageLoader />;
   if (!data) return <p className={styles.state}>{error ?? 'Ошибка загрузки'}</p>;
 
   const addressText =

@@ -1,6 +1,7 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { canAccessAdmin } from '../../shared/lib/authAccess';
+import { PageLoader } from '../../shared/ui/PageLoader';
 
 interface AdminRouteProps {
   children: JSX.Element;
@@ -13,7 +14,7 @@ export const AdminRoute = ({ children }: AdminRouteProps) => {
   const location = useLocation();
 
   if (!isAuthInitialized || isRestoringSession) {
-    return <p className="container">Загрузка...</p>;
+    return <PageLoader />;
   }
 
   if (!user) {

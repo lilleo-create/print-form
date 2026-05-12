@@ -8,7 +8,7 @@ import type { OtpFlowType, OtpVerifyStatus, RegistrationPurpose } from '../share
 
 type OtpRequestData = {
   requestId: string;
-  verificationType: 'call_to_auth' | 'code';
+  verificationType: 'call_to_auth';
   callToAuthNumber?: string | null;
   phone?: string;
   status?: string;

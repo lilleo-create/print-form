@@ -1,6 +1,17 @@
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useEffect, useState } from 'react';
+import { Button } from '../../../shared/ui/Button';
+import { useModalFocus } from '../../../shared/lib/useModalFocus';
 import { useBodyScrollLock } from '../../../shared/lib/useBodyScrollLock';
+import { useOverlayClose } from '../../../shared/lib/useOverlayClose';
+import { useSwipeToClose } from '../../../shared/lib/useSwipeToClose';
+import { useAuthStore } from '../../../app/store/authStore';
+import { normalizeApiError } from '../../../shared/api/client';
+import {
+  formatRuPhoneInput,
+  isRuPhone,
+  toE164Ru,
+} from '../../../shared/lib/validation';
 import type { CheckoutDto } from '../api/checkoutApi';
 import styles from './RecipientModal.module.css';
 
@@ -9,6 +20,11 @@ type Props = {
   onClose: () => void;
   initial: CheckoutDto['recipient'];
   onSave: (data: CheckoutDto['recipient']) => Promise<void>;
+};
+
+type OtpMeta = {
+  requestId: string;
+  callToAuthNumber?: string | null;
 };
 
 const CheckIcon = () => (
@@ -20,34 +36,157 @@ const CheckIcon = () => (
 
 export const RecipientModal = ({ isOpen, onClose, initial, onSave }: Props) => {
   const [form, setForm] = useState(initial);
-  const [isSaving, setIsSaving] = useState(false);
+  const [step, setStep] = useState<'form' | 'otp'>('form');
+  const [otpMeta, setOtpMeta] = useState<OtpMeta | null>(null);
+  const [phoneError, setPhoneError] = useState('');
+  const [otpError, setOtpError] = useState('');
+  const [isBusy, setIsBusy] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
 
+  const requestOtp = useAuthStore((s) => s.requestOtp);
+  const verifyOtp = useAuthStore((s) => s.verifyOtp);
+  const checkOtpStatus = useAuthStore((s) => s.checkOtpStatus);
+
+  const focusRef = useRef<HTMLDivElement>(null);
+  useModalFocus(isOpen, onClose, focusRef);
   useBodyScrollLock(isOpen);
+  const { handlePointerDown, handleClick } = useOverlayClose(onClose);
+  const { panelRef, handleTouchStart, handleTouchMove, handleTouchEnd } = useSwipeToClose(onClose);
 
   useEffect(() => {
-    if (isOpen) setForm(initial);
+    if (isOpen) {
+      setForm(initial);
+      setStep('form');
+      setOtpMeta(null);
+      setPhoneError('');
+      setOtpError('');
+    }
   }, [initial, isOpen]);
 
-  if (!isOpen) return null;
+  const normalizedPhone = toE164Ru(form.phone);
+  const phoneChanged = normalizedPhone !== toE164Ru(initial.phone ?? '');
+
+  useEffect(() => {
+    if (step !== 'otp' || !otpMeta) return;
+
+    let cancelled = false;
+    const poll = async () => {
+      while (!cancelled) {
+        await new Promise((r) => setTimeout(r, 3000));
+        if (cancelled) break;
+        try {
+          const status = await checkOtpStatus(otpMeta.requestId);
+          if (status === 'verified') {
+            try {
+              await verifyOtp({
+                phone: normalizedPhone,
+                requestId: otpMeta.requestId,
+                purpose: 'buyer_change_phone',
+              });
+            } catch {
+              // verifyOtp returns void for phone-change flows
+            }
+            await onSave({ ...form, phone: normalizedPhone });
+            onClose();
+            break;
+          }
+          if (status === 'expired' || status === 'failed' || status === 'cancelled') {
+            setOtpError('Звонок не прошёл. Запросите его повторно.');
+            break;
+          }
+        } catch {
+          break;
+        }
+      }
+    };
+    void poll();
+    return () => { cancelled = true; };
+  }, [step, otpMeta]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const doRequestOtp = async (): Promise<OtpMeta | null> => {
+    const result = await requestOtp({ phone: normalizedPhone, purpose: 'buyer_change_phone' });
+    if (!result) throw new Error('empty_response');
+    return { requestId: result.requestId, callToAuthNumber: result.callToAuthNumber };
+  };
 
   const handleSave = async () => {
-    if (isSaving) return;
-    setIsSaving(true);
+    if (!isRuPhone(form.phone)) {
+      setPhoneError('Введите корректный номер телефона');
+      return;
+    }
+    setPhoneError('');
+
+    if (!phoneChanged) {
+      setIsBusy(true);
+      try {
+        await onSave(form);
+        onClose();
+      } finally {
+        setIsBusy(false);
+      }
+      return;
+    }
+
+    setIsBusy(true);
     try {
-      await onSave(form);
-      onClose();
+      const meta = await doRequestOtp();
+      setOtpMeta(meta);
+      setStep('otp');
+    } catch (err) {
+      const { code } = normalizeApiError(err);
+      if (code === 'OTP_TOKEN_REQUIRED') {
+        setPhoneError('Сессия истекла. Обновите страницу и попробуйте снова.');
+      } else {
+        setPhoneError('Не удалось запустить подтверждение звонком. Попробуйте ещё раз.');
+      }
     } finally {
-      setIsSaving(false);
+      setIsBusy(false);
     }
   };
+
+  const handleRetry = async () => {
+    setOtpError('');
+    setIsRetrying(true);
+    try {
+      const meta = await doRequestOtp();
+      setOtpMeta(meta);
+    } catch (err) {
+      const { code } = normalizeApiError(err);
+      if (code === 'OTP_TOKEN_REQUIRED') {
+        setOtpError('Сессия истекла. Вернитесь назад и обновите страницу.');
+      } else if (code === 'OTP_COOLDOWN') {
+        setOtpError('Подождите немного перед повторным запросом звонка.');
+      } else {
+        setOtpError('Не удалось повторить звонок. Попробуйте ещё раз.');
+      }
+    } finally {
+      setIsRetrying(false);
+    }
+  };
+
+  if (!isOpen) return null;
 
   return createPortal(
     <div
       className={styles.overlay}
-      onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onPointerDown={handlePointerDown}
+      onClick={handleClick}
+      role="dialog"
+      aria-modal="true"
     >
-      <div className={styles.sheet}>
-        <div className={styles.handle} />
+      <div
+        ref={panelRef}
+        className={styles.sheet}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          className={styles.handle}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >
+          <span className={styles.handleBar} />
+        </div>
 
         <button type="button" className={styles.closeBtn} onClick={onClose} aria-label="Закрыть">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
@@ -55,76 +194,125 @@ export const RecipientModal = ({ isOpen, onClose, initial, onSave }: Props) => {
           </svg>
         </button>
 
-        <div className={styles.inner}>
-          <h3 className={styles.title}>Получатель</h3>
-          <p className={styles.subtitle}>
-            Указывайте реальные данные — при получении заказа могут попросить паспорт
-          </p>
+        <div ref={focusRef} className={styles.inner}>
+          {step === 'form' ? (
+            <>
+              <h3 className={styles.title}>Получатель</h3>
+              <p className={styles.subtitle}>
+                Указывайте реальные данные — при получении заказа могут попросить паспорт
+              </p>
 
-          <div className={styles.fields}>
-            {/* Name */}
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>Имя и фамилия</span>
-              <div className={styles.fieldRow}>
-                <input
-                  className={styles.input}
-                  value={form.name}
-                  onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-                  placeholder="Имя и фамилия"
-                  autoComplete="name"
-                />
-                {form.name.trim() && <CheckIcon />}
-              </div>
-            </label>
+              <div className={styles.fields}>
+                <label className={styles.field}>
+                  <span className={styles.fieldLabel}>Имя и фамилия</span>
+                  <div className={styles.fieldRow}>
+                    <input
+                      className={styles.input}
+                      value={form.name}
+                      onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+                      placeholder="Имя и фамилия"
+                      autoComplete="name"
+                    />
+                    {form.name.trim() && <CheckIcon />}
+                  </div>
+                </label>
 
-            {/* Email */}
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>Электронная почта</span>
-              <div className={styles.fieldRow}>
-                <input
-                  className={styles.input}
-                  type="email"
-                  value={form.email}
-                  onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
-                  placeholder="example@mail.ru"
-                  autoComplete="email"
-                  inputMode="email"
-                />
-                {form.email.trim() && <CheckIcon />}
-              </div>
-            </label>
+                <label className={styles.field}>
+                  <span className={styles.fieldLabel}>Электронная почта</span>
+                  <div className={styles.fieldRow}>
+                    <input
+                      className={styles.input}
+                      type="email"
+                      value={form.email}
+                      onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
+                      placeholder="example@mail.ru"
+                      autoComplete="email"
+                      inputMode="email"
+                    />
+                    {form.email.trim() && <CheckIcon />}
+                  </div>
+                </label>
 
-            {/* Phone — required */}
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>
-                Телефон <span className={styles.required}>*</span>
-              </span>
-              <div className={styles.fieldRow}>
-                <input
-                  className={`${styles.input} ${!form.phone.trim() ? styles.inputError : ''}`}
-                  type="tel"
-                  value={form.phone}
-                  onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
-                  placeholder="+7 000 000-00-00"
-                  autoComplete="tel"
-                  inputMode="tel"
-                />
-                {form.phone.trim() && <CheckIcon />}
+                <label className={styles.field}>
+                  <span className={styles.fieldLabel}>
+                    Телефон <span className={styles.required}>*</span>
+                  </span>
+                  <div className={styles.fieldRow}>
+                    <input
+                      className={`${styles.input} ${phoneError ? styles.inputError : ''}`}
+                      type="tel"
+                      value={form.phone}
+                      inputMode="tel"
+                      autoComplete="tel"
+                      placeholder="+7 (___) ___-__-__"
+                      onFocus={() => {
+                        if (!form.phone) setForm((prev) => ({ ...prev, phone: '+7' }));
+                      }}
+                      onChange={(e) => {
+                        setPhoneError('');
+                        setForm((prev) => ({ ...prev, phone: formatRuPhoneInput(e.target.value) }));
+                      }}
+                    />
+                    {form.phone.trim() && !phoneError && <CheckIcon />}
+                  </div>
+                  {phoneError
+                    ? <span className={styles.fieldHint}>{phoneError}</span>
+                    : !form.phone.trim() && <span className={styles.fieldHint}>Обязательное поле</span>
+                  }
+                </label>
               </div>
-              {!form.phone.trim() && (
-                <span className={styles.fieldHint}>Обязательное поле</span>
+
+              <button
+                type="button"
+                className={styles.saveBtn}
+                onClick={() => void handleSave()}
+                disabled={isBusy || !form.phone.trim()}
+              >
+                {isBusy ? 'Сохраняем…' : phoneChanged ? 'Далее — подтвердить номер' : 'Сохранить'}
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                className={styles.backBtn}
+                onClick={() => { setStep('form'); setOtpError(''); }}
+              >
+                ← Назад
+              </button>
+
+              <h3 className={styles.title}>Подтверждение номера</h3>
+
+              <p className={styles.otpHint}>
+                Ожидаем звонок на номер <strong>{normalizedPhone}</strong>.
+                {otpMeta?.callToAuthNumber && (
+                  <> Позвонит номер: <strong>{otpMeta.callToAuthNumber}</strong>.</>
+                )}
+                {' '}Подтверждение произойдёт автоматически.
+              </p>
+
+              {otpError ? (
+                <>
+                  <span className={styles.error}>{otpError}</span>
+                  <Button variant="secondary" onClick={() => void handleRetry()} isLoading={isRetrying}>
+                    Позвонить снова
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <div className={styles.otpSpinner} />
+                  <button
+                    type="button"
+                    className={styles.retryLink}
+                    onClick={() => void handleRetry()}
+                    disabled={isRetrying}
+                  >
+                    {isRetrying ? 'Запрашиваем…' : 'Не поступил звонок? Повторить'}
+                  </button>
+                </>
               )}
-            </label>
-          </div>
-
-          <button
-            type="button"
-            className={styles.saveBtn}
-            onClick={() => void handleSave()}
-            disabled={isSaving || !form.phone.trim()}
-          >
-            {isSaving ? 'Сохраняем…' : 'Сохранить'}
-          </button>
+            </>
+          )}
         </div>
       </div>
     </div>,

@@ -1,4 +1,5 @@
 import type { ReturnRequest } from '../../shared/types';
+import { PageLoader } from '../../shared/ui/PageLoader';
 
 type ReturnListProps = {
   items: ReturnRequest[];
@@ -8,7 +9,7 @@ type ReturnListProps = {
 
 export const ReturnList = ({ items, isLoading, error }: ReturnListProps) => {
   if (isLoading) {
-    return <p style={{ color: 'var(--muted)' }}>Загрузка...</p>;
+    return <PageLoader />;
   }
 
   if (error) {

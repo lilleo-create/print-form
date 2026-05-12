@@ -8,6 +8,7 @@ import { ProfileMenu } from '../../shared/layout/ProfileMenu';
 import { useHeaderMenuStore } from '../../app/store/headerMenuStore';
 import { useThemeStore } from '../../app/store/themeStore';
 import { useBodyScrollLock } from '../../shared/lib/useBodyScrollLock';
+import { useAuthStore } from '../../app/store/authStore';
 import styles from './Layout.module.css';
 
 type LayoutProps = {
@@ -20,12 +21,13 @@ export const Layout = ({ showHeader = true }: LayoutProps) => {
   const { theme, toggleTheme } = useThemeStore();
   const isProfileMenuOpen = useHeaderMenuStore((s) => s.isProfileMenuOpen);
   const closeProfileMenu = useHeaderMenuStore((s) => s.closeProfileMenu);
+  const logout = useAuthStore((s) => s.logout);
 
   useBodyScrollLock(isProfileMenuOpen);
 
   const handleLogout = () => {
-    window.dispatchEvent(new Event('auth:logout'));
     closeProfileMenu();
+    void logout();
   };
 
   return (

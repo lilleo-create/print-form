@@ -1,9 +1,50 @@
 import {
-  loadFromStorage,
+  getAccessToken,
   removeFromStorage,
   setAccessToken
 } from '../lib/storage';
 import { STORAGE_KEYS } from '../constants/storageKeys';
+
+// ── Proactive refresh ──────────────────────────────────────────────────────
+// Parse JWT exp claim (seconds since epoch) without a library.
+const parseTokenExp = (token: string): number | null => {
+  try {
+    const part = token.split('.')[1];
+    if (!part) return null;
+    const json = atob(part.replace(/-/g, '+').replace(/_/g, '/'));
+    const payload = JSON.parse(json) as Record<string, unknown>;
+    return typeof payload.exp === 'number' ? payload.exp : null;
+  } catch {
+    return null;
+  }
+};
+
+let _proactiveTimer: ReturnType<typeof setTimeout> | null = null;
+let _silentRefreshFn: (() => Promise<void>) | null = null;
+
+// Called once by createFetchClient to wire up the refresh mechanism.
+const registerSilentRefresh = (fn: () => Promise<void>) => {
+  _silentRefreshFn = fn;
+};
+
+// Call after any successful token acquisition (login, refresh).
+export const scheduleProactiveRefresh = (token: string) => {
+  if (_proactiveTimer) clearTimeout(_proactiveTimer);
+  const exp = parseTokenExp(token);
+  if (!exp) return;
+  const msUntilRefresh = Math.max(0, (exp - Date.now() / 1000 - 60) * 1000);
+  _proactiveTimer = setTimeout(async () => {
+    try {
+      await _silentRefreshFn?.();
+    } catch {
+      // If proactive refresh fails, the next 401 handler will catch it.
+    }
+  }, msUntilRefresh);
+};
+
+export const cancelProactiveRefresh = () => {
+  if (_proactiveTimer) { clearTimeout(_proactiveTimer); _proactiveTimer = null; }
+};
 
 export type ApiResponse<T> = { data: T };
 export class ApiError extends Error {
@@ -106,6 +147,14 @@ const handleAuthInvalidation = () => {
 };
 
 export function createFetchClient(baseUrl: string) {
+  const doSilentRefresh = async () => {
+    if (!refreshPromise) {
+      refreshPromise = refreshAccessToken().finally(() => { refreshPromise = null; });
+    }
+    await refreshPromise;
+  };
+  registerSilentRefresh(doSilentRefresh);
+
   const refreshAccessToken = async (): Promise<string | null> => {
     const res = await fetch(`${baseUrl}/auth/refresh`, {
       method: 'POST',
@@ -134,6 +183,7 @@ export function createFetchClient(baseUrl: string) {
     const token = readAccessToken(payload);
     if (token) {
       setAccessToken(token);
+      scheduleProactiveRefresh(token);
     }
     return token;
   };
@@ -164,13 +214,8 @@ export function createFetchClient(baseUrl: string) {
       headers['Content-Type'] = 'application/json';
     }
 
-    const storedToken = loadFromStorage<string | null>(
-      STORAGE_KEYS.accessToken,
-      null
-    );
-
     const explicitToken = opts?.token ?? null;
-    const authToken = explicitToken ?? storedToken;
+    const authToken = explicitToken ?? getAccessToken();
     const isAuthRoute = isPublicAuthPath(path);
 
     if (explicitToken) {

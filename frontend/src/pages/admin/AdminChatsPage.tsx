@@ -4,6 +4,7 @@ import { ChatMessage, ChatThread, ReturnStatus } from '../../shared/types';
 import { AdminChatList } from '../../components/admin/AdminChatList';
 import { AdminChatDetailsPanel } from '../../components/admin/AdminChatDetailsPanel';
 import styles from './AdminChatsPage.module.css';
+import { PageLoader } from '../../shared/ui/PageLoader';
 
 export const AdminChatsPage = () => {
   const [threads, setThreads] = useState<{ active: ChatThread[]; closed: ChatThread[] }>({
@@ -119,7 +120,7 @@ export const AdminChatsPage = () => {
           />
         </aside>
         <div className={styles.content}>
-          {loading && <p>Загрузка чата...</p>}
+          {loading && <PageLoader />}
           {error && <p className={styles.error}>{error}</p>}
           {!loading && !error && (
             <AdminChatDetailsPanel

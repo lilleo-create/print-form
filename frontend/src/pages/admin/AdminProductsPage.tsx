@@ -14,6 +14,7 @@ import {
   getModerationStatusTone
 } from '../../shared/lib/productModeration';
 import styles from './AdminPage.module.css';
+import { PageLoader } from '../../shared/ui/PageLoader';
 import { formatPrice } from '../../utils/money';
 
 type AdminProduct = Product & {
@@ -322,7 +323,7 @@ export const AdminProductsPage = () => {
       </div>
 
       {loading ? (
-        <p className={styles.muted}>Загрузка товаров...</p>
+        <PageLoader />
       ) : rows.length === 0 ? (
         <EmptyState
           title="Нет товаров"

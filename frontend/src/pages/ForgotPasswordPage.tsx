@@ -19,7 +19,7 @@ type PersistedResetFlow = {
   challengePhone: string;
   otpRequest: {
     requestId: string;
-    verificationType: 'call_to_auth' | 'code';
+    verificationType: 'call_to_auth';
     callToAuthNumber?: string | null;
     phone?: string;
     status?: string;

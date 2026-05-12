@@ -1,12 +1,13 @@
 import { create } from 'zustand';
 import { authApi, getOtpPurposeForFlow, type OtpFlowState, type OtpFlowType, type RegistrationPurpose } from '../../shared/api/authApi';
 import { api } from '../../shared/api';
-import { loadFromStorage, removeFromStorage, saveToStorage, setAccessToken } from '../../shared/lib/storage';
+import { getAccessToken, loadFromStorage, removeFromStorage, saveToStorage, setAccessToken } from '../../shared/lib/storage';
+import { scheduleProactiveRefresh, cancelProactiveRefresh } from '../../shared/api/client';
 import { STORAGE_KEYS } from '../../shared/constants/storageKeys';
 import { User, Role } from '../../shared/types';
 import { normalizeRole } from '../../shared/lib/authAccess';
 
-type DeviceVerificationChannel = 'PHONE_CALL' | 'SMS' | 'PUSH' | 'UNKNOWN';
+type DeviceVerificationChannel = 'PHONE_CALL' | 'PUSH' | 'UNKNOWN';
 
 type OtpRequiredResult = {
   requiresOtp: true;
@@ -24,7 +25,7 @@ type OtpRequiredResult = {
   otpRequest?: {
     requestId: string;
     provider?: string;
-    verificationType: 'call_to_auth' | 'code';
+    verificationType: 'call_to_auth';
     callToAuthNumber?: string | null;
     phone?: string;
     status?: string;
@@ -80,7 +81,7 @@ interface AuthState {
         otpRequest?: {
           requestId: string;
           provider?: string;
-          verificationType: 'call_to_auth' | 'code';
+          verificationType: 'call_to_auth';
           callToAuthNumber?: string | null;
           phone?: string;
           status?: string;
@@ -110,8 +111,8 @@ interface AuthState {
     token?: string;
   }>;
 
-  requestOtp: (payload: { phone: string; purpose?: RegistrationPurpose }, token?: string | null) => Promise<{ requestId: string; provider?: string; verificationType: 'call_to_auth' | 'code'; callToAuthNumber?: string | null; phone?: string; status?: string; expiresInSec?: number } | null>;
-  requestDeviceLoginOtp: (payload: { phone: string }, token?: string | null) => Promise<{ requestId: string; provider?: string; verificationType: 'call_to_auth' | 'code'; callToAuthNumber?: string | null; phone?: string; status?: string; expiresInSec?: number } | null>;
+  requestOtp: (payload: { phone: string; purpose?: RegistrationPurpose }, token?: string | null) => Promise<{ requestId: string; provider?: string; verificationType: 'call_to_auth'; callToAuthNumber?: string | null; phone?: string; status?: string; expiresInSec?: number } | null>;
+  requestDeviceLoginOtp: (payload: { phone: string }, token?: string | null) => Promise<{ requestId: string; provider?: string; verificationType: 'call_to_auth'; callToAuthNumber?: string | null; phone?: string; status?: string; expiresInSec?: number } | null>;
 
   checkOtpStatus: (requestId: string, token?: string | null) => Promise<'pending' | 'verified' | 'expired' | 'failed' | 'cancelled'>;
   verifyOtp: (
@@ -292,6 +293,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
       saveStoredUser(result.user);
       setAccessToken(result.token);
+      scheduleProactiveRefresh(result.token);
       set({ user: result.user, token: result.token, isAuthenticated: true, isAuthInitialized: true });
       return { requiresOtp: false, user: result.user, token: result.token };
     },
@@ -335,6 +337,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
       saveStoredUser(result.user);
       setAccessToken(result.token);
+      scheduleProactiveRefresh(result.token);
       set({ user: result.user, token: result.token, isAuthenticated: true, isAuthInitialized: true });
       return { requiresOtp: false, user: result.user, token: result.token };
     },
@@ -343,7 +346,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
       const purpose = (payload.purpose ?? get().otp.purpose ?? 'buyer_register_phone') as RegistrationPurpose;
       const finalPayload = { ...payload, purpose };
 
-      return await authApi.requestOtp(finalPayload, token ?? get().otp.tempToken ?? get().token);
+      return await authApi.requestOtp(finalPayload, token ?? get().otp.tempToken ?? get().token ?? getAccessToken());
     },
 
     async requestDeviceLoginOtp(payload, token) {
@@ -355,7 +358,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
     },
 
     async checkOtpStatus(requestId, token) {
-      return await authApi.checkOtpStatus(requestId, token ?? get().otp.tempToken ?? get().token);
+      return await authApi.checkOtpStatus(requestId, token ?? get().otp.tempToken ?? get().token ?? getAccessToken());
     },
 
     async verifyOtp(payload, token) {
@@ -363,21 +366,22 @@ export const useAuthStore = create<AuthState>((set, get) => {
       const purpose = (payload.purpose ?? otp.purpose ?? 'buyer_register_phone') as RegistrationPurpose;
 
       const finalPayload = { ...payload, purpose };
-      const result = await authApi.verifyOtp(finalPayload, token ?? otp.tempToken ?? get().token);
+      const result = await authApi.verifyOtp(finalPayload, token ?? otp.tempToken ?? get().token ?? getAccessToken());
 
-      if (!result?.user || !result?.token) {
-        throw new Error('OTP verify failed: invalid response');
+      // Registration / login flows return a full session — update auth state.
+      // Phone-change flows (buyer_change_phone, etc.) return null — just succeed.
+      if (result?.user && result?.token) {
+        set({
+          user: result.user,
+          token: result.token,
+          otp: { ...emptyOtp },
+          isAuthenticated: true,
+          isAuthInitialized: true,
+        });
+        saveStoredUser(result.user);
+        setAccessToken(result.token);
+        scheduleProactiveRefresh(result.token);
       }
-
-      set({
-        user: result.user,
-        token: result.token,
-        otp: { ...emptyOtp },
-        isAuthenticated: true,
-        isAuthInitialized: true,
-      });
-      saveStoredUser(result.user);
-      setAccessToken(result.token);
     },
 
     async verifyDeviceLoginOtp(payload, token) {
@@ -395,6 +399,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
       });
       saveStoredUser(result.user);
       setAccessToken(result.token);
+      scheduleProactiveRefresh(result.token);
     },
 
     async updateProfile(payload) {
@@ -417,6 +422,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
     },
 
     async logout() {
+      cancelProactiveRefresh();
       try {
         await authApi.logout();
       } catch {

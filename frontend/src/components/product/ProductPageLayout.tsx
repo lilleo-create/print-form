@@ -18,6 +18,7 @@ import { getProductGroupKey, getProductVariants } from '../../shared/lib/product
 import { normalizeProductSpecs } from '../../shared/lib/productSpecs';
 import { normalizeProductDtoList } from '../../shared/lib/normalizeProductDto';
 import { formatPrice } from '../../utils/money';
+import { PageLoader } from '../../shared/ui/PageLoader';
 
 type ProductPageLayoutProps = {
   productId: string;
@@ -94,9 +95,7 @@ export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
           <meta name="description" content={seoDescription} />
           <link rel="canonical" href={canonicalUrl} />
         </Helmet>
-        <div className={styles.container}>
-          <p>Загрузка...</p>
-        </div>
+        <PageLoader />
       </section>
     );
   }

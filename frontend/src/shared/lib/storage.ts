@@ -29,10 +29,16 @@ export const removeFromStorage = (key: string) => {
   window.localStorage.removeItem(key);
 };
 
+// Access token lives in memory only — never touches localStorage.
+// This prevents XSS scripts from reading it via document.cookie / localStorage.
+// On page reload the token is gone, but the httpOnly refresh-token cookie
+// silently re-issues a new access token on the first 401.
+let _accessToken: string | null = null;
+
+export const getAccessToken = (): string | null => _accessToken;
+
 export const setAccessToken = (token: string | null) => {
-  if (!token) {
-    removeFromStorage(STORAGE_KEYS.accessToken);
-    return;
-  }
-  saveToStorage(STORAGE_KEYS.accessToken, token);
+  _accessToken = token;
+  // Clean up any legacy value that may have been stored before this change.
+  removeFromStorage(STORAGE_KEYS.accessToken);
 };

@@ -5,6 +5,7 @@ import { CatalogPage } from './pages/CatalogPage';
 import { BuyerAccountPage } from './pages/account/BuyerAccountPage';
 import { SellerDashboardPage } from './pages/SellerDashboardPage';
 import { AuthPage } from './pages/AuthPage';
+import { OAuthCallbackPage } from './pages/OAuthCallbackPage';
 import { CartPage } from './pages/CartPage';
 import { CheckoutPage } from './pages/CheckoutPage';
 import { ProtectedRoute } from './app/routes/ProtectedRoute';
@@ -127,6 +128,7 @@ const App = () => {
         <Route path="/auth/login" element={<AuthPage />} />
         <Route path="/auth/register" element={<AuthPage />} />
         <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/auth/oauth-callback" element={<OAuthCallbackPage />} />
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
         <Route path="/service-rules" element={<ServiceRulesPage />} />
         <Route path="/offer" element={<OfferPage />} />

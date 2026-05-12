@@ -2,6 +2,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { Role } from '../../shared/types';
 import { hasRequiredRole } from '../../shared/lib/authAccess';
+import { PageLoader } from '../../shared/ui/PageLoader';
 
 interface ProtectedRouteProps {
   children: JSX.Element;
@@ -15,7 +16,7 @@ export const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) 
   const location = useLocation();
 
   if (!isAuthInitialized || isRestoringSession) {
-    return <p className="container">Загрузка...</p>;
+    return <PageLoader />;
   }
 
   if (!user) {

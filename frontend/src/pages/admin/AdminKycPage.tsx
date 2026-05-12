@@ -7,6 +7,7 @@ import { Modal } from '../../shared/ui/Modal';
 import { Table } from '../../shared/ui/Table';
 import { getKycStatusLabel, getKycStatusOptions } from '../../shared/lib/adminStatusLabels';
 import styles from './AdminPage.module.css';
+import { PageLoader } from '../../shared/ui/PageLoader';
 
 const statusOptions = ['PENDING', 'APPROVED', 'REJECTED', 'REVISION'] as const;
 const kycStatusOptions = getKycStatusOptions(statusOptions);
@@ -111,7 +112,7 @@ export const AdminKycPage = () => {
       </div>
 
       {loading ? (
-        <p className={styles.muted}>Загрузка заявок...</p>
+        <PageLoader />
       ) : rows.length === 0 ? (
         <EmptyState title="Нет заявок" description="Заявки в выбранном статусе не найдены." />
       ) : (
@@ -168,7 +169,7 @@ export const AdminKycPage = () => {
 
       <Modal isOpen={Boolean(selected || modalLoading)} onClose={actionId ? undefined : closeDetails} className={styles.modal}>
         {modalLoading || !selected ? (
-          <p className={styles.muted}>Загрузка заявки...</p>
+          <PageLoader />
         ) : (
           <>
             <h2>Заявка на проверку продавца</h2>

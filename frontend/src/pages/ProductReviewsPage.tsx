@@ -23,6 +23,7 @@ import {
 import { useMyReview } from './product-reviews/hooks/useMyReview';
 
 import styles from './ProductReviewsPage.module.css';
+import { PageLoader } from '../shared/ui/PageLoader';
 
 const DEFAULT_FILTERS: ReviewFilters = {
   helpful: false,
@@ -193,7 +194,7 @@ export const ProductReviewsPage = () => {
   if (!product) {
     return (
       <section className={styles.page}>
-        <div className="container">Загрузка…</div>
+        <PageLoader />
       </section>
     );
   }

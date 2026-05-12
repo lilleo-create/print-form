@@ -9,6 +9,7 @@ import { Table } from '../../shared/ui/Table';
 import { resolveImageUrl } from '../../shared/lib/resolveImageUrl';
 import { getReviewStatusLabel, getReviewStatusOptions } from '../../shared/lib/adminStatusLabels';
 import styles from './AdminPage.module.css';
+import { PageLoader } from '../../shared/ui/PageLoader';
 
 type AdminReview = Review & {
   user?: { id: string; name: string; email?: string } | null;
@@ -110,7 +111,7 @@ export const AdminReviewsPage = () => {
       </div>
 
       {loading ? (
-        <p className={styles.muted}>Загрузка отзывов...</p>
+        <PageLoader />
       ) : rows.length === 0 ? (
         <EmptyState title="Нет отзывов" description="Отзывы в выбранном статусе отсутствуют." />
       ) : (
