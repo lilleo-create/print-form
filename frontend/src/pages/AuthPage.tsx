@@ -138,6 +138,19 @@ const getRedirectPath = ({
   return '/account';
 };
 
+const EyeIcon = ({ open }: { open: boolean }) => open ? (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+    <path d="M1 1l22 22"/>
+  </svg>
+) : (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+    <circle cx="12" cy="12" r="3"/>
+  </svg>
+);
+
 export const AuthPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -406,17 +419,19 @@ export const AuthPage = () => {
   return (
     <section className={styles.page}>
       <div className={styles.layout}>
+
+        {/* ── Form column ── */}
         <div className={styles.formColumn}>
           <div className={styles.card}>
+
             {otpUiState !== 'call_to_auth' && (
               <div className={styles.header}>
-                <p className={styles.eyebrow}>
-                  {isRegister ? 'Создайте аккаунт' : 'Добро пожаловать'}
-                </p>
-                <h1>{isRegister ? 'Регистрация' : 'Вход'}</h1>
+                <h1 className={styles.heading}>
+                  {isRegister ? 'Регистрация' : 'Вход'}
+                </h1>
                 <p className={styles.subtitle}>
                   {isRegister
-                    ? 'Начните продавать и покупать 3D печать за пару минут.'
+                    ? 'Начните покупать и продавать 3D-печать за пару минут.'
                     : 'Войдите, чтобы продолжить работу с заказами.'}
                 </p>
               </div>
@@ -424,6 +439,7 @@ export const AuthPage = () => {
 
             {!otpRequired && (
               <>
+                {/* OAuth */}
                 <div className={styles.oauthButtons}>
                   <a
                     href={`${import.meta.env.VITE_API_URL}/auth/google?redirectTo=${encodeURIComponent(window.location.origin + '/auth/oauth-callback')}`}
@@ -448,12 +464,12 @@ export const AuthPage = () => {
                     Войти через Яндекс
                   </a>
                 </div>
-                <div className={styles.divider}>
-                  <span>или</span>
-                </div>
+
+                <div className={styles.divider}><span>или</span></div>
               </>
             )}
 
+            {/* ── OTP / Forms ── */}
             {otpRequired ? (
               <OtpStep
                 purpose={otpPurpose}
@@ -465,14 +481,13 @@ export const AuthPage = () => {
                 introMessage={otpFlowType === 'device_login_verification' ? 'Ожидаем автоматическое подтверждение входа после звонка.' : undefined}
                 onRequestOtp={async (payload, token) => {
                   if (otpFlowType === 'device_login_verification') {
-                    const otpRequest = await requestDeviceLoginOtp({ phone: payload.phone }, token);
-                    setOtpRequest(otpRequest);
-                    return { otpRequest };
+                    const req = await requestDeviceLoginOtp({ phone: payload.phone }, token);
+                    setOtpRequest(req);
+                    return { otpRequest: req };
                   }
-
-                  const otpRequest = await requestOtp(payload, token);
-                  setOtpRequest(otpRequest);
-                  return { otpRequest };
+                  const req = await requestOtp(payload, token);
+                  setOtpRequest(req);
+                  return { otpRequest: req };
                 }}
                 onCheckOtpStatus={checkOtpStatus}
                 onVerifyOtp={otpFlowType === 'device_login_verification' ? verifyDeviceLoginOtp : verifyOtp}
@@ -483,116 +498,115 @@ export const AuthPage = () => {
                 setMessage={setMessage}
                 setError={setError}
                 onUiStateChange={setOtpUiState}
-                onBack={() => {
-                  resetOtp();
-                }}
+                onBack={resetOtp}
               />
+
             ) : isRegister ? (
-              <form
-                onSubmit={registerForm.handleSubmit(onRegister)}
-                className={styles.form}
-              >
-                <input
-                  placeholder="Никнейм"
-                  {...registerForm.register('name')}
-                />
-                {registerForm.formState.errors.name && (
-                  <span>{registerForm.formState.errors.name.message}</span>
-                )}
-                <input
-                  placeholder="ФИО"
-                  {...registerForm.register('fullName')}
-                />
-                {registerForm.formState.errors.fullName && (
-                  <span>{registerForm.formState.errors.fullName.message}</span>
-                )}
 
-                <input
-                  placeholder="+7 (___) ___-__-__"
-                  value={registerForm.watch('phone') ?? ''}
-                  inputMode="tel"
-                  autoComplete="tel"
-                  onFocus={() => {
-                    const v = registerForm.getValues('phone') ?? '';
-                    if (!v)
-                      registerForm.setValue('phone', '+7', {
-                        shouldValidate: true
-                      });
-                  }}
-                  onChange={(e) =>
-                    registerForm.setValue(
-                      'phone',
-                      formatRuPhoneInput(e.target.value),
-                      {
-                        shouldValidate: true,
-                        shouldDirty: true
-                      }
-                    )
-                  }
-                />
-                {registerForm.formState.errors.phone && (
-                  <span>{registerForm.formState.errors.phone.message}</span>
-                )}
+              /* ── Register form ── */
+              <form onSubmit={registerForm.handleSubmit(onRegister)} className={styles.form}>
 
-                <input
-                  placeholder="Email"
-                  {...registerForm.register('email')}
-                />
-                {registerForm.formState.errors.email && (
-                  <span>{registerForm.formState.errors.email.message}</span>
-                )}
-                <label className={styles.passwordField}>
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>Никнейм</label>
+                  <input placeholder="Как вас называть" {...registerForm.register('name')} />
+                  {registerForm.formState.errors.name && (
+                    <span className={styles.fieldError}>{registerForm.formState.errors.name.message}</span>
+                  )}
+                </div>
+
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>ФИО</label>
+                  <input placeholder="Иванов Иван Иванович" {...registerForm.register('fullName')} />
+                  {registerForm.formState.errors.fullName && (
+                    <span className={styles.fieldError}>{registerForm.formState.errors.fullName.message}</span>
+                  )}
+                </div>
+
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>Телефон</label>
                   <input
-                    type={showRegisterPassword ? 'text' : 'password'}
-                    placeholder="Пароль"
-                    autoComplete="new-password"
-                    {...registerPasswordField}
-                    onChange={(event) => {
-                      registerPasswordField.onChange(event);
-                      void registerForm.trigger('password');
+                    placeholder="+7 (___) ___-__-__"
+                    value={registerForm.watch('phone') ?? ''}
+                    inputMode="tel"
+                    autoComplete="tel"
+                    onFocus={() => {
+                      const v = registerForm.getValues('phone') ?? '';
+                      if (!v) registerForm.setValue('phone', '+7', { shouldValidate: true });
                     }}
+                    onChange={(e) =>
+                      registerForm.setValue('phone', formatRuPhoneInput(e.target.value), {
+                        shouldValidate: true, shouldDirty: true
+                      })
+                    }
                   />
-                  <button
-                    type="button"
-                    className={styles.passwordToggle}
-                    onClick={() => setShowRegisterPassword((value) => !value)}
-                    aria-label={showRegisterPassword ? 'Скрыть пароль' : 'Показать пароль'}
-                    aria-pressed={showRegisterPassword}
-                  >
-                    {showRegisterPassword ? 'Скрыть' : 'Показать'}
-                  </button>
-                </label>
-                {shouldShowRegisterPasswordMessage && (
-                  <span>{registerPasswordError}</span>
-                )}
-                <label className={styles.passwordField}>
-                  <input
-                    type={showConfirmPassword ? 'text' : 'password'}
-                    placeholder="Повторите пароль"
-                    autoComplete="new-password"
-                    {...confirmPasswordField}
-                    onChange={(event) => {
-                      confirmPasswordField.onChange(event);
-                      if (registerForm.formState.submitCount > 0 || event.target.value.length > 0) {
-                        void registerForm.trigger('confirmPassword');
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className={styles.passwordToggle}
-                    onClick={() => setShowConfirmPassword((value) => !value)}
-                    aria-label={showConfirmPassword ? 'Скрыть пароль' : 'Показать пароль'}
-                    aria-pressed={showConfirmPassword}
-                  >
-                    {showConfirmPassword ? 'Скрыть' : 'Показать'}
-                  </button>
-                </label>
-                {shouldShowConfirmPasswordError && (
-                  <span>
-                    {registerForm.formState.errors.confirmPassword?.message}
-                  </span>
-                )}
+                  {registerForm.formState.errors.phone && (
+                    <span className={styles.fieldError}>{registerForm.formState.errors.phone.message}</span>
+                  )}
+                </div>
+
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>Email</label>
+                  <input placeholder="example@mail.ru" type="email" autoComplete="email" {...registerForm.register('email')} />
+                  {registerForm.formState.errors.email && (
+                    <span className={styles.fieldError}>{registerForm.formState.errors.email.message}</span>
+                  )}
+                </div>
+
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>Пароль</label>
+                  <label className={styles.passwordField}>
+                    <input
+                      type={showRegisterPassword ? 'text' : 'password'}
+                      placeholder="Минимум 8 символов"
+                      autoComplete="new-password"
+                      {...registerPasswordField}
+                      onChange={(e) => {
+                        registerPasswordField.onChange(e);
+                        void registerForm.trigger('password');
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className={styles.passwordToggle}
+                      onClick={() => setShowRegisterPassword((v) => !v)}
+                      aria-label={showRegisterPassword ? 'Скрыть пароль' : 'Показать пароль'}
+                    >
+                      <EyeIcon open={showRegisterPassword} />
+                    </button>
+                  </label>
+                  {shouldShowRegisterPasswordMessage && (
+                    <span className={styles.fieldError}>{registerPasswordError}</span>
+                  )}
+                </div>
+
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>Повторите пароль</label>
+                  <label className={styles.passwordField}>
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      placeholder="Повторите пароль"
+                      autoComplete="new-password"
+                      {...confirmPasswordField}
+                      onChange={(e) => {
+                        confirmPasswordField.onChange(e);
+                        if (registerForm.formState.submitCount > 0 || e.target.value.length > 0) {
+                          void registerForm.trigger('confirmPassword');
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className={styles.passwordToggle}
+                      onClick={() => setShowConfirmPassword((v) => !v)}
+                      aria-label={showConfirmPassword ? 'Скрыть пароль' : 'Показать пароль'}
+                    >
+                      <EyeIcon open={showConfirmPassword} />
+                    </button>
+                  </label>
+                  {shouldShowConfirmPasswordError && (
+                    <span className={styles.fieldError}>{registerForm.formState.errors.confirmPassword?.message}</span>
+                  )}
+                </div>
 
                 <label className={styles.consent}>
                   <input
@@ -600,75 +614,73 @@ export const AuthPage = () => {
                     checked={privacyAccepted}
                     onChange={(e) => setPrivacyAccepted(e.target.checked)}
                   />
-                  <span>
-                    Я ознакомился и принимаю{' '}
-                    <Link to="/service-rules" className={styles.policyLink}>
-                      Правила использования сервиса
-                    </Link>{' '}
-                    и{' '}
-                    <Link to="/privacy-policy" className={styles.policyLink}>
-                      Политику обработки персональных данных
-                    </Link>
+                  <span className={styles.consentText}>
+                    Принимаю{' '}
+                    <Link to="/service-rules" className={styles.policyLink}>Правила сервиса</Link>
+                    {' '}и{' '}
+                    <Link to="/privacy-policy" className={styles.policyLink}>Политику данных</Link>
                   </span>
                 </label>
 
-                <Button type="submit" disabled={!privacyAccepted}>
+                <Button type="submit" disabled={!privacyAccepted} className={styles.submitBtn}>
                   Создать аккаунт
                 </Button>
               </form>
-            ) : (
-              <form
-                onSubmit={loginForm.handleSubmit(onLogin)}
-                className={styles.form}
-              >
-                <input
-                  placeholder="+7 (___) ___-__-__"
-                  inputMode="tel"
-                  autoComplete="tel"
-                  value={loginForm.watch('phone') ?? ''}
-                  onFocus={() => {
-                    const currentValue = loginForm.getValues('phone') ?? '';
-                    if (!currentValue)
-                      loginForm.setValue('phone', '+7', {
-                        shouldValidate: true
-                      });
-                  }}
-                  onChange={(event) =>
-                    loginForm.setValue(
-                      'phone',
-                      formatRuPhoneInput(event.target.value),
-                      { shouldDirty: true, shouldValidate: true }
-                    )
-                  }
-                />
-                {loginForm.formState.errors.phone && (
-                  <span>{loginForm.formState.errors.phone.message}</span>
-                )}
-                <label className={styles.passwordField}>
-                  <input
-                    type={showLoginPassword ? 'text' : 'password'}
-                    placeholder="Пароль"
-                    autoComplete="current-password"
-                    {...loginForm.register('password')}
-                  />
-                  <button
-                    type="button"
-                    className={styles.passwordToggle}
-                    onClick={() => setShowLoginPassword((value) => !value)}
-                    aria-label={showLoginPassword ? 'Скрыть пароль' : 'Показать пароль'}
-                    aria-pressed={showLoginPassword}
-                  >
-                    {showLoginPassword ? 'Скрыть' : 'Показать'}
-                  </button>
-                </label>
-                {loginForm.formState.errors.password && (
-                  <span>{loginForm.formState.errors.password.message}</span>
-                )}
-                <Button type="submit">Войти</Button>
 
-                <Link className={styles.forgot} to="/auth/forgot-password">
-                  Забыли пароль?
-                </Link>
+            ) : (
+
+              /* ── Login form ── */
+              <form onSubmit={loginForm.handleSubmit(onLogin)} className={styles.form}>
+
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>Телефон</label>
+                  <input
+                    placeholder="+7 (___) ___-__-__"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    value={loginForm.watch('phone') ?? ''}
+                    onFocus={() => {
+                      const v = loginForm.getValues('phone') ?? '';
+                      if (!v) loginForm.setValue('phone', '+7', { shouldValidate: true });
+                    }}
+                    onChange={(e) =>
+                      loginForm.setValue('phone', formatRuPhoneInput(e.target.value), {
+                        shouldDirty: true, shouldValidate: true
+                      })
+                    }
+                  />
+                  {loginForm.formState.errors.phone && (
+                    <span className={styles.fieldError}>{loginForm.formState.errors.phone.message}</span>
+                  )}
+                </div>
+
+                <div className={styles.fieldGroup}>
+                  <div className={styles.fieldLabelRow}>
+                    <label className={styles.fieldLabel}>Пароль</label>
+                    <Link className={styles.forgot} to="/auth/forgot-password">Забыли пароль?</Link>
+                  </div>
+                  <label className={styles.passwordField}>
+                    <input
+                      type={showLoginPassword ? 'text' : 'password'}
+                      placeholder="Ваш пароль"
+                      autoComplete="current-password"
+                      {...loginForm.register('password')}
+                    />
+                    <button
+                      type="button"
+                      className={styles.passwordToggle}
+                      onClick={() => setShowLoginPassword((v) => !v)}
+                      aria-label={showLoginPassword ? 'Скрыть пароль' : 'Показать пароль'}
+                    >
+                      <EyeIcon open={showLoginPassword} />
+                    </button>
+                  </label>
+                  {loginForm.formState.errors.password && (
+                    <span className={styles.fieldError}>{loginForm.formState.errors.password.message}</span>
+                  )}
+                </div>
+
+                <Button type="submit" className={styles.submitBtn}>Войти</Button>
               </form>
             )}
 
@@ -676,18 +688,19 @@ export const AuthPage = () => {
             {message && <p className={styles.success}>{message}</p>}
 
             {!otpRequired && (
-              <Link
-                className={styles.switch}
-                to={isRegister ? '/auth/login' : '/auth/register'}
-              >
-                {isRegister
-                  ? 'Уже есть аккаунт? Войти'
-                  : 'Нет аккаунта? Зарегистрироваться'}
-              </Link>
+              <p className={styles.switchRow}>
+                {isRegister ? 'Уже есть аккаунт?' : 'Нет аккаунта?'}{' '}
+                <Link className={styles.switchLink} to={isRegister ? '/auth/login' : '/auth/register'}>
+                  {isRegister ? 'Войти' : 'Зарегистрироваться'}
+                </Link>
+              </p>
             )}
           </div>
         </div>
+
+        {/* ── Hero ── */}
         <div className={styles.hero}>
+          <div className={styles.heroGlow} />
           <img src={loginHero} alt="3D принтер печатает модель" />
         </div>
       </div>

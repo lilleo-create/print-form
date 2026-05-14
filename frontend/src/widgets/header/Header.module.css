@@ -148,7 +148,7 @@
 
 /* ── Avatar pill ── */
 .avatarPill {
-  display: inline-flex; align-items: center; gap: 8px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   height: 53px;
   padding: 0 18px 0 6px;
   background: rgba(255,255,255,0.10); border: 1px solid rgba(255,255,255,0.14);
@@ -156,6 +156,11 @@
   font-size: 14px; font-weight: 600; font-family: var(--font-ui);
   cursor: pointer; flex-shrink: 0; white-space: nowrap;
   transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.avatarPillGuest {
+  padding: 0 22px;
+  min-width: 90px;
 }
 .avatarPill:hover { background: rgba(255,255,255,0.16); border-color: rgba(255,255,255,0.24); }
 [data-theme="light"] .avatarPill { background: var(--surface-ghost); border-color: var(--border); color: var(--text); }

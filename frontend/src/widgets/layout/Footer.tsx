@@ -49,7 +49,6 @@ export const Footer = () => (
 
       <div className={styles.bottom}>
         <span>© 2026 Print-Form · Проект компании Print-Form</span>
-        <span className={styles.partners}>CDEK · YooKassa · Yandex Maps</span>
       </div>
     </div>
   </footer>

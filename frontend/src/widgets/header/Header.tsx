@@ -194,7 +194,7 @@ export const Header = () => {
     else navigate('/catalog');
   };
 
-  const initials = getInitials(user?.name, user?.email);
+  const initials = user ? getInitials(user.name, user.email) : null;
   const firstName = user?.name?.split(' ')[0] ?? null;
 
   return (
@@ -261,13 +261,13 @@ export const Header = () => {
 
           {/* Avatar/profile */}
           <button
-            className={styles.avatarPill}
+            className={`${styles.avatarPill} ${!user ? styles.avatarPillGuest : ''}`}
             onClick={() => openProfileMenu()}
-            aria-label="Профиль"
-            title={user?.name ?? 'Профиль'}
+            aria-label={user ? 'Профиль' : 'Войти'}
+            title={user?.name ?? 'Войти'}
           >
-            <span className={styles.avatarCircle}>{initials}</span>
-            <span className={styles.avatarName}>{firstName ?? 'Профиль'}</span>
+            {initials && <span className={styles.avatarCircle}>{initials}</span>}
+            <span className={styles.avatarName}>{firstName ?? 'Войти'}</span>
           </button>
         </nav>
       </header>

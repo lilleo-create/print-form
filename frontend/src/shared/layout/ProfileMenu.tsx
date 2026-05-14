@@ -48,7 +48,7 @@ export const ProfileMenu = ({
   const user = useAuthStore((state) => state.user);
   const showAdminLink = canAccessAdmin(user);
   const initials = getInitials(user?.name, user?.email);
-  const displayName = user?.name ?? user?.email ?? 'Профиль';
+  const displayName = user ? (user.name ?? user.email ?? 'Профиль') : 'Вы не вошли';
 
   const { panelRef, handleTouchStart, handleTouchMove, handleTouchEnd } = useSwipeToClose(onClose);
 
@@ -101,16 +101,30 @@ export const ProfileMenu = ({
             <div className={styles.profileMenuSection}>
               <div className={styles.profileMenuSectionLabel}>Покупки</div>
 
-              <Link to="/orders" className={`${styles.profileMenuItem} ${pathname === '/orders' ? styles.profileMenuItemActive : ''}`} onClick={onClose}>
+              <Link
+                to={user ? '/orders' : `/auth/login?redirectTo=${encodeURIComponent('/orders')}`}
+                className={`${styles.profileMenuItem} ${pathname === '/orders' ? styles.profileMenuItemActive : ''}`}
+                onClick={onClose}
+              >
                 <span className={styles.profileMenuIcon}><IcOrders /></span>Заказы
               </Link>
-              <Link to="/account?tab=purchases" className={`${styles.profileMenuItem} ${isAccountTab('purchases') ? styles.profileMenuItemActive : ''}`} onClick={onClose}>
-                <span className={styles.profileMenuIcon}><IcBox /></span>Купленные товары
-              </Link>
-              <Link to="/account?tab=returns" className={`${styles.profileMenuItem} ${isAccountTab('returns') ? styles.profileMenuItemActive : ''}`} onClick={onClose}>
-                <span className={styles.profileMenuIcon}><IcReturn /></span>Возвраты
-              </Link>
-              <Link to="/favorites" className={`${styles.profileMenuItem} ${pathname === '/favorites' ? styles.profileMenuItemActive : ''}`} onClick={onClose}>
+
+              {user && (
+                <>
+                  <Link to="/account?tab=purchases" className={`${styles.profileMenuItem} ${isAccountTab('purchases') ? styles.profileMenuItemActive : ''}`} onClick={onClose}>
+                    <span className={styles.profileMenuIcon}><IcBox /></span>Купленные товары
+                  </Link>
+                  <Link to="/account?tab=returns" className={`${styles.profileMenuItem} ${isAccountTab('returns') ? styles.profileMenuItemActive : ''}`} onClick={onClose}>
+                    <span className={styles.profileMenuIcon}><IcReturn /></span>Возвраты
+                  </Link>
+                </>
+              )}
+
+              <Link
+                to={user ? '/favorites' : `/auth/login?redirectTo=${encodeURIComponent('/favorites')}`}
+                className={`${styles.profileMenuItem} ${pathname === '/favorites' ? styles.profileMenuItemActive : ''}`}
+                onClick={onClose}
+              >
                 <span className={styles.profileMenuIcon}><IcHeart /></span>Избранные
               </Link>
             </div>
@@ -161,11 +175,21 @@ export const ProfileMenu = ({
               </Link>
             </div>
 
-            {/* Logout */}
+            {/* Logout / Login */}
             <div className={styles.profileMenuSection}>
-              <button type="button" className={`${styles.profileMenuItem} ${styles.profileMenuLogout}`} onClick={onLogout}>
-                <span className={styles.profileMenuIcon}><IcLogout /></span>Выйти
-              </button>
+              {user ? (
+                <button type="button" className={`${styles.profileMenuItem} ${styles.profileMenuLogout}`} onClick={onLogout}>
+                  <span className={styles.profileMenuIcon}><IcLogout /></span>Выйти
+                </button>
+              ) : (
+                <Link
+                  to={`/auth/login?redirectTo=${encodeURIComponent(pathname)}`}
+                  className={styles.profileMenuItem}
+                  onClick={onClose}
+                >
+                  <span className={styles.profileMenuIcon}><IcLogout /></span>Войти
+                </Link>
+              )}
             </div>
 
           </nav>
