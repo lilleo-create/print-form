@@ -23,39 +23,83 @@
 }
 
 .stepper {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 12px;
-  margin-bottom: 24px;
-}
-
-.step,
-.stepActive {
-  background: var(--card);
-  border-radius: var(--radius-card);
-  padding: 14px 16px;
   display: flex;
-  gap: 12px;
-  align-items: center;
-  box-shadow: var(--shadow-card);
+  align-items: flex-start;
+  padding: 18px 24px;
+  background: var(--card);
   border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: var(--shadow-card);
+  max-width: 1000px;
+  margin: 0 auto 28px;
 }
 
-.step span,
-.stepActive span {
-  width: 32px;
-  height: 32px;
+.stepItem {
+  display: flex;
+  align-items: flex-start;
+  flex: 1;
+  min-width: 0;
+}
+
+.stepDot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.connector {
+  flex: 1;
+  height: 2px;
+  background: var(--border);
   border-radius: 999px;
-  display: grid;
-  place-items: center;
+  margin: 14px 6px 0;
+  transition: background 0.25s;
+}
+
+.connectorDone {
+  background: var(--primary);
+}
+
+.stepNum {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
   font-weight: 700;
+  flex-shrink: 0;
+  transition: background 0.2s, color 0.2s;
+}
+
+.stepNumDone {
+  background: var(--primary);
+  color: #fff;
+}
+
+.stepNumActive {
+  background: var(--primary);
+  color: #fff;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 20%, transparent);
+}
+
+.stepNumPending {
   background: var(--bg-2);
   color: var(--muted);
 }
 
-.stepActive span {
-  background: var(--primary);
-  color: #ffffff;
+.stepLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.stepLabelPending {
+  color: var(--muted);
 }
 
 .card {
@@ -107,6 +151,104 @@
   font-size: 12px;
   color: var(--danger);
 }
+
+/* ── Phone change ── */
+.phoneViewRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.phoneChangeBtn {
+  flex-shrink: 0;
+  height: 42px;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.14s;
+  margin-bottom: 0;
+  white-space: nowrap;
+}
+.phoneChangeBtn:hover { background: var(--primary-soft); }
+
+.phoneEditActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* ── OTP block ── */
+.otpBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.otpBackBtn {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 13px;
+  color: var(--primary);
+  cursor: pointer;
+  text-align: left;
+}
+
+.otpTitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.otpCallNumber {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--primary);
+  text-decoration: none;
+  letter-spacing: -0.02em;
+}
+.otpCallNumber:hover { opacity: 0.8; }
+
+.otpHint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.otpSpinner {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 3px solid color-mix(in srgb, var(--primary) 18%, transparent);
+  border-top-color: var(--primary);
+  animation: spin 0.9s linear infinite;
+  margin: 4px 0;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.otpRetryLink {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.otpRetryLink:disabled { opacity: 0.5; cursor: default; }
 
 .actions {
   display: flex;

@@ -38,6 +38,7 @@ export const RecipientModal = ({ isOpen, onClose, initial, onSave }: Props) => {
   const [form, setForm] = useState(initial);
   const [step, setStep] = useState<'form' | 'otp'>('form');
   const [otpMeta, setOtpMeta] = useState<OtpMeta | null>(null);
+  const [nameError, setNameError] = useState('');
   const [phoneError, setPhoneError] = useState('');
   const [otpError, setOtpError] = useState('');
   const [isBusy, setIsBusy] = useState(false);
@@ -58,6 +59,7 @@ export const RecipientModal = ({ isOpen, onClose, initial, onSave }: Props) => {
       setForm(initial);
       setStep('form');
       setOtpMeta(null);
+      setNameError('');
       setPhoneError('');
       setOtpError('');
     }
@@ -110,11 +112,20 @@ export const RecipientModal = ({ isOpen, onClose, initial, onSave }: Props) => {
   };
 
   const handleSave = async () => {
+    let valid = true;
+    if (!form.name.trim()) {
+      setNameError('Укажите ФИО получателя');
+      valid = false;
+    } else {
+      setNameError('');
+    }
     if (!isRuPhone(form.phone)) {
       setPhoneError('Введите корректный номер телефона');
-      return;
+      valid = false;
+    } else {
+      setPhoneError('');
     }
-    setPhoneError('');
+    if (!valid) return;
 
     if (!phoneChanged) {
       setIsBusy(true);
@@ -203,18 +214,21 @@ export const RecipientModal = ({ isOpen, onClose, initial, onSave }: Props) => {
               </p>
 
               <div className={styles.fields}>
-                <label className={styles.field}>
-                  <span className={styles.fieldLabel}>Имя и фамилия</span>
+                <label className={`${styles.field} ${nameError ? styles.fieldInvalid : ''}`}>
+                  <span className={styles.fieldLabel}>
+                    Имя и фамилия <span className={styles.required}>*</span>
+                  </span>
                   <div className={styles.fieldRow}>
                     <input
-                      className={styles.input}
+                      className={`${styles.input} ${nameError ? styles.inputError : ''}`}
                       value={form.name}
-                      onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-                      placeholder="Имя и фамилия"
+                      onChange={(e) => { setNameError(''); setForm((p) => ({ ...p, name: e.target.value })); }}
+                      placeholder="Иванов Иван Иванович"
                       autoComplete="name"
                     />
-                    {form.name.trim() && <CheckIcon />}
+                    {form.name.trim() && !nameError && <CheckIcon />}
                   </div>
+                  {nameError && <span className={styles.fieldHint}>{nameError}</span>}
                 </label>
 
                 <label className={styles.field}>
@@ -266,7 +280,7 @@ export const RecipientModal = ({ isOpen, onClose, initial, onSave }: Props) => {
                 type="button"
                 className={styles.saveBtn}
                 onClick={() => void handleSave()}
-                disabled={isBusy || !form.phone.trim()}
+                disabled={isBusy || !form.phone.trim() || !form.name.trim()}
               >
                 {isBusy ? 'Сохраняем…' : phoneChanged ? 'Далее — подтвердить номер' : 'Сохранить'}
               </button>
@@ -281,34 +295,74 @@ export const RecipientModal = ({ isOpen, onClose, initial, onSave }: Props) => {
                 ← Назад
               </button>
 
-              <h3 className={styles.title}>Подтверждение номера</h3>
-
-              <p className={styles.otpHint}>
-                Ожидаем звонок на номер <strong>{normalizedPhone}</strong>.
-                {otpMeta?.callToAuthNumber && (
-                  <> Позвонит номер: <strong>{otpMeta.callToAuthNumber}</strong>.</>
-                )}
-                {' '}Подтверждение произойдёт автоматически.
-              </p>
-
-              {otpError ? (
+              {otpMeta?.callToAuthNumber ? (
+                /* ── call_to_auth: user calls the number ── */
                 <>
-                  <span className={styles.error}>{otpError}</span>
-                  <Button variant="secondary" onClick={() => void handleRetry()} isLoading={isRetrying}>
-                    Позвонить снова
-                  </Button>
+                  <h3 className={styles.title}>Позвоните на номер</h3>
+
+                  <a
+                    href={`tel:${otpMeta.callToAuthNumber}`}
+                    className={styles.callNumber}
+                  >
+                    {otpMeta.callToAuthNumber}
+                  </a>
+
+                  <p className={styles.otpHint}>
+                    Позвоните с номера <strong>{normalizedPhone}</strong>.
+                    Звонок бесплатный — подтверждение произойдёт автоматически.
+                  </p>
+
+                  {otpError ? (
+                    <>
+                      <span className={styles.error}>{otpError}</span>
+                      <Button variant="secondary" onClick={() => void handleRetry()} isLoading={isRetrying}>
+                        Получить новый номер
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <div className={styles.otpSpinner} />
+                      <button
+                        type="button"
+                        className={styles.retryLink}
+                        onClick={() => void handleRetry()}
+                        disabled={isRetrying}
+                      >
+                        {isRetrying ? 'Запрашиваем…' : 'Не удалось позвонить? Повторить'}
+                      </button>
+                    </>
+                  )}
                 </>
               ) : (
+                /* ── incoming call / SMS flow ── */
                 <>
-                  <div className={styles.otpSpinner} />
-                  <button
-                    type="button"
-                    className={styles.retryLink}
-                    onClick={() => void handleRetry()}
-                    disabled={isRetrying}
-                  >
-                    {isRetrying ? 'Запрашиваем…' : 'Не поступил звонок? Повторить'}
-                  </button>
+                  <h3 className={styles.title}>Подтверждение номера</h3>
+
+                  <p className={styles.otpHint}>
+                    Ожидаем входящий звонок на номер <strong>{normalizedPhone}</strong>.
+                    Подтверждение произойдёт автоматически.
+                  </p>
+
+                  {otpError ? (
+                    <>
+                      <span className={styles.error}>{otpError}</span>
+                      <Button variant="secondary" onClick={() => void handleRetry()} isLoading={isRetrying}>
+                        Позвонить снова
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <div className={styles.otpSpinner} />
+                      <button
+                        type="button"
+                        className={styles.retryLink}
+                        onClick={() => void handleRetry()}
+                        disabled={isRetrying}
+                      >
+                        {isRetrying ? 'Запрашиваем…' : 'Не поступил звонок? Повторить'}
+                      </button>
+                    </>
+                  )}
                 </>
               )}
             </>

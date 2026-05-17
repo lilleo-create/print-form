@@ -107,6 +107,7 @@
 }
 
 .field:focus-within { border-color: var(--primary); }
+.fieldInvalid { border-color: var(--danger) !important; }
 
 .fieldLabel {
   font-size: 11px;
@@ -177,6 +178,19 @@
   padding: 0;
   text-align: left;
 }
+
+.callNumber {
+  display: block;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--primary);
+  text-decoration: none;
+  text-align: center;
+  padding: 8px 0;
+  transition: opacity 0.15s;
+}
+.callNumber:hover { opacity: 0.8; }
 
 .otpHint {
   margin: 0;

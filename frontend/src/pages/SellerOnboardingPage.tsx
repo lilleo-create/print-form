@@ -14,8 +14,6 @@ import {
 } from '../shared/lib/validation';
 
 const steps = ['Контакты', 'Продавец', 'Логистика'] as const;
-const CONTACT_SUPPORT_TEXT =
-  'Для смены контактной информации обратитесь в поддержку';
 
 const firstNonEmpty = (...values: Array<string | null | undefined>) => {
   for (const value of values) {
@@ -53,12 +51,102 @@ export const SellerOnboardingPage = () => {
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const setUser = useAuthStore((state) => state.setUser);
+  const requestOtp = useAuthStore((s) => s.requestOtp);
+  const verifyOtp = useAuthStore((s) => s.verifyOtp);
+  const checkOtpStatus = useAuthStore((s) => s.checkOtpStatus);
   const { authStatus, context } = useSellerContext();
   const [step, setStep] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [phoneVerificationRequired, setPhoneVerificationRequired] =
     useState(false);
+
+  // ── Phone change flow ──
+  type PhoneStep = 'view' | 'edit' | 'otp';
+  const [phoneStep, setPhoneStep] = useState<PhoneStep>('view');
+  const [editPhone, setEditPhone] = useState('');
+  const [phoneEditError, setPhoneEditError] = useState('');
+  const [otpMeta, setOtpMeta] = useState<{ requestId: string; callToAuthNumber?: string | null } | null>(null);
+  const [otpError, setOtpError] = useState('');
+  const [isOtpBusy, setIsOtpBusy] = useState(false);
+
+  const handleStartEditPhone = () => {
+    setEditPhone(form.phone);
+    setPhoneEditError('');
+    setPhoneStep('edit');
+  };
+
+  const handleCancelEditPhone = () => {
+    setPhoneStep('view');
+    setPhoneEditError('');
+    setOtpError('');
+    setOtpMeta(null);
+  };
+
+  const handleRequestPhoneOtp = async () => {
+    if (!isRuPhone(editPhone)) {
+      setPhoneEditError('Введите корректный номер телефона');
+      return;
+    }
+    setPhoneEditError('');
+    setIsOtpBusy(true);
+    try {
+      const result = await requestOtp({ phone: toE164Ru(editPhone), purpose: 'seller_connect_phone' });
+      if (!result) throw new Error('empty');
+      setOtpMeta({ requestId: result.requestId, callToAuthNumber: result.callToAuthNumber });
+      setOtpError('');
+      setPhoneStep('otp');
+    } catch {
+      setPhoneEditError('Не удалось запустить подтверждение. Попробуйте ещё раз.');
+    } finally {
+      setIsOtpBusy(false);
+    }
+  };
+
+  const handleRetryOtp = async () => {
+    setIsOtpBusy(true);
+    setOtpError('');
+    try {
+      const result = await requestOtp({ phone: toE164Ru(editPhone), purpose: 'seller_connect_phone' });
+      if (!result) throw new Error('empty');
+      setOtpMeta({ requestId: result.requestId, callToAuthNumber: result.callToAuthNumber });
+    } catch {
+      setOtpError('Не удалось повторить звонок. Попробуйте позже.');
+    } finally {
+      setIsOtpBusy(false);
+    }
+  };
+
+  // Poll OTP status in 'otp' step
+  useEffect(() => {
+    if (phoneStep !== 'otp' || !otpMeta) return;
+    let cancelled = false;
+    const poll = async () => {
+      while (!cancelled) {
+        await new Promise((r) => setTimeout(r, 3000));
+        if (cancelled) break;
+        try {
+          const status = await checkOtpStatus(otpMeta.requestId);
+          if (status === 'verified') {
+            try {
+              await verifyOtp({ phone: toE164Ru(editPhone), requestId: otpMeta.requestId, purpose: 'seller_connect_phone' });
+            } catch { /* void */ }
+            setForm((prev) => ({ ...prev, phone: formatRuPhoneInput(editPhone) }));
+            setPhoneStep('view');
+            setOtpMeta(null);
+            break;
+          }
+          if (status === 'expired' || status === 'failed' || status === 'cancelled') {
+            setOtpError('Звонок не прошёл. Запросите повторно.');
+            break;
+          }
+        } catch { break; }
+      }
+    };
+    void poll();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phoneStep, otpMeta]);
   const [cities, setCities] = useState<{ id: string; name: string }[]>([]);
   const [form, setForm] = useState({
     name: '',
@@ -107,6 +195,23 @@ export const SellerOnboardingPage = () => {
     sellerProfile?.phone,
     user
   ]);
+
+  // Fetch fresh phone from server — stored session may predate phone being set
+  useEffect(() => {
+    if (!user) return;
+    api.me()
+      .then((res) => {
+        const freshPhone = res?.data?.phone;
+        if (freshPhone) {
+          setForm((prev) => ({
+            ...prev,
+            phone: prev.phone || formatRuPhoneInput(freshPhone),
+          }));
+        }
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   useEffect(() => {
     if (authStatus === 'authorized' && sellerProfile) {
@@ -239,15 +344,33 @@ export const SellerOnboardingPage = () => {
         </div>
 
         <div className={styles.stepper}>
-          {steps.map((label, index) => (
-            <div
-              key={label}
-              className={index <= step ? styles.stepActive : styles.step}
-            >
-              <span>{index + 1}</span>
-              <p>{label}</p>
-            </div>
-          ))}
+          {steps.map((label, index) => {
+            const done    = index < step;
+            const active  = index === step;
+            const pending = index > step;
+            return (
+              <div key={label} className={styles.stepItem}>
+                {/* connector line before each step except first */}
+                {index > 0 && (
+                  <span className={`${styles.connector} ${done || active ? styles.connectorDone : ''}`} />
+                )}
+                <div className={styles.stepDot}>
+                  <span className={`${styles.stepNum} ${done ? styles.stepNumDone : active ? styles.stepNumActive : styles.stepNumPending}`}>
+                    {done ? (
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                        <path d="M2 6l3 3 5-5" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    ) : (
+                      index + 1
+                    )}
+                  </span>
+                  <span className={`${styles.stepLabel} ${pending ? styles.stepLabelPending : ''}`}>
+                    {label}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         <div className={styles.card}>
@@ -287,23 +410,108 @@ export const SellerOnboardingPage = () => {
                   </span>
                 )}
               </label>
-              <label>
-                Телефон
-                <input
-                  placeholder="+7 (___) ___-__-__"
-                  inputMode="tel"
-                  value={form.phone}
-                  readOnly
-                  disabled
-                  className={styles.readOnlyInput}
-                />
-                {touched.phone && !phoneValid && (
-                  <span className={styles.error}>
-                    Введите корректный номер.
-                  </span>
-                )}
-              </label>
-              <p className={styles.helper}>{CONTACT_SUPPORT_TEXT}</p>
+              {/* ── Phone field with OTP change flow ── */}
+              {phoneStep === 'view' && (
+                <div className={styles.phoneViewRow}>
+                  <label style={{ flex: 1 }}>
+                    Телефон
+                    <input
+                      value={form.phone}
+                      readOnly
+                      disabled
+                      className={styles.readOnlyInput}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className={styles.phoneChangeBtn}
+                    onClick={handleStartEditPhone}
+                  >
+                    Изменить
+                  </button>
+                </div>
+              )}
+
+              {phoneStep === 'edit' && (
+                <label>
+                  Новый телефон
+                  <input
+                    placeholder="+7 (___) ___-__-__"
+                    inputMode="tel"
+                    autoFocus
+                    value={editPhone}
+                    onFocus={() => { if (!editPhone) setEditPhone('+7'); }}
+                    onChange={(e) => {
+                      setPhoneEditError('');
+                      setEditPhone(formatRuPhoneInput(e.target.value));
+                    }}
+                  />
+                  {phoneEditError && (
+                    <span className={styles.error}>{phoneEditError}</span>
+                  )}
+                  <div className={styles.phoneEditActions}>
+                    <Button type="button" variant="secondary" onClick={handleCancelEditPhone}>
+                      Отмена
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={() => void handleRequestPhoneOtp()}
+                      isLoading={isOtpBusy}
+                      disabled={isOtpBusy}
+                    >
+                      Подтвердить номер
+                    </Button>
+                  </div>
+                </label>
+              )}
+
+              {phoneStep === 'otp' && otpMeta && (
+                <div className={styles.otpBlock}>
+                  <button
+                    type="button"
+                    className={styles.otpBackBtn}
+                    onClick={handleCancelEditPhone}
+                  >
+                    ← Назад
+                  </button>
+                  <p className={styles.otpTitle}>Позвоните на номер</p>
+                  <a
+                    href={`tel:${otpMeta.callToAuthNumber}`}
+                    className={styles.otpCallNumber}
+                  >
+                    {otpMeta.callToAuthNumber}
+                  </a>
+                  <p className={styles.otpHint}>
+                    Позвоните с номера <strong>{toE164Ru(editPhone)}</strong>.
+                    Звонок бесплатный — подтверждение автоматически.
+                  </p>
+                  {otpError ? (
+                    <>
+                      <span className={styles.error}>{otpError}</span>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => void handleRetryOtp()}
+                        isLoading={isOtpBusy}
+                      >
+                        Получить новый номер
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <div className={styles.otpSpinner} />
+                      <button
+                        type="button"
+                        className={styles.otpRetryLink}
+                        onClick={() => void handleRetryOtp()}
+                        disabled={isOtpBusy}
+                      >
+                        {isOtpBusy ? 'Запрашиваем…' : 'Не удалось позвонить? Повторить'}
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
               <label>
                 Email (необязательно)
                 <input

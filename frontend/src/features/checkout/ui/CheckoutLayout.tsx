@@ -48,9 +48,11 @@ export const CheckoutLayout = () => {
   const deliverySubLabel = selectedMethod === 'PICKUP_POINT' ? 'Привезём в ПВЗ' : 'Курьером';
 
   const hasPhone = !!(data?.recipient.phone?.trim());
+  const hasName  = !!(data?.recipient.name?.trim());
+  const canPay   = hasPhone && hasName;
 
   const handlePay = async () => {
-    if (isPaying || !hasPhone) return;
+    if (isPaying || !canPay) return;
     setIsPaying(true);
     try {
       const result = await placeOrder();
@@ -181,9 +183,13 @@ export const CheckoutLayout = () => {
     </div>
   );
 
-  const phoneHint = !hasPhone && (
+  const phoneHint = !canPay && (
     <p className={styles.phoneHint}>
-      Укажите номер телефона получателя —{' '}
+      {!hasName && !hasPhone
+        ? 'Укажите ФИО и телефон получателя — '
+        : !hasName
+        ? 'Укажите ФИО получателя — '
+        : 'Укажите телефон получателя — '}
       <button type="button" className={styles.phoneHintLink} onClick={() => setAddressOpen(true)}>
         добавить
       </button>
@@ -194,7 +200,7 @@ export const CheckoutLayout = () => {
     <Button
       className={styles.payBtn}
       isLoading={isSubmittingOrder || isPaying}
-      disabled={!hasPhone || isPaying || isSubmittingOrder}
+      disabled={!canPay || isPaying || isSubmittingOrder}
       onClick={() => void handlePay()}
     >
       Оплатить

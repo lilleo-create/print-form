@@ -381,6 +381,18 @@ export const useAuthStore = create<AuthState>((set, get) => {
         saveStoredUser(result.user);
         setAccessToken(result.token);
         scheduleProactiveRefresh(result.token);
+      } else if (purpose === 'buyer_change_phone' || purpose === 'seller_connect_phone') {
+        // Phone updated on backend — sync the store so profile/onboarding show it
+        try {
+          const fresh = await api.me();
+          const freshPhone = fresh?.data?.phone;
+          const currentUser = get().user;
+          if (currentUser && freshPhone) {
+            const updatedUser = { ...currentUser, phone: freshPhone };
+            set({ user: updatedUser });
+            saveStoredUser(updatedUser);
+          }
+        } catch { /* non-fatal */ }
       }
     },
 
