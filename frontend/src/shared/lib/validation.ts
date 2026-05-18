@@ -51,6 +51,36 @@ export const formatRuPhoneInput = (value: string) => {
   return `+7 (${p1}) ${p2}-${p3}-${p4}`;
 };
 
+export const formatRuPhone = (value: string) => {
+  const digits = normalizePhone(value);
+
+  let d = digits;
+  if (d.startsWith('7')) d = d.slice(1);
+  if (d.startsWith('8')) d = d.slice(1);
+
+  d = d.slice(0, 10);
+
+  const p1 = d.slice(0, 3);
+  const p2 = d.slice(3, 6);
+  const p3 = d.slice(6, 8);
+  const p4 = d.slice(8, 10);
+
+  let out = '+7';
+  if (d.length > 0) out += ` (${p1}`;
+  if (d.length >= 3) out += ')';
+  if (d.length > 3) out += ` ${p2}`;
+  if (d.length > 6) out += `-${p3}`;
+  if (d.length > 8) out += `-${p4}`;
+
+  return out;
+};
+
+export const toTelHref = (value: string | null) => {
+  const digits = normalizePhone(value ?? '');
+  if (!digits) return '';
+  return digits.startsWith('8') ? `tel:+7${digits.slice(1)}` : `tel:+${digits}`;
+};
+
 export const isValidEmailOptional = (v?: string) => {
   const s = (v ?? '').trim();
   if (!s) return true;

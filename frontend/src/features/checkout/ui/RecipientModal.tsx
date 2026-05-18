@@ -9,6 +9,8 @@ import { useAuthStore } from '../../../app/store/authStore';
 import { normalizeApiError } from '../../../shared/api/client';
 import {
   formatRuPhoneInput,
+  formatRuPhone,
+  toTelHref,
   isRuPhone,
   toE164Ru,
 } from '../../../shared/lib/validation';
@@ -301,10 +303,10 @@ export const RecipientModal = ({ isOpen, onClose, initial, onSave }: Props) => {
                   <h3 className={styles.title}>Позвоните на номер</h3>
 
                   <a
-                    href={`tel:${otpMeta.callToAuthNumber}`}
+                    href={toTelHref(otpMeta.callToAuthNumber ?? null)}
                     className={styles.callNumber}
                   >
-                    {otpMeta.callToAuthNumber}
+                    {otpMeta.callToAuthNumber ? formatRuPhone(otpMeta.callToAuthNumber) : ''}
                   </a>
 
                   <p className={styles.otpHint}>

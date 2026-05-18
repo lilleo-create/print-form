@@ -5,7 +5,7 @@ import { Button } from '../../../../../shared/ui/Button';
 import { useBodyScrollLock } from '../../../../../shared/lib/useBodyScrollLock';
 import { useOverlayClose } from '../../../../../shared/lib/useOverlayClose';
 import { useSwipeToClose } from '../../../../../shared/lib/useSwipeToClose';
-import { formatRuPhoneInput, isRuPhone, toE164Ru } from '../../../../../shared/lib/validation';
+import { formatRuPhoneInput, formatRuPhone, toTelHref, isRuPhone, toE164Ru } from '../../../../../shared/lib/validation';
 import styles from './ProfileEditModal.module.css';
 
 interface ProfileEditModalProps {
@@ -255,8 +255,8 @@ export const ProfileEditModal = ({ isOpen, onClose, onSaved }: ProfileEditModalP
                 ← Назад
               </button>
               <p className={styles.otpTitle}>Позвоните на номер</p>
-              <a href={`tel:${otpMeta.callToAuthNumber}`} className={styles.otpCallNumber}>
-                {otpMeta.callToAuthNumber}
+              <a href={toTelHref(otpMeta.callToAuthNumber ?? null)} className={styles.otpCallNumber}>
+                {otpMeta.callToAuthNumber ? formatRuPhone(otpMeta.callToAuthNumber) : ''}
               </a>
               <p className={styles.otpHint}>
                 Позвоните с номера <strong>{toE164Ru(editPhone)}</strong>.

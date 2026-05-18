@@ -11,7 +11,10 @@
       "Bash(python3)",
       "PowerShell(Get-ChildItem \"C:\\\\Users\\\\Funtik Funy Cat\\\\AppData\\\\Local\\\\Temp\\\\design-extract\" -Recurse | ForEach-Object { $_.FullName })",
       "Bash(npx tsc *)",
-      "PowerShell(Head -50)"
+      "PowerShell(Head -50)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\Funtik Funy Cat\\\\Desktop\\\\Frontend\\\\print-form\" -Recurse -Include \"*.ts\",\"*.tsx\",\"*.js\",\"*.jsx\")",
+      "Bash(Select-Object -First 30)",
+      "Bash(xargs grep -l \"submitSellerKyc\")"
     ]
   }
 }

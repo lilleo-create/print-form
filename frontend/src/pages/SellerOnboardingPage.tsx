@@ -9,6 +9,8 @@ import { Role } from '../shared/types';
 import styles from './SellerOnboardingPage.module.css';
 import {
   formatRuPhoneInput,
+  formatRuPhone,
+  toTelHref,
   isRuPhone,
   toE164Ru
 } from '../shared/lib/validation';
@@ -476,10 +478,10 @@ export const SellerOnboardingPage = () => {
                   </button>
                   <p className={styles.otpTitle}>Позвоните на номер</p>
                   <a
-                    href={`tel:${otpMeta.callToAuthNumber}`}
+                    href={toTelHref(otpMeta.callToAuthNumber ?? null)}
                     className={styles.otpCallNumber}
                   >
-                    {otpMeta.callToAuthNumber}
+                    {otpMeta.callToAuthNumber ? formatRuPhone(otpMeta.callToAuthNumber) : ''}
                   </a>
                   <p className={styles.otpHint}>
                     Позвоните с номера <strong>{toE164Ru(editPhone)}</strong>.
