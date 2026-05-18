@@ -799,7 +799,9 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
         <div className={styles.header}>
           <h3>{product ? 'Редактировать товар' : 'Добавить товар'}</h3>
           <button className={styles.close} onClick={onClose} aria-label="Закрыть форму" type="button">
-            ✕
+            <svg viewBox="0 0 14 14" aria-hidden="true">
+              <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
           </button>
         </div>
 

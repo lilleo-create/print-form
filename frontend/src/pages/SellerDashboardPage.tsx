@@ -2338,8 +2338,11 @@ export const SellerDashboardPage = () => {
               type="button"
               className={styles.closeMenu}
               onClick={closeSellerMenu}
+              aria-label="Закрыть меню"
             >
-              ✕
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
             </button>
           </div>
 
@@ -2740,13 +2743,6 @@ export const SellerDashboardPage = () => {
                       {productActionMessage && (
                         <p className={styles.toast}>{productActionMessage}</p>
                       )}
-                      <div className={styles.tableHeader}>
-                        <span>Название</span>
-                        <span>Цена</span>
-                        <span>Категория</span>
-                        <span>Статус</span>
-                        <span>Действия</span>
-                      </div>
 
                       {products.length === 0 ? (
                         <EmptyState
@@ -2762,89 +2758,86 @@ export const SellerDashboardPage = () => {
                           }
                         />
                       ) : (
-                        products.map((product) => (
-                          <div key={product.id} className={styles.tableRow}>
-                            <span>
-                              {product.moderationStatus === 'APPROVED' ? (
-                                <button
-                                  type="button"
-                                  className={styles.linkButton}
-                                  onClick={() =>
-                                    navigate(`/seller/products/${product.id}`, {
-                                      state: {
-                                        from: {
-                                          pathname: location.pathname,
-                                          search: location.search,
-                                          hash: location.hash
-                                        },
-                                        fallback: '/seller'
-                                      }
-                                    })
-                                  }
-                                >
-                                  {product.title}
-                                </button>
-                              ) : (
-                                product.title
-                              )}
-                            </span>
-                            <span>
-                              {formatPrice(resolvePriceMinorUnits(product))}
-                            </span>
-                            <span>{product.category}</span>
-                            <span>
-                              <strong
-                                className={`${styles.statusBadge} ${styles[`statusBadge_${getModerationStatusTone(product.moderationStatus)}`]}`}
+                        <div className={styles.productGrid}>
+                          {products.map((product) => {
+                            const tone = getModerationStatusTone(product.moderationStatus);
+                            const navState = {
+                              state: {
+                                from: {
+                                  pathname: location.pathname,
+                                  search: location.search,
+                                  hash: location.hash
+                                },
+                                fallback: '/seller'
+                              }
+                            };
+                            return (
+                              <div
+                                key={product.id}
+                                className={`${styles.productCard} ${styles[`productStatus_${tone}`] ?? ''}`}
                               >
-                                {getModerationStatusLabelRu(
-                                  product.moderationStatus,
-                                  product.moderationStatusLabelRu
+                                <div className={styles.productCardTop}>
+                                  <div className={styles.productCardInfo}>
+                                    {product.moderationStatus === 'APPROVED' ? (
+                                      <button
+                                        type="button"
+                                        className={styles.productTitleBtn}
+                                        onClick={() => navigate(`/seller/products/${product.id}`, navState)}
+                                      >
+                                        {product.title}
+                                      </button>
+                                    ) : (
+                                      <span className={styles.productCardTitle}>{product.title}</span>
+                                    )}
+                                    <span className={styles.productCardCategory}>{product.category}</span>
+                                  </div>
+
+                                  <div className={styles.productCardMeta}>
+                                    <strong
+                                      className={`${styles.statusBadge} ${styles[`statusBadge_${tone}`]}`}
+                                    >
+                                      {getModerationStatusLabelRu(
+                                        product.moderationStatus,
+                                        product.moderationStatusLabelRu
+                                      )}
+                                    </strong>
+                                    <span className={styles.productCardPrice}>
+                                      {formatPrice(resolvePriceMinorUnits(product))}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {product.moderationStatus === 'NEEDS_EDIT' && product.moderationNotes && (
+                                  <span className={styles.moderationNote}>{product.moderationNotes}</span>
                                 )}
-                              </strong>
-                              {product.moderationStatus === 'NEEDS_EDIT' &&
-                                product.moderationNotes && (
-                                  <span className={styles.moderationNote}>
-                                    {product.moderationNotes}
-                                  </span>
-                                )}
-                            </span>
-                            <div className={styles.rowActions}>
-                              <button
-                                type="button"
-                                className={styles.linkButton}
-                                onClick={() => {
-                                  if (product.moderationStatus === 'APPROVED') {
-                                    navigate(`/seller/products/${product.id}`, {
-                                      state: {
-                                        from: {
-                                          pathname: location.pathname,
-                                          search: location.search,
-                                          hash: location.hash
-                                        },
-                                        fallback: '/seller'
+
+                                <div className={styles.productCardBottom}>
+                                  <button
+                                    type="button"
+                                    className={styles.productEditBtn}
+                                    onClick={() => {
+                                      if (product.moderationStatus === 'APPROVED') {
+                                        navigate(`/seller/products/${product.id}`, navState);
+                                        return;
                                       }
-                                    });
-                                    return;
-                                  }
-                                  setActiveProduct(product);
-                                  setIsModalOpen(true);
-                                }}
-                              >
-                                {product.moderationStatus === 'APPROVED'
-                                  ? 'Подробнее'
-                                  : 'Редактировать'}
-                              </button>
-                              <span className={styles.actionDivider}>|</span>
-                              <button
-                                type="button"
-                                className={`${styles.linkButton} ${styles.deleteButton}`}
-                                onClick={() => handleDeleteProduct(product)}
-                              >
-                                Удалить
-                              </button>
-                            </div>
-                          </div>
-                        ))
+                                      setActiveProduct(product);
+                                      setIsModalOpen(true);
+                                    }}
+                                  >
+                                    {product.moderationStatus === 'APPROVED' ? 'Подробнее' : 'Редактировать'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={styles.productDeleteBtn}
+                                    onClick={() => handleDeleteProduct(product)}
+                                  >
+                                    Удалить
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       )}
                     </div>
                   )}

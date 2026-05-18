@@ -145,12 +145,20 @@ const SearchOverlay = ({ initialValue, onClose }: { initialValue: string; onClos
 const MobileHeader = ({ onSearchOpen }: { onSearchOpen: () => void }) => {
   const location = useLocation();
   const currentQuery = new URLSearchParams(location.search).get('q') ?? '';
+  const isSellerPage = location.pathname.startsWith('/seller');
+  const toggleSellerMenu = useHeaderMenuStore((s) => s.toggleSellerMenu);
 
   return (
     <div className={styles.mobileShell}>
-      <Link to="/categories" className={styles.mobileIconBtn} aria-label="Категории">
-        <GridIcon />
-      </Link>
+      {isSellerPage ? (
+        <button className={styles.mobileIconBtn} onClick={toggleSellerMenu} aria-label="Меню продавца">
+          <MenuIcon />
+        </button>
+      ) : (
+        <Link to="/categories" className={styles.mobileIconBtn} aria-label="Категории">
+          <GridIcon />
+        </Link>
+      )}
 
       <button
         className={styles.mobileSearch}
@@ -184,8 +192,11 @@ export const Header = () => {
   const closeProfileMenu = useHeaderMenuStore((s) => s.closeProfileMenu);
   const closeCategoriesMenu = useHeaderMenuStore((s) => s.closeCategoriesMenu);
   const closeSellerMenu = useHeaderMenuStore((s) => s.closeSellerMenu);
+  const toggleSellerMenu = useHeaderMenuStore((s) => s.toggleSellerMenu);
+  const isSellerMenuOpen = useHeaderMenuStore((s) => s.isSellerMenuOpen);
 
   const isCatalogPage = location.pathname === '/catalog';
+  const isSellerPage = location.pathname.startsWith('/seller');
   const currentQuery = searchParams.get('q') ?? '';
 
   const handleCatalogClick = () => {
@@ -208,19 +219,29 @@ export const Header = () => {
           {/* Brand */}
           <Link
             to="/"
-            className={`${styles.brand} ${isCatalogPage ? styles.brandInactive : ''}`}
+            className={`${styles.brand} ${isCatalogPage || isSellerPage ? styles.brandInactive : ''}`}
           >
             Print·Form
           </Link>
 
-          {/* Catalog toggle */}
-          <button
-            className={`${styles.ic} ${isCatalogPage ? styles.icActive : ''}`}
-            onClick={handleCatalogClick}
-            aria-label={isCatalogPage ? 'На главную' : 'Открыть каталог'}
-          >
-            {isCatalogPage ? <CloseIcon /> : <MenuIcon />}
-          </button>
+          {/* Seller menu toggle OR catalog toggle */}
+          {isSellerPage ? (
+            <button
+              className={`${styles.ic} ${isSellerMenuOpen ? styles.icActive : ''}`}
+              onClick={toggleSellerMenu}
+              aria-label="Меню продавца"
+            >
+              {isSellerMenuOpen ? <CloseIcon /> : <MenuIcon />}
+            </button>
+          ) : (
+            <button
+              className={`${styles.ic} ${isCatalogPage ? styles.icActive : ''}`}
+              onClick={handleCatalogClick}
+              aria-label={isCatalogPage ? 'На главную' : 'Открыть каталог'}
+            >
+              {isCatalogPage ? <CloseIcon /> : <MenuIcon />}
+            </button>
+          )}
 
           {/* Search trigger — opens overlay */}
           <button

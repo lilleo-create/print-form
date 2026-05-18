@@ -8,10 +8,9 @@ type SellerHeaderProps = {
 export const SellerHeader = ({ title, subtitle }: SellerHeaderProps) => {
   return (
     <header className={styles.pageHeader}>
-      <div className={styles.pageHeaderContent}>
-        <h1>{title}</h1>
-        {subtitle ? <p>{subtitle}</p> : null}
-      </div>
+      <p className={styles.pageHeaderBreadcrumb}>Кабинет продавца</p>
+      <h1 className={styles.pageHeaderTitle}>{title}</h1>
+      {subtitle && <p className={styles.pageHeaderSubtitle}>{subtitle}</p>}
     </header>
   );
 };

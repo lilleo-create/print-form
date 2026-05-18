@@ -1,67 +1,119 @@
+/* ── Overlay ── */
 .overlay {
   position: fixed;
   inset: 0;
-  background: var(--overlay-strong);
+  background: rgba(6, 10, 24, 0.72);
+  -webkit-backdrop-filter: blur(10px) saturate(130%);
+  backdrop-filter: blur(10px) saturate(130%);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: 16px;
   z-index: 40;
   overflow: hidden;
   overscroll-behavior: contain;
 }
 
+/* ── Modal shell ── */
 .modal {
-  background: var(--card);
-  border-radius: var(--radius-card);
-  width: min(880px, 100%);
+  background: var(--bg);
+  border-radius: 20px;
+  width: min(900px, 100%);
   max-width: 100%;
-  max-height: calc(100dvh - 48px);
-  padding: 24px;
+  max-height: calc(100dvh - 32px);
   display: flex;
   flex-direction: column;
-  gap: 16px;
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   border: 1px solid var(--border);
-  box-shadow: var(--shadow-card);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.40), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
 }
 
+/* ── Sticky header ── */
 .header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
+  padding: 18px 24px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
 }
 
+.header h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* ── Close button ── */
 .close {
-  border: none;
-  background: transparent;
-  font-size: 18px;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  transition: background 0.15s ease, color 0.15s ease;
+  font-size: 0;
 }
 
+.close:hover {
+  background: var(--border);
+  color: var(--text);
+}
+
+.close svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  flex-shrink: 0;
+}
+
+/* ── Form scroll area ── */
 .form {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  padding: 20px 24px;
+  flex: 1;
 }
 
+/* ── Section card ── */
 .section {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-  padding: 14px;
-  background: var(--bg-2);
+  border-radius: 16px;
+  padding: 18px 20px;
+  background: var(--card);
 }
 
+/* ── Section title ── */
 .sectionTitle {
   margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
+/* ── Variant controls ── */
 .variantHeaderRow {
   display: flex;
   align-items: center;
@@ -77,9 +129,9 @@
 
 .variantCard {
   border: 1px solid var(--border);
-  border-radius: var(--radius-control);
-  background: var(--bg-1);
-  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--bg-2);
+  padding: 8px 12px;
   display: flex;
   justify-content: space-between;
   gap: 8px;
@@ -108,18 +160,25 @@
 
 .variantsRow {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
 .variantPill {
   border: 1px solid var(--border);
   border-radius: 999px;
-  background: var(--bg-1);
-  color: var(--text);
-  padding: 6px 12px;
+  background: var(--bg-2);
+  color: var(--muted);
+  padding: 5px 14px;
   font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.variantPill:hover {
+  border-color: var(--muted);
+  color: var(--text);
 }
 
 .variantPillActive {
@@ -131,7 +190,7 @@
 .variantEditor {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 10px;
+  gap: 12px;
 }
 
 .variantActions {
@@ -141,41 +200,49 @@
   grid-column: 1 / -1;
 }
 
+/* ── Inline grid ── */
 .inlineFields {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 12px;
 }
 
+/* ── Labels ── */
 .form label {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
 }
 
+/* ── Inputs ── */
 .input {
   border: 1px solid var(--border);
-  border-radius: var(--radius-control);
-  padding: 9px 12px;
+  border-radius: 10px;
+  padding: 10px 13px;
   font-size: 14px;
-  background: var(--bg-1);
+  background: var(--bg-2);
   color: var(--text);
+  transition: border-color 0.15s, box-shadow 0.15s;
+  font-family: inherit;
 }
 
 .input:focus {
   outline: none;
   border-color: var(--primary);
-  box-shadow: var(--focus-ring);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
 }
 
 .inputError {
   border: 1px solid var(--danger);
-  border-radius: var(--radius-control);
-  padding: 9px 12px;
+  border-radius: 10px;
+  padding: 10px 13px;
   font-size: 14px;
-  background: var(--bg-1);
+  background: var(--bg-2);
   color: var(--text);
+  font-family: inherit;
 }
 
 .inputError:focus {
@@ -187,6 +254,7 @@
 textarea.input,
 textarea.inputError {
   resize: vertical;
+  min-height: 88px;
 }
 
 .errorText {
@@ -198,12 +266,13 @@ textarea.inputError {
   color: var(--text-secondary);
   background: var(--primary-soft);
   border: 1px solid var(--primary-soft-strong);
-  border-radius: var(--radius-control);
-  padding: 8px 10px;
+  border-radius: 10px;
+  padding: 8px 12px;
   font-size: 12px;
   margin: 0;
 }
 
+/* ── Color helper ── */
 .colorHelperRow {
   display: inline-flex;
   align-items: center;
@@ -211,22 +280,24 @@ textarea.inputError {
 }
 
 .colorDot {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   border-radius: 999px;
   border: 1px solid transparent;
+  flex-shrink: 0;
 }
 
+/* ── Drop zone ── */
 .dropzone {
-  margin-top: 6px;
-  border: 2px dashed var(--primary-soft-strong);
-  border-radius: var(--radius-card);
-  padding: 18px;
-  background: var(--bg-1);
+  border: 2px dashed var(--border);
+  border-radius: 14px;
+  padding: 32px 20px;
+  background: var(--bg-2);
   cursor: pointer;
   transition: border-color 0.2s ease, background 0.2s ease;
 }
 
+.dropzone:hover,
 .dropzoneActive {
   border-color: var(--primary);
   background: var(--primary-soft);
@@ -234,21 +305,25 @@ textarea.inputError {
 
 .dropzoneContent {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   color: var(--text);
+  text-align: center;
 }
 
 .dropzoneIcon {
-  font-size: 24px;
+  font-size: 28px;
+  line-height: 1;
 }
 
 .dropzoneHint {
-  margin: 4px 0 0;
+  margin: 2px 0 0;
   color: var(--muted);
   font-size: 13px;
 }
 
+/* ── File list ── */
 .fileInput {
   display: none;
 }
@@ -256,35 +331,40 @@ textarea.inputError {
 .fileList {
   display: grid;
   gap: 8px;
-  margin-top: 12px;
 }
 
 .fileItem {
   display: grid;
-  grid-template-columns: 56px 1fr auto;
+  grid-template-columns: 68px 1fr auto;
   align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
+  gap: 14px;
+  padding: 10px 14px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-control);
-  background: var(--bg-1);
+  border-radius: 12px;
+  background: var(--bg-2);
+  transition: border-color 0.15s;
+}
+
+.fileItem:hover {
+  border-color: var(--muted);
 }
 
 .filePreview {
-  width: 56px;
-  height: 56px;
-  border-radius: var(--radius-control);
-  object-fit: contain;
-  background: var(--surface-ghost);
+  width: 68px;
+  height: 68px;
+  border-radius: 10px;
+  object-fit: cover;
+  background: var(--bg);
+  flex-shrink: 0;
 }
 
 .filePreviewPlaceholder {
-  width: 56px;
-  height: 56px;
-  border-radius: var(--radius-control);
+  width: 68px;
+  height: 68px;
+  border-radius: 10px;
   border: 1px dashed var(--border);
-  background: var(--surface-ghost);
-  color: var(--text-secondary);
+  background: var(--bg);
+  color: var(--muted);
   font-size: 10px;
   text-align: center;
   padding: 4px;
@@ -296,11 +376,13 @@ textarea.inputError {
 .fileMeta {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
+  min-width: 0;
 }
 
 .fileName {
   font-size: 14px;
+  font-weight: 500;
   color: var(--text);
   word-break: break-word;
 }
@@ -313,16 +395,32 @@ textarea.inputError {
 .fileActions {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .sortButton {
   border: 1px solid var(--border);
-  background: var(--bg-1);
+  background: var(--bg);
   border-radius: 8px;
   cursor: pointer;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: var(--muted);
+  transition: background 0.15s, color 0.15s;
+}
+
+.sortButton:hover:not(:disabled) {
+  background: var(--bg-2);
+  color: var(--text);
+}
+
+.sortButton:disabled {
+  opacity: 0.3;
+  cursor: default;
 }
 
 .removeFile {
@@ -331,11 +429,18 @@ textarea.inputError {
   color: var(--danger);
   cursor: pointer;
   font-size: 13px;
-  padding: 4px 6px;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+
+.removeFile:hover {
+  background: rgba(239, 68, 68, 0.10);
 }
 
 .errorList {
-  margin: 8px 0 0;
+  margin: 4px 0 0;
   padding-left: 18px;
   color: var(--danger);
   font-size: 12px;
@@ -343,25 +448,55 @@ textarea.inputError {
   gap: 4px;
 }
 
+/* ── Sticky submit actions ── */
 .actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
   display: flex;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
+  background: var(--card);
+  border-top: 1px solid var(--border);
+  padding: 16px 24px;
+  margin: 0 -24px -20px;
 }
 
 .muted {
-  color: var(--text-secondary);
-  font-size: 12px;
+  color: var(--muted);
+  font-size: 13px;
 }
 
+/* ── Mobile ── */
 @media (max-width: 768px) {
   .overlay {
-    padding: 10px;
+    padding: 0;
+    align-items: flex-end;
   }
 
   .modal {
-    max-height: calc(100dvh - 20px);
-    padding: 14px;
+    width: 100%;
+    max-width: 100%;
+    max-height: 92dvh;
+    border-radius: 20px 20px 0 0;
+  }
+
+  .form {
+    padding: 16px;
+  }
+
+  .header {
+    padding: 14px 16px;
+  }
+
+  .section {
+    padding: 14px 16px;
+    border-radius: 12px;
+  }
+
+  .actions {
+    margin: 0 -16px -16px;
+    padding: 12px 16px;
   }
 
   .input,
@@ -370,7 +505,13 @@ textarea.inputError {
   }
 
   .fileItem {
-    grid-template-columns: 52px 1fr;
+    grid-template-columns: 56px 1fr;
+  }
+
+  .filePreview,
+  .filePreviewPlaceholder {
+    width: 56px;
+    height: 56px;
   }
 
   .fileActions {
