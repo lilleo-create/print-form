@@ -2,24 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAuthStore } from '../../app/store/authStore';
 import { api } from '../../shared/api';
 import { normalizeRole } from '../../shared/lib/authAccess';
+import type { SellerProfile } from '../../shared/types';
 
 export type SellerAuthStatus = 'loading' | 'authorized' | 'unauthorized';
 
-export type SellerProfile = {
-  id: string;
-  userId: string;
-  sellerType?: string | null;
-  storeName?: string | null;
-  contactName?: string | null;
-  contactPhone?: string | null;
-  contactEmail?: string | null;
-  phone?: string | null;
-  city?: string | null;
-  representativeName?: string | null;
-  legalName?: string | null;
-  inn?: string | null;
-  ogrn?: string | null;
-};
+export type { SellerProfile };
 
 export type SellerContextError = {
   code?: string;
