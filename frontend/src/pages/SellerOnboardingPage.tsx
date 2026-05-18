@@ -5,7 +5,9 @@ import { api } from '../shared/api';
 import type { SellerOnboardingPayload } from '../shared/api';
 import { Button } from '../shared/ui/Button';
 import { useSellerContext } from '../hooks/seller/useSellerContext';
-import { Role } from '../shared/types';
+import { normalizeRole } from '../shared/lib/authAccess';
+import { setAccessToken } from '../shared/lib/storage';
+import { scheduleProactiveRefresh } from '../shared/api/client';
 import styles from './SellerOnboardingPage.module.css';
 import {
   formatRuPhoneInput,
@@ -273,41 +275,31 @@ export const SellerOnboardingPage = () => {
     setIsSubmitting(true);
     try {
       setPhoneVerificationRequired(false);
-      const waitForSellerProfile = async () => {
-        const attempts = 5;
-        const delayMs = 250;
-        for (let attempt = 0; attempt < attempts; attempt += 1) {
-          try {
-            const profileResponse = await api.getSellerContext();
-            if (profileResponse.data?.profile) {
-              return true;
-            }
-          } catch {
-            // ignore and retry
-          }
-          await new Promise((resolve) => setTimeout(resolve, delayMs));
-        }
-        return false;
-      };
-      const response = await api.submitSellerOnboarding(
-        buildSellerOnboardingPayload(form)
-      );
-      const role =
-        response.data.role.toLowerCase() === 'seller' ? 'seller' : 'buyer';
-      const nextName = response.data.name ?? form.name;
-      const nextEmail = response.data.email ?? (form.email.trim() || '');
+      const response = await api.submitSellerOnboarding(buildSellerOnboardingPayload(form));
 
+      // Save new token if backend issued one after onboarding
+      const rawResp = response as unknown as { data: typeof response.data; accessToken?: string };
+      if (rawResp.accessToken) {
+        setAccessToken(rawResp.accessToken);
+        scheduleProactiveRefresh(rawResp.accessToken);
+      }
+
+      // Fetch fresh user profile to get accurate role, roles, capabilities
+      const meRes = await api.me();
+      const fresh = meRes.data;
       setUser({
-        id: response.data.id,
-        name: nextName,
-        fullName: user?.fullName ?? form.name,
-        email: nextEmail,
-        phone: toE164Ru(response.data.phone ?? form.phone),
-        role: role as Role,
-        address: user?.address ?? null
+        id: fresh.id,
+        name: fresh.name ?? form.name,
+        fullName: fresh.fullName ?? user?.fullName ?? form.name,
+        email: fresh.email,
+        phone: fresh.phone ?? toE164Ru(form.phone),
+        role: normalizeRole(fresh.role),
+        roles: fresh.roles ?? user?.roles ?? null,
+        capabilities: fresh.capabilities ?? user?.capabilities ?? null,
+        address: fresh.address ?? user?.address ?? null,
       });
+
       setIsComplete(true);
-      await waitForSellerProfile();
       queueMicrotask(() => navigate('/seller', { replace: true }));
     } catch (error) {
       if (error instanceof Error && error.message === 'PHONE_NOT_VERIFIED') {
