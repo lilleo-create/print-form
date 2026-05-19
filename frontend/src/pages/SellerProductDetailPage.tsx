@@ -72,21 +72,13 @@ export const SellerProductDetailPage = () => {
   };
 
   const handleBack = () => {
-    const canUseHistoryBack =
-      typeof window !== 'undefined' &&
-      typeof window.history.state?.idx === 'number' &&
-      window.history.state.idx > 0;
     const state = location.state as
       | {
           from?: { pathname: string; search?: string; hash?: string };
           fallback?: string;
+          activeTab?: string;
         }
       | null;
-
-    if (canUseHistoryBack) {
-      navigate(-1);
-      return;
-    }
 
     if (state?.from?.pathname) {
       navigate(
@@ -95,8 +87,18 @@ export const SellerProductDetailPage = () => {
           search: state.from.search ?? '',
           hash: state.from.hash ?? ''
         },
-        { replace: true }
+        { replace: true, state: { activeTab: state.activeTab } }
       );
+      return;
+    }
+
+    const canUseHistoryBack =
+      typeof window !== 'undefined' &&
+      typeof window.history.state?.idx === 'number' &&
+      window.history.state.idx > 0;
+
+    if (canUseHistoryBack) {
+      navigate(-1);
       return;
     }
 

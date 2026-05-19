@@ -36,6 +36,12 @@ const SUBCATEGORIES: Record<string, string[]> = {
   'Архитектура':     ['Макеты зданий', 'Городские элементы', 'Ландшафт'],
 };
 
+const scrollPageToTop = () => {
+  window.scrollTo(0, 0);
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
+};
+
 export const CategoriesPage = () => {
   const { categories } = useFilters();
   const navigate = useNavigate();
@@ -48,7 +54,14 @@ export const CategoriesPage = () => {
     return (
       <div className={styles.page}>
         <div className={styles.subHeader}>
-          <button className={styles.backBtn} onClick={() => setSelectedCategory(null)} aria-label="Назад">
+          <button
+            className={styles.backBtn}
+            onClick={() => {
+              scrollPageToTop();
+              setSelectedCategory(null);
+            }}
+            aria-label="Назад"
+          >
             ‹
           </button>
           <h1 className={styles.title}>{selectedCategory}</h1>
@@ -80,7 +93,10 @@ export const CategoriesPage = () => {
               key={cat}
               className={styles.card}
               style={{ background: meta?.gradient ?? FALLBACK_GRADIENT }}
-              onClick={() => setSelectedCategory(cat)}
+              onClick={() => {
+                scrollPageToTop();
+                setSelectedCategory(cat);
+              }}
             >
               <span className={styles.name}>{cat}</span>
               <span className={styles.emoji}>{meta?.emoji ?? FALLBACK_EMOJI}</span>

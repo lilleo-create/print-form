@@ -97,8 +97,8 @@ const formatMoneyRub = (value: number) =>
   new Intl.NumberFormat('ru-RU', {
     style: 'currency',
     currency: 'RUB',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
   }).format(value);
 
 const formatMoney = (params: {
@@ -712,8 +712,12 @@ export const SellerDashboardPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [activeItem, setActiveItem] =
-    useState<(typeof menuItems)[number]>('Сводка');
+  const [activeItem, setActiveItem] = useState<(typeof menuItems)[number]>(() => {
+    const s = location.state as { activeTab?: string } | null;
+    return menuItems.includes(s?.activeTab as (typeof menuItems)[number])
+      ? (s!.activeTab as (typeof menuItems)[number])
+      : 'Сводка';
+  });
   const isMenuOpen = useHeaderMenuStore((state) => state.isSellerMenuOpen);
   const closeSellerMenu = useHeaderMenuStore((state) => state.closeSellerMenu);
   const toggleSellerMenu = useHeaderMenuStore(
@@ -2768,7 +2772,8 @@ export const SellerDashboardPage = () => {
                                   search: location.search,
                                   hash: location.hash
                                 },
-                                fallback: '/seller'
+                                fallback: '/seller',
+                                activeTab: activeItem
                               }
                             };
                             return (

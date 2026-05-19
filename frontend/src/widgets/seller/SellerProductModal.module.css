@@ -262,6 +262,11 @@ textarea.inputError {
   font-size: 12px;
 }
 
+.requiredMark {
+  color: var(--danger);
+  font-weight: 600;
+}
+
 .warningText {
   color: var(--text-secondary);
   background: var(--primary-soft);

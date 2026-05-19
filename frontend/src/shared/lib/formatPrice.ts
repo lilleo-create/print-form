@@ -8,8 +8,8 @@ export const formatPrice = (valueKopecks: number, currency = 'RUB') => {
   return new Intl.NumberFormat('ru-RU', {
     style: 'currency',
     currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
   }).format(safeValue / 100);
 };
 

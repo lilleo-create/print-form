@@ -41,8 +41,7 @@ const ENABLE_PRODUCT_EDIT_DRAFT = false;
 const productSchema = z.object({
   title: z.string().min(2, 'Введите название'),
   descriptionShort: z.string().min(5, 'Добавьте краткое описание'),
-  description: z.string().min(10, 'Добавьте описание'),
-  descriptionFull: z.string().min(10, 'Добавьте полное описание'),
+  descriptionFull: z.string().min(10, 'Добавьте описание'),
   sku: z.preprocess(
     (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
     z.string().min(3, 'Минимум 3 символа').optional()
@@ -199,7 +198,6 @@ const createExistingMediaItems = (product: Product | null): MediaItem[] => {
 const getDefaultFormValues = (): ProductFormValues => ({
   title: '',
   descriptionShort: '',
-  description: '',
   descriptionFull: '',
   sku: '',
   price: '',
@@ -219,8 +217,7 @@ const getProductFormValues = (product: Product): ProductFormValues => {
   return {
     title: editableProduct?.title ?? '',
     descriptionShort: editableProduct?.descriptionShort ?? '',
-    description: editableProduct?.description ?? '',
-    descriptionFull: editableProduct?.descriptionFull ?? '',
+    descriptionFull: editableProduct?.descriptionFull ?? editableProduct?.description ?? '',
     sku: editableProduct?.sku ?? '',
     price: editableProduct ? formatPriceFromMinorUnits(editableProduct.price) : '',
     material: editableProduct?.material ?? '',
@@ -318,6 +315,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
   const fileInputRef = useRef<HTMLInputElement>(null);
   const variantDraftsRef = useRef<VariantDraft[]>([]);
   const [uploadError, setUploadError] = useState('');
+  const [skuError, setSkuError] = useState('');
   const [fileErrors, setFileErrors] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isDragActive, setIsDragActive] = useState(false);
@@ -704,6 +702,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
   const handleFormSubmit = async (values: ProductFormValues) => {
     if (!activeVariant) return;
     setUploadError('');
+    setSkuError('');
 
     const currentMediaItems = toArray<MediaItem>(activeVariant.mediaItems);
     const newItems = currentMediaItems.filter((item): item is MediaItem & { source: 'new'; file: File } => item.source === 'new' && Boolean(item.file));
@@ -765,7 +764,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
       productionTimeHours: values.productionTimeHours,
       color: normalizeProductColor(values.color),
       descriptionShort: values.descriptionShort,
-      description: values.description,
+      description: values.descriptionFull,
       descriptionFull: values.descriptionFull,
       sku: values.sku?.trim() || undefined,
       imageUrls,
@@ -776,7 +775,23 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
       dzCm: mmToCm(values.dzCm),
     };
 
-    await onSubmit(payload);
+    try {
+      await onSubmit(payload);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      const isSkuConflict =
+        message.toLowerCase().includes('sku') ||
+        message.toLowerCase().includes('артикул') ||
+        message.includes('409') ||
+        message.toLowerCase().includes('conflict') ||
+        message.toLowerCase().includes('duplicate');
+      if (isSkuConflict) {
+        setSkuError('Этот артикул уже занят. Введите другой.');
+      } else {
+        setUploadError(message || 'Не удалось сохранить товар. Попробуйте снова.');
+      }
+      return;
+    }
     if (ENABLE_PRODUCT_EDIT_DRAFT) {
       clearDraft();
     }
@@ -919,33 +934,24 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
 
           <section className={styles.section}>
             <h4 className={styles.sectionTitle}>Главное о товаре</h4>
+            <p className={styles.muted}><span className={styles.requiredMark}>*</span> — обязательные поля</p>
             <label>
-              Название
+              <span>Название <span className={styles.requiredMark}>*</span></span>
               <input className={errors.title ? styles.inputError : styles.input} placeholder="Название товара" {...register('title')} />
               {errors.title && <span className={styles.errorText}>{errors.title.message}</span>}
             </label>
             <label>
-              Материал
+              <span>Материал <span className={styles.requiredMark}>*</span></span>
               <input className={errors.material ? styles.inputError : styles.input} placeholder="Материал / ключевая особенность" {...register('material')} />
               {errors.material && <span className={styles.errorText}>{errors.material.message}</span>}
             </label>
             <label>
-              Краткое описание
+              <span>Краткое описание <span className={styles.requiredMark}>*</span></span>
               <input className={errors.descriptionShort ? styles.inputError : styles.input} placeholder="Коротко о товаре" {...register('descriptionShort')} />
               {errors.descriptionShort && <span className={styles.errorText}>{errors.descriptionShort.message}</span>}
             </label>
             <label>
-              Полное описание
-              <textarea
-                rows={4}
-                className={errors.description ? styles.inputError : styles.input}
-                placeholder="Расскажите о товаре"
-                {...register('description')}
-              />
-              {errors.description && <span className={styles.errorText}>{errors.description.message}</span>}
-            </label>
-            <label>
-              Расширенное описание
+              <span>Описание <span className={styles.requiredMark}>*</span></span>
               <textarea
                 rows={4}
                 className={errors.descriptionFull ? styles.inputError : styles.input}
@@ -955,13 +961,22 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
               {errors.descriptionFull && <span className={styles.errorText}>{errors.descriptionFull.message}</span>}
             </label>
             <label>
-              SKU
-              <input className={errors.sku ? styles.inputError : styles.input} placeholder="SKU-0001" {...register('sku')} />
-              <span className={styles.muted}>SKU — внутренний артикул товара. Поле необязательное.</span>
+              <span>Артикул</span>
+              <input
+                className={(errors.sku || skuError) ? styles.inputError : styles.input}
+                placeholder="PF-"
+                {...register('sku')}
+                onChange={(e) => {
+                  setSkuError('');
+                  void register('sku').onChange(e);
+                }}
+              />
+              <span className={styles.muted}>Если не заполнить — артикул будет присвоен автоматически</span>
               {errors.sku && <span className={styles.errorText}>{errors.sku.message}</span>}
+              {skuError && <span className={styles.errorText}>{skuError}</span>}
             </label>
             <label>
-              Категория
+              <span>Категория <span className={styles.requiredMark}>*</span></span>
               <select className={errors.category ? styles.inputError : styles.input} {...register('category')}>
                 <option value="">Выберите категорию</option>
                 {categories.map((category) => (
@@ -975,22 +990,22 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
             </label>
             <div className={styles.inlineFields}>
               <label>
-                Технология
+                <span>Технология <span className={styles.requiredMark}>*</span></span>
                 <input className={errors.technology ? styles.inputError : styles.input} placeholder="FDM" {...register('technology')} />
                 {errors.technology && <span className={styles.errorText}>{errors.technology.message}</span>}
               </label>
               <label>
-                Срок изготовления (часы)
+                <span>Срок изготовления (часы) <span className={styles.requiredMark}>*</span></span>
                 <input type="number" min={1} max={720} className={errors.productionTimeHours ? styles.inputError : styles.input} placeholder="24" {...register('productionTimeHours', { valueAsNumber: true })} />
                 {errors.productionTimeHours && <span className={styles.errorText}>{errors.productionTimeHours.message}</span>}
               </label>
               <label>
-                Цена
+                <span>Цена <span className={styles.requiredMark}>*</span></span>
                 <input
                   type="text"
                   inputMode="decimal"
                   className={errors.price ? styles.inputError : styles.input}
-                  placeholder="Например, 1200.50"
+                  placeholder="Например, 1200"
                   {...register('price')}
                 />
                 {errors.price && <span className={styles.errorText}>{errors.price.message}</span>}
@@ -1015,7 +1030,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
             <h4 className={styles.sectionTitle}>Параметры товара</h4>
             <div className={styles.inlineFields}>
               <label>
-                Цвет товара
+                <span>Цвет товара <span className={styles.requiredMark}>*</span></span>
                 <Controller
                   control={control}
                   name="color"
