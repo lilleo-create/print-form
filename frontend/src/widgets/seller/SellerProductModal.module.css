@@ -354,13 +354,43 @@ textarea.inputError {
   border-color: var(--muted);
 }
 
+.filePreviewWrap {
+  position: relative;
+  width: 68px;
+  height: 68px;
+  flex-shrink: 0;
+}
+
 .filePreview {
   width: 68px;
   height: 68px;
   border-radius: 10px;
   object-fit: cover;
   background: var(--bg);
-  flex-shrink: 0;
+  display: block;
+}
+
+.cropBtn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: none;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.15s;
+  backdrop-filter: blur(4px);
+}
+
+.cropBtn:hover {
+  background: rgba(0, 0, 0, 0.78);
 }
 
 .filePreviewPlaceholder {
@@ -511,6 +541,11 @@ textarea.inputError {
 
   .fileItem {
     grid-template-columns: 56px 1fr;
+  }
+
+  .filePreviewWrap {
+    width: 56px;
+    height: 56px;
   }
 
   .filePreview,

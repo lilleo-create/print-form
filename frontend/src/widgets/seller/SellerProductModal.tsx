@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { usePersistedForm } from '../../hooks/usePersistedForm';
 import { Controller, useForm } from 'react-hook-form';
+import { ImageCropModal } from './ImageCropModal';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createPortal } from 'react-dom';
@@ -38,13 +39,25 @@ import {
 
 const ENABLE_PRODUCT_EDIT_DRAFT = false;
 
+const TECHNOLOGY_OPTIONS = [
+  'FDM',
+  'SLA',
+  'SLS',
+  'DLP',
+  'MSLA',
+  'MJF',
+  'PolyJet',
+  'DMLS',
+  'Смола (Resin)',
+];
+
 const productSchema = z.object({
   title: z.string().min(2, 'Введите название'),
   descriptionShort: z.string().min(5, 'Добавьте краткое описание'),
   descriptionFull: z.string().min(10, 'Добавьте описание'),
   sku: z.preprocess(
     (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
-    z.string().min(3, 'Минимум 3 символа').optional()
+    z.string().regex(/^PF-\d{1,8}$/, 'Формат: PF-0001').optional()
   ),
   price: z.preprocess(
     (value) => normalizeRublesInput(value),
@@ -316,6 +329,8 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
   const variantDraftsRef = useRef<VariantDraft[]>([]);
   const [uploadError, setUploadError] = useState('');
   const [skuError, setSkuError] = useState('');
+  const [technologyCustom, setTechnologyCustom] = useState(false);
+  const [cropTarget, setCropTarget] = useState<{ itemId: string; previewUrl: string; fileName: string } | null>(null);
   const [fileErrors, setFileErrors] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isDragActive, setIsDragActive] = useState(false);
@@ -360,6 +375,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
     handleSubmit,
     reset,
     watch,
+    setValue,
     formState: { errors }
   } = useForm<ProductFormValues>({ resolver: zodResolver(productSchema) });
 
@@ -402,6 +418,9 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
 
     const activeDraft = nextDrafts.find((variant) => variant.id === nextActiveVariantId) ?? nextDrafts[0] ?? initialDraft;
     reset(activeDraft.form);
+
+    const tech = activeDraft.form.technology ?? '';
+    setTechnologyCustom(tech.length > 0 && !TECHNOLOGY_OPTIONS.includes(tech));
   }, [product, reset]);
 
   useEffect(() => {
@@ -572,6 +591,24 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
       }));
     }
   };
+
+  const handleCropConfirm = (blob: Blob) => {
+    if (!cropTarget) return;
+    URL.revokeObjectURL(cropTarget.previewUrl);
+    const croppedFile = new File([blob], cropTarget.fileName, { type: blob.type });
+    const previewUrl = URL.createObjectURL(croppedFile);
+    updateActiveVariant((variant) => ({
+      ...variant,
+      mediaItems: variant.mediaItems.map((item) =>
+        item.id === cropTarget.itemId
+          ? { ...item, file: croppedFile, previewUrl, source: 'new' as const }
+          : item
+      )
+    }));
+    setCropTarget(null);
+  };
+
+  const handleCropCancel = () => setCropTarget(null);
 
   const handleDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -804,7 +841,9 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
     setBrokenMedia({});
   }, [activeVariantId, activeMediaItems.length]);
 
-  return createPortal(
+  return (
+    <>
+    {createPortal(
     <div className={styles.overlay} role="dialog" aria-modal="true" onPointerDown={handlePointerDown} onClick={handleClick}>
       <div
         className={styles.modal}
@@ -963,12 +1002,15 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
             <label>
               <span>Артикул</span>
               <input
-                className={(errors.sku || skuError) ? styles.inputError : styles.input}
-                placeholder="PF-"
                 {...register('sku')}
+                className={(errors.sku || skuError) ? styles.inputError : styles.input}
+                placeholder="PF-0001"
+                value={watch('sku') ?? ''}
                 onChange={(e) => {
                   setSkuError('');
-                  void register('sku').onChange(e);
+                  const raw = e.target.value;
+                  const suffix = (raw.startsWith('PF-') ? raw.slice(3) : raw).replace(/\D/g, '').slice(0, 8);
+                  setValue('sku', suffix ? `PF-${suffix}` : undefined, { shouldValidate: true });
                 }}
               />
               <span className={styles.muted}>Если не заполнить — артикул будет присвоен автоматически</span>
@@ -991,7 +1033,33 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
             <div className={styles.inlineFields}>
               <label>
                 <span>Технология <span className={styles.requiredMark}>*</span></span>
-                <input className={errors.technology ? styles.inputError : styles.input} placeholder="FDM" {...register('technology')} />
+                <select
+                  className={errors.technology && !technologyCustom ? styles.inputError : styles.input}
+                  value={technologyCustom ? 'other' : (watch('technology') ?? '')}
+                  onChange={(e) => {
+                    if (e.target.value === 'other') {
+                      setTechnologyCustom(true);
+                      setValue('technology', '', { shouldValidate: false });
+                    } else {
+                      setTechnologyCustom(false);
+                      setValue('technology', e.target.value, { shouldValidate: true });
+                    }
+                  }}
+                >
+                  <option value="">Выберите технологию</option>
+                  {TECHNOLOGY_OPTIONS.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                  <option value="other">Свой вариант...</option>
+                </select>
+                {technologyCustom && (
+                  <input
+                    className={errors.technology ? styles.inputError : styles.input}
+                    placeholder="Например, Polyjet"
+                    autoFocus
+                    {...register('technology')}
+                  />
+                )}
                 {errors.technology && <span className={styles.errorText}>{errors.technology.message}</span>}
               </label>
               <label>
@@ -1107,7 +1175,11 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
 
           <section className={styles.section}>
             <h4 className={styles.sectionTitle}>Изображения и видео товара</h4>
-            <p className={styles.muted}>Поддержка: JPG, PNG, WEBP, HEIC/HEIF, MP4, MOV/QuickTime, WEBM. Лимиты: изображение до {formatSize(IMAGE_MAX_SIZE_BYTES)}, видео до {formatSize(VIDEO_MAX_SIZE_BYTES)} и до {VIDEO_MAX_DURATION_SECONDS} сек.</p>
+            <p className={styles.muted}>
+              Фото: JPG, PNG, WEBP, HEIC/HEIF · <strong>рекомендуемый размер 800×800 px (1:1, квадрат)</strong> · до {formatSize(IMAGE_MAX_SIZE_BYTES)}.<br />
+              Видео: MP4, MOV, WEBM · до {formatSize(VIDEO_MAX_SIZE_BYTES)}, до {VIDEO_MAX_DURATION_SECONDS} сек.<br />
+              После выбора фото откроется редактор для кадрирования под квадрат.
+            </p>
             <div
               className={`${styles.dropzone} ${isDragActive ? styles.dropzoneActive : ''}`}
               onDragOver={(event) => {
@@ -1152,31 +1224,45 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
               <div className={styles.fileList}>
                 {activeMediaItems.map((item, index) => (
                   <div key={item.id} className={styles.fileItem}>
-                    {brokenMedia[item.id] ? (
-                      <div className={styles.filePreviewPlaceholder}>
-                        {item.kind === 'image' ? 'Фото недоступно' : 'Видео недоступно'}
-                      </div>
-                    ) : item.kind === 'image' ? (
-                      <img
-                        src={item.previewUrl}
-                        alt={item.name}
-                        className={styles.filePreview}
-                        onError={() =>
-                          setBrokenMedia((prev) => ({ ...prev, [item.id]: true }))
-                        }
-                      />
-                    ) : (
-                      <video
-                        src={item.previewUrl}
-                        className={styles.filePreview}
-                        muted
-                        playsInline
-                        preload="metadata"
-                        onError={() =>
-                          setBrokenMedia((prev) => ({ ...prev, [item.id]: true }))
-                        }
-                      />
-                    )}
+                    <div className={styles.filePreviewWrap}>
+                      {brokenMedia[item.id] ? (
+                        <div className={styles.filePreviewPlaceholder}>
+                          {item.kind === 'image' ? 'Фото недоступно' : 'Видео недоступно'}
+                        </div>
+                      ) : item.kind === 'image' ? (
+                        <img
+                          src={item.previewUrl}
+                          alt={item.name}
+                          className={styles.filePreview}
+                          onError={() =>
+                            setBrokenMedia((prev) => ({ ...prev, [item.id]: true }))
+                          }
+                        />
+                      ) : (
+                        <video
+                          src={item.previewUrl}
+                          className={styles.filePreview}
+                          muted
+                          playsInline
+                          preload="metadata"
+                          onError={() =>
+                            setBrokenMedia((prev) => ({ ...prev, [item.id]: true }))
+                          }
+                        />
+                      )}
+                      {item.kind === 'image' && item.source === 'new' && !brokenMedia[item.id] && (
+                        <button
+                          type="button"
+                          className={styles.cropBtn}
+                          title="Обрезать фото"
+                          onClick={() => setCropTarget({ itemId: item.id, previewUrl: item.previewUrl, fileName: item.name })}
+                        >
+                          <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                            <path d="M4 1v10h10M1 4h10v10"/>
+                          </svg>
+                        </button>
+                      )}
+                    </div>
                     <div className={styles.fileMeta}>
                       <span className={styles.fileName}>{item.name}</span>
                       <span className={styles.fileType}>{item.kind === 'image' ? 'Фото' : 'Видео'}{index === 0 ? ' • Главное медиа' : ''}</span>
@@ -1222,5 +1308,16 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
       </div>
     </div>,
     document.body
+  )}
+  {cropTarget && createPortal(
+    <ImageCropModal
+      src={cropTarget.previewUrl}
+      fileName={cropTarget.fileName}
+      onConfirm={handleCropConfirm}
+      onCancel={handleCropCancel}
+    />,
+    document.body
+  )}
+  </>
   );
 };
