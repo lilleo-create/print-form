@@ -193,7 +193,7 @@ export const ProductReviewsPreview = ({ productId, product, reviews, summary }: 
             <span className={styles.summaryValue}>
               {typeof summary?.avg === 'number' ? summary.avg.toFixed(1) : '0.0'}
             </span>
-            <Rating value={summary?.avg ?? 0} count={reviewsCount} />
+            <Rating value={summary?.avg ?? 0} count={0} />
           </div>
 
           <ul>
@@ -255,47 +255,58 @@ export const ProductReviewsPreview = ({ productId, product, reviews, summary }: 
                 photos?: ReviewPhotoLike[];
               };
 
+              const authorName = getReviewAuthorName(review);
+              const initials = authorName
+                .split(' ')
+                .filter(Boolean)
+                .slice(0, 2)
+                .map((w: string) => w[0])
+                .join('');
+
               return (
                 <article key={review.id} className={styles.reviewCard}>
-                <div className={styles.reviewTop}>
-                  <div>
-                    <strong>{getReviewAuthorName(review)}</strong>
-                    <span className={styles.reviewDate}>{formatReviewDate(review.createdAt)}</span>
-                    {review.isOwn && review.moderationStatus === 'PENDING' ? (
-                      <span className={styles.pendingBadge}>
-                        {review.moderationStatusLabelRu?.trim() || 'На модерации'}
-                      </span>
+                  <div className={styles.reviewTop}>
+                    <div className={styles.reviewAuthorRow}>
+                      <div className={styles.reviewAvatar}>{initials || '?'}</div>
+                      <div className={styles.reviewAuthorInfo}>
+                        <strong>{authorName}</strong>
+                        <span className={styles.reviewDate}>{formatReviewDate(review.createdAt)}</span>
+                        {review.isOwn && review.moderationStatus === 'PENDING' ? (
+                          <span className={styles.pendingBadge}>
+                            {review.moderationStatusLabelRu?.trim() || 'На модерации'}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                    <Rating value={review.rating} count={0} />
+                  </div>
+
+                  <div className={styles.reviewBody}>
+                    {reviewData.pros ? (
+                      <p><strong>Достоинства:</strong> {reviewData.pros}</p>
+                    ) : null}
+                    {reviewData.cons ? (
+                      <p><strong>Недостатки:</strong> {reviewData.cons}</p>
+                    ) : null}
+                    {reviewData.comment ? (
+                      <p><strong>Комментарий:</strong> {reviewData.comment}</p>
                     ) : null}
                   </div>
-                  <Rating value={review.rating} count={0} />
-                </div>
 
-                <div className={styles.reviewBody}>
-                  <p>
-                    <strong>Достоинства:</strong> {reviewData.pros}
-                  </p>
-                  <p>
-                    <strong>Недостатки:</strong> {reviewData.cons}
-                  </p>
-                  <p>
-                    <strong>Комментарий:</strong> {reviewData.comment}
-                  </p>
-                </div>
-
-                {(reviewData.photos?.length ?? 0) > 0 ? (
-                  <div className={styles.reviewPhotos}>
-                    {reviewData.photos!
-                      .map((photo: ReviewPhotoLike) => normalizeReviewPhotoUrl(photo))
-                      .filter(Boolean)
-                      .map((photo: string, index: number) => (
-                        <img
-                          src={resolveImageUrl(photo)}
-                          alt={`Фото отзыва ${index + 1}`}
-                          key={`${photo}-${index}`}
-                        />
-                      ))}
-                  </div>
-                ) : null}
+                  {(reviewData.photos?.length ?? 0) > 0 ? (
+                    <div className={styles.reviewPhotos}>
+                      {reviewData.photos!
+                        .map((photo: ReviewPhotoLike) => normalizeReviewPhotoUrl(photo))
+                        .filter(Boolean)
+                        .map((photo: string, index: number) => (
+                          <img
+                            src={resolveImageUrl(photo)}
+                            alt={`Фото отзыва ${index + 1}`}
+                            key={`${photo}-${index}`}
+                          />
+                        ))}
+                    </div>
+                  ) : null}
                 </article>
               );
             })

@@ -466,15 +466,25 @@ export const ReviewsList = ({
           ? (review.moderationStatusLabelRu?.trim() || 'На модерации')
           : null;
 
+        const initials = buyerName
+          .split(' ')
+          .filter(Boolean)
+          .slice(0, 2)
+          .map((w) => w[0])
+          .join('');
+
         return (
           <article key={review.id} className={styles.card}>
             <div className={styles.top}>
-              <div>
-                <strong>{buyerName}</strong>
-                <span className={styles.date}>
-                  {formatReviewDate(review.createdAt)}
-                </span>
-                {moderationBadge ? <span className={styles.pendingBadge}>{moderationBadge}</span> : null}
+              <div className={styles.authorRow}>
+                <div className={styles.avatar}>{initials || '?'}</div>
+                <div className={styles.authorInfo}>
+                  <strong>{buyerName}</strong>
+                  <span className={styles.date}>
+                    {formatReviewDate(review.createdAt)}
+                  </span>
+                  {moderationBadge ? <span className={styles.pendingBadge}>{moderationBadge}</span> : null}
+                </div>
               </div>
               <div className={styles.topActions}>
                 <Rating value={review.rating} count={0} />
@@ -538,6 +548,7 @@ export const ReviewsList = ({
             <div className={styles.actions}>
               <button
                 type="button"
+                className={styles.replyTrigger}
                 onClick={() =>
                   setReplyComposerOpen((prev) => ({
                     ...prev,

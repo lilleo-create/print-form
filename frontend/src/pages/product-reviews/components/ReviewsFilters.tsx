@@ -1,5 +1,6 @@
 import type { Dispatch, SetStateAction } from 'react';
 import type { ReviewScope, ReviewFilters } from '../hooks/useProductReviews';
+import styles from './ReviewsFilters.module.css';
 
 type ReviewsFiltersProps = {
   scope: ReviewScope;
@@ -9,27 +10,18 @@ type ReviewsFiltersProps = {
 };
 
 export const ReviewsFilters = ({ scope, onScopeChange, filters, onFiltersChange }: ReviewsFiltersProps) => (
-  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+  <div className={styles.filters}>
     {(['all', 'variant'] as ReviewScope[]).map((s) => (
       <button
         key={s}
         type="button"
         onClick={() => onScopeChange(s)}
-        style={{
-          padding: '6px 14px',
-          borderRadius: 999,
-          border: '1px solid var(--border)',
-          background: scope === s ? 'var(--primary)' : 'var(--bg-2)',
-          color: scope === s ? '#fff' : 'var(--text)',
-          cursor: 'pointer',
-          fontSize: 13,
-          fontWeight: 500
-        }}
+        className={`${styles.scopeBtn} ${scope === s ? styles.scopeBtnActive : ''}`}
       >
         {s === 'all' ? 'Все отзывы' : 'На этот вариант'}
       </button>
     ))}
-    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+    <label className={styles.checkLabel}>
       <input
         type="checkbox"
         checked={filters.withMedia}
@@ -37,7 +29,7 @@ export const ReviewsFilters = ({ scope, onScopeChange, filters, onFiltersChange 
       />
       С фото
     </label>
-    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+    <label className={styles.checkLabel}>
       <input
         type="checkbox"
         checked={filters.helpful}

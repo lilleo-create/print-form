@@ -4,25 +4,66 @@
   min-width: 0;
 }
 
+/* ── Review card ── */
 .card {
-  padding: 18px;
+  padding: 20px;
   border-radius: var(--radius-card);
-  background: var(--bg-2);
+  background: var(--card);
   border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
   display: grid;
-  gap: 12px;
+  gap: 14px;
   min-width: 0;
+  transition: box-shadow 0.2s ease;
 }
 
+.card:hover {
+  box-shadow: var(--shadow-card-hover);
+}
+
+/* ── Author row ── */
 .top {
   display: flex;
   justify-content: space-between;
   gap: 12px;
   align-items: flex-start;
-  flex-wrap: wrap;
 }
 
-.topActions,
+.authorRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 700;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid var(--primary-soft-strong);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.authorInfo {
+  min-width: 0;
+}
+
+.topActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .replyActions {
   display: inline-flex;
   align-items: center;
@@ -31,14 +72,15 @@
 
 .date {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
   display: block;
+  margin-top: 2px;
 }
 
 .pendingBadge {
   display: inline-flex;
-  margin-top: 6px;
-  font-size: 12px;
+  margin-top: 5px;
+  font-size: 11px;
   color: #856404;
   background: #fff3cd;
   border: 1px solid #ffe69c;
@@ -46,14 +88,32 @@
   padding: 2px 8px;
 }
 
-.body p {
-  margin-bottom: 6px;
-  overflow-wrap: anywhere;
+/* ── Review body ── */
+.body {
+  display: grid;
+  gap: 6px;
 }
 
+.body p {
+  margin: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.55;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.body strong {
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ── Photos ── */
 .photos {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
@@ -62,34 +122,54 @@
   background: transparent;
   padding: 0;
   cursor: pointer;
+  border-radius: 10px;
+  overflow: hidden;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.photoButton:hover {
+  transform: scale(1.04);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
 
 .photoButton img {
-  width: 96px;
-  height: 96px;
-  border-radius: 12px;
+  width: 80px;
+  height: 80px;
+  border-radius: 10px;
   object-fit: cover;
+  display: block;
 }
 
+/* ── Actions bar ── */
 .actions {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
 }
 
-.actions button {
+.replyTrigger {
   border: none;
   background: transparent;
-  color: var(--primary);
+  color: var(--muted);
   cursor: pointer;
-  font-weight: 600;
+  font-weight: 500;
+  font-size: 13px;
+  padding: 0;
+  transition: color 0.15s ease;
+}
+
+.replyTrigger:hover {
+  color: var(--primary);
 }
 
 .reaction {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   color: var(--muted);
+  font-size: 13px;
 }
 
 .reaction button {
@@ -97,7 +177,17 @@
   background: transparent;
   color: inherit;
   cursor: pointer;
-  padding: 0;
+  padding: 3px 6px;
+  border-radius: 6px;
+  transition: background 0.15s ease, color 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.reaction button:hover:not(:disabled) {
+  background: var(--surface-ghost);
+  color: var(--text);
 }
 
 .reaction button:disabled {
@@ -111,16 +201,17 @@
 
 .reactionError {
   margin: 0;
-  color: #d14343;
-  font-size: 13px;
+  color: var(--danger);
+  font-size: 12px;
 }
 
 .replyError {
   margin: 0;
-  color: #d14343;
-  font-size: 13px;
+  color: var(--danger);
+  font-size: 12px;
 }
 
+/* ── Reply composer ── */
 .replyComposer {
   display: grid;
   gap: 8px;
@@ -130,16 +221,37 @@
   min-height: 72px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 10px;
+  padding: 10px 12px;
   font: inherit;
+  font-size: 14px;
   resize: vertical;
-  background: var(--bg-1);
+  background: var(--bg-2);
+  color: var(--text);
 }
 
 .replyComposer button {
   justify-self: start;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-control);
+  padding: 8px 16px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.15s ease;
 }
 
+.replyComposer button:hover {
+  background: var(--primary-2);
+}
+
+.replyComposer button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* ── Replies ── */
 .toggleReplies {
   justify-self: start;
   border: none;
@@ -147,12 +259,18 @@
   color: var(--primary);
   cursor: pointer;
   font-weight: 600;
+  font-size: 13px;
   padding: 0;
+  transition: opacity 0.15s ease;
+}
+
+.toggleReplies:hover {
+  opacity: 0.75;
 }
 
 .repliesLoading {
   color: var(--muted);
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .replies {
@@ -163,10 +281,10 @@
 }
 
 .replyCard {
-  background: var(--bg-1);
+  background: var(--bg-2);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 10px 12px;
+  padding: 10px 14px;
 }
 
 .replyHeader {
@@ -175,8 +293,14 @@
   gap: 8px;
   margin-bottom: 6px;
   flex-wrap: wrap;
+  align-items: center;
 }
 
+.replyHeader strong {
+  font-size: 13px;
+}
+
+/* ── Context menus ── */
 .menuWrap {
   position: relative;
 }
@@ -188,19 +312,28 @@
   font-size: 18px;
   line-height: 1;
   padding: 2px 6px;
+  color: var(--muted);
+  border-radius: 6px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.menuButton:hover {
+  background: var(--surface-ghost);
+  color: var(--text);
 }
 
 .menu {
   position: absolute;
   top: calc(100% + 4px);
   right: 0;
-  min-width: 132px;
+  min-width: 148px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--card);
   box-shadow: var(--shadow-card);
   display: grid;
   z-index: 10;
+  overflow: hidden;
 }
 
 .menu button {
@@ -208,9 +341,16 @@
   background: transparent;
   cursor: pointer;
   text-align: left;
-  padding: 8px 10px;
+  padding: 9px 12px;
+  font-size: 14px;
+  transition: background 0.12s ease;
 }
 
+.menu button:hover {
+  background: var(--surface-ghost);
+}
+
+/* ── Inline edit ── */
 .inlineEdit {
   display: grid;
   gap: 8px;
@@ -220,8 +360,11 @@
   min-height: 70px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--bg-1);
+  background: var(--bg-2);
   padding: 8px 10px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--text);
 }
 
 .inlineEdit button {
@@ -229,25 +372,45 @@
   border: 1px solid var(--border);
   background: var(--bg-2);
   border-radius: 8px;
-  padding: 6px 10px;
+  padding: 6px 12px;
   cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 0.12s ease;
 }
 
+.inlineEdit button:hover {
+  background: var(--surface-hover);
+}
+
+/* ── Empty / error ── */
 .empty {
   color: var(--muted);
   display: grid;
   justify-items: start;
   gap: 10px;
+  padding: 24px 20px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
 }
 
 .empty button {
   border: 1px solid var(--border);
   background: var(--bg-2);
-  border-radius: 8px;
-  padding: 6px 10px;
+  border-radius: var(--radius-control);
+  padding: 8px 14px;
   cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 0.12s ease;
 }
 
+.empty button:hover {
+  background: var(--surface-hover);
+}
+
+/* ── Skeleton ── */
 .skeletonTop {
   display: flex;
   align-items: flex-start;
@@ -287,7 +450,7 @@
 }
 
 .skeletonPhoto {
-  width: 96px;
-  min-height: 96px;
-  border-radius: 12px;
+  width: 80px;
+  min-height: 80px;
+  border-radius: 10px;
 }

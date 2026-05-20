@@ -1,0 +1,57 @@
+.filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.scopeBtn {
+  padding: 7px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.scopeBtn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.scopeBtnActive {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
+.scopeBtnActive:hover {
+  background: var(--primary-2);
+  border-color: var(--primary-2);
+  color: #fff;
+}
+
+.checkLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--text);
+  user-select: none;
+  padding: 4px 2px;
+}
+
+.checkLabel input[type='checkbox'] {
+  accent-color: var(--primary);
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+}
