@@ -9,28 +9,17 @@ interface ChatThreadListProps {
 }
 
 const getThreadTitle = (thread: ChatThread) => {
-  if (thread.returnRequest) {
-    return 'Возврат и поддержка';
-  }
+  if (thread.returnRequest) return 'Возврат и поддержка';
   if (thread.kind === 'SUPPORT') {
-    return thread.supportTopic
-      ? `Поддержка · ${thread.supportTopic}`
-      : 'Поддержка';
+    return thread.supportTopic ? `Поддержка · ${thread.supportTopic}` : 'Поддержка';
   }
-  return thread.sellerShopName
-    ? `Продавец · ${thread.sellerShopName}`
-    : 'Продавец';
+  return thread.sellerShopName ? `Продавец · ${thread.sellerShopName}` : 'Продавец';
 };
 
-export const ChatThreadList = ({
-  title,
-  threads,
-  activeId,
-  onSelect
-}: ChatThreadListProps) => {
+export const ChatThreadList = ({ title, threads, activeId, onSelect }: ChatThreadListProps) => {
   return (
     <section className={styles.section}>
-      <h3>{title}</h3>
+      <h3 className={styles.sectionTitle}>{title}</h3>
       {threads.length === 0 ? (
         <p className={styles.empty}>Нет чатов.</p>
       ) : (
@@ -39,16 +28,14 @@ export const ChatThreadList = ({
             <button
               type="button"
               key={thread.id}
-              className={
-                activeId === thread.id ? styles.itemActive : styles.item
-              }
+              className={activeId === thread.id ? styles.itemActive : styles.item}
               onClick={() => onSelect(thread)}
             >
-              <div>
-                <strong>{getThreadTitle(thread)}</strong>
-                <p className={styles.preview}>
+              <div className={styles.itemBody}>
+                <span className={styles.itemTitle}>{getThreadTitle(thread)}</span>
+                <span className={styles.preview}>
                   {thread.lastMessage?.text ?? 'Нет сообщений'}
-                </p>
+                </span>
               </div>
               {thread.lastMessageAt && (
                 <span className={styles.date}>

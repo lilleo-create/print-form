@@ -36,6 +36,7 @@ export const ChatsTab = ({
   onCreateSupportThread
 }: ChatsTabProps) => {
   const [isTopicPickerOpen, setTopicPickerOpen] = useState(false);
+  const [showMobileChat, setShowMobileChat] = useState(false);
 
   const handleTopicSelect = async (topic: string) => {
     const thread = await onCreateSupportThread(topic);
@@ -44,15 +45,22 @@ export const ChatsTab = ({
     }
   };
 
+  const handleSelectThread = (thread: ChatThread) => {
+    onSelectThread(thread);
+    setShowMobileChat(true);
+  };
+
+  const handleBack = () => {
+    setShowMobileChat(false);
+  };
+
   return (
     <div className={styles.chatLayout}>
-      <div className={styles.chatList}>
+      <div className={`${styles.chatList} ${showMobileChat ? styles.chatListHidden : ''}`}>
         <div className={styles.supportCard}>
-          <div>
+          <div className={styles.supportCardText}>
             <strong>Поддержка Print-Form</strong>
-            <p>
-              Создайте новое обращение и выберите тему перед открытием чата.
-            </p>
+            <p>Создайте новое обращение и выберите тему перед открытием чата.</p>
           </div>
           <Button
             type="button"
@@ -78,26 +86,33 @@ export const ChatsTab = ({
             </div>
           )}
         </div>
-        <ChatThreadList
-          title="Активные"
-          threads={chatThreads.active ?? []}
-          activeId={selectedThread?.id}
-          onSelect={onSelectThread}
-        />
-        <ChatThreadList
-          title="Завершенные"
-          threads={chatThreads.closed ?? []}
-          activeId={selectedThread?.id}
-          onSelect={onSelectThread}
+
+        <div className={styles.threadLists}>
+          <ChatThreadList
+            title="Активные"
+            threads={chatThreads.active ?? []}
+            activeId={selectedThread?.id}
+            onSelect={handleSelectThread}
+          />
+          <ChatThreadList
+            title="Завершенные"
+            threads={chatThreads.closed ?? []}
+            activeId={selectedThread?.id}
+            onSelect={handleSelectThread}
+          />
+        </div>
+      </div>
+
+      <div className={`${styles.chatWindowPane} ${!showMobileChat ? styles.chatWindowHidden : ''}`}>
+        <ChatWindow
+          thread={selectedThread}
+          messages={chatMessages}
+          loading={chatLoading}
+          error={chatError}
+          onSend={onSendMessage}
+          onBack={handleBack}
         />
       </div>
-      <ChatWindow
-        thread={selectedThread}
-        messages={chatMessages}
-        loading={chatLoading}
-        error={chatError}
-        onSend={onSendMessage}
-      />
     </div>
   );
 };

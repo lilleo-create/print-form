@@ -1,4 +1,5 @@
 import { FormEvent, useState } from 'react';
+import styles from './MessageComposer.module.css';
 
 type MessageComposerProps = {
   onSend: (text: string) => void;
@@ -18,36 +19,23 @@ export const MessageComposer = ({ onSend, disabled, placeholder }: MessageCompos
   };
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: 'flex', gap: 8 }}>
+    <form className={styles.form} onSubmit={handleSubmit}>
       <input
+        className={styles.input}
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder={placeholder ?? 'Написать сообщение...'}
         disabled={disabled}
-        style={{
-          flex: 1,
-          padding: '10px 14px',
-          borderRadius: 12,
-          border: '1px solid var(--border)',
-          background: 'var(--bg-2)',
-          color: 'var(--text)',
-          fontSize: 14
-        }}
       />
       <button
         type="submit"
+        className={styles.sendBtn}
         disabled={disabled || !value.trim()}
-        style={{
-          padding: '10px 18px',
-          borderRadius: 12,
-          background: 'var(--primary)',
-          color: '#fff',
-          border: 'none',
-          fontWeight: 600,
-          cursor: 'pointer'
-        }}
+        aria-label="Отправить"
       >
-        Отправить
+        <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <path d="M17.5 10L3 3.5l2.5 6.5-2.5 6.5L17.5 10z" fill="currentColor"/>
+        </svg>
       </button>
     </form>
   );

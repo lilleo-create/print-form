@@ -1,11 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import type { Product } from '../../shared/types';
 import { Rating } from '../../shared/ui/Rating';
 import { getProductRatingMeta } from '../../shared/lib/productRating';
 import styles from '../../pages/ProductPage.module.css';
-import { ProductActionsInline } from '../../pages/ProductPage/components/ProductActionsInline/ProductActionsInline';
-import { useFavoritesStore } from '../../features/favorites/model/useFavoritesStore';
-import { ShareModal } from '../../features/share/ui/ShareModal';
 import { cmToMm } from '../../shared/lib/productDimensions';
 import type { SpecItem } from '../../pages/ProductPage/components/ProductSpecs/ProductSpecs';
 
@@ -32,23 +29,12 @@ export const ProductDetails = ({
   specsExpanded,
   onSpecsExpandedChange
 }: ProductDetailsProps) => {
-  const [isShareOpen, setIsShareOpen] = useState(false);
-  const isFavorite = useFavoritesStore((state) => state.isFavorite(product.id));
-  const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
-  const fetchFavorites = useFavoritesStore((state) => state.fetchFavorites);
-
   const hasGroupedVariants = variantProducts.length > 1;
+
   const activeVariantLabel = useMemo(
-    () => ({
-      key: 'Цвет товара',
-      value: product.color
-    }),
+    () => ({ key: 'Цвет товара', value: product.color }),
     [product.color]
   );
-
-  useEffect(() => {
-    void fetchFavorites();
-  }, [fetchFavorites, product.id]);
 
   const ratingMeta = getProductRatingMeta({ ratingAvg: product.ratingAvg, ratingCount: reviewsCount });
 
@@ -69,25 +55,7 @@ export const ProductDetails = ({
   return (
     <div className={styles.details}>
       <div className={styles.header}>
-        <div className={styles.headerTop}>
-          <h1>{product.title}</h1>
-          <ProductActionsInline
-            isFavorite={isFavorite}
-            onFavoriteClick={() => {
-              void toggleFavorite(product.id, {
-                id: product.id,
-                title: product.title,
-                price: product.price,
-                image: product.image,
-                ratingAvg: product.ratingAvg,
-                ratingCount: product.ratingCount,
-                shortSpec: product.descriptionShort,
-                category: product.category,
-              });
-            }}
-            onShareClick={() => setIsShareOpen(true)}
-          />
-        </div>
+        <h1>{product.title}</h1>
         <div className={styles.ratingRow}>
           <Rating
             value={ratingMeta.hasReviews ? ratingMeta.ratingValue : 0}
@@ -100,11 +68,7 @@ export const ProductDetails = ({
         </div>
       </div>
 
-      <p className={styles.shortDescription}>
-        {product.descriptionShort ?? product.description}
-      </p>
-
-      {hasGroupedVariants ? (
+      {hasGroupedVariants && (
         <div className={styles.variantBlock}>
           <span className={styles.variantTitle}>Вариант</span>
           <span className={styles.variantText}>
@@ -115,11 +79,7 @@ export const ProductDetails = ({
               <button
                 type="button"
                 key={variant.id}
-                className={
-                  activeVariantId === variant.id
-                    ? styles.variantActive
-                    : styles.variantButton
-                }
+                className={activeVariantId === variant.id ? styles.variantActive : styles.variantButton}
                 onClick={() => onVariantChange(variant.id)}
                 aria-pressed={activeVariantId === variant.id}
               >
@@ -128,11 +88,14 @@ export const ProductDetails = ({
             ))}
           </div>
         </div>
-      ) : null}
+      )}
 
       <div className={styles.specRows}>
         {previewSpecRows.map((row) => (
-          <p key={row.label}><span>{row.label}</span><strong>{row.value}</strong></p>
+          <p key={row.label}>
+            <span>{row.label}</span>
+            <strong>{row.value}</strong>
+          </p>
         ))}
         <div
           id="product-full-specs"
@@ -153,16 +116,9 @@ export const ProductDetails = ({
           aria-expanded={specsExpanded}
           aria-controls="product-full-specs"
         >
-          {specsExpanded ? 'Скрыть характеристики' : 'Все характеристики'}
+          {specsExpanded ? 'Скрыть' : 'Все характеристики ›'}
         </button>
       </div>
-
-      <ShareModal
-        isOpen={isShareOpen}
-        onClose={() => setIsShareOpen(false)}
-        title={product.title}
-        image={product.image}
-      />
     </div>
   );
 };
