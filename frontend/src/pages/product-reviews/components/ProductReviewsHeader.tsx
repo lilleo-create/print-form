@@ -28,7 +28,8 @@ export const ProductReviewsHeader = ({
   return (
     <section className={styles.header}>
       <button type="button" className={styles.backButton} onClick={onBack}>
-        ← Назад
+        <span className={styles.backArrow}>←</span>
+        <span className={styles.backTitle}>{product.title}</span>
       </button>
       <div className={styles.product}>
         {productImage ? (

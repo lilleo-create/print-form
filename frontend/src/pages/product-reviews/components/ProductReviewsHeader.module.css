@@ -22,10 +22,21 @@
   padding: 4px 0;
   flex-shrink: 0;
   transition: color 0.15s ease;
+  max-width: 100%;
 }
 
 .backButton:hover {
   color: var(--text);
+}
+
+.backArrow {
+  flex-shrink: 0;
+}
+
+.backTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .product {
@@ -184,5 +195,36 @@
     text-align: center;
     padding: 12px 16px;
     font-size: 14px;
+  }
+}
+
+@media (max-width: 768px) {
+  .header {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    gap: 0;
+  }
+
+  .product,
+  .actions {
+    display: none;
+  }
+
+  .backButton {
+    font-size: 14px;
+    color: var(--text);
+    font-weight: 500;
+    max-width: 100%;
+    padding: 4px 0 8px;
+  }
+
+  .backArrow {
+    color: var(--muted);
+  }
+
+  .backTitle {
+    color: var(--text);
   }
 }

@@ -2,6 +2,7 @@
   display: grid;
   gap: 16px;
   min-width: 0;
+  width: 100%;
 }
 
 /* ── Review card ── */
@@ -14,6 +15,9 @@
   display: grid;
   gap: 14px;
   min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
+  word-break: break-word;
   transition: box-shadow 0.2s ease;
 }
 

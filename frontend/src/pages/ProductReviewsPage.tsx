@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { normalizeReviewPhotoUrl } from '../shared/lib/reviews';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../shared/api';
 import type { Product, Review } from '../shared/types';
@@ -92,6 +93,11 @@ export const ProductReviewsPage = () => {
     filters,
     scope
   });
+
+  const allPhotos = useMemo(
+    () => reviews.flatMap(r => (r.photos ?? []).map(normalizeReviewPhotoUrl).filter(Boolean) as string[]),
+    [reviews]
+  );
 
   const {
     hasPurchased,
@@ -229,11 +235,14 @@ export const ProductReviewsPage = () => {
           </aside>
 
           <div className={styles.main}>
+            <h2 className={styles.mainTitle}>Отзывы и оценки</h2>
             <ReviewsFilters
               scope={scope}
               onScopeChange={setScope}
               filters={filters}
               onFiltersChange={setFilters}
+              allPhotos={allPhotos}
+              onPhotoClick={(photos, initialIndex) => setPhotoViewer({ photos, initialIndex })}
             />
 
             <ReviewsList

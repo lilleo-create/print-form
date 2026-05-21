@@ -1,11 +1,93 @@
-.filters {
+.wrap {
+  display: grid;
+  gap: 14px;
+}
+
+/* ── Scope tabs ── */
+.tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tab {
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.tab:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.tabActive {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
+.tabActive:hover {
+  background: var(--primary-2);
+  border-color: var(--primary-2);
+  color: #fff;
+}
+
+/* ── Photo gallery ── */
+.gallery {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+
+.gallery::-webkit-scrollbar {
+  display: none;
+}
+
+.galleryItem {
+  border: none;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 10px;
+  overflow: hidden;
+  flex-shrink: 0;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.galleryItem:hover {
+  transform: scale(1.03);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.galleryItem img {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  display: block;
+  border-radius: 10px;
+}
+
+/* ── Pills row ── */
+.pills {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
   align-items: center;
 }
 
-.scopeBtn {
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   padding: 7px 16px;
   border-radius: 999px;
   border: 1px solid var(--border);
@@ -15,43 +97,92 @@
   font-size: 13px;
   font-weight: 500;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  white-space: nowrap;
 }
 
-.scopeBtn:hover {
+.pill:hover {
   border-color: var(--primary);
   color: var(--primary);
 }
 
-.scopeBtnActive {
-  background: var(--primary);
-  color: #fff;
+.pillActive {
   border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-soft);
 }
 
-.scopeBtnActive:hover {
-  background: var(--primary-2);
-  border-color: var(--primary-2);
-  color: #fff;
+.sortIcon {
+  font-size: 15px;
+  line-height: 1;
 }
 
-.checkLabel {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  cursor: pointer;
-  color: var(--text);
-  user-select: none;
-  padding: 4px 2px;
+/* ── Sort dropdown ── */
+.sortWrap {
+  position: relative;
 }
 
-.checkLabel input[type='checkbox'] {
-  accent-color: var(--primary);
-  width: 15px;
-  height: 15px;
-  cursor: pointer;
-  border-radius: 4px;
-  padding: 0;
+.dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 224px;
+  background: var(--card);
   border: 1px solid var(--border);
-  background: var(--bg-2);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  z-index: 30;
+  overflow: hidden;
+}
+
+.dropdownHeader {
+  padding: 14px 16px 12px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  margin: 0;
+}
+
+.dropdownOption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 13px 16px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s ease;
+}
+
+.dropdownOption:hover {
+  background: var(--surface-ghost);
+}
+
+.radioCircle {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.radioCircleActive {
+  border-color: var(--primary);
+  background: var(--primary);
+}
+
+.radioDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #fff;
 }
