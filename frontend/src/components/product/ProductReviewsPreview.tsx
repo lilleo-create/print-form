@@ -1,15 +1,11 @@
 import { Link, useLocation } from 'react-router-dom';
-import { useEffect, useState } from 'react';
-import { api } from '../../shared/api';
-import { normalizeApiError } from '../../shared/api/client';
-import type { Product, Shop } from '../../shared/types';
+import type { Product } from '../../shared/types';
 import type { Review } from '../../shared/types';
 import type { ReviewSummary } from '../../hooks/useProductReviews';
 import { Rating } from '../../shared/ui/Rating';
 import styles from '../../pages/ProductPage.module.css';
 import { formatReviewDate } from './utils';
 import { resolveImageUrl } from '../../shared/lib/resolveImageUrl';
-import { getProductPrimaryImage } from '../../shared/lib/getProductPrimaryImage';
 import { getReviewAuthorName, normalizeReviewPhotoUrl, type ReviewPhotoLike } from '../../shared/lib/reviews';
 
 type ProductReviewsPreviewProps = {
@@ -19,299 +15,95 @@ type ProductReviewsPreviewProps = {
   summary: ReviewSummary | null;
 };
 
-type SellerCardSummary = {
-  title: string;
-  rating: number | null;
-  productsCount: number | null;
-  storeAvailable: boolean;
-};
-
-const shopCache = new Map<string, Shop>();
-
-const toRecord = (value: unknown): Record<string, unknown> | null =>
-  value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-
-const takeText = (...values: unknown[]) => {
-  for (const value of values) {
-    if (typeof value === 'string' && value.trim()) {
-      return value.trim();
-    }
-  }
-  return '';
-};
-
-const takeNumber = (...values: unknown[]) => {
-  for (const value of values) {
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      return value;
-    }
-  }
-  return null;
-};
-
-const takeBoolean = (...values: unknown[]) => {
-  for (const value of values) {
-    if (typeof value === 'boolean') {
-      return value;
-    }
-  }
-  return null;
-};
-
-const getSellerSummaryFromProduct = (product: Product): SellerCardSummary => {
-  const record = product as Product & Record<string, unknown>;
-  const storeSummary = toRecord(record.storeSummary);
-  const sellerSummary = toRecord(record.sellerSummary);
-  const seller = toRecord(record.seller);
-
-  const title =
-    takeText(
-      storeSummary?.name,
-      storeSummary?.title,
-      sellerSummary?.name,
-      sellerSummary?.title,
-      seller?.storeName,
-      seller?.name,
-      record.storeName,
-      record.sellerName
-    ) || 'Магазин продавца';
-
-  const rating = takeNumber(
-    storeSummary?.rating,
-    sellerSummary?.rating,
-    seller?.rating,
-    record.sellerRating
-  );
-
-  const productsCount = takeNumber(
-    storeSummary?.productsCount,
-    storeSummary?.itemsCount,
-    sellerSummary?.productsCount,
-    sellerSummary?.itemsCount,
-    record.sellerProductsCount,
-    record.productsCount
-  );
-
-  const storeAvailable =
-    takeBoolean(
-      storeSummary?.storeAvailable,
-      sellerSummary?.storeAvailable,
-      storeSummary?.available,
-      sellerSummary?.available,
-      record.storeAvailable
-    ) ?? Boolean(product.sellerId);
-
-  return {
-    title,
-    rating,
-    productsCount,
-    storeAvailable
-  };
-};
-
-export const ProductReviewsPreview = ({ productId, product, reviews, summary }: ProductReviewsPreviewProps) => {
+export const ProductReviewsPreview = ({ productId, reviews }: ProductReviewsPreviewProps) => {
   const location = useLocation();
-  const reviewsCount = summary?.total ?? 0;
   const isSingleReview = reviews.length === 1;
-  const [shop, setShop] = useState<Shop | null>(null);
-  const sellerSummary = getSellerSummaryFromProduct(product);
-  const shopId = product.sellerId;
-  const productImageSrc = resolveImageUrl(getProductPrimaryImage(product));
-  const canOpenShop = Boolean(shopId) && sellerSummary.storeAvailable;
-  const sellerTitle = shop?.title ?? sellerSummary.title;
-  const sellerRating = takeNumber(shop?.rating, sellerSummary.rating) ?? 0;
-  const sellerProductsCount = sellerSummary.productsCount;
-  const neutralStoreMessage = canOpenShop
-    ? ''
-    : 'Информация о магазине временно ограничена';
-
-  useEffect(() => {
-    if (!shopId || !canOpenShop) {
-      setShop(null);
-      return;
-    }
-    const cached = shopCache.get(shopId);
-    if (cached) {
-      setShop(cached);
-      return;
-    }
-    const controller = new AbortController();
-    api
-      .getShop(shopId, { signal: controller.signal })
-      .then((response) => {
-        shopCache.set(shopId, response.data);
-        setShop(response.data);
-      })
-      .catch((error) => {
-        const normalizedError = normalizeApiError(error);
-        if (normalizedError.code === 'STORE_NOT_PUBLIC') {
-          setShop(null);
-          return;
-        }
-        setShop(null);
-      });
-
-    return () => controller.abort();
-  }, [canOpenShop, shopId]);
 
   return (
     <div className={styles.reviewsPreview}>
-      <div className={styles.reviewsHeader}>
-        <div>
-          <h2>Отзывы</h2>
-          <p className={styles.reviewsHint}>Последние впечатления покупателей</p>
-        </div>
-        <Link
-          to={`/product/${productId}/reviews`}
-          className={styles.reviewLink}
-          state={{
-            from: {
-              pathname: location.pathname,
-              search: location.search,
-              hash: location.hash
-            },
-            fallback: `/product/${productId}`
-          }}
-        >
-          Смотреть все отзывы
-        </Link>
-      </div>
+      <Link
+        to={`/product/${productId}/reviews`}
+        className={styles.reviewLink}
+        state={{
+          from: {
+            pathname: location.pathname,
+            search: location.search,
+            hash: location.hash
+          },
+          fallback: `/product/${productId}`
+        }}
+      >
+        Смотреть все отзывы →
+      </Link>
 
-      <div className={styles.reviewsContent}>
-        <div className={styles.reviewsSummary}>
-          <div className={styles.reviewProductPreview}>
-            {productImageSrc ? (
-              <img src={productImageSrc} alt={product.title} className={styles.reviewProductImage} />
-            ) : (
-              <div className={styles.reviewProductPlaceholder}>Нет изображения</div>
-            )}
-            <p className={styles.reviewProductTitle}>{product.title}</p>
-          </div>
-          <div className={styles.summaryTop}>
-            <span className={styles.summaryValue}>
-              {typeof summary?.avg === 'number' ? summary.avg.toFixed(1) : '0.0'}
-            </span>
-            <Rating value={summary?.avg ?? 0} count={0} />
-          </div>
+      <div className={`${styles.reviewList} ${isSingleReview ? styles.reviewListSingle : ''}`}>
+        {reviews.length === 0 ? (
+          <p className={styles.reviewsEmpty}>Пока нет отзывов.</p>
+        ) : (
+          reviews.map((review) => {
+            const reviewData = review as Review & {
+              pros?: string;
+              cons?: string;
+              comment?: string;
+              photos?: ReviewPhotoLike[];
+            };
 
-          <ul>
-            {(summary?.counts ?? [5, 4, 3, 2, 1].map((rating) => ({ rating, count: 0 }))).map((item) => (
-              <li key={item.rating}>
-                <span>{item.rating}★</span>
-                <div className={styles.bar}>
-                  <div
-                    className={styles.barFill}
-                    style={{
-                      width: reviewsCount ? `${(item.count / reviewsCount) * 100}%` : '0%'
-                    }}
-                  />
+            const authorName = getReviewAuthorName(review);
+            const initials = authorName
+              .split(' ')
+              .filter(Boolean)
+              .slice(0, 2)
+              .map((w: string) => w[0])
+              .join('');
+
+            return (
+              <article key={review.id} className={styles.reviewCard}>
+                <div className={styles.reviewTop}>
+                  <div className={styles.reviewAuthorRow}>
+                    <div className={styles.reviewAvatar}>{initials || '?'}</div>
+                    <div className={styles.reviewAuthorInfo}>
+                      <strong>{authorName}</strong>
+                      <span className={styles.reviewDate}>{formatReviewDate(review.createdAt)}</span>
+                      {review.isOwn && review.moderationStatus === 'PENDING' ? (
+                        <span className={styles.pendingBadge}>
+                          {review.moderationStatusLabelRu?.trim() || 'На модерации'}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                  <Rating value={review.rating} count={0} />
                 </div>
-                <span>{item.count}</span>
-              </li>
-            ))}
-          </ul>
 
-          {canOpenShop ? (
-            <Link to={`/shop/${shopId}`} className={styles.shopBadge}>
-              {shop?.avatarUrl ? (
-                <img src={resolveImageUrl(shop.avatarUrl)} alt={sellerTitle} className={styles.shopBadgeAvatar} />
-              ) : (
-                <div className={styles.shopBadgeAvatar}>🏪</div>
-              )}
-              <div>
-                <p className={styles.shopBadgeTitle}>{sellerTitle}</p>
-                <p className={styles.shopBadgeMeta}>Рейтинг {Number(sellerRating).toFixed(1)}</p>
-                {typeof sellerProductsCount === 'number' ? (
-                  <p className={styles.shopBadgeMeta}>Товаров: {sellerProductsCount}</p>
-                ) : null}
-              </div>
-            </Link>
-          ) : (
-            <div className={`${styles.shopBadge} ${styles.shopBadgeDisabled}`}>
-              <div className={styles.shopBadgeAvatar}>🏪</div>
-              <div>
-                <p className={styles.shopBadgeTitle}>{sellerTitle}</p>
-                <p className={styles.shopBadgeMeta}>Рейтинг {Number(sellerRating).toFixed(1)}</p>
-                {typeof sellerProductsCount === 'number' ? (
-                  <p className={styles.shopBadgeMeta}>Товаров: {sellerProductsCount}</p>
-                ) : null}
-                <p className={styles.shopBadgeMeta}>{neutralStoreMessage}</p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className={`${styles.reviewList} ${isSingleReview ? styles.reviewListSingle : ''}`}>
-          {reviews.length === 0 ? (
-            <p className={styles.reviewsEmpty}>Пока нет отзывов.</p>
-          ) : (
-            reviews.map((review) => {
-              const reviewData = review as Review & {
-                pros?: string;
-                cons?: string;
-                comment?: string;
-                photos?: ReviewPhotoLike[];
-              };
-
-              const authorName = getReviewAuthorName(review);
-              const initials = authorName
-                .split(' ')
-                .filter(Boolean)
-                .slice(0, 2)
-                .map((w: string) => w[0])
-                .join('');
-
-              return (
-                <article key={review.id} className={styles.reviewCard}>
-                  <div className={styles.reviewTop}>
-                    <div className={styles.reviewAuthorRow}>
-                      <div className={styles.reviewAvatar}>{initials || '?'}</div>
-                      <div className={styles.reviewAuthorInfo}>
-                        <strong>{authorName}</strong>
-                        <span className={styles.reviewDate}>{formatReviewDate(review.createdAt)}</span>
-                        {review.isOwn && review.moderationStatus === 'PENDING' ? (
-                          <span className={styles.pendingBadge}>
-                            {review.moderationStatusLabelRu?.trim() || 'На модерации'}
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
-                    <Rating value={review.rating} count={0} />
-                  </div>
-
-                  <div className={styles.reviewBody}>
-                    {reviewData.pros ? (
-                      <p><strong>Достоинства:</strong> {reviewData.pros}</p>
-                    ) : null}
-                    {reviewData.cons ? (
-                      <p><strong>Недостатки:</strong> {reviewData.cons}</p>
-                    ) : null}
-                    {reviewData.comment ? (
-                      <p><strong>Комментарий:</strong> {reviewData.comment}</p>
-                    ) : null}
-                  </div>
-
-                  {(reviewData.photos?.length ?? 0) > 0 ? (
-                    <div className={styles.reviewPhotos}>
-                      {reviewData.photos!
-                        .map((photo: ReviewPhotoLike) => normalizeReviewPhotoUrl(photo))
-                        .filter(Boolean)
-                        .map((photo: string, index: number) => (
-                          <img
-                            src={resolveImageUrl(photo)}
-                            alt={`Фото отзыва ${index + 1}`}
-                            key={`${photo}-${index}`}
-                          />
-                        ))}
-                    </div>
+                <div className={styles.reviewBody}>
+                  {reviewData.pros ? (
+                    <p><strong>Достоинства:</strong> {reviewData.pros}</p>
                   ) : null}
-                </article>
-              );
-            })
-          )}
-        </div>
+                  {reviewData.cons ? (
+                    <p><strong>Недостатки:</strong> {reviewData.cons}</p>
+                  ) : null}
+                  {reviewData.comment ? (
+                    <p><strong>Комментарий:</strong> {reviewData.comment}</p>
+                  ) : null}
+                </div>
+
+                {(reviewData.photos?.length ?? 0) > 0 ? (
+                  <div className={styles.reviewPhotos}>
+                    {reviewData.photos!
+                      .map((photo: ReviewPhotoLike) => normalizeReviewPhotoUrl(photo))
+                      .filter(Boolean)
+                      .map((photo: string, index: number) => (
+                        <img
+                          src={resolveImageUrl(photo)}
+                          alt={`Фото отзыва ${index + 1}`}
+                          key={`${photo}-${index}`}
+                        />
+                      ))}
+                  </div>
+                ) : null}
+              </article>
+            );
+          })
+        )}
       </div>
     </div>
   );

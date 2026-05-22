@@ -1,3 +1,9 @@
+/* ── Mobile breadcrumb (hidden on desktop) ── */
+.mobileCrumb {
+  display: none;
+}
+
+/* ── Desktop card header ── */
 .header {
   background: var(--card);
   border-radius: var(--radius-card);
@@ -21,8 +27,8 @@
   gap: 6px;
   padding: 4px 0;
   flex-shrink: 0;
+  max-width: 200px;
   transition: color 0.15s ease;
-  max-width: 100%;
 }
 
 .backButton:hover {
@@ -168,63 +174,42 @@
   }
 }
 
-@media (max-width: 680px) {
-  .header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-  }
-
-  .product {
-    width: 100%;
-  }
-
-  .actions {
-    width: 100%;
-    flex-wrap: wrap;
-  }
-
-  .price {
-    width: 100%;
-    font-size: 20px;
-  }
-
-  .buyNow,
-  .addToCart {
-    flex: 1;
-    text-align: center;
-    padding: 12px 16px;
-    font-size: 14px;
-  }
-}
-
 @media (max-width: 768px) {
+  /* Скрыть десктопный хедер */
   .header {
-    background: transparent;
-    border: none;
-    box-shadow: none;
-    padding: 0;
-    gap: 0;
-  }
-
-  .product,
-  .actions {
     display: none;
   }
 
-  .backButton {
-    font-size: 14px;
-    color: var(--text);
-    font-weight: 500;
-    max-width: 100%;
+  /* Показать мобильный хлебный крошки */
+  .mobileCrumb {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
     padding: 4px 0 8px;
+    max-width: 100%;
+    text-align: left;
+    transition: opacity 0.15s ease;
   }
 
-  .backArrow {
+  .mobileCrumb:hover {
+    opacity: 0.75;
+  }
+
+  .mobileCrumbArrow {
+    flex-shrink: 0;
     color: var(--muted);
+    font-size: 16px;
   }
 
-  .backTitle {
+  .mobileCrumbTitle {
+    font-size: 15px;
+    font-weight: 600;
     color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }

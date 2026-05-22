@@ -26,54 +26,63 @@ export const ProductReviewsHeader = ({
   const productImage = getProductMainImage(product);
 
   return (
-    <section className={styles.header}>
-      <button type="button" className={styles.backButton} onClick={onBack}>
-        <span className={styles.backArrow}>←</span>
-        <span className={styles.backTitle}>{product.title}</span>
+    <>
+      {/* Mobile-only breadcrumb */}
+      <button type="button" className={styles.mobileCrumb} onClick={onBack}>
+        <span className={styles.mobileCrumbArrow}>←</span>
+        <span className={styles.mobileCrumbTitle}>{product.title}</span>
       </button>
-      <div className={styles.product}>
-        {productImage ? (
-          <img
-            src={productImage}
-            alt={product.title}
-            className={styles.productImage}
-          />
-        ) : (
-          <div className={styles.productImage} aria-hidden="true" />
-        )}
-        <div className={styles.productInfo}>
-          <h1 className={styles.title}>{product.title}</h1>
-          <div className={styles.ratingRow}>
-            <Rating value={ratingValue} count={ratingCount} size="md" />
-            <span className={styles.ratingValue}>{ratingValue.toFixed(1)}</span>
-            <span className={styles.ratingMeta}>
-              {ratingCount} оценок · {reviewsCount} отзывов
-            </span>
+
+      {/* Desktop header card */}
+      <section className={styles.header}>
+        <button type="button" className={styles.backButton} onClick={onBack}>
+          <span className={styles.backArrow}>←</span>
+          <span className={styles.backTitle}>{product.title}</span>
+        </button>
+        <div className={styles.product}>
+          {productImage ? (
+            <img
+              src={productImage}
+              alt={product.title}
+              className={styles.productImage}
+            />
+          ) : (
+            <div className={styles.productImage} aria-hidden="true" />
+          )}
+          <div className={styles.productInfo}>
+            <h1 className={styles.title}>{product.title}</h1>
+            <div className={styles.ratingRow}>
+              <Rating value={ratingValue} count={ratingCount} size="md" />
+              <span className={styles.ratingValue}>{ratingValue.toFixed(1)}</span>
+              <span className={styles.ratingMeta}>
+                {ratingCount} оценок · {reviewsCount} отзывов
+              </span>
+            </div>
           </div>
         </div>
-      </div>
-      <div className={styles.actions}>
-        <div className={styles.price}>
-          {formatPrice(product.price)} ₽
+        <div className={styles.actions}>
+          <div className={styles.price}>
+            {formatPrice(product.price)} ₽
+          </div>
+          <button
+            type="button"
+            className={styles.favoriteButton}
+            aria-label="Добавить в избранное"
+          >
+            ❤
+          </button>
+          <button type="button" className={styles.buyNow} onClick={onBuyNow}>
+            Купить сейчас
+          </button>
+          <button
+            type="button"
+            className={styles.addToCart}
+            onClick={onAddToCart}
+          >
+            В корзину
+          </button>
         </div>
-        <button
-          type="button"
-          className={styles.favoriteButton}
-          aria-label="Добавить в избранное"
-        >
-          ❤
-        </button>
-        <button type="button" className={styles.buyNow} onClick={onBuyNow}>
-          Купить сейчас
-        </button>
-        <button
-          type="button"
-          className={styles.addToCart}
-          onClick={onAddToCart}
-        >
-          В корзину
-        </button>
-      </div>
-    </section>
+      </section>
+    </>
   );
 };

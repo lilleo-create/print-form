@@ -4,7 +4,10 @@ import { useCartStore } from '../../app/store/cartStore';
 import { useAuthStore } from '../../app/store/authStore';
 import { useHeaderMenuStore } from '../../app/store/headerMenuStore';
 import { useThemeStore } from '../../app/store/themeStore';
+import { useProductBoardStore } from '../../app/store/productBoardStore';
+import { useBuyNowStore } from '../../app/store/buyNowStore';
 import { useBodyScrollLock } from '../../shared/lib/useBodyScrollLock';
+import { formatPrice } from '../../utils/money';
 import styles from './Header.module.css';
 
 /* ── Icons ── */
@@ -182,11 +185,17 @@ const MobileHeader = ({ onSearchOpen }: { onSearchOpen: () => void }) => {
 export const Header = () => {
   const user = useAuthStore((s) => s.user);
   const cartCount = useCartStore((s) => s.items.reduce((n, i) => n + i.quantity, 0));
+  const addItem = useCartStore((s) => s.addItem);
+  const startBuyNow = useBuyNowStore((s) => s.start);
+  const boardProduct = useProductBoardStore((s) => s.product);
+  const stickyVisible = useProductBoardStore((s) => s.stickyVisible);
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
   const { theme, toggleTheme } = useThemeStore();
   const [isSearchOpen, setSearchOpen] = useState(false);
+
+  const isProductMode = stickyVisible && !!boardProduct;
 
   const openProfileMenu = useHeaderMenuStore((s) => s.openProfileMenu);
   const closeProfileMenu = useHeaderMenuStore((s) => s.closeProfileMenu);
@@ -216,80 +225,106 @@ export const Header = () => {
       {/* Desktop pill */}
       <header className={styles.shell}>
         <nav className={styles.pill} aria-label="Навигация">
-          {/* Brand */}
+          {/* Brand — always visible */}
           <Link
             to="/"
-            className={`${styles.brand} ${isCatalogPage || isSellerPage ? styles.brandInactive : ''}`}
+            className={`${styles.brand} ${(isCatalogPage || isSellerPage) && !isProductMode ? styles.brandInactive : ''}`}
           >
             Print·Form
           </Link>
 
-          {/* Seller menu toggle OR catalog toggle */}
-          {isSellerPage ? (
+          {/* Nav switch: crossfade between normal and product content */}
+          <div className={styles.navSwitch}>
+          {/* Normal nav content */}
+          <div className={`${styles.navContent} ${isProductMode ? styles.navContentHidden : ''}`}>
+            {/* Seller menu toggle OR catalog toggle */}
+            {isSellerPage ? (
+              <button
+                className={`${styles.ic} ${isSellerMenuOpen ? styles.icActive : ''}`}
+                onClick={toggleSellerMenu}
+                aria-label="Меню продавца"
+              >
+                {isSellerMenuOpen ? <CloseIcon /> : <MenuIcon />}
+              </button>
+            ) : (
+              <button
+                className={`${styles.ic} ${isCatalogPage ? styles.icActive : ''}`}
+                onClick={handleCatalogClick}
+                aria-label={isCatalogPage ? 'На главную' : 'Открыть каталог'}
+              >
+                {isCatalogPage ? <CloseIcon /> : <MenuIcon />}
+              </button>
+            )}
+
             <button
-              className={`${styles.ic} ${isSellerMenuOpen ? styles.icActive : ''}`}
-              onClick={toggleSellerMenu}
-              aria-label="Меню продавца"
+              className={styles.searchTrigger}
+              onClick={() => setSearchOpen(true)}
+              aria-label="Поиск"
             >
-              {isSellerMenuOpen ? <CloseIcon /> : <MenuIcon />}
+              <SearchIcon />
+              Найти товар
             </button>
-          ) : (
+
+            <span className={styles.divider} aria-hidden="true" />
+
+            <Link to="/favorites" className={styles.ic} aria-label="Избранные">
+              <HeartIcon />
+            </Link>
+
+            <Link
+              to="/cart"
+              className={`${styles.ic} ${styles.cartWrap}`}
+              aria-label={cartCount > 0 ? `Корзина, ${cartCount} товаров` : 'Корзина'}
+            >
+              <CartIcon />
+              {cartCount > 0 && <span className={styles.badge}>{cartCount}</span>}
+            </Link>
+
+            <button className={styles.ic} aria-label="Уведомления">
+              <BellIcon />
+            </button>
+
             <button
-              className={`${styles.ic} ${isCatalogPage ? styles.icActive : ''}`}
-              onClick={handleCatalogClick}
-              aria-label={isCatalogPage ? 'На главную' : 'Открыть каталог'}
+              className={styles.ic}
+              onClick={toggleTheme}
+              aria-label={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
             >
-              {isCatalogPage ? <CloseIcon /> : <MenuIcon />}
+              {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
             </button>
+
+            <button
+              className={`${styles.avatarPill} ${!user ? styles.avatarPillGuest : ''}`}
+              onClick={() => openProfileMenu()}
+              aria-label={user ? 'Профиль' : 'Войти'}
+              title={user?.name ?? 'Войти'}
+            >
+              {initials && <span className={styles.avatarCircle}>{initials}</span>}
+              <span className={styles.avatarName}>{firstName ?? 'Войти'}</span>
+            </button>
+          </div>
+
+          {/* Product mode bar */}
+          {boardProduct && (
+            <div className={`${styles.productBar} ${isProductMode ? styles.productBarVisible : ''}`}>
+              <span className={styles.productBarTitle}>{boardProduct.title}</span>
+              <span className={styles.productBarPrice}>{formatPrice(boardProduct.price)}</span>
+              <button
+                type="button"
+                className={styles.productBarBuyBtn}
+                onClick={() => { startBuyNow(boardProduct, 1); navigate('/checkout'); }}
+              >
+                Купить
+              </button>
+              <button
+                type="button"
+                className={styles.productBarCartBtn}
+                onClick={() => addItem(boardProduct, 1)}
+              >
+                В корзину
+              </button>
+            </div>
           )}
-
-          {/* Search trigger — opens overlay */}
-          <button
-            className={styles.searchTrigger}
-            onClick={() => setSearchOpen(true)}
-            aria-label="Поиск"
-          >
-            <SearchIcon />
-            Найти товар
-          </button>
-
-          <span className={styles.divider} aria-hidden="true" />
-
-          <Link to="/favorites" className={styles.ic} aria-label="Избранные">
-            <HeartIcon />
-          </Link>
-
-          <Link
-            to="/cart"
-            className={`${styles.ic} ${styles.cartWrap}`}
-            aria-label={cartCount > 0 ? `Корзина, ${cartCount} товаров` : 'Корзина'}
-          >
-            <CartIcon />
-            {cartCount > 0 && <span className={styles.badge}>{cartCount}</span>}
-          </Link>
-
-          <button className={styles.ic} aria-label="Уведомления">
-            <BellIcon />
-          </button>
-
-          <button
-            className={styles.ic}
-            onClick={toggleTheme}
-            aria-label={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
-          >
-            {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
-          </button>
-
-          {/* Avatar/profile */}
-          <button
-            className={`${styles.avatarPill} ${!user ? styles.avatarPillGuest : ''}`}
-            onClick={() => openProfileMenu()}
-            aria-label={user ? 'Профиль' : 'Войти'}
-            title={user?.name ?? 'Войти'}
-          >
-            {initials && <span className={styles.avatarCircle}>{initials}</span>}
-            <span className={styles.avatarName}>{firstName ?? 'Войти'}</span>
-          </button>
+          </div>{/* /navSwitch */}
         </nav>
       </header>
 

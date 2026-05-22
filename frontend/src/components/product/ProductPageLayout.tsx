@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useProductBoardStore } from '../../app/store/productBoardStore';
 import { Helmet } from 'react-helmet-async';
 import { Link, useNavigate } from 'react-router-dom';
 import type { Product } from '../../shared/types';
@@ -21,8 +22,7 @@ import { formatPrice } from '../../utils/money';
 import { PageLoader } from '../../shared/ui/PageLoader';
 import { useFavoritesStore } from '../../features/favorites/model/useFavoritesStore';
 import { ShareModal } from '../../features/share/ui/ShareModal';
-import { useCartStore } from '../../app/store/cartStore';
-import { Button } from '../../shared/ui/Button';
+
 
 type ProductPageLayoutProps = {
   productId: string;
@@ -55,7 +55,7 @@ export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
   const isFavorite = useFavoritesStore((state) => state.isFavorite(product?.id ?? ''));
   const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
   const fetchFavorites = useFavoritesStore((state) => state.fetchFavorites);
-  const addItem = useCartStore((state) => state.addItem);
+
 
   useEffect(() => {
     document.body.classList.add('hide-bottom-nav');
@@ -101,16 +101,25 @@ export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
     setAboutExpanded(false);
   }, [activeProduct?.id]);
 
-  // Sticky top bar — appears when purchase panel scrolls out of view
+  const setStickyVisible = useProductBoardStore((s) => s.setStickyVisible);
+
+  // Sync sticky state to header
   useEffect(() => {
-    const el = purchaseSentinelRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => setStickyBarVisible(!entry.isIntersecting),
-      { threshold: 0, rootMargin: '-80px 0px 0px 0px' }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
+    setStickyVisible(stickyBarVisible);
+  }, [stickyBarVisible, setStickyVisible]);
+
+  // Cleanup on unmount
+  useEffect(() => () => setStickyVisible(false), [setStickyVisible]);
+
+  // Sticky top bar — fires when sentinel scrolls above header height (88px)
+  useEffect(() => {
+    const check = () => {
+      const rect = purchaseSentinelRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setStickyBarVisible(rect.top < 88);
+    };
+    window.addEventListener('scroll', check, { passive: true });
+    return () => window.removeEventListener('scroll', check);
   }, [activeProduct?.id]);
 
   const { reviews, summary } = useProductReviews(activeProduct?.id ?? productId, { keepPreviousData: false });
@@ -184,17 +193,6 @@ export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
         <link rel="canonical" href={canonicalUrl} />
       </Helmet>
 
-      {/* Sticky top bar */}
-      <div className={`${styles.stickyBar} ${stickyBarVisible ? styles.stickyBarVisible : ''}`}>
-        <div className={styles.stickyBarInner}>
-          <div className={styles.stickyBarInfo}>
-            <span className={styles.stickyBarTitle}>{activeProduct.title}</span>
-          </div>
-          <span className={styles.stickyBarPrice}>{formatPrice(activeProduct.price)}</span>
-          <Button size="sm" onClick={() => addItem(activeProduct, 1)}>В корзину</Button>
-        </div>
-      </div>
-
       <div className={styles.container}>
         {/* Mobile back button */}
         <div className={styles.mobileTopBar}>
@@ -205,26 +203,46 @@ export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
           </button>
         </div>
 
+        {/* Full-width top row: breadcrumb (left) + action buttons (right) */}
+        <div className={styles.productTopRow}>
+          <nav className={styles.breadcrumb} aria-label="Навигация">
+            <Link to="/">Главная</Link>
+            <span className={styles.breadcrumbSep}>›</span>
+            <Link to="/catalog">Каталог</Link>
+            {activeProduct.category ? (
+              <>
+                <span className={styles.breadcrumbSep}>›</span>
+                <Link to={`/catalog?category=${encodeURIComponent(activeProduct.category)}`}>
+                  {activeProduct.category}
+                </Link>
+              </>
+            ) : null}
+            <span className={styles.breadcrumbSep}>›</span>
+            <span className={styles.breadcrumbCurrent}>{activeProduct.title}</span>
+          </nav>
+          <div className={styles.sidebarActions}>
+            <button
+              type="button"
+              className={`${styles.actionBtn} ${isFavorite ? styles.actionBtnFav : ''}`}
+              onClick={handleFavoriteClick}
+            >
+              <HeartIcon filled={isFavorite} />
+              {isFavorite ? 'В избранном' : 'В избранное'}
+            </button>
+            <button
+              type="button"
+              className={styles.actionBtn}
+              onClick={() => setIsShareOpen(true)}
+            >
+              <ShareIcon />
+              Поделиться
+            </button>
+          </div>
+        </div>
+
         <div className={styles.pageLayout}>
           {/* ── LEFT MAIN COLUMN ── */}
           <div className={styles.mainCol}>
-
-            {/* Breadcrumb above gallery */}
-            <nav className={styles.breadcrumb} aria-label="Навигация">
-              <Link to="/">Главная</Link>
-              <span className={styles.breadcrumbSep}>›</span>
-              <Link to="/catalog">Каталог</Link>
-              {activeProduct.category ? (
-                <>
-                  <span className={styles.breadcrumbSep}>›</span>
-                  <Link to={`/catalog?category=${encodeURIComponent(activeProduct.category)}`}>
-                    {activeProduct.category}
-                  </Link>
-                </>
-              ) : null}
-              <span className={styles.breadcrumbSep}>›</span>
-              <span className={styles.breadcrumbCurrent}>{activeProduct.title}</span>
-            </nav>
 
             {/* Hero: gallery + product info */}
             <div className={styles.heroRow}>
@@ -245,6 +263,9 @@ export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
                 />
               </div>
             </div>
+
+            {/* Sentinel — fires when hero row (price panel area) scrolls past header */}
+            <div ref={purchaseSentinelRef} style={{ height: 0 }} />
 
             {/* Mobile price */}
             <p className={styles.mobilePriceRow}>{formatPrice(activeProduct.price)}</p>
@@ -319,32 +340,32 @@ export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
 
           {/* ── RIGHT SIDEBAR ── */}
           <div className={styles.sidebar}>
-            {/* Favorites + Share */}
-            <div className={styles.sidebarActions}>
-              <button
-                type="button"
-                className={`${styles.actionBtn} ${isFavorite ? styles.actionBtnFav : ''}`}
-                onClick={handleFavoriteClick}
-              >
-                <HeartIcon filled={isFavorite} />
-                {isFavorite ? 'В избранном' : 'В избранное'}
-              </button>
-              <button
-                type="button"
-                className={styles.actionBtn}
-                onClick={() => setIsShareOpen(true)}
-              >
-                <ShareIcon />
-                Поделиться
-              </button>
-            </div>
-
-            {/* Purchase panel — ref for sticky bar detection */}
-            <div ref={purchaseSentinelRef}>
+            {/* Sticky part: price + shop */}
+            <div className={styles.sidebarStickyGroup}>
               <ProductPurchasePanel product={activeProduct} />
+
+              {activeProduct.sellerId && (() => {
+                const r = activeProduct as unknown as Record<string, unknown>;
+                const storeSummary = r.storeSummary as Record<string, unknown> | undefined;
+                const sellerSummary = r.sellerSummary as Record<string, unknown> | undefined;
+                const sellerName =
+                  (typeof storeSummary?.name === 'string' && storeSummary.name) ||
+                  (typeof sellerSummary?.name === 'string' && sellerSummary.name) ||
+                  (typeof r.storeName === 'string' && r.storeName) ||
+                  'Магазин продавца';
+                return (
+                  <Link to={`/shop/${activeProduct.sellerId}`} className={styles.shopBadge}>
+                    <div className={styles.shopBadgeAvatar}>🏪</div>
+                    <div>
+                      <p className={styles.shopBadgeTitle}>{sellerName}</p>
+                      <p className={styles.shopBadgeMeta}>Перейти в магазин</p>
+                    </div>
+                  </Link>
+                );
+              })()}
             </div>
 
-            {/* Ad block */}
+            {/* Ad — in normal flow, scrolls with page */}
             <div className={styles.adBlock}>
               <span>Реклама</span>
             </div>
