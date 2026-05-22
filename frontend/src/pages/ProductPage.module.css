@@ -92,6 +92,7 @@
 .productTopRow {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 16px;
   margin-bottom: 20px;
 }
@@ -360,16 +361,11 @@
    Right sidebar
    ══════════════════════════════════════════ */
 .sidebar {
-  display: flex;
-  flex-direction: column;
-  align-self: stretch;
-}
-
-.sidebarStickyGroup {
   position: sticky;
   top: 88px;
   display: grid;
   gap: 14px;
+  align-self: start;
 }
 
 /* Favorites + Share above price */
@@ -480,7 +476,6 @@
   color: var(--muted);
   font-size: 12px;
   background: var(--bg-2);
-  margin-top: 14px;
 }
 
 /* ══════════════════════════════════════════
@@ -771,17 +766,9 @@
   }
 
   .sidebar {
-    align-self: start;
+    position: static;
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  }
-
-  .sidebarStickyGroup {
-    position: static;
-  }
-
-  .adBlock {
-    margin-top: 0;
   }
 
   .heroRow {

@@ -50,7 +50,7 @@ export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
   const [stickyBarVisible, setStickyBarVisible] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
 
-  const purchaseSentinelRef = useRef<HTMLDivElement>(null);
+  const heroRowRef = useRef<HTMLDivElement>(null);
 
   const isFavorite = useFavoritesStore((state) => state.isFavorite(product?.id ?? ''));
   const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
@@ -111,10 +111,10 @@ export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
   // Cleanup on unmount
   useEffect(() => () => setStickyVisible(false), [setStickyVisible]);
 
-  // Sticky top bar — fires when sentinel scrolls above header height (88px)
+  // Header transforms when heroRow top scrolls above 88px (= price panel gone from natural pos)
   useEffect(() => {
     const check = () => {
-      const rect = purchaseSentinelRef.current?.getBoundingClientRect();
+      const rect = heroRowRef.current?.getBoundingClientRect();
       if (!rect) return;
       setStickyBarVisible(rect.top < 88);
     };
@@ -245,7 +245,7 @@ export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
           <div className={styles.mainCol}>
 
             {/* Hero: gallery + product info */}
-            <div className={styles.heroRow}>
+            <div className={styles.heroRow} ref={heroRowRef}>
               <div className={styles.galleryCol}>
                 <ProductGallery images={productImages} title={activeProduct.title} />
               </div>
@@ -263,9 +263,6 @@ export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
                 />
               </div>
             </div>
-
-            {/* Sentinel — fires when hero row (price panel area) scrolls past header */}
-            <div ref={purchaseSentinelRef} style={{ height: 0 }} />
 
             {/* Mobile price */}
             <p className={styles.mobilePriceRow}>{formatPrice(activeProduct.price)}</p>
@@ -338,34 +335,30 @@ export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
             <ProductFeed productId={activeProduct.id} />
           </div>
 
-          {/* ── RIGHT SIDEBAR ── */}
+          {/* ── RIGHT SIDEBAR (sticky as a whole) ── */}
           <div className={styles.sidebar}>
-            {/* Sticky part: price + shop */}
-            <div className={styles.sidebarStickyGroup}>
-              <ProductPurchasePanel product={activeProduct} />
+            <ProductPurchasePanel product={activeProduct} />
 
-              {activeProduct.sellerId && (() => {
-                const r = activeProduct as unknown as Record<string, unknown>;
-                const storeSummary = r.storeSummary as Record<string, unknown> | undefined;
-                const sellerSummary = r.sellerSummary as Record<string, unknown> | undefined;
-                const sellerName =
-                  (typeof storeSummary?.name === 'string' && storeSummary.name) ||
-                  (typeof sellerSummary?.name === 'string' && sellerSummary.name) ||
-                  (typeof r.storeName === 'string' && r.storeName) ||
-                  'Магазин продавца';
-                return (
-                  <Link to={`/shop/${activeProduct.sellerId}`} className={styles.shopBadge}>
-                    <div className={styles.shopBadgeAvatar}>🏪</div>
-                    <div>
-                      <p className={styles.shopBadgeTitle}>{sellerName}</p>
-                      <p className={styles.shopBadgeMeta}>Перейти в магазин</p>
-                    </div>
-                  </Link>
-                );
-              })()}
-            </div>
+            {activeProduct.sellerId && (() => {
+              const r = activeProduct as unknown as Record<string, unknown>;
+              const storeSummary = r.storeSummary as Record<string, unknown> | undefined;
+              const sellerSummary = r.sellerSummary as Record<string, unknown> | undefined;
+              const sellerName =
+                (typeof storeSummary?.name === 'string' && storeSummary.name) ||
+                (typeof sellerSummary?.name === 'string' && sellerSummary.name) ||
+                (typeof r.storeName === 'string' && r.storeName) ||
+                'Магазин продавца';
+              return (
+                <Link to={`/shop/${activeProduct.sellerId}`} className={styles.shopBadge}>
+                  <div className={styles.shopBadgeAvatar}>🏪</div>
+                  <div>
+                    <p className={styles.shopBadgeTitle}>{sellerName}</p>
+                    <p className={styles.shopBadgeMeta}>Перейти в магазин</p>
+                  </div>
+                </Link>
+              );
+            })()}
 
-            {/* Ad — in normal flow, scrolls with page */}
             <div className={styles.adBlock}>
               <span>Реклама</span>
             </div>
