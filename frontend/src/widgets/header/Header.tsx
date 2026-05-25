@@ -294,7 +294,7 @@ export const Header = () => {
 
             <button
               className={`${styles.avatarPill} ${!user ? styles.avatarPillGuest : ''}`}
-              onClick={() => openProfileMenu()}
+              onClick={() => user ? openProfileMenu() : navigate('/auth/login')}
               aria-label={user ? 'Профиль' : 'Войти'}
               title={user?.name ?? 'Войти'}
             >

@@ -360,12 +360,16 @@
 /* ══════════════════════════════════════════
    Right sidebar
    ══════════════════════════════════════════ */
+
+/* Outer grid column — stretches to mainCol height so sidebar stays sticky */
+.sidebarCol {
+  align-self: stretch;
+}
+
+/* buyBoxCard + shopBadge — no sticky, scroll naturally */
 .sidebar {
-  position: sticky;
-  top: 88px;
   display: grid;
   gap: 14px;
-  align-self: start;
 }
 
 /* Favorites + Share above price */
@@ -390,7 +394,7 @@
   white-space: nowrap;
 }
 
-.actionBtnFav {
+.actionBtnFav svg {
   color: #ef4444;
 }
 
@@ -464,8 +468,10 @@
   font-size: 13px;
 }
 
-/* Ad block placeholder */
 .adBlock {
+  position: sticky;
+  top: 88px;
+  margin-top: 16px;
   border: 1px dashed var(--border);
   border-radius: 16px;
   padding: 24px 16px;
@@ -622,14 +628,46 @@
 .reviewsSummary li { display: grid; grid-template-columns: 40px minmax(0, 1fr) 28px; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
 .bar { height: 7px; background: var(--surface-ghost-muted); border-radius: 999px; overflow: hidden; width: 100%; min-width: 0; }
 .barFill { height: 100%; background: var(--warning); border-radius: 999px; transition: width 0.4s ease; }
-.shopBadge { display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; border: 1px solid var(--border); background: var(--bg-2); border-radius: 14px; padding: 10px 12px; transition: border-color 0.15s ease, background 0.15s ease; }
+.shopBadge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  color: inherit;
+  border: 1px solid var(--border);
+  background: var(--card);
+  border-radius: 14px;
+  padding: 12px 14px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
 .shopBadge:hover { border-color: var(--primary-soft-strong); background: var(--primary-soft); }
 .shopBadgeDisabled { pointer-events: none; opacity: 0.7; }
-.shopBadgeAvatar { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; background: var(--surface-ghost-strong); display: grid; place-items: center; flex-shrink: 0; }
-.shopBadgeTitle,
-.shopBadgeMeta { margin: 0; }
-.shopBadgeTitle { font-weight: 600; font-size: 14px; }
-.shopBadgeMeta { color: var(--muted); font-size: 12px; }
+.shopBadgeAvatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.shopBadgeAvatar img { width: 100%; height: 100%; object-fit: cover; }
+.shopBadgeInfo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.shopBadgeTitle { margin: 0; font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.shopBadgeRating {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #f59e0b;
+}
+.shopBadgeChevron { color: var(--muted); flex-shrink: 0; }
 
 .reviewList { display: grid; gap: 14px; }
 .reviewListSingle { max-width: 100%; }
@@ -719,12 +757,116 @@
   background: var(--primary);
 }
 
-.mobilePriceRow {
+/* ── Mobile info panel (price / actions / shop) ── */
+.mobileInfoPanel {
   display: none;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 0 8px;
+}
+
+.mobileInfoPrice {
   margin: 0;
-  font-size: 28px;
+  font-size: 34px;
   font-weight: 800;
   letter-spacing: -0.03em;
+}
+
+.mobileInfoActions {
+  display: flex;
+  gap: 8px;
+}
+
+.mobileInfoBtn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  color: var(--text);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.mobileInfoBtn:active { background: var(--bg-3, var(--border)); }
+
+.mobileInfoBtnFav {
+  color: #ef4444;
+  border-color: #fecaca;
+  background: #fff1f2;
+}
+
+.mobileShopBadge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--card);
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  text-decoration: none;
+  color: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobileShopAvatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.mobileShopAvatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mobileShopInfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.mobileShopName {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mobileShopRating {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #f59e0b;
+}
+
+.mobileShopChevron {
+  color: var(--muted);
+  flex-shrink: 0;
 }
 
 .mobileBuyBar {
@@ -765,6 +907,10 @@
     align-items: start;
   }
 
+  .sidebarCol {
+    align-self: auto;
+  }
+
   .sidebar {
     position: static;
     display: grid;
@@ -798,7 +944,7 @@
   .gallery { display: none; }
   .mobileCarousel { display: flex; }
   .mobileDots { display: flex; }
-  .mobilePriceRow { display: block; }
+  .mobileInfoPanel { display: flex; }
   .purchasePanel { display: none; }
   .mobileBuyBar { display: flex; }
   .productTopRow { display: none; }
@@ -809,6 +955,8 @@
   .headerTop { flex-direction: column; }
   .specRows p { grid-template-columns: 1fr; gap: 4px; }
 
+  .specRows { display: none; }
+  .shopBadge { display: none; }
   .sectionRow { padding: 20px 0; }
   .sectionLabel { font-size: 18px; }
   .feedGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }

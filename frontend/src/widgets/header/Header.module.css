@@ -126,25 +126,18 @@
 [data-theme="light"] .searchTrigger:hover { background: rgba(0,0,0,0.07); }
 .searchTrigger svg { width: 16px; height: 16px; stroke: currentColor; fill: none; flex-shrink: 0; }
 
-/* ── Nav switch: grid overlay crossfade ── */
+/* ── Nav switch: crossfade between normal and product content ── */
 .navSwitch {
-  display: grid;
-  flex: 1;
+  position: relative;
   min-width: 0;
-}
-
-/* Both states occupy the same grid cell — they overlay each other */
-.navContent,
-.productBar {
-  grid-area: 1 / 1;
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  transition: opacity 0.28s ease;
 }
 
 .navContent {
+  display: flex;
+  align-items: center;
   gap: 3px;
+  min-width: 0;
+  transition: opacity 0.28s ease;
   opacity: 1;
 }
 
@@ -154,11 +147,18 @@
   visibility: hidden;
 }
 
+/* productBar is absolute so it doesn't inflate navSwitch width */
 .productBar {
-  gap: 10px;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
   opacity: 0;
   pointer-events: none;
   visibility: hidden;
+  transition: opacity 0.28s ease;
 }
 
 .productBarVisible {

@@ -3,6 +3,7 @@ import { useProductBoardStore } from '../../app/store/productBoardStore';
 import { Helmet } from 'react-helmet-async';
 import { Link, useNavigate } from 'react-router-dom';
 import type { Product } from '../../shared/types';
+import type { Shop } from '../../shared/types/shop';
 import styles from '../../pages/ProductPage.module.css';
 import { useProduct } from '../../hooks/useProduct';
 import { useProductReviews } from '../../hooks/useProductReviews';
@@ -22,6 +23,7 @@ import { formatPrice } from '../../utils/money';
 import { PageLoader } from '../../shared/ui/PageLoader';
 import { useFavoritesStore } from '../../features/favorites/model/useFavoritesStore';
 import { ShareModal } from '../../features/share/ui/ShareModal';
+import { resolveImageUrl } from '../../shared/lib/resolveImageUrl';
 
 
 type ProductPageLayoutProps = {
@@ -49,8 +51,10 @@ export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
   const [aboutExpanded, setAboutExpanded] = useState(false);
   const [stickyBarVisible, setStickyBarVisible] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
+  const [shopData, setShopData] = useState<Shop | null>(null);
 
   const heroRowRef = useRef<HTMLDivElement>(null);
+  const buyBoxSentinelRef = useRef<HTMLDivElement>(null);
 
   const isFavorite = useFavoritesStore((state) => state.isFavorite(product?.id ?? ''));
   const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
@@ -90,6 +94,15 @@ export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
     return () => { isMounted = false; };
   }, [product]);
 
+  useEffect(() => {
+    if (!product?.sellerId) { setShopData(null); return; }
+    let isMounted = true;
+    api.getShop(product.sellerId).then((res) => {
+      if (isMounted) setShopData(res.data ?? null);
+    }).catch(() => {});
+    return () => { isMounted = false; };
+  }, [product?.sellerId]);
+
   const activeProduct = useMemo(() => {
     if (!product) return null;
     if (!variantProducts.length) return product;
@@ -111,10 +124,10 @@ export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
   // Cleanup on unmount
   useEffect(() => () => setStickyVisible(false), [setStickyVisible]);
 
-  // Header transforms when heroRow top scrolls above 88px (= price panel gone from natural pos)
+  // Header transforms when buyBoxCard's natural bottom scrolls above 88px
   useEffect(() => {
     const check = () => {
-      const rect = heroRowRef.current?.getBoundingClientRect();
+      const rect = buyBoxSentinelRef.current?.getBoundingClientRect();
       if (!rect) return;
       setStickyBarVisible(rect.top < 88);
     };
@@ -264,8 +277,60 @@ export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
               </div>
             </div>
 
-            {/* Mobile price */}
-            <p className={styles.mobilePriceRow}>{formatPrice(activeProduct.price)}</p>
+            {/* Mobile info panel: price → actions → shop badge */}
+            <div className={styles.mobileInfoPanel}>
+              <p className={styles.mobileInfoPrice}>{formatPrice(activeProduct.price)}</p>
+
+              <div className={styles.mobileInfoActions}>
+                <button
+                  type="button"
+                  className={`${styles.mobileInfoBtn} ${isFavorite ? styles.mobileInfoBtnFav : ''}`}
+                  onClick={handleFavoriteClick}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill={isFavorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 1 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/>
+                  </svg>
+                  {isFavorite ? 'В избранном' : 'В избранное'}
+                </button>
+                <button
+                  type="button"
+                  className={styles.mobileInfoBtn}
+                  onClick={() => setIsShareOpen(true)}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/>
+                  </svg>
+                  Поделиться
+                </button>
+              </div>
+
+              {activeProduct.sellerId && (
+                <Link to={`/shop/${activeProduct.sellerId}`} className={styles.mobileShopBadge}>
+                  <div className={styles.mobileShopAvatar}>
+                    {shopData?.avatarUrl
+                      ? <img src={resolveImageUrl(shopData.avatarUrl)} alt="" />
+                      : <span>🏪</span>
+                    }
+                  </div>
+                  <div className={styles.mobileShopInfo}>
+                    <p className={styles.mobileShopName}>
+                      {shopData?.title ?? 'Магазин продавца'}
+                    </p>
+                    {shopData?.rating != null && (
+                      <p className={styles.mobileShopRating}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                        </svg>
+                        {shopData.rating.toFixed(1)}
+                      </p>
+                    )}
+                  </div>
+                  <svg className={styles.mobileShopChevron} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 18l6-6-6-6"/>
+                  </svg>
+                </Link>
+              )}
+            </div>
 
             {/* ── SECTIONS BELOW ── */}
             <div className={styles.contentSections}>
@@ -335,29 +400,42 @@ export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
             <ProductFeed productId={activeProduct.id} />
           </div>
 
-          {/* ── RIGHT SIDEBAR (sticky as a whole) ── */}
-          <div className={styles.sidebar}>
-            <ProductPurchasePanel product={activeProduct} />
+          {/* ── RIGHT SIDEBAR ── */}
+          <div className={styles.sidebarCol}>
+            {/* Sticky part: buyBoxCard + shopBadge */}
+            <div className={styles.sidebar}>
+              <ProductPurchasePanel product={activeProduct} />
 
-            {activeProduct.sellerId && (() => {
-              const r = activeProduct as unknown as Record<string, unknown>;
-              const storeSummary = r.storeSummary as Record<string, unknown> | undefined;
-              const sellerSummary = r.sellerSummary as Record<string, unknown> | undefined;
-              const sellerName =
-                (typeof storeSummary?.name === 'string' && storeSummary.name) ||
-                (typeof sellerSummary?.name === 'string' && sellerSummary.name) ||
-                (typeof r.storeName === 'string' && r.storeName) ||
-                'Магазин продавца';
-              return (
+              {activeProduct.sellerId && (
                 <Link to={`/shop/${activeProduct.sellerId}`} className={styles.shopBadge}>
-                  <div className={styles.shopBadgeAvatar}>🏪</div>
-                  <div>
-                    <p className={styles.shopBadgeTitle}>{sellerName}</p>
-                    <p className={styles.shopBadgeMeta}>Перейти в магазин</p>
+                  <div className={styles.shopBadgeAvatar}>
+                    {shopData?.avatarUrl
+                      ? <img src={resolveImageUrl(shopData.avatarUrl)} alt="" />
+                      : <span>🏪</span>
+                    }
                   </div>
+                  <div className={styles.shopBadgeInfo}>
+                    <p className={styles.shopBadgeTitle}>
+                      {shopData?.title ?? 'Магазин продавца'}
+                    </p>
+                    {shopData?.rating != null && (
+                      <p className={styles.shopBadgeRating}>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                        </svg>
+                        {shopData.rating.toFixed(1)}
+                      </p>
+                    )}
+                  </div>
+                  <svg className={styles.shopBadgeChevron} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 18l6-6-6-6"/>
+                  </svg>
                 </Link>
-              );
-            })()}
+              )}
+            </div>
+
+            {/* Sentinel marks the natural bottom of buyBoxCard — used for header trigger */}
+            <div ref={buyBoxSentinelRef} />
 
             <div className={styles.adBlock}>
               <span>Реклама</span>

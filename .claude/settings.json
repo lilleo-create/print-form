@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s \"https://api.print-form.ru/products?limit=1\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\([p['id'] for p in d.get\\('data',[]\\)][:2]\\)\")",
+      "Bash(pkill -f \"vite\")",
+      "Bash(npm run *)",
+      "Bash(curl -s http://localhost:5173)",
+      "Bash(curl -s \"https://api.print-form.ru/api/products?limit=1\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(d['data'][0]['id'] if 'data' in d and d['data'] else 'no data'\\)\")",
+      "Bash(pkill -f \"vite --port 5173\")",
+      "Bash(curl -s \"https://api.print-form.ru/api/products/cmn8l597e002ulk7vpvgans6y\")",
+      "Bash(python3 -c ' *)",
+      "Bash(npm run dev -- --port 5173 &>/tmp/vite3.log & *)"
+    ],
+    "additionalDirectories": [
+      "/tmp"
+    ]
+  }
+}
