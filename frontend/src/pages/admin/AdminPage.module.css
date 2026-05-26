@@ -37,6 +37,20 @@
   min-width: 0;
 }
 
+.searchInput {
+  padding: 8px 12px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--text);
+  min-width: 220px;
+  outline: none;
+}
+
+.searchInput:focus {
+  border-color: var(--primary);
+}
+
 .table {
   background: var(--card);
   border-radius: var(--radius-card);

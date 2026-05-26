@@ -244,9 +244,9 @@ const extractOtpRequestPayload = (
 };
 
 export const authApi = {
-  login: async (phone: string, password: string): Promise<AuthResult> => {
+  login: async (phone: string, password: string, captchaToken?: string): Promise<AuthResult> => {
     try {
-      const result = await api.login({ phone, password });
+      const result = await api.login({ phone, password, captchaToken });
       const data = unwrapNestedData<RawAuthData>(result);
 
       const requiresOtp = data.requiresOtp ?? data.requires_otp ?? false;
@@ -291,6 +291,7 @@ export const authApi = {
     phone: string;
     address?: string;
     privacyAccepted?: boolean;
+    captchaToken?: string;
   }): Promise<AuthResult> => {
     try {
       const result = await api.register({
@@ -300,7 +301,8 @@ export const authApi = {
         password: payload.password,
         phone: payload.phone,
         address: payload.address,
-        privacyAccepted: payload.privacyAccepted
+        privacyAccepted: payload.privacyAccepted,
+        captchaToken: payload.captchaToken
       });
 
       const data = unwrapNestedData<RawAuthData>(result);

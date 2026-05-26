@@ -61,38 +61,44 @@ export const ShopFilters = ({
         </div>
       ) : (
         <div className={styles.content}>
-          <label className={styles.field}>
-            Категория
-            <Select value={filters.category} onChange={(event) => onChange('category', event.target.value)}>
-              <option value="">Все</option>
-              {options.categories.map((category) => (
-                <option key={category} value={category}>
-                  {category}
-                </option>
-              ))}
-            </Select>
-          </label>
-          <label className={styles.field}>
-            Материал
-            <Select value={filters.material} onChange={(event) => onChange('material', event.target.value)}>
-              <option value="">Все</option>
-              {options.materials.map((material) => (
-                <option key={material} value={material}>
-                  {material}
-                </option>
-              ))}
-            </Select>
-          </label>
-          <label className={styles.field}>
-            Цена
-            <Select value={filters.price} onChange={(event) => onChange('price', event.target.value)}>
-              {priceOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
-          </label>
+          <div className={styles.group}>
+            <label className={styles.field}>
+              Категория
+              <Select value={filters.category} onChange={(event) => onChange('category', event.target.value)}>
+                <option value="">Все</option>
+                {options.categories.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </Select>
+            </label>
+          </div>
+          <div className={styles.group}>
+            <label className={styles.field}>
+              Материал
+              <Select value={filters.material} onChange={(event) => onChange('material', event.target.value)}>
+                <option value="">Все</option>
+                {options.materials.map((material) => (
+                  <option key={material} value={material}>
+                    {material}
+                  </option>
+                ))}
+              </Select>
+            </label>
+          </div>
+          <div className={styles.group}>
+            <label className={styles.field}>
+              Цена
+              <Select value={filters.price} onChange={(event) => onChange('price', event.target.value)}>
+                {priceOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </label>
+          </div>
         </div>
       )}
     </aside>

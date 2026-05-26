@@ -1,69 +1,98 @@
 .catalog {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
+  min-width: 0;
 }
 
 .toolbar {
   display: flex;
   justify-content: space-between;
-  align-items: flex-end;
-  gap: 16px;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
-.toolbar h2 {
-  margin: 0 0 6px;
-}
+.toolbarLeft h2 { margin: 0 0 2px; font-size: 18px; font-weight: 700; }
+.toolbarLeft p  { color: var(--muted); margin: 0; font-size: 13px; }
 
-.toolbar p {
-  color: var(--muted);
-  margin: 0;
-}
+/* ── Sort pill + dropdown ─────────────────── */
+.sortWrap { position: relative; }
 
-.sort {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 13px;
-  color: var(--muted);
+.sortPill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 7px 16px; border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-2); color: var(--text);
+  cursor: pointer; font-size: 13px; font-weight: 500;
+  transition: border-color 0.15s, color 0.15s;
+  white-space: nowrap;
 }
+.sortPill:hover { border-color: var(--primary); color: var(--primary); }
+.sortPillActive { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
+.sortIcon { font-size: 15px; line-height: 1; }
 
+.dropdown {
+  position: absolute; top: calc(100% + 6px); right: 0;
+  min-width: 224px; background: var(--card);
+  border: 1px solid var(--border); border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card); z-index: 30; overflow: hidden;
+}
+.dropdownHeader {
+  padding: 14px 16px 12px; margin: 0;
+  font-size: 15px; font-weight: 600; color: var(--text);
+  border-bottom: 1px solid var(--border);
+}
+.dropdownOption {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; width: 100%; padding: 13px 16px;
+  border: none; background: transparent; color: var(--text);
+  font-size: 14px; cursor: pointer; text-align: left;
+  transition: background 0.12s ease;
+}
+.dropdownOption:hover { background: var(--bg-2); }
+
+.radioCircle {
+  width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0;
+  border: 2px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+}
+.radioCircleActive {
+  width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0;
+  border: 2px solid var(--primary);
+  display: flex; align-items: center; justify-content: center;
+}
+.radioDot { width: 10px; height: 10px; border-radius: 50%; background: var(--primary); }
+
+/* ── Grid ─────────────────────────────────── */
 .grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 24px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
 }
+.grid > * { min-width: 0; }
 
-.cardSkeleton {
-  height: 360px;
-  border-radius: 12px;
+.cardSkeleton { height: 300px; border-radius: 12px; }
+
+.error { display: flex; gap: 12px; align-items: center; color: var(--muted); padding: 20px 0; }
+.empty { color: var(--muted); padding: 40px 0; text-align: center; font-size: 15px; }
+
+.loadMore { display: flex; justify-content: center; padding-top: 8px; }
+.loadMoreBtn {
+  padding: 10px 28px; border-radius: var(--radius-control);
+  border: 1px solid var(--border); background: var(--bg-2); color: var(--text);
+  font-size: 14px; cursor: pointer;
+  transition: border-color 0.15s;
 }
+.loadMoreBtn:hover { border-color: var(--muted); }
 
-.error {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  color: var(--muted);
+@media (max-width: 1280px) {
+  .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
-
-.loadMore {
-  display: flex;
-  justify-content: center;
+@media (max-width: 960px) {
+  .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
-
-@media (max-width: 1200px) {
-  .grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 768px) {
-  .grid {
-    grid-template-columns: 1fr;
-  }
-
-  .toolbar {
-    flex-direction: column;
-    align-items: flex-start;
-  }
+@media (max-width: 720px) {
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .toolbar { display: none; }
 }

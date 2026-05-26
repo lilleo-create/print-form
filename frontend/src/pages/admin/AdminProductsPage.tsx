@@ -84,6 +84,7 @@ export const AdminProductsPage = () => {
   const [selectedProduct, setSelectedProduct] = useState<AdminProduct | null>(
     null
   );
+  const [search, setSearch] = useState('');
   const [notes, setNotes] = useState('');
   const [actionId, setActionId] = useState<string | null>(null);
   const [activeImage, setActiveImage] = useState<string | null>(null);
@@ -157,7 +158,15 @@ export const AdminProductsPage = () => {
     }
   };
 
-  const rows = useMemo(() => products, [products]);
+  const rows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return products;
+    return products.filter(
+      (p) =>
+        p.title?.toLowerCase().includes(q) ||
+        p.sku?.toLowerCase().includes(q)
+    );
+  }, [products, search]);
   const imageUrls = useMemo(
     () => getProductImages(selectedProduct),
     [selectedProduct]
@@ -303,6 +312,16 @@ export const AdminProductsPage = () => {
           </p>
         </div>
         <div className={styles.filters}>
+          <label>
+            Поиск
+            <input
+              className={styles.searchInput}
+              type="search"
+              placeholder="Название или артикул…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </label>
           <label>
             Статус
             <select

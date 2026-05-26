@@ -17,6 +17,7 @@ type KycModerationStatus = 'APPROVED' | 'REJECTED' | 'REVISION';
 export const AdminKycPage = () => {
   const [status, setStatus] = useState<(typeof statusOptions)[number]>('PENDING');
   const [submissions, setSubmissions] = useState<SellerKycSubmission[]>([]);
+  const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<SellerKycSubmission | null>(null);
   const [comment, setComment] = useState('');
   const [loading, setLoading] = useState(true);
@@ -84,7 +85,17 @@ export const AdminKycPage = () => {
     }
   };
 
-  const rows = useMemo(() => submissions, [submissions]);
+  const rows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return submissions;
+    return submissions.filter((s) => {
+      const name = (s.user?.name ?? '').toLowerCase();
+      const email = (s.user?.email ?? '').toLowerCase();
+      const phone = (s.user?.phone ?? '').toLowerCase();
+      const inn = String(s.merchantData?.inn ?? '').toLowerCase();
+      return name.includes(q) || email.includes(q) || phone.includes(q) || inn.includes(q);
+    });
+  }, [submissions, search]);
 
   return (
     <div className={styles.page}>
@@ -94,6 +105,16 @@ export const AdminKycPage = () => {
           <p className={styles.muted}>Управляйте заявками на верификацию продавцов.</p>
         </div>
         <div className={styles.filters}>
+          <label>
+            Поиск
+            <input
+              className={styles.searchInput}
+              type="search"
+              placeholder="Имя, email, телефон или ИНН…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </label>
           <label>
             Статус
             <select

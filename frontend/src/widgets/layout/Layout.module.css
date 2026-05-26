@@ -501,8 +501,15 @@
   align-self: stretch;
   width: 100%;
   min-width: 0;
-  /* offset for fixed desktop header (pill ~68px) */
   padding-top: 68px;
+}
+
+.mainFull {
+  flex: 1;
+  align-self: stretch;
+  width: 100%;
+  min-width: 0;
+  padding-top: 0;
 }
 
 .footer {

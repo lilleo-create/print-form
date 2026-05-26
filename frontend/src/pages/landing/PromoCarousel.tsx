@@ -10,34 +10,36 @@ type PromoSlide = {
   image: string;
   href: string;
   badge?: string;
+  bg?: string;
 };
 
 const PROMO_SLIDES: PromoSlide[] = [
   {
     id: 'promo-1',
-    title: 'Готовые 3D-модели',
-    subtitle: 'Фигурки, декор, детали и прототипы с быстрым заказом',
-    image: '/images/promo/car-model.webp',
-    href: '/product/cmn7fc9lg000fzm7t9xdvy5p7',
-    badge: 'Print-Form'
+    title: 'Кредитная карта с кэшбэком до 10%',
+    subtitle: 'Оформление онлайн за 5 минут. Мгновенное одобрение.',
+    image: '/images/promo/promo-cashback.webp',
+    href: '/catalog',
+    badge: 'Реклама',
+    bg: '#0a1a4a'
   },
   {
     id: 'promo-2',
-    title: 'Печать под заказ',
-    subtitle: 'Загрузите свою модель и отправьте в производство',
-    image:
-      'https://images.unsplash.com/photo-1565043589221-1a6fd9ae45c7?auto=format&fit=crop&w=1600&q=80',
+    title: 'Умные часы со скидкой 50%',
+    subtitle: 'Стиль и технологии в одном устройстве',
+    image: '/images/promo/promo-watches.webp',
     href: '/catalog',
-    badge: 'Реклама'
+    badge: 'Реклама',
+    bg: '#f0e0d0'
   },
   {
     id: 'promo-3',
-    title: 'Прототипы и мелкие серии',
-    subtitle: 'Для бизнеса, инженерии, дизайна и персональных заказов',
-    image:
-      'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1600&q=80',
-    href: '/catalog?category=Прототипы',
-    badge: 'Print-Form'
+    title: 'Скидка 20% по промокоду LETO2026',
+    subtitle: 'Акция действует с 01.06.2026 по 31.08.2026',
+    image: '/images/promo/promo-leto2026.webp',
+    href: '/catalog',
+    badge: 'Реклама',
+    bg: '#2a4a1a'
   }
 ];
 
@@ -78,6 +80,7 @@ const CarouselCard = ({
           ? `${styles.carouselCard} ${styles.carouselCenter}`
           : `${styles.carouselCard} ${styles.carouselSide}`
       }
+      style={slide.bg ? { background: slide.bg } : undefined}
       onClick={disabled ? undefined : onClick}
       disabled={disabled}
       aria-label={slide.title}

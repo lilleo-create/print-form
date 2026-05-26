@@ -2,79 +2,50 @@
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <title>PF — маркетплейс</title>
-    <meta
-      name="description"
-      content="3D-печать и готовые модели — закажите или загрузите свою модель"
-    />
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0f0f0f" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+
+    <!-- SEO -->
+    <title>PrintForm — маркетплейс 3D-печати</title>
+    <meta name="description" content="Закажите изделия из 3D-печати или продавайте свои модели и товары на PrintForm — маркетплейсе для мейкеров и покупателей." />
+    <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://print-form.ru/" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="PrintForm" />
+    <meta property="og:locale" content="ru_RU" />
+    <meta property="og:url" content="https://print-form.ru/" />
+    <meta property="og:title" content="PrintForm — маркетплейс 3D-печати" />
+    <meta property="og:description" content="Закажите изделия из 3D-печати или продавайте свои модели и товары на PrintForm." />
+    <meta property="og:image" content="https://print-form.ru/og-image.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+
+    <!-- Twitter / X -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="PrintForm — маркетплейс 3D-печати" />
+    <meta name="twitter:description" content="Закажите изделия из 3D-печати или продавайте свои модели и товары на PrintForm." />
+    <meta name="twitter:image" content="https://print-form.ru/og-image.jpg" />
+
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@700;800&display=swap" rel="stylesheet" />
 
-    <meta property="og:title" content="PF — маркетплейс" />
-    <meta
-      property="og:description"
-      content="3D-печать и готовые модели — закажите или загрузите свою модель"
-    />
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://print-form.ru" />
-    <meta property="og:image" content="https://print-form.ru/og-image.jpg" />
-
-    <script
-      src="https://cdn.jsdelivr.net/npm/@cdek-it/widget@3"
-      charset="utf-8"
-    ></script>
-
-    <script
-      src="https://yookassa.ru/payouts-data/3.1.0/widget.js"
-      charset="utf-8"
-    ></script>
-
-    <!-- Yandex.Metrika counter -->
-    <script type="text/javascript">
-      (function (m, e, t, r, i, k, a) {
-        m[i] =
-          m[i] ||
-          function () {
-            (m[i].a = m[i].a || []).push(arguments);
-          };
-        m[i].l = 1 * new Date();
-        for (var j = 0; j < document.scripts.length; j++) {
-          if (document.scripts[j].src === r) {
-            return;
-          }
-        }
-        k = e.createElement(t);
-        a = e.getElementsByTagName(t)[0];
-        k.async = 1;
-        k.src = r;
-        a.parentNode.insertBefore(k, a);
-      })(window, document, "script", "https://mc.yandex.ru/metrika/tag.js", "ym");
-
-      ym(108265397, "init", {
-        clickmap: true,
-        trackLinks: true,
-        accurateTrackBounce: true,
-        webvisor: true
-      });
-    </script>
+    <!-- Third-party widgets -->
+    <script src="https://cdn.jsdelivr.net/npm/@cdek-it/widget@3" charset="utf-8"></script>
+    <script src="https://yookassa.ru/payouts-data/3.1.0/widget.js" charset="utf-8"></script>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
   </head>
 
   <body>
-    <noscript>
-      <div>
-        <img
-          src="https://mc.yandex.ru/watch/108265397"
-          style="position: absolute; left: -9999px"
-          alt=""
-        />
-      </div>
-    </noscript>
-
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

@@ -18,8 +18,7 @@ import type {
   ChatMessage,
   Shop
 } from '../types';
-import { loadFromStorage } from '../lib/storage';
-import { STORAGE_KEYS } from '../constants/storageKeys';
+import { getAccessToken } from '../lib/storage';
 
 export type SellerDropoffStation = {
   pvzId?: string | null;
@@ -123,7 +122,7 @@ const normalizeUploadUrl = (u: string) => {
 };
 
 const authHeaders = () => {
-  const token = loadFromStorage<string | null>(STORAGE_KEYS.accessToken, null);
+  const token = getAccessToken();
   return token ? { Authorization: `Bearer ${token}` } : undefined;
 };
 
@@ -819,7 +818,7 @@ export const api = {
     });
   },
 
-  async login(payload: { phone: string; password: string; email?: string }) {
+  async login(payload: { phone: string; password: string; email?: string; captchaToken?: string }) {
     return apiClient.request<{
       requiresOtp?: boolean;
       tempToken?: string;
@@ -844,6 +843,7 @@ export const api = {
     phone: string;
     address?: string;
     privacyAccepted?: boolean;
+    captchaToken?: string;
   }) {
     return apiClient.request<{
       requiresOtp?: boolean;
@@ -1065,24 +1065,30 @@ export const api = {
     }>('/seller/stats');
   },
 
-  // ✅ Upload images/videos to /seller/uploads (fetch-based)
+  // Upload images/videos to /seller/uploads — each file in parallel
   async uploadSellerImages(files: File[] | FileList) {
-    const formData = new FormData();
-    Array.from(files).forEach((file) => formData.append('files', file));
+    const fileArray = Array.from(files);
 
-    const response = await fetch(`${baseUrl}/seller/uploads`, {
-      method: 'POST',
-      headers: authHeaders(),
-      body: formData,
-      credentials: 'include'
-    });
+    const urls = await Promise.all(
+      fileArray.map(async (file) => {
+        const formData = new FormData();
+        formData.append('files', file);
 
-    if (!response.ok) throw new Error('UPLOAD_FAILED');
+        const response = await fetch(`${baseUrl}/seller/uploads`, {
+          method: 'POST',
+          headers: authHeaders(),
+          body: formData,
+          credentials: 'include'
+        });
 
-    const json = (await response.json()) as UploadResponse;
-    return {
-      data: { urls: (json.data.urls ?? []).map(normalizeUploadUrl) }
-    } satisfies UploadResponse;
+        if (!response.ok) throw new Error('UPLOAD_FAILED');
+
+        const json = (await response.json()) as UploadResponse;
+        return normalizeUploadUrl((json.data.urls ?? [])[0] ?? '');
+      })
+    );
+
+    return { data: { urls } } satisfies UploadResponse;
   },
 
   async getSellerKyc() {

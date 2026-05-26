@@ -1177,8 +1177,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
             <h4 className={styles.sectionTitle}>Изображения и видео товара</h4>
             <p className={styles.muted}>
               Фото: JPG, PNG, WEBP, HEIC/HEIF · <strong>рекомендуемый размер 800×800 px (1:1, квадрат)</strong> · до {formatSize(IMAGE_MAX_SIZE_BYTES)}.<br />
-              Видео: MP4, MOV, WEBM · до {formatSize(VIDEO_MAX_SIZE_BYTES)}, до {VIDEO_MAX_DURATION_SECONDS} сек.<br />
-              После выбора фото откроется редактор для кадрирования под квадрат.
+              Видео: MP4, MOV, WEBM · до {formatSize(VIDEO_MAX_SIZE_BYTES)}, до {VIDEO_MAX_DURATION_SECONDS} сек.
             </p>
             <div
               className={`${styles.dropzone} ${isDragActive ? styles.dropzoneActive : ''}`}
@@ -1221,6 +1220,13 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
             </div>
 
             {activeMediaItems.length > 0 && (
+              <div className={styles.fileListWrap}>
+              {isUploading && (
+                <div className={styles.uploadingOverlay}>
+                  <span className={styles.spinner} />
+                  <span className={styles.muted}>Загружаем файлы…</span>
+                </div>
+              )}
               <div className={styles.fileList}>
                 {activeMediaItems.map((item, index) => (
                   <div key={item.id} className={styles.fileItem}>
@@ -1284,6 +1290,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
                     </div>
                   </div>
                 ))}
+              </div>
               </div>
             )}
             {fileErrors.length > 0 && (

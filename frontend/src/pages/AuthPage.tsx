@@ -14,6 +14,7 @@ import {
   toE164Ru
 } from '../shared/lib/validation';
 import styles from './AuthPage.module.css';
+import { Turnstile } from '../shared/ui/Turnstile';
 import { OtpStep } from './OtpStep';
 import loginHero from '../shared/assets/login-hero.svg';
 
@@ -162,6 +163,11 @@ export const AuthPage = () => {
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const [loginCaptchaToken, setLoginCaptchaToken] = useState('');
+  const [loginCaptchaKey, setLoginCaptchaKey] = useState(0);
+  const [registerCaptchaToken, setRegisterCaptchaToken] = useState('');
+  const [registerCaptchaKey, setRegisterCaptchaKey] = useState(0);
 
   const [otpRequired, setOtpRequired] = useState(false);
   const [otpToken, setOtpToken] = useState<string | null>(null);
@@ -349,7 +355,7 @@ export const AuthPage = () => {
 
     try {
       const normalizedPhone = toE164Ru(values.phone);
-      const result = await login(normalizedPhone, values.password);
+      const result = await login(normalizedPhone, values.password, loginCaptchaToken || undefined);
 
       if ('requiresOtp' in result && result.requiresOtp) {
         const flowType = result.flowType ?? 'registration';
@@ -375,6 +381,8 @@ export const AuthPage = () => {
       queueMicrotask(() => navigate(path, { replace: true }));
     } catch {
       setError('Неверный номер телефона или пароль.');
+      setLoginCaptchaToken('');
+      setLoginCaptchaKey((k) => k + 1);
     }
   };
 
@@ -389,7 +397,8 @@ export const AuthPage = () => {
         email: values.email.trim(),
         password: values.password,
         phone: toE164Ru(values.phone),
-        privacyAccepted
+        privacyAccepted,
+        captchaToken: registerCaptchaToken || undefined
       });
 
       if (result.requiresOtp) {
@@ -413,6 +422,8 @@ export const AuthPage = () => {
       queueMicrotask(() => navigate(path, { replace: true }));
     } catch {
       setError('Не удалось зарегистрироваться.');
+      setRegisterCaptchaToken('');
+      setRegisterCaptchaKey((k) => k + 1);
     }
   };
 
@@ -622,7 +633,16 @@ export const AuthPage = () => {
                   </span>
                 </label>
 
-                <Button type="submit" disabled={!privacyAccepted} className={styles.submitBtn}>
+                <Turnstile
+                  onToken={setRegisterCaptchaToken}
+                  resetKey={registerCaptchaKey}
+                />
+
+                <Button
+                  type="submit"
+                  disabled={!privacyAccepted || (Boolean(import.meta.env.VITE_TURNSTILE_SITEKEY) && !registerCaptchaToken)}
+                  className={styles.submitBtn}
+                >
                   Создать аккаунт
                 </Button>
               </form>
@@ -680,7 +700,16 @@ export const AuthPage = () => {
                   )}
                 </div>
 
-                <Button type="submit" className={styles.submitBtn}>Войти</Button>
+                <Turnstile
+                  onToken={setLoginCaptchaToken}
+                  resetKey={loginCaptchaKey}
+                />
+
+                <Button
+                  type="submit"
+                  className={styles.submitBtn}
+                  disabled={Boolean(import.meta.env.VITE_TURNSTILE_SITEKEY) && !loginCaptchaToken}
+                >Войти</Button>
               </form>
             )}
 
