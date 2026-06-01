@@ -1,7 +1,15 @@
 .page {
-  padding: 64px 0 96px;
   width: 100%;
   align-self: stretch;
+}
+
+/* Чат занимает всё доступное пространство без скролла страницы */
+.pageChats {
+  width: 100%;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
 }
 
 .pageHeader {

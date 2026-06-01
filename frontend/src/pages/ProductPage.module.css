@@ -951,7 +951,7 @@
   .adBlock { display: none; }
   .stickyBar { display: none; }
 
-  .heroRow { gap: 16px; }
+  .heroRow { gap: 16px; margin-bottom: 0; }
   .headerTop { flex-direction: column; }
   .specRows p { grid-template-columns: 1fr; gap: 4px; }
 

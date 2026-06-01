@@ -289,6 +289,30 @@ export interface OrderDelivery {
   deliveryMeta?: Record<string, unknown>;
 }
 
+export interface DeliveryEta {
+  daysMin: number | null;
+  daysMax: number | null;
+  text: string | null;
+}
+
+export interface DeliveryEvent {
+  id: string;
+  status: string;
+  description: string;
+  timestampUtc: string | null;
+  createdAt: string;
+}
+
+export interface OrderFinancials {
+  itemsSubtotal: number;     // копейки
+  deliveryAmount: number;    // копейки
+  total: number;             // копейки
+  platformFeePercent: number | null;
+  platformFeeAmount: number; // копейки
+  sellerNetAmount: number;   // копейки
+  currency: string;
+}
+
 export interface Order {
   id: string;
   publicNumber?: string | null;
@@ -320,6 +344,7 @@ export interface Order {
   carrier?: string | null;
   deliveryDaysMin?: number | null;
   deliveryDaysMax?: number | null;
+  deliveryCalculatedAt?: string | null;
   estimatedDeliveryDateMin?: string | null;
   estimatedDeliveryDateMax?: string | null;
   contact?: Contact | null;
@@ -351,6 +376,10 @@ export interface Order {
     lastSyncAt?: string | null;
     updatedAt?: string | null;
   } | null;
+  financials?: OrderFinancials | null;
+  deliveryStatusLabel?: string | null;
+  deliveryEta?: DeliveryEta | null;
+  deliveryEvents?: DeliveryEvent[];
 }
 
 export interface SellerDeliveryProfile {

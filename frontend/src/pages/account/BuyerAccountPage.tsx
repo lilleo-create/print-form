@@ -57,32 +57,23 @@ export const BuyerAccountPage = () => {
 
   const isProfile = activeTab === 'profile';
   const isReturns = activeTab === 'returns';
+  const isChats = activeTab === 'chats';
+
   const pageTitle = (() => {
     switch (activeTab) {
-      case 'orders':
-        return 'Заказы';
-      case 'purchases':
-        return 'Купленные товары';
-      case 'returns':
-        return 'Возвраты';
-      case 'chats':
-        return 'Чаты';
-      default:
-        return '';
+      case 'orders':    return 'Заказы';
+      case 'purchases': return 'Купленные товары';
+      case 'returns':   return 'Возвраты';
+      default:          return '';
     }
   })();
 
   const stepLabel = (() => {
     switch (returnCreateStep) {
-      case 'select':
-        return 'Шаг 1 из 3';
-      case 'form':
-        return 'Шаг 2 из 3';
-      case 'success':
-      case 'exists':
-        return 'Шаг 3 из 3';
-      default:
-        return '';
+      case 'select':               return 'Шаг 1 из 3';
+      case 'form':                 return 'Шаг 2 из 3';
+      case 'success': case 'exists': return 'Шаг 3 из 3';
+      default:                     return '';
     }
   })();
 
@@ -106,6 +97,25 @@ export const BuyerAccountPage = () => {
     closeReturnCreate();
   };
 
+  // Chat tab renders outside the normal container so it fills the viewport
+  if (isChats) {
+    return (
+      <section className={styles.pageChats}>
+        <ChatsTab
+          chatThreads={chatThreads}
+          selectedThread={selectedThread}
+          chatMessages={chatMessages}
+          chatLoading={chatLoading}
+          chatError={chatError}
+          creatingSupportThread={creatingSupportThread}
+          onSelectThread={setSelectedThread}
+          onSendMessage={handleSendMessage}
+          onCreateSupportThread={createSupportThread}
+        />
+      </section>
+    );
+  }
+
   return (
     <section className={styles.page}>
       <div className="container">
@@ -125,16 +135,14 @@ export const BuyerAccountPage = () => {
                 </span>
               </div>
             ) : (
-              <>
-                <div className={styles.pageHeading}>
-                  <h1>{pageTitle}</h1>
-                  {isReturns && (
-                    <Button type="button" onClick={() => openReturnCreate()}>
-                      Вернуть товар
-                    </Button>
-                  )}
-                </div>
-              </>
+              <div className={styles.pageHeading}>
+                <h1>{pageTitle}</h1>
+                {isReturns && (
+                  <Button type="button" onClick={() => openReturnCreate()}>
+                    Вернуть товар
+                  </Button>
+                )}
+              </div>
             )}
           </div>
         )}
@@ -161,20 +169,6 @@ export const BuyerAccountPage = () => {
               void reloadOrders();
             }}
             onReturnToList={closeReturnCreate}
-          />
-        )}
-
-        {activeTab === 'chats' && (
-          <ChatsTab
-            chatThreads={chatThreads}
-            selectedThread={selectedThread}
-            chatMessages={chatMessages}
-            chatLoading={chatLoading}
-            chatError={chatError}
-            creatingSupportThread={creatingSupportThread}
-            onSelectThread={setSelectedThread}
-            onSendMessage={handleSendMessage}
-            onCreateSupportThread={createSupportThread}
           />
         )}
       </div>

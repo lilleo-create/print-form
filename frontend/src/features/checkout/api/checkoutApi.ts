@@ -10,6 +10,7 @@ export type CdekPvzSelection = {
   pvzId: string;
   buyerPickupStationId?: string;
   addressFull?: string;
+  cityCode?: number;
   raw?: unknown;
 };
 
@@ -62,6 +63,11 @@ export type CheckoutDto = {
   }>;
 };
 
+const toNum = (v: unknown): number | undefined => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+};
+
 const normalizePickupPoint = (pickupPoint: unknown): CdekPvzSelection | null => {
   if (!pickupPoint || typeof pickupPoint !== 'object') return null;
 
@@ -80,6 +86,7 @@ const normalizePickupPoint = (pickupPoint: unknown): CdekPvzSelection | null => 
       : typeof raw.fullAddress === 'string'
         ? raw.fullAddress
         : undefined;
+
   const buyerPickupStationId =
     typeof raw.buyerPickupStationId === 'string'
       ? raw.buyerPickupStationId
@@ -87,11 +94,23 @@ const normalizePickupPoint = (pickupPoint: unknown): CdekPvzSelection | null => 
         ? raw.operator_station_id
         : undefined;
 
+  // Бэк теперь возвращает cityCode после исправления Zod-схемы
+  const location =
+    raw.location && typeof raw.location === 'object'
+      ? (raw.location as Record<string, unknown>)
+      : null;
+  const cityCode =
+    toNum(raw.cityCode) ??
+    toNum(raw.city_code) ??
+    toNum(location?.city_code) ??
+    toNum(location?.cityCode);
+
   return {
     provider: 'CDEK',
     pvzId,
     buyerPickupStationId,
     addressFull,
+    cityCode,
     raw: raw.raw ?? pickupPoint
   };
 };
@@ -120,23 +139,38 @@ export const checkoutApi = {
     payload: { pickupPoint: CdekPvzSelection },
     signal?: AbortSignal
   ) => {
+    const pvz = payload.pickupPoint;
+    const raw = pvz.raw && typeof pvz.raw === 'object'
+      ? (pvz.raw as Record<string, unknown>)
+      : {};
+
+    // Нормализуем location: берём только если это объект (не массив).
+    // CDEK-виджет может вернуть location в разных форматах.
+    const rawLocation = raw.location;
+    const location =
+      rawLocation &&
+      typeof rawLocation === 'object' &&
+      !Array.isArray(rawLocation)
+        ? (rawLocation as Record<string, unknown>)
+        : null;
+
+    // Собираем тело явно — не спредим весь raw чтобы не пробросить
+    // неожиданные поля (массивы, вложенные объекты) которые ломают Zod.
+    const pickupPoint: Record<string, unknown> = {
+      id: pvz.pvzId,
+      fullAddress: pvz.addressFull ?? pvz.pvzId,
+      type: raw.type ?? 'PVZ',
+      // city_code: берём из виджета если есть, иначе бэк резолвит сам
+      ...(pvz.cityCode ? { cityCode: pvz.cityCode, city_code: pvz.cityCode } : {}),
+      ...(location ? { location } : {}),
+      ...(pvz.buyerPickupStationId
+        ? { operator_station_id: pvz.buyerPickupStationId }
+        : {}),
+    };
+
     await client.request('/checkout/pickup', {
       method: 'PUT',
-      body: {
-        provider: payload.pickupPoint.provider,
-        pickupPoint: {
-          id: payload.pickupPoint.pvzId,
-          fullAddress:
-            payload.pickupPoint.addressFull ?? payload.pickupPoint.pvzId,
-          ...(payload.pickupPoint.buyerPickupStationId
-            ? { operator_station_id: payload.pickupPoint.buyerPickupStationId }
-            : {}),
-          ...(payload.pickupPoint.raw &&
-          typeof payload.pickupPoint.raw === 'object'
-            ? (payload.pickupPoint.raw as Record<string, unknown>)
-            : {})
-        }
-      },
+      body: { provider: pvz.provider, pickupPoint },
       signal
     });
   },

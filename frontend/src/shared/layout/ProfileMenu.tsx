@@ -137,7 +137,7 @@ export const ProfileMenu = ({
                 <span className={styles.profileMenuIcon}><IcSettings /></span>Настройки и профиль
               </Link>
 
-              <button type="button" className={`${styles.profileMenuItem} ${styles.profileMenuToggle}`} onClick={onToggleTheme}>
+              <button type="button" className={`${styles.profileMenuItem} ${styles.profileMenuToggle} ${styles.profileMenuMobileOnly}`} onClick={onToggleTheme}>
                 <span className={styles.profileMenuIcon}><IcTheme /></span>
                 <span style={{ flex: 1 }}>Тема</span>
                 <span className={styles.profileMenuToggleValue}>{theme === 'light' ? 'Светлая' : 'Тёмная'}</span>

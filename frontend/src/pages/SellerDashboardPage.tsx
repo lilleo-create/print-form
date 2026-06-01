@@ -1,4 +1,4 @@
-import {
+﻿import {
   TouchEvent,
   useCallback,
   useEffect,
@@ -32,11 +32,12 @@ import { SellerErrorState } from '../components/seller/SellerErrorState';
 import { SellerHeader } from '../components/seller/SellerHeader';
 import { SellerStatsCard } from '../components/seller/SellerStatsCard';
 import { CopyableOrderNumber } from '../components/seller/CopyableOrderNumber';
+import { OrderFinancialsSummary } from '../components/orders/OrderFinancialsSummary';
+import { DeliveryTimeline } from '../components/orders/DeliveryTimeline';
 import { SellerFinanceTable } from '../components/seller/SellerFinanceTable';
 import { SellerFinanceMobileCard } from '../components/seller/SellerFinanceMobileCard';
 import { BottomNav } from '../widgets/layout/BottomNav';
 import { CdekPvzPickerModal } from '../components/checkout/CdekPvzPickerModal';
-import { getExternalDeliveryStatusLabel } from '../shared/lib/deliveryStatus';
 import { normalizeSellerType } from '../shared/lib/sellerType';
 import {
   getModerationStatusLabelRu,
@@ -360,64 +361,6 @@ const resolveOrderKopecks = (order: Order) => {
   return toKopecks(order.totalRubles);
 };
 
-const resolveServiceFeeKopecks = (params: {
-  totalKopecks: number;
-  sellerNetAmountKopecks: number;
-  platformFeeAmountRub?: number | null;
-}) => {
-  if (typeof params.platformFeeAmountRub === 'number') {
-    return Math.max(0, toKopecks(params.platformFeeAmountRub));
-  }
-  return Math.max(0, params.totalKopecks - params.sellerNetAmountKopecks);
-};
-
-const resolveSellerOrderBreakdown = (order: Order) => {
-  const source = order as unknown as Record<string, unknown>;
-  const rawBreakdown =
-    source.financeBreakdown ?? source.payoutBreakdown ?? source.breakdown;
-  const breakdown =
-    rawBreakdown && typeof rawBreakdown === 'object'
-      ? (rawBreakdown as Record<string, unknown>)
-      : null;
-  if (!breakdown) return null;
-
-  const amountKopecks =
-    typeof breakdown.amountKopecks === 'number'
-      ? breakdown.amountKopecks
-      : typeof breakdown.grossAmountMinor === 'number'
-        ? breakdown.grossAmountMinor
-        : typeof breakdown.orderAmountKopecks === 'number'
-          ? breakdown.orderAmountKopecks
-          : null;
-  const commissionKopecks =
-    typeof breakdown.serviceFeeKopecks === 'number'
-      ? breakdown.serviceFeeKopecks
-      : typeof breakdown.serviceFeeMinor === 'number'
-        ? breakdown.serviceFeeMinor
-        : typeof breakdown.commissionKopecks === 'number'
-          ? breakdown.commissionKopecks
-          : null;
-  const sellerPayoutKopecks =
-    typeof breakdown.sellerPayoutKopecks === 'number'
-      ? breakdown.sellerPayoutKopecks
-      : typeof breakdown.sellerNetAmountMinor === 'number'
-        ? breakdown.sellerNetAmountMinor
-        : typeof breakdown.sellerNetAmountKopecks === 'number'
-          ? breakdown.sellerNetAmountKopecks
-          : null;
-  if (
-    amountKopecks === null &&
-    commissionKopecks === null &&
-    sellerPayoutKopecks === null
-  ) {
-    return null;
-  }
-  return {
-    amountKopecks,
-    commissionKopecks,
-    sellerPayoutKopecks
-  };
-};
 
 const payoutStatusLabelRu = (value?: string | null) => {
   switch (String(value ?? '').toLowerCase()) {
@@ -636,54 +579,8 @@ const kycStatusLabelRu = (value?: string | null) => {
   }
 };
 
-const HANDOFF_STATUSES = new Set<OrderStatus>([
-  'HANDED_TO_DELIVERY',
-  'IN_TRANSIT',
-  'DELIVERED'
-]);
 
-const isHandoverToDelivery = (order: Order) => {
-  const orderStatus = String(order.status ?? '').toUpperCase();
-  const shipmentStatus = String(order.shipment?.status ?? '').toUpperCase();
-  return (
-    HANDOFF_STATUSES.has(orderStatus as OrderStatus) ||
-    ['IN_TRANSIT', 'DELIVERED', 'RETURNED'].includes(shipmentStatus)
-  );
-};
 
-const getSellerOrderDisplayStatus = (order: Order) => {
-  const isPaid =
-    Boolean(order.paidAt) ||
-    [
-      'PAID',
-      'READY_FOR_SHIPMENT',
-      'PRINTING',
-      'HANDED_TO_DELIVERY',
-      'IN_TRANSIT',
-      'DELIVERED'
-    ].includes(order.status);
-
-  if (!isPaid) return 'Ожидает оплаты';
-
-  const handoverStarted = isHandoverToDelivery(order);
-  if (handoverStarted) {
-    return getExternalDeliveryStatusLabel(
-      order.cdekStatus ?? order.shipment?.status ?? null
-    );
-  }
-
-  if (!order.isPacked) return 'Ожидает упаковки';
-
-  return 'Готов к отгрузке';
-};
-
-const getSellerOrderStatusLabel = (order: Order) => {
-  const status = String(order.status ?? '').toUpperCase();
-  if (status === 'CANCELLED') return 'Отменён';
-  if (status === 'DELIVERED') return 'Получен покупателем';
-  if (status === 'RETURNED') return 'Возврат';
-  return 'В работе';
-};
 
 const isAccessError = (error: unknown) => {
   const message = getErrorMessage(error).toLowerCase();
@@ -2851,11 +2748,6 @@ export const SellerDashboardPage = () => {
 
               {activeItem === 'Заказы' && (
                 <div className={styles.section}>
-                  <div className={styles.sectionHeader}>
-                    <div>
-                      <p>Отслеживайте выполнение и документы доставки.</p>
-                    </div>
-                  </div>
                   <div className={styles.ordersTabs}>
                     <button
                       type="button"
@@ -2900,26 +2792,11 @@ export const SellerDashboardPage = () => {
                   ) : (
                     <div className={styles.ordersList}>
                       {ordersView.map((order) => {
-                        const displayStatus =
-                          getSellerOrderDisplayStatus(order);
-                        const orderStatusLabel =
-                          getSellerOrderStatusLabel(order);
                         const total = order.items.reduce(
                           (sum, item) =>
                             sum + resolveOrderItemLineTotalKopecks(item),
                           0
                         );
-                        const sellerNetAmount =
-                          typeof order.sellerNetAmount === 'number'
-                            ? order.sellerNetAmount
-                            : total;
-                        const serviceFeeKopecks = resolveServiceFeeKopecks({
-                          totalKopecks: total,
-                          sellerNetAmountKopecks: sellerNetAmount,
-                          platformFeeAmountRub: order.platformFeeAmount
-                        });
-                        const backendBreakdown =
-                          resolveSellerOrderBreakdown(order);
                         const isCancelled = order.status === 'CANCELLED';
                         const isTestReceiptOrder =
                           !isCancelled &&
@@ -2966,30 +2843,22 @@ export const SellerDashboardPage = () => {
 
                               <div className={styles.orderCardRight}>
                                 <p className={styles.orderAmount}>
-                                  {formatPrice(total)}
+                                  {formatPrice(order.financials?.total ?? total)}
                                 </p>
-                                <div className={styles.orderPayoutSummary}>
-                                  <span className={styles.orderPayoutLabel}>
-                                    К выплате продавцу
-                                  </span>
-                                  <strong>
-                                    {formatPrice(sellerNetAmount)}
-                                  </strong>
-                                </div>
-                                <p className={styles.muted}>
-                                  Комиссия сервиса:{' '}
-                                  {formatMoney({ kopecks: serviceFeeKopecks })}
-                                </p>
-                                <p className={styles.muted}>
-                                  Заказ: {orderStatusLabel}
-                                </p>
-                                <p className={styles.muted}>
-                                  Доставка: {displayStatus}
-                                </p>
-                                {isCancelled && (
+                                {isCancelled ? (
                                   <span className={styles.cancelledOrderBadge}>
                                     Заказ отменён
                                   </span>
+                                ) : (
+                                  <p className={styles.muted}>
+                                    {/* Пустая строка от бэка = нет статуса */}
+                                    {(order.deliveryStatusLabel || undefined) ??
+                                      (!order.isPacked
+                                        ? 'Ожидает упаковки'
+                                        : !order.shipment?.id
+                                          ? 'Упакован · ожидает создания доставки'
+                                          : 'Готово к сдаче в СДЭК')}
+                                  </p>
                                 )}
                                 {cancelPaymentHint && (
                                   <p className={styles.muted}>
@@ -2998,285 +2867,203 @@ export const SellerDashboardPage = () => {
                                 )}
                                 {order.paymentStatus === 'PENDING' &&
                                   !order.isExpired &&
-                                  typeof order.secondsUntilExpiry ===
-                                    'number' && (
+                                  typeof order.secondsUntilExpiry === 'number' && (
                                     <p className={styles.pendingPaymentTimer}>
                                       Ожидает оплату:{' '}
-                                      {formatCountdown(
-                                        order.secondsUntilExpiry
-                                      )}
+                                      {formatCountdown(order.secondsUntilExpiry)}
                                     </p>
                                   )}
                               </div>
                             </div>
 
                             <div className={styles.deliveryInputs}>
+                              {/* Адрес ПВЗ покупателя */}
                               <p className={styles.muted}>
-                                Способ доставки: ПВЗ (Pickup Point)
-                              </p>
-                              <p className={styles.muted}>
-                                Пункт выдачи:{' '}
+                                ПВЗ покупателя:{' '}
                                 {order.buyerPickupPvzMeta?.addressFull ?? '—'}
                               </p>
-                              <p className={styles.muted}>
-                                Пункт сдачи:{' '}
-                                {order.sellerDropoffPvzId ||
-                                  dropoffPvzId ||
-                                  '—'}
-                              </p>
-                              <div className={styles.orderFinanceMeta}>
+
+                              {/* ПВЗ сдачи продавца — только адрес, без сырого ID */}
+                              {order.sellerDropoffPvzMeta?.addressFull && (
                                 <p className={styles.muted}>
-                                  Выплата продавцу:{' '}
-                                  {payoutStatusLabelRu(order.payoutStatus)}
-                                </p>
-                                <p className={styles.muted}>
-                                  Комиссия сервиса:{' '}
-                                  {formatMoney({ kopecks: serviceFeeKopecks })}
-                                </p>
-                                <p className={styles.muted}>
-                                  К выплате продавцу:{' '}
-                                  {formatPrice(sellerNetAmount)}
-                                </p>
-                                {order.yookassaDealId ? (
-                                  <p className={styles.muted}>
-                                    Safe Deal:{' '}
-                                    {String(
-                                      order.yookassaDealStatus ?? 'PENDING'
-                                    )}
-                                  </p>
-                                ) : null}
-                                {backendBreakdown && (
-                                  <div className={styles.infoCard}>
-                                    <p>
-                                      Сумма заказа:{' '}
-                                      <strong>
-                                        {formatMoney({
-                                          kopecks:
-                                            backendBreakdown.amountKopecks ??
-                                            total
-                                        })}
-                                      </strong>
-                                    </p>
-                                    <p>
-                                      Комиссия сервиса:{' '}
-                                      <strong>
-                                        {formatMoney({
-                                          kopecks:
-                                            backendBreakdown.commissionKopecks ??
-                                            serviceFeeKopecks
-                                        })}
-                                      </strong>
-                                    </p>
-                                    <p>
-                                      К выплате продавцу:{' '}
-                                      <strong>
-                                        {formatMoney({
-                                          kopecks:
-                                            backendBreakdown.sellerPayoutKopecks ??
-                                            sellerNetAmount
-                                        })}
-                                      </strong>
-                                    </p>
-                                  </div>
-                                )}
-                              </div>
-                              {orderStatusLabel === 'Получен покупателем' && (
-                                <p className={styles.muted}>
-                                  Завершён автоматически после вручения.
+                                  ПВЗ сдачи: {order.sellerDropoffPvzMeta.addressFull}
                                 </p>
                               )}
-                              {!isCancelled &&
-                                orderStatusLabel !== 'Получен покупателем' && (
-                                  <p className={styles.muted}>
-                                    Средства станут доступны после получения
-                                    заказа.
-                                  </p>
-                                )}
-                              <p className={styles.muted}>
-                                Статус доставки: {displayStatus}
-                                {order.shipment?.lastSyncAt
-                                  ? ` · обновлено ${new Date(
-                                      order.shipment.lastSyncAt
-                                    ).toLocaleString('ru-RU')}`
-                                  : ''}
-                              </p>
 
-                              <p className={styles.muted}>
-                                Трек-номер: {order.trackingNumber ?? '—'}
-                              </p>
+                              {/* Трек-номер */}
+                              {order.trackingNumber ? (
+                                <a
+                                  href={`https://www.cdek.ru/ru/tracking?order_id=${encodeURIComponent(order.trackingNumber)}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className={styles.inlineLink}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  СДЭК: {order.trackingNumber}
+                                </a>
+                              ) : order.shipment?.id ? (
+                                <p className={styles.muted}>Трек-номер формируется...</p>
+                              ) : null}
 
-                              {!isCancelled ? (
+                              {/* История СДЭК — только когда есть реальные события */}
+                              {(order.deliveryEvents?.length ?? 0) > 0 && (
+                                <DeliveryTimeline
+                                  events={order.deliveryEvents ?? []}
+                                  cdekStatus={order.cdekStatus}
+                                />
+                              )}
+
+                              {/* Финансовая разбивка */}
+                              {order.financials && (
+                                <OrderFinancialsSummary
+                                  financials={order.financials}
+                                  deliveryEtaText={order.deliveryEta?.text}
+                                />
+                              )}
+
+                              {/* ── Действия (только активные заказы) ── */}
+                              {!isCancelled && !isCompletedOrder(order) && (
                                 <>
+                                  {/* Шаг 1: упаковка */}
                                   <Button
                                     type="button"
-                                    variant={
-                                      order.isPacked ? 'ghost' : 'secondary'
-                                    }
+                                    variant={order.isPacked ? 'ghost' : 'secondary'}
+                                    size="sm"
                                     onClick={() => handleTogglePacked(order)}
-                                    disabled={
-                                      !order.paidAt && order.status !== 'PAID'
-                                    }
+                                    disabled={!order.paidAt && order.status !== 'PAID'}
                                   >
                                     {order.isPacked
                                       ? 'Снять отметку упаковки'
                                       : 'Отметить упаковку'}
                                   </Button>
 
-                                  {!order.shipment?.id ? (
-                                    <>
+                                  {/* Шаг 2: создать доставку / синхронизировать */}
+                                  {order.isPacked && (
+                                    !order.shipment?.id ? (
+                                      <>
+                                        <Button
+                                          type="button"
+                                          variant="primary"
+                                          size="sm"
+                                          onClick={() => handleReadyToShip(order.id)}
+                                          disabled={Boolean(readyToShipDisabledReason(order))}
+                                        >
+                                          Создать доставку в СДЭК
+                                        </Button>
+                                        {readyToShipDisabledReason(order) && (
+                                          <p className={styles.muted}>
+                                            {readyToShipDisabledReason(order)}
+                                          </p>
+                                        )}
+                                      </>
+                                    ) : (
                                       <Button
                                         type="button"
                                         variant="secondary"
-                                        onClick={() =>
-                                          handleReadyToShip(order.id)
-                                        }
-                                        disabled={Boolean(
-                                          readyToShipDisabledReason(order)
-                                        )}
+                                        size="sm"
+                                        onClick={() => handleSyncShipment(order)}
                                       >
-                                        Готов к отгрузке
+                                        Синхронизировать СДЭК
                                       </Button>
-                                      {readyToShipDisabledReason(order) && (
-                                        <p className={styles.muted}>
-                                          {readyToShipDisabledReason(order)}
-                                        </p>
-                                      )}
-                                    </>
-                                  ) : (
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      onClick={() => handleSyncShipment(order)}
-                                      disabled={
-                                        !order.shipment?.id &&
-                                        !order.cdekOrderId
-                                      }
-                                    >
-                                      Синхронизировать CDEK
-                                    </Button>
+                                    )
                                   )}
-                                  {shouldShowTestOrderActions &&
-                                  isTestReceiptOrder ? (
+
+                                  {/* Шаг 3: документы — появляются после создания доставки */}
+                                  {order.isPacked && order.shipment?.id && (
                                     <>
                                       <Button
                                         type="button"
                                         variant="ghost"
+                                        size="sm"
+                                        className={labelDownloaded[order.id] ? styles.downloadedButton : ''}
                                         onClick={() =>
-                                          void handleMarkOrderReceived(order.id)
+                                          order.shipment?.id &&
+                                          handleDownloadLabel(order.shipment.id, order.id)
                                         }
-                                        disabled={
-                                          markReceivedOrderId === order.id ||
-                                          isCancelled ||
-                                          isCompletedOrder(order)
+                                        disabled={!order.trackingNumber}
+                                      >
+                                        Скачать ярлык
+                                        {!order.trackingNumber ? ' (ещё формируется)' : ''}
+                                      </Button>
+
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className={actDownloaded[order.id] ? styles.downloadedButton : ''}
+                                        onClick={() =>
+                                          order.shipment?.id &&
+                                          handleDownloadAct(order.shipment.id, order.id)
                                         }
+                                      >
+                                        Скачать акт
+                                      </Button>
+                                    </>
+                                  )}
+
+                                  {/* Тестовые действия */}
+                                  {shouldShowTestOrderActions && isTestReceiptOrder && (
+                                    <>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => void handleMarkOrderReceived(order.id)}
+                                        disabled={markReceivedOrderId === order.id}
                                       >
                                         {markReceivedOrderId === order.id
                                           ? 'Обновляем...'
                                           : 'Заказ получен (test-only)'}
                                       </Button>
-                                      <p className={styles.muted}>
-                                        Тестовое действие: в production заказ
-                                        завершается автоматически после статуса
-                                        «Выдан» от СДЭК.
-                                      </p>
                                     </>
-                                  ) : null}
+                                  )}
                                 </>
-                              ) : (
-                                <p className={styles.muted}>
-                                  Действия доставки недоступны для отменённого
-                                  заказа.
-                                </p>
                               )}
 
-                              <details>
-                                <summary>Данные для доставки</summary>
-                                <p className={styles.muted}>
-                                  ФИО: {order.recipientName ?? '—'}
-                                </p>
-                                <p className={styles.muted}>
-                                  Телефон: {order.recipientPhone ?? '—'}
-                                </p>
-                                <p className={styles.muted}>
-                                  Email: {order.recipientEmail ?? '—'}
-                                </p>
-                                <p className={styles.muted}>
-                                  ПВЗ покупателя:{' '}
-                                  {order.buyerPickupPvzMeta?.addressFull ?? '—'}
-                                </p>
-                                <p className={styles.muted}>
-                                  ПВЗ сдачи:{' '}
-                                  {order.sellerDropoffPvzMeta?.addressFull ??
-                                    '—'}
-                                </p>
-                                <p className={styles.muted}>
-                                  Грузомест: {order.packagesCount ?? 1}
-                                </p>
-                                <p className={styles.muted}>
-                                  Сумма: {formatPrice(total)}
-                                </p>
-                                <p className={styles.muted}>
-                                  Товары:{' '}
-                                  {order.items
-                                    .map((item) => `${item.title} ×${item.qty}`)
-                                    .join(', ') || '—'}
-                                </p>
-                              </details>
-
-                              {!isCancelled && (
+                              {/* Завершённый заказ */}
+                              {!isCancelled && isCompletedOrder(order) && order.shipment?.id && (
                                 <>
                                   <Button
                                     type="button"
                                     variant="ghost"
-                                    className={
-                                      labelDownloaded[order.id]
-                                        ? styles.downloadedButton
-                                        : ''
-                                    }
+                                    size="sm"
+                                    className={labelDownloaded[order.id] ? styles.downloadedButton : ''}
                                     onClick={() =>
                                       order.shipment?.id &&
-                                      handleDownloadLabel(
-                                        order.shipment.id,
-                                        order.id
-                                      )
+                                      handleDownloadLabel(order.shipment.id, order.id)
                                     }
-                                    disabled={
-                                      !order.shipment?.id ||
-                                      !order.trackingNumber
-                                    }
+                                    disabled={!order.trackingNumber}
                                   >
                                     Скачать ярлык
                                   </Button>
-
-                                  {!order.trackingNumber && (
-                                    <p className={styles.muted}>
-                                      ещё формируется
-                                    </p>
-                                  )}
-
                                   <Button
                                     type="button"
                                     variant="ghost"
-                                    className={
-                                      actDownloaded[order.id]
-                                        ? styles.downloadedButton
-                                        : ''
-                                    }
+                                    size="sm"
+                                    className={actDownloaded[order.id] ? styles.downloadedButton : ''}
                                     onClick={() =>
                                       order.shipment?.id &&
-                                      handleDownloadAct(
-                                        order.shipment.id,
-                                        order.id
-                                      )
-                                    }
-                                    disabled={
-                                      !order.shipment?.id && !order.cdekOrderId
+                                      handleDownloadAct(order.shipment.id, order.id)
                                     }
                                   >
                                     Скачать акт
                                   </Button>
                                 </>
                               )}
+
+                              {/* Данные получателя (свёрнуто) */}
+                              <details>
+                                <summary>Данные получателя</summary>
+                                <p className={styles.muted}>ФИО: {order.recipientName ?? '—'}</p>
+                                <p className={styles.muted}>Телефон: {order.recipientPhone ?? '—'}</p>
+                                <p className={styles.muted}>Email: {order.recipientEmail ?? '—'}</p>
+                                <p className={styles.muted}>Грузомест: {order.packagesCount ?? 1}</p>
+                                <p className={styles.muted}>
+                                  Товары:{' '}
+                                  {order.items.map((i) => `${i.title} ×${i.qty}`).join(', ') || '—'}
+                                </p>
+                              </details>
+
                             </div>
                           </div>
                         );

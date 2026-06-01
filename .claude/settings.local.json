@@ -16,7 +16,16 @@
       "Bash(Select-Object -First 30)",
       "Bash(xargs grep -l \"submitSellerKyc\")",
       "Bash(Test-Path \"C:\\\\Users\\\\Funtik Funy Cat\\\\Desktop\\\\Frontend\\\\print-form\\\\frontend\\\\src\\\\components\\\\chats\\\\MessageComposer.module.css\")",
-      "Bash(dir \"c:\\\\Users\\\\Funtik Funy Cat\\\\Desktop\\\\Frontend\\\\print-form\\\\frontend\\\\src\" -Recurse -Name -Include \"*[Pp]roduct*[Pp]age*\")"
+      "Bash(dir \"c:\\\\Users\\\\Funtik Funy Cat\\\\Desktop\\\\Frontend\\\\print-form\\\\frontend\\\\src\" -Recurse -Name -Include \"*[Pp]roduct*[Pp]age*\")",
+      "Bash(dir \"C:\\\\Users\\\\Funtik Funy Cat\\\\Desktop\\\\Frontend\\\\print-form\" /b)",
+      "Bash(xargs grep -l \"skeleton\\\\|Skeleton\")",
+      "Bash(xargs grep -l \"Skeleton\\\\|skeleton\\\\|CardSkeleton\\\\|cardSkeleton\")",
+      "Bash(node -e ' *)",
+      "Bash(xargs grep -l \"pay\\\\|checkout\\\\|payment\\\\|createOrder\")",
+      "Bash(xargs grep -l \"createOrder\\\\|handlePay\\\\|payBtn\\\\|оплати\")",
+      "Bash(xargs grep -l \"payBtn\\\\|Оплатить\\\\|createOrder\")",
+      "Bash(xargs grep -rn \"Оплатить\\\\|pay.*click\\\\|handleOrder\\\\|placeOrder\")",
+      "Bash(xargs grep -l \"CdekPvz\\\\|pvzId\\\\|city_code\\\\|cdek.*widget\\\\|CdekWidget\")"
     ]
   }
 }

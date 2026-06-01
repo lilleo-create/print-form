@@ -1,0 +1,81 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.event {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  gap: 0 10px;
+  position: relative;
+}
+
+/* Вертикальная линия между точками */
+.event:not(:last-child) .dot::after {
+  content: '';
+  position: absolute;
+  top: 18px;
+  left: 5px;
+  width: 2px;
+  bottom: -4px;
+  background: var(--border);
+}
+
+.dotCol {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  padding-top: 3px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border);
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.dotActive {
+  background: var(--primary);
+}
+
+.dotCol::after {
+  content: '';
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2px;
+  bottom: -4px;
+  background: var(--border);
+  z-index: 0;
+}
+
+.event:last-child .dotCol::after {
+  display: none;
+}
+
+.body {
+  padding: 0 0 12px 0;
+}
+
+.description {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.time {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 1px;
+}
+
+.empty {
+  font-size: 13px;
+  color: var(--muted);
+}

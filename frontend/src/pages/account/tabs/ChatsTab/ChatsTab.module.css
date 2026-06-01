@@ -2,15 +2,20 @@
 .chatLayout {
   display: grid;
   grid-template-columns: 300px 1fr;
-  height: min(700px, 80vh);
-  min-height: 480px;
+  /*
+    Desktop: ._main has padding-top 68px, pageChats has padding-top 8px.
+    Total offset = 76px. Add small bottom gap too.
+  */
+  height: min(calc(100dvh - 76px), 900px);
   border: 1px solid var(--border);
   border-radius: 16px;
   overflow: hidden;
   background: var(--card);
+  /* Small top margin for visual breathing room below the nav */
+  margin-top: 8px;
 }
 
-/* ── Left panel: thread list ── */
+/* ── Left panel ── */
 .chatList {
   display: flex;
   flex-direction: column;
@@ -72,11 +77,15 @@
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 0;
   padding: 8px 0;
+  scrollbar-width: none;
 }
 
-/* ── Right panel: chat window ── */
+.threadLists::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── Right panel ── */
 .chatWindowPane {
   display: flex;
   flex-direction: column;
@@ -87,32 +96,59 @@
 /* ── Mobile ── */
 @media (max-width: 767px) {
   .chatLayout {
-    grid-template-columns: 1fr;
-    height: calc(100dvh - 140px);
+    display: block;
+    position: relative;
+    /*
+      Mobile: ._main padding-top ≈ 58px + safe-area-top,
+      padding-bottom ≈ 100px + safe-area-bottom.
+      pageChats padding = 0.
+      Add 8px top gap (margin-top) and 4px bottom gap.
+      height = 100dvh - 58px - safe-top - 100px - safe-bottom - 12px (gaps).
+    */
+    height: calc(
+      100dvh
+      - 58px - env(safe-area-inset-top, 0px)
+      - 100px - env(safe-area-inset-bottom, 0px)
+      - 12px
+    );
+    margin-top: 8px;
+    min-height: 0;
     border-radius: 12px;
+    border-left: none;
+    border-right: none;
+    border-radius: 0;
+    overflow: hidden;
   }
 
+  /* Thread list: default visible, slides left when hidden */
   .chatList {
+    position: absolute;
+    inset: 0;
     border-right: none;
+    will-change: transform;
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    transform: translateX(0);
+    z-index: 1;
   }
 
   .chatListHidden {
-    display: none;
+    transform: translateX(-100%);
+    pointer-events: none;
   }
 
-  .chatWindowHidden {
-    display: none;
-  }
-
+  /* Chat pane: hidden off-screen right by default, slides in when active */
   .chatWindowPane {
-    display: flex;
+    position: absolute;
+    inset: 0;
+    will-change: transform;
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    transform: translateX(100%);
+    z-index: 2;
+    /* Ensure touch events work even in absolute positioning */
+    -webkit-overflow-scrolling: touch;
   }
-}
 
-/* Desktop: always show both panels */
-@media (min-width: 768px) {
-  .chatListHidden,
-  .chatWindowHidden {
-    display: contents;
+  .chatWindowActive {
+    transform: translateX(0);
   }
 }

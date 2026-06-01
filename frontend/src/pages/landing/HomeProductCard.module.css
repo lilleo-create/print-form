@@ -168,3 +168,87 @@
   .title { font-size: 13px; }
   .price { font-size: 18px; }
 }
+
+/* ── Skeleton ── */
+.skeleton {
+  border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: color-mix(in oklab, var(--card) 55%, transparent);
+  border: 1px solid var(--border);
+  pointer-events: none;
+}
+
+.skeletonImg {
+  aspect-ratio: 1 / 1;
+  width: 100%;
+  flex-shrink: 0;
+}
+
+.skeletonBody {
+  padding: 12px 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skeletonLine {
+  border-radius: 8px;
+  height: 14px;
+}
+
+.skeletonLineShort {
+  border-radius: 8px;
+  height: 14px;
+  width: 55%;
+}
+
+.skeletonPrice {
+  border-radius: 8px;
+  height: 22px;
+  width: 45%;
+}
+
+/* shimmer pulse shared by all skeleton children */
+@keyframes skeletonPulse {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.skeletonImg,
+.skeletonLine,
+.skeletonLineShort,
+.skeletonPrice {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 25%,
+    rgba(255, 255, 255, 0.12) 50%,
+    rgba(255, 255, 255, 0.04) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeletonPulse 1.4s ease-in-out infinite;
+}
+
+[data-theme="light"] .skeletonImg,
+[data-theme="light"] .skeletonLine,
+[data-theme="light"] .skeletonLineShort,
+[data-theme="light"] .skeletonPrice {
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.04) 25%,
+    rgba(0, 0, 0, 0.10) 50%,
+    rgba(0, 0, 0, 0.04) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeletonPulse 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeletonImg,
+  .skeletonLine,
+  .skeletonLineShort,
+  .skeletonPrice {
+    animation: none;
+  }
+}

@@ -3,7 +3,6 @@ import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Order } from '../../shared/types';
 import {
-  getDeliveryStatusLabel,
   hasHandoverStarted,
   isCancellableDeliveryStage
 } from '../../shared/lib/deliveryStatus';
@@ -14,6 +13,7 @@ import {
   formatEtaDays
 } from '../../shared/lib/deliveryEta';
 import { ProductMiniCard } from './ProductMiniCard';
+import { CopyableOrderNumber } from '../seller/CopyableOrderNumber';
 import styles from './OrdersComponents.module.css';
 import { formatPrice } from '../../utils/money';
 
@@ -82,12 +82,6 @@ export const OrderCompactCard = ({
     );
 
   const orderStatusLabel = getOrderStatusLabel(String(order.status ?? '').toUpperCase());
-  const deliveryStatusLabel = isCancelled ? '—' : getDeliveryStatusLabel(order);
-  const payoutStatusLabel = isHeldBySafeDeal
-    ? 'Заморожено'
-    : isPaid
-      ? 'Доступно к выплате'
-      : 'Ожидает оплаты';
   const status = isCancelled ? 'Заказ отменён' : `Заказ: ${orderStatusLabel}`;
   const subStatus = useMemo(() => {
     if (isCancelled) {
@@ -153,10 +147,23 @@ export const OrderCompactCard = ({
     >
       <div className={styles.cardHeader}>
         <div className={styles.headerMeta}>
-          <h3>Заказ №{order.id}</h3>
+          <h3>
+            <CopyableOrderNumber
+              orderId={order.id}
+              publicNumber={order.publicNumber}
+            />
+          </h3>
           <span>{new Date(order.createdAt).toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric' })}</span>
         </div>
-        <div className={styles.total}>{formatPrice(order.total)}</div>
+        <div className={styles.total}>
+          {formatPrice(order.financials?.total ?? order.total)}
+          {order.financials && order.financials.deliveryAmount > 0 && (
+            <span className={styles.caption} style={{ display: 'block', fontWeight: 400, fontSize: 12 }}>
+              товары {formatPrice(order.financials.itemsSubtotal)}
+              {' + '}доставка {formatPrice(order.financials.deliveryAmount)}
+            </span>
+          )}
+        </div>
       </div>
 
       {firstItem ? <ProductMiniCard title={firstItem.title} price={firstItem.price} qty={firstItem.qty} image={firstItem.image} /> : null}
@@ -164,17 +171,19 @@ export const OrderCompactCard = ({
 
       <div className={styles.statusSection}>
         <span className={`${styles.badge} ${isCancelled ? styles.badgeDanger : styles.badgeNeutral}`}>{status}</span>
-        {!isCancelled ? (
-          <>
-            <p className={styles.caption}>Доставка: {deliveryStatusLabel}</p>
-            <p className={styles.caption}>Выплата продавцу: {payoutStatusLabel}</p>
-          </>
-        ) : null}
         <p className={styles.substatus}>{subStatus}</p>
 
         {!isCancelled ? (
           <>
+            {/* Человекочитаемый статус от бэка */}
+            {order.deliveryStatusLabel && (
+              <p className={styles.caption}>{order.deliveryStatusLabel}</p>
+            )}
+
+            {/* Адрес пвз / способ доставки */}
             {deliveryLabel ? <p className={styles.caption}>{deliveryLabel}</p> : null}
+
+            {/* Трек СДЭК */}
             {order.trackingNumber ? (
               <a
                 href={`https://www.cdek.ru/ru/tracking?order_id=${encodeURIComponent(order.trackingNumber)}`}
@@ -186,7 +195,11 @@ export const OrderCompactCard = ({
                 СДЭК: {order.trackingNumber}
               </a>
             ) : null}
-            {formatEtaDays(order.deliveryDaysMin ?? null, order.deliveryDaysMax ?? null) ? (
+
+            {/* Срок доставки — из нового поля ETA или fallback на старое */}
+            {order.deliveryEta?.text ? (
+              <p className={styles.caption}>Срок: {order.deliveryEta.text}</p>
+            ) : formatEtaDays(order.deliveryDaysMin ?? null, order.deliveryDaysMax ?? null) ? (
               <>
                 <p className={styles.caption}>{formatEtaDays(order.deliveryDaysMin ?? null, order.deliveryDaysMax ?? null)}</p>
                 <p className={styles.caption}>

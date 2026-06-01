@@ -914,6 +914,12 @@
 
 .profileMenuToggle { cursor: pointer; }
 
+/* Скрыть на десктопе, показывать только на мобиле */
+.profileMenuMobileOnly { display: none; }
+@media (max-width: 768px) {
+  .profileMenuMobileOnly { display: flex; }
+}
+
 .profileMenuToggleValue {
   margin-left: auto;
   color: rgba(255, 255, 255, 0.35);

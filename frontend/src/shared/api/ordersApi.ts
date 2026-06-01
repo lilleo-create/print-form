@@ -1,4 +1,4 @@
-import { Order, OrderItem, OrderStatus } from '../types';
+import { DeliveryEta, DeliveryEvent, Order, OrderFinancials, OrderItem, OrderStatus } from '../types';
 import { api } from './index';
 
 type ApiOrderItem = {
@@ -50,6 +50,7 @@ type ApiOrder = {
   carrier?: string | null;
   deliveryDaysMin?: number | null;
   deliveryDaysMax?: number | null;
+  deliveryCalculatedAt?: string | null;
   estimatedDeliveryDateMin?: string | null;
   estimatedDeliveryDateMax?: string | null;
   contact?: Order['contact'];
@@ -57,6 +58,10 @@ type ApiOrder = {
   delivery?: Order['delivery'] | null;
   shipment?: Order['shipment'] | null;
   items?: ApiOrderItem[];
+  financials?: OrderFinancials | null;
+  deliveryStatusLabel?: string | null;
+  deliveryEta?: DeliveryEta | null;
+  deliveryEvents?: DeliveryEvent[];
 };
 
 const mapStatus = (status?: string): OrderStatus => {
@@ -121,6 +126,7 @@ const mapOrder = (order: ApiOrder): Order => ({
   carrier: order.carrier ?? null,
   deliveryDaysMin: order.deliveryDaysMin ?? null,
   deliveryDaysMax: order.deliveryDaysMax ?? null,
+  deliveryCalculatedAt: order.deliveryCalculatedAt ?? null,
   estimatedDeliveryDateMin: order.estimatedDeliveryDateMin ?? null,
   estimatedDeliveryDateMax: order.estimatedDeliveryDateMax ?? null,
   contact: order.contact ?? null,
@@ -128,6 +134,10 @@ const mapOrder = (order: ApiOrder): Order => ({
   buyer: order.buyer ?? null,
   delivery: order.delivery ?? null,
   shipment: order.shipment ?? null,
+  financials: order.financials ?? null,
+  deliveryStatusLabel: order.deliveryStatusLabel ?? null,
+  deliveryEta: order.deliveryEta ?? null,
+  deliveryEvents: order.deliveryEvents ?? [],
   items: (order.items ?? []).map((item) => ({
     id: item.id,
     productId: item.productId,

@@ -245,27 +245,29 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         (typeof selectedPointRaw.buyerPickupStationId === 'string' ? selectedPointRaw.buyerPickupStationId : undefined) ??
         (typeof selectedPointRaw.operator_station_id === 'string' ? selectedPointRaw.operator_station_id : undefined);
 
+      // cityCode теперь возвращается бэком после исправления Zod-схемы
+      const cityCode = data.selectedPickupPoint?.cityCode;
+
       const buyerPickupPvz = {
         provider: 'CDEK' as const,
         pvzId,
         buyerPickupStationId,
         addressFull: data.selectedPickupPoint?.addressFull,
+        cityCode,
         raw: {
           ...selectedPointRaw,
           id: pvzId,
           buyerPickupPointId: pvzId,
           buyerPickupStationId,
-          addressFull: data.selectedPickupPoint?.addressFull
+          addressFull: data.selectedPickupPoint?.addressFull,
+          // Передаём в обоих форматах — бэк проверяет оба
+          cityCode,
+          city_code: cityCode
         }
       };
 
-      if (import.meta.env.DEV) {
-        console.debug('[Checkout] placeOrder payload', { buyerPickupPvz });
-      }
-
-      const paymentAttemptKey = crypto.randomUUID();
-      const response = await checkoutApi.startPayment({
-        paymentAttemptKey,
+      const startPaymentPayload = {
+        paymentAttemptKey: crypto.randomUUID(),
         recipient: {
           name: data.recipient.name,
           phone: data.recipient.phone,
@@ -277,7 +279,12 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
           productId: item.productId,
           quantity: item.quantity
         }))
-      });
+      };
+
+      // Лог всегда — чтобы видеть payload при DATABASE_VALIDATION_ERROR
+      console.log('[Checkout] startPayment payload:', JSON.stringify(startPaymentPayload, null, 2));
+
+      const response = await checkoutApi.startPayment(startPaymentPayload);
 
       useCartStore.getState().clear();
       set({

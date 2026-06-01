@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ChatMessage, ChatThread } from '../../../../shared/types';
 import { Button } from '../../../../shared/ui/Button';
 import { ChatThreadList } from '../../../../components/chats/ChatThreadList';
@@ -38,11 +38,19 @@ export const ChatsTab = ({
   const [isTopicPickerOpen, setTopicPickerOpen] = useState(false);
   const [showMobileChat, setShowMobileChat] = useState(false);
 
+  // Lock outer page scroll while the chat tab is mounted so the page
+  // cannot scroll behind the chat window
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
   const handleTopicSelect = async (topic: string) => {
     const thread = await onCreateSupportThread(topic);
-    if (thread) {
-      setTopicPickerOpen(false);
-    }
+    if (thread) setTopicPickerOpen(false);
   };
 
   const handleSelectThread = (thread: ChatThread) => {
@@ -56,6 +64,7 @@ export const ChatsTab = ({
 
   return (
     <div className={styles.chatLayout}>
+      {/* Left panel — thread list */}
       <div className={`${styles.chatList} ${showMobileChat ? styles.chatListHidden : ''}`}>
         <div className={styles.supportCard}>
           <div className={styles.supportCardText}>
@@ -103,7 +112,9 @@ export const ChatsTab = ({
         </div>
       </div>
 
-      <div className={`${styles.chatWindowPane} ${!showMobileChat ? styles.chatWindowHidden : ''}`}>
+      {/* Right panel — chat window.
+          On mobile: chatWindowActive slides it into view from the right. */}
+      <div className={`${styles.chatWindowPane} ${showMobileChat ? styles.chatWindowActive : ''}`}>
         <ChatWindow
           thread={selectedThread}
           messages={chatMessages}

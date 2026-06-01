@@ -1,13 +1,16 @@
-import { Skeleton } from '../../shared/ui/Skeleton';
-import styles from '../LandingPage.module.css';
+import styles from './HomeProductCard.module.css';
 
 export const ProductCardSkeleton = () => (
-  <article className={styles.productCard}>
-    <Skeleton className={styles.productImageSkeleton} />
-    <div className={styles.productBody}>
-      <Skeleton className={styles.productTitleSkeleton} />
-      <Skeleton className={styles.productPriceSkeleton} />
-      <Skeleton className={styles.productMetaSkeleton} />
+  <article className={styles.skeleton} aria-hidden="true">
+    <div className={styles.skeletonImg} />
+    <div className={styles.skeletonBody}>
+      {/* title — 2 lines */}
+      <div className={styles.skeletonLine} />
+      <div className={styles.skeletonLineShort} />
+      {/* price */}
+      <div className={styles.skeletonPrice} />
+      {/* meta */}
+      <div className={styles.skeletonLineShort} />
     </div>
   </article>
 );

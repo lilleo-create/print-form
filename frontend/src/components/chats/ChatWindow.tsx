@@ -1,10 +1,11 @@
-import { useEffect, useRef } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { ChatMessage, ChatThread } from '../../shared/types';
 import { MessageComposer } from './MessageComposer';
 import styles from './ChatWindow.module.css';
 import { resolveMediaUrl } from '../../shared/lib/resolveMediaUrl';
 import { getProductMainImage } from '../../shared/lib/productMedia';
 import { formatPrice } from '../../utils/money';
+import { getReturnStatusLabel } from '../../shared/lib/adminStatusLabels';
 
 interface ChatWindowProps {
   thread: ChatThread | null;
@@ -16,8 +17,8 @@ interface ChatWindowProps {
 }
 
 const reasonLabels: Record<string, string> = {
-  NOT_FIT: 'Не подошло',
-  DAMAGED: 'Брак или повреждение',
+  NOT_FIT:    'Не подошло',
+  DAMAGED:    'Брак или повреждение',
   WRONG_ITEM: 'Привезли не то'
 };
 
@@ -31,12 +32,39 @@ const getThreadSubtitle = (thread: ChatThread) => {
   return thread.supportTopic ? `Тема: ${thread.supportTopic}` : 'Обращение в поддержку';
 };
 
+const getDateKey = (dateStr: string) => new Date(dateStr).toDateString();
+
+const getDateLabel = (dateStr: string): string => {
+  const date = new Date(dateStr);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (date.toDateString() === today.toDateString()) return 'Сегодня';
+  if (date.toDateString() === yesterday.toDateString()) return 'Вчера';
+  return date.toLocaleDateString('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    ...(date.getFullYear() !== today.getFullYear() && { year: 'numeric' })
+  });
+};
+
 export const ChatWindow = ({ thread, messages, loading, error, onSend, onBack }: ChatWindowProps) => {
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef<HTMLDivElement>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+
+  // Scroll the messages container itself — never the outer page
+  useEffect(() => {
+    if (messagesRef.current) {
+      messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
+    }
+  }, [messages.length]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages.length]);
+    setDetailsOpen(false);
+  }, [thread?.id]);
+
+  // Show loading only on initial load (no messages yet) to prevent list jumps
+  const showLoader = loading && messages.length === 0;
 
   if (!thread) {
     return (
@@ -57,13 +85,20 @@ export const ChatWindow = ({ thread, messages, loading, error, onSend, onBack }:
   const returnItem = thread.returnRequest?.items?.[0]?.orderItem ?? null;
   const product = returnItem?.product ?? null;
   const productImage = getProductMainImage(product ?? undefined);
+  const rr = thread.returnRequest;
+  const returnStatusLabel = rr ? getReturnStatusLabel(rr.status, rr.statusLabelRu) : null;
 
   return (
     <div className={styles.window}>
       {/* Header */}
       <div className={styles.threadHeader}>
         {onBack && (
-          <button type="button" className={styles.backBtn} onClick={onBack} aria-label="Назад">
+          <button
+            type="button"
+            className={styles.backBtn}
+            onClick={onBack}
+            aria-label="Назад"
+          >
             <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
               <path d="M13 16l-6-6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
@@ -78,84 +113,124 @@ export const ChatWindow = ({ thread, messages, loading, error, onSend, onBack }:
         )}
       </div>
 
-      {/* Return panel */}
-      {thread.returnRequest && (
-        <div className={styles.returnPanel}>
-          <strong>Заявка на возврат</strong>
-          <p>
-            Причина:{' '}
-            {reasonLabels[thread.returnRequest.reason] ?? thread.returnRequest.reason}
-          </p>
-          {thread.returnRequest.comment && (
-            <p>Комментарий: {thread.returnRequest.comment}</p>
+      {/* Compact return card */}
+      {rr && (
+        <button
+          type="button"
+          className={styles.returnCard}
+          onClick={() => setDetailsOpen(true)}
+        >
+          {product && productImage && (
+            <img className={styles.returnCardImg} src={productImage} alt={product.title} />
           )}
-          <p>Статус: {thread.returnRequest.status}</p>
-          <p>
-            Дата:{' '}
-            {new Date(thread.returnRequest.createdAt).toLocaleDateString('ru-RU', {
-              day: '2-digit',
-              month: 'long',
-              year: 'numeric'
-            })}
-          </p>
-          {thread.returnRequest.photos?.length > 0 && (
-            <div className={styles.photos}>
-              {thread.returnRequest.photos.map((photo) => (
-                <a key={photo.id} href={resolveMediaUrl(photo.url) ?? '#'} target="_blank" rel="noreferrer">
-                  <img src={resolveMediaUrl(photo.url) ?? ''} alt="Фото возврата" />
-                </a>
-              ))}
+          <div className={styles.returnCardBody}>
+            <span className={styles.returnCardTitle}>Заявка на возврат</span>
+            <span className={styles.returnCardSub}>{reasonLabels[rr.reason] ?? rr.reason}</span>
+          </div>
+          <span className={styles.returnCardStatus}>{returnStatusLabel}</span>
+        </button>
+      )}
+
+      {/* Details sheet */}
+      {rr && detailsOpen && (
+        <div className={styles.detailsOverlay} onClick={() => setDetailsOpen(false)}>
+          <div className={styles.detailsSheet} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.detailsHandle} />
+            <div className={styles.detailsSheetHeader}>
+              <span className={styles.detailsSheetTitle}>Детали возврата</span>
+              <button
+                type="button"
+                className={styles.detailsCloseBtn}
+                onClick={() => setDetailsOpen(false)}
+                aria-label="Закрыть"
+              >
+                ✕
+              </button>
             </div>
-          )}
-          {product && (
-            <div className={styles.returnProduct}>
-              {productImage ? (
-                <img src={productImage} alt={product.title} />
-              ) : (
-                <div aria-hidden="true" />
+            <div className={styles.detailsSheetBody}>
+              {product && (
+                <button
+                  type="button"
+                  className={styles.returnProduct}
+                  onClick={() => setDetailsOpen(false)}
+                >
+                  {productImage && <img src={productImage} alt={product.title} />}
+                  <div>
+                    <strong>{product.title}</strong>
+                    <p>{formatPrice(product.price)} ₽</p>
+                  </div>
+                </button>
               )}
-              <div>
-                <strong>{product.title}</strong>
-                <p>{formatPrice(product.price)} ₽</p>
+              <div className={styles.returnRow}>
+                <span className={styles.returnLabel}>Причина:</span>
+                <span>{reasonLabels[rr.reason] ?? rr.reason}</span>
               </div>
+              {rr.comment && (
+                <div className={styles.returnRow}>
+                  <span className={styles.returnLabel}>Комментарий:</span>
+                  <span>{rr.comment}</span>
+                </div>
+              )}
+              <div className={styles.returnRow}>
+                <span className={styles.returnLabel}>Статус:</span>
+                <span className={styles.returnStatus}>{returnStatusLabel}</span>
+              </div>
+              <div className={styles.returnRow}>
+                <span className={styles.returnLabel}>Дата:</span>
+                <span>
+                  {new Date(rr.createdAt).toLocaleDateString('ru-RU', {
+                    day: '2-digit', month: 'long', year: 'numeric'
+                  })}
+                </span>
+              </div>
+              {rr.photos?.length > 0 && (
+                <div className={styles.photos}>
+                  {rr.photos.map((photo) => (
+                    <a key={photo.id} href={resolveMediaUrl(photo.url) ?? '#'} target="_blank" rel="noreferrer">
+                      <img src={resolveMediaUrl(photo.url) ?? ''} alt="Фото возврата" />
+                    </a>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
       )}
 
-      {/* Messages */}
-      <div className={styles.messages}>
-        {loading && <p className={styles.statusMsg}>Загрузка сообщений...</p>}
+      {/* Messages — ref here for direct scrollTop control */}
+      <div ref={messagesRef} className={styles.messages}>
+        {showLoader && <p className={styles.statusMsg}>Загрузка сообщений...</p>}
         {error && <p className={styles.statusMsg}>{error}</p>}
         {!loading && !error && messages.length === 0 && (
           <p className={styles.statusMsg}>Нет сообщений.</p>
         )}
         {messages.map((message, i) => {
           const isUser = message.authorRole === 'USER';
-          const prevSame = i > 0 && messages[i - 1].authorRole === message.authorRole;
+          const showDateSep = i === 0 || getDateKey(messages[i - 1].createdAt) !== getDateKey(message.createdAt);
+          const prevSame = i > 0 && messages[i - 1].authorRole === message.authorRole && !showDateSep;
           return (
-            <div
-              key={message.id}
-              className={`${isUser ? styles.messageUser : styles.messageAdmin} ${prevSame ? styles.messageContinued : ''}`}
-            >
-              {!prevSame && (
-                <span className={styles.senderLabel}>
-                  {isUser ? 'Вы' : 'Поддержка'}
-                </span>
+            <Fragment key={message.id}>
+              {showDateSep && (
+                <div className={styles.dateSep}>
+                  <span>{getDateLabel(message.createdAt)}</span>
+                </div>
               )}
-              <div className={styles.bubble}>
-                <p>{message.text}</p>
-                <span className={styles.time}>
-                  {new Date(message.createdAt).toLocaleTimeString('ru-RU', {
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  })}
-                </span>
+              <div className={`${isUser ? styles.messageUser : styles.messageAdmin} ${prevSame ? styles.messageContinued : ''}`}>
+                {!prevSame && (
+                  <span className={styles.senderLabel}>{isUser ? 'Вы' : 'Поддержка'}</span>
+                )}
+                <div className={styles.bubble}>
+                  <p>{message.text}</p>
+                  <span className={styles.time}>
+                    {new Date(message.createdAt).toLocaleTimeString('ru-RU', {
+                      hour: '2-digit', minute: '2-digit'
+                    })}
+                  </span>
+                </div>
               </div>
-            </div>
+            </Fragment>
           );
         })}
-        <div ref={bottomRef} />
       </div>
 
       {/* Composer */}
