@@ -115,6 +115,10 @@
   .carouselCard {
     height: 300px;
   }
+
+  .carouselImage {
+    object-fit: contain;
+  }
 }
 
 @media (min-width: 1101px) {
