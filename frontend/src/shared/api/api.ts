@@ -803,9 +803,14 @@ export const api = {
   async calculateCdekForOrder(orderId: string) {
     return apiClient.request<{
       totalSum: number;
+      deliverySum?: number;
       deliveryDaysMin: number;
       deliveryDaysMax: number;
-      tariffCode: 136;
+      calendarMin?: string | null;
+      calendarMax?: string | null;
+      tariffCode: number;
+      shipmentPoint?: string | null;
+      deliveryPoint?: string | null;
       weightGrams: number;
       lengthCm: number;
       widthCm: number;

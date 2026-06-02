@@ -361,6 +361,28 @@ const resolveOrderKopecks = (order: Order) => {
   return toKopecks(order.totalRubles);
 };
 
+const isValidDateString = (v: string | null | undefined): boolean => {
+  if (!v || typeof v !== 'string') return false;
+  const d = new Date(v);
+  return !isNaN(d.getTime()) && d.getFullYear() > 2000;
+};
+
+const buildDeliveryEtaLabel = (order: Order): string | null => {
+  if (order.deliveryEta?.text) return order.deliveryEta.text;
+  const { estimatedDeliveryDateMin, estimatedDeliveryDateMax, deliveryDaysMin, deliveryDaysMax } = order;
+  if (isValidDateString(estimatedDeliveryDateMin)) {
+    const fmt = (d: string) =>
+      new Date(d).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' });
+    const min = fmt(estimatedDeliveryDateMin!);
+    const max = isValidDateString(estimatedDeliveryDateMax) ? fmt(estimatedDeliveryDateMax!) : min;
+    return min === max ? `к ${min}` : `${min} — ${max}`;
+  }
+  if (deliveryDaysMin !== null && deliveryDaysMin !== undefined) {
+    const d2 = deliveryDaysMax ?? deliveryDaysMin;
+    return deliveryDaysMin === d2 ? `${deliveryDaysMin} дн.` : `${deliveryDaysMin}–${d2} дн.`;
+  }
+  return null;
+};
 
 const payoutStatusLabelRu = (value?: string | null) => {
   switch (String(value ?? '').toLowerCase()) {
@@ -724,6 +746,12 @@ export const SellerDashboardPage = () => {
     string | null
   >(null);
 
+  // === Delivery calculation per order ===
+  const [deliveryCalcLoading, setDeliveryCalcLoading] = useState<Set<string>>(
+    new Set()
+  );
+  const autoCalcAttemptedRef = useRef<Set<string>>(new Set());
+
   const canSell = kycSubmission?.status === 'APPROVED';
   const shouldShowTestOrderActions =
     import.meta.env.DEV ||
@@ -1061,6 +1089,35 @@ export const SellerDashboardPage = () => {
       setDropoffPvzAddress(
         dropoffPvz?.addressFull ?? dropoffMeta?.addressFull ?? ''
       );
+
+      // Авто-расчёт стоимости доставки для заказов, где она ещё не известна
+      const toCalc = data.filter((order) => {
+        if (autoCalcAttemptedRef.current.has(order.id)) return false;
+        if (order.status === 'CANCELLED') return false;
+        if (['DELIVERED', 'RETURNED'].includes(String(order.status).toUpperCase())) return false;
+        const hasBuyerPvz = Boolean(order.buyerPickupPvzMeta);
+        const hasSellerPvz = Boolean(order.sellerDropoffPvzMeta) || Boolean(selectedPvzId);
+        const needsCalc = !order.deliveryCalculatedAt;
+        return hasBuyerPvz && hasSellerPvz && needsCalc;
+      });
+
+      if (toCalc.length > 0) {
+        toCalc.forEach((o) => autoCalcAttemptedRef.current.add(o.id));
+        setDeliveryCalcLoading(new Set(toCalc.map((o) => o.id)));
+        try {
+          const results = await Promise.allSettled(
+            toCalc.map((o) => api.calculateCdekForOrder(o.id))
+          );
+          if (results.some((r) => r.status === 'fulfilled')) {
+            const refreshed = await ordersApi.listBySeller(userId, {
+              search: ordersSearchQuery
+            });
+            setOrders(refreshed);
+          }
+        } finally {
+          setDeliveryCalcLoading(new Set());
+        }
+      }
     } catch (error) {
       setOrders([]);
       if (isAccessError(error) && isSellerReady) {
@@ -2890,6 +2947,13 @@ export const SellerDashboardPage = () => {
                                 </p>
                               )}
 
+                              {/* Авто-расчёт доставки */}
+                              {deliveryCalcLoading.has(order.id) && (
+                                <p className={styles.muted}>
+                                  Рассчитываем стоимость доставки...
+                                </p>
+                              )}
+
                               {/* Трек-номер */}
                               {order.trackingNumber ? (
                                 <a
@@ -2917,7 +2981,10 @@ export const SellerDashboardPage = () => {
                               {order.financials && (
                                 <OrderFinancialsSummary
                                   financials={order.financials}
-                                  deliveryEtaText={order.deliveryEta?.text}
+                                  deliveryEtaText={
+                                    order.deliveryEta?.text ??
+                                    buildDeliveryEtaLabel(order)
+                                  }
                                 />
                               )}
 
