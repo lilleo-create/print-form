@@ -96,7 +96,6 @@ interface AuthState {
   >;
 
   register: (payload: {
-    name: string;
     fullName: string;
     email: string;
     password: string;
@@ -117,7 +116,7 @@ interface AuthState {
 
   checkOtpStatus: (requestId: string, token?: string | null) => Promise<'pending' | 'verified' | 'expired' | 'failed' | 'cancelled'>;
   verifyOtp: (
-    payload: { phone: string; code?: string; requestId?: string; purpose?: RegistrationPurpose },
+    payload: { phone: string; code?: string; requestId?: string; purpose?: RegistrationPurpose; fullName?: string },
     token?: string | null
   ) => Promise<void>;
   verifyDeviceLoginOtp: (payload: { phone: string; requestId?: string }, token?: string | null) => Promise<void>;

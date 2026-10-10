@@ -303,8 +303,16 @@ export function OtpStep(props: {
         </div>
       )}
 
+      {otpUiState === 'call_to_auth' && (
+        <>
+          <p className={styles.callToAuthSubtitle}>С номера: <strong>{activeChallengeRef.current?.challengePhone ? formatRuPhone(activeChallengeRef.current.challengePhone) : 'вашего номера'}</strong></p>
+          {props.onBack && <Button type="button" variant="ghost" onClick={props.onBack}>Изменить номер</Button>}
+        </>
+      )}
+
       {otpUiState === 'error' && (
         <>
+          <p className={styles.fieldError}>Не удалось подтвердить звонок.</p>
           <Button
             type="button"
             disabled={isResendDisabled}

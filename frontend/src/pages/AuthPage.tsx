@@ -55,7 +55,6 @@ const isStrongPassword = (value: string) =>
 
 const registerSchema = z
   .object({
-    name: z.string().trim().min(1, 'Введите имя'),
     fullName: z
       .string()
       .trim()
@@ -212,7 +211,6 @@ export const AuthPage = () => {
     mode: 'onBlur',
     reValidateMode: 'onChange',
     defaultValues: {
-      name: '',
       fullName: '',
       phone: '',
       email: '',
@@ -392,7 +390,6 @@ export const AuthPage = () => {
 
     try {
       const result = await register({
-        name: values.name.trim(),
         fullName: values.fullName.trim().replace(/\s+/g, ' '),
         email: values.email.trim(),
         password: values.password,
@@ -504,14 +501,6 @@ export const AuthPage = () => {
 
               /* ── Register form ── */
               <form onSubmit={registerForm.handleSubmit(onRegister)} className={styles.form}>
-
-                <div className={styles.fieldGroup}>
-                  <label className={styles.fieldLabel}>Никнейм</label>
-                  <input placeholder="Как вас называть" {...registerForm.register('name')} />
-                  {registerForm.formState.errors.name && (
-                    <span className={styles.fieldError}>{registerForm.formState.errors.name.message}</span>
-                  )}
-                </div>
 
                 <div className={styles.fieldGroup}>
                   <label className={styles.fieldLabel}>ФИО</label>

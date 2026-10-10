@@ -27,7 +27,8 @@ export type RegistrationPurpose =
   | 'buyer_sensitive_action'
   | 'seller_connect_phone'
   | 'seller_change_payout_details'
-  | 'seller_payout_settings_verify';
+  | 'seller_payout_settings_verify'
+  | 'oauth_phone_binding';
 
 export type OtpRequestResponse = {
   requestId: string;
@@ -283,7 +284,6 @@ export const authApi = {
   },
 
   register: async (payload: {
-    name: string;
     fullName: string;
     email: string;
     password: string;
@@ -295,7 +295,6 @@ export const authApi = {
   }): Promise<AuthResult> => {
     try {
       const result = await api.register({
-        name: payload.name,
         fullName: payload.fullName,
         email: payload.email,
         password: payload.password,
@@ -366,7 +365,7 @@ export const authApi = {
   },
 
   verifyOtp: async (
-    payload: { phone: string; code?: string; requestId?: string; purpose?: RegistrationPurpose },
+    payload: { phone: string; code?: string; requestId?: string; purpose?: RegistrationPurpose; fullName?: string },
     token?: string | null
   ) => {
     const result = await api.verifyOtp(payload, token);

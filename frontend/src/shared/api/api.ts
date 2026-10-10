@@ -841,7 +841,6 @@ export const api = {
   },
 
   async register(payload: {
-    name: string | null;
     fullName: string;
     email: string;
     password: string;
@@ -875,7 +874,8 @@ export const api = {
         | 'buyer_sensitive_action'
         | 'seller_connect_phone'
         | 'seller_change_payout_details'
-        | 'seller_payout_settings_verify';
+        | 'seller_payout_settings_verify'
+        | 'oauth_phone_binding';
       turnstileToken?: string;
     },
     token?: string | null
@@ -910,7 +910,9 @@ export const api = {
         | 'buyer_sensitive_action'
         | 'seller_connect_phone'
         | 'seller_change_payout_details'
-        | 'seller_payout_settings_verify';
+        | 'seller_payout_settings_verify'
+        | 'oauth_phone_binding';
+      fullName?: string;
     },
     token?: string | null
   ) {
