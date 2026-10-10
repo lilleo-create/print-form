@@ -454,7 +454,7 @@ export const authApi = {
     return api.confirmPasswordReset(payload);
   },
 
-  updateProfile: async (payload: { name?: string; fullName?: string; email?: string; phone?: string; address?: string }) => {
+  updateProfile: async (payload: { fullName?: string; email?: string; phone?: string; address?: string }) => {
     const result = await api.updateProfile(payload);
     const responseData = result.data as RawUser | { data?: RawUser } | undefined;
     const updatedUser =

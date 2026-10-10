@@ -13,7 +13,7 @@ interface ProfileHeroCardProps extends ProfileTabProps {
 }
 
 const getAvatarText = (user: User | null) => {
-  const source = user?.name ?? user?.email ?? 'Пользователь';
+  const source = user?.fullName?.trim() || user?.name?.trim() || user?.email || 'Пользователь';
   return source
     .split(' ')
     .filter(Boolean)
@@ -23,13 +23,13 @@ const getAvatarText = (user: User | null) => {
     .toUpperCase();
 };
 
-const resolveDisplayName = (user: User | null) => user?.name?.trim() || user?.email || 'Пользователь';
-const resolveFullName = (user: User | null) => user?.fullName?.trim() || 'ФИО не указано';
-
 const ProfileHeroCard = ({ user, onOpenSettings }: ProfileHeroCardProps) => {
   const avatarText = useMemo(() => getAvatarText(user), [user]);
-  const displayName = useMemo(() => resolveDisplayName(user), [user]);
-  const fullName = useMemo(() => resolveFullName(user), [user]);
+  const displayName = useMemo(
+    () => user?.fullName?.trim() || user?.name?.trim() || user?.email || 'Пользователь',
+    [user],
+  );
+  const email = user?.email || 'Email не указан';
 
   return (
     <div className={styles.heroCard}>
@@ -48,7 +48,7 @@ const ProfileHeroCard = ({ user, onOpenSettings }: ProfileHeroCardProps) => {
         <div className={styles.avatar}>{avatarText}</div>
         <div className={styles.identityBlock}>
           <div className={styles.name}>{displayName}</div>
-          <div className={styles.subName}>{fullName}</div>
+          <div className={styles.subName}>{email}</div>
         </div>
       </div>
     </div>

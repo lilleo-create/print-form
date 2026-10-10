@@ -87,7 +87,7 @@ describe('Auth UI flow checks', () => {
       expect(screen.getByText('Неверный номер телефона или пароль.')).toBeInTheDocument();
     });
 
-    expect(loginMock).toHaveBeenCalledWith('+79990000000', 'wrongpass');
+    expect(loginMock).toHaveBeenCalledWith('+79990000000', 'wrongpass', undefined);
     expect(screen.getByPlaceholderText('+7 (___) ___-__-__')).toBeInTheDocument();
   });
 
@@ -110,7 +110,7 @@ describe('Auth UI flow checks', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Войти' }));
 
     await waitFor(() => {
-      expect(loginMock).toHaveBeenCalledWith('+79990000000', 'buyer123');
+      expect(loginMock).toHaveBeenCalledWith('+79990000000', 'buyer123', undefined);
     });
   });
 
@@ -142,16 +142,13 @@ describe('Auth UI flow checks', () => {
     fireEvent.change(screen.getByPlaceholderText('Повторите пароль'), {
       target: { value: 'Valid123' }
     });
-    fireEvent.change(screen.getByPlaceholderText('Никнейм'), {
-      target: { value: 'tester' }
-    });
-    fireEvent.change(screen.getByPlaceholderText('ФИО'), {
+    fireEvent.change(screen.getByPlaceholderText('Иванов Иван Иванович'), {
       target: { value: 'Тест Пользователь' }
     });
     fireEvent.change(screen.getByPlaceholderText('+7 (___) ___-__-__'), {
       target: { value: '+7 (999) 000-00-00' }
     });
-    fireEvent.change(screen.getByPlaceholderText('Email'), {
+    fireEvent.change(screen.getByPlaceholderText('example@mail.ru'), {
       target: { value: 'user@example.com' }
     });
     fireEvent.click(screen.getByRole('checkbox'));
@@ -241,16 +238,13 @@ describe('Auth UI flow checks', () => {
       </MemoryRouter>
     );
 
-    fireEvent.change(screen.getByPlaceholderText('Никнейм'), {
-      target: { value: 'tester' }
-    });
-    fireEvent.change(screen.getByPlaceholderText('ФИО'), {
+    fireEvent.change(screen.getByPlaceholderText('Иванов Иван Иванович'), {
       target: { value: 'Тест Пользователь' }
     });
     fireEvent.change(screen.getByPlaceholderText('+7 (___) ___-__-__'), {
       target: { value: '+7 (999) 000-00-00' }
     });
-    fireEvent.change(screen.getByPlaceholderText('Email'), {
+    fireEvent.change(screen.getByPlaceholderText('example@mail.ru'), {
       target: { value: 'user@example.com' }
     });
     fireEvent.change(screen.getByPlaceholderText('Пароль'), {
@@ -325,16 +319,13 @@ describe('Auth UI flow checks', () => {
       </MemoryRouter>
     );
 
-    fireEvent.change(screen.getByPlaceholderText('Никнейм'), {
-      target: { value: 'tester' }
-    });
-    fireEvent.change(screen.getByPlaceholderText('ФИО'), {
+    fireEvent.change(screen.getByPlaceholderText('Иванов Иван Иванович'), {
       target: { value: 'Тест Пользователь' }
     });
     fireEvent.change(screen.getByPlaceholderText('+7 (___) ___-__-__'), {
       target: { value: '+7 (977) 811-75-27' }
     });
-    fireEvent.change(screen.getByPlaceholderText('Email'), {
+    fireEvent.change(screen.getByPlaceholderText('example@mail.ru'), {
       target: { value: 'user@example.com' }
     });
     fireEvent.change(screen.getByPlaceholderText('Пароль'), {

@@ -1013,7 +1013,6 @@ export const api = {
   },
 
   async updateProfile(payload: {
-    name?: string;
     fullName?: string;
     email?: string;
     phone?: string;

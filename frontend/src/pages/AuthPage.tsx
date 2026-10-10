@@ -22,6 +22,7 @@ import type { OtpFlowType, RegistrationPurpose } from '../shared/api/authApi';
 import { getOtpPurposeForFlow } from '../shared/api/authApi';
 import type { User } from '../shared/types';
 import { canAccessAdmin, normalizeRole } from '../shared/lib/authAccess';
+import { normalizeApiError } from '../shared/api/client';
 
 const isValidLoginPhone = (value: string) => {
   const digits = normalizePhone(value);
@@ -417,8 +418,21 @@ export const AuthPage = () => {
         console.log('[auth] register ok', nextUser, 'redirect', path);
       }
       queueMicrotask(() => navigate(path, { replace: true }));
-    } catch {
-      setError('Не удалось зарегистрироваться.');
+    } catch (error) {
+      const normalized = normalizeApiError(error);
+      const issue = normalized.issues?.[0];
+      const field = issue?.path?.[0];
+      if (field === 'fullName' || field === 'phone' || field === 'email' || field === 'password') {
+        registerForm.setError(field, { message: issue?.message ?? normalized.message });
+      } else if (normalized.code === 'PHONE_EXISTS') {
+        registerForm.setError('phone', { message: 'Этот номер уже используется.' });
+      } else if (normalized.code === 'USER_EXISTS' || normalized.code === 'EMAIL_EXISTS') {
+        registerForm.setError('email', { message: 'Этот email уже используется.' });
+      } else if (normalized.code === 'CAPTCHA_FAILED') {
+        setError('Не удалось подтвердить защиту от автоматических запросов. Повторите попытку.');
+      } else {
+        setError(normalized.message || 'Не удалось зарегистрироваться.');
+      }
       setRegisterCaptchaToken('');
       setRegisterCaptchaKey((k) => k + 1);
     }
@@ -545,7 +559,7 @@ export const AuthPage = () => {
                   <label className={styles.passwordField}>
                     <input
                       type={showRegisterPassword ? 'text' : 'password'}
-                      placeholder="Минимум 8 символов"
+                      placeholder="Пароль"
                       autoComplete="new-password"
                       {...registerPasswordField}
                       onChange={(e) => {
@@ -659,7 +673,7 @@ export const AuthPage = () => {
                   <label className={styles.passwordField}>
                     <input
                       type={showLoginPassword ? 'text' : 'password'}
-                      placeholder="Ваш пароль"
+                      placeholder="Пароль"
                       autoComplete="current-password"
                       {...loginForm.register('password')}
                     />

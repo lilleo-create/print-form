@@ -53,7 +53,12 @@ export const OAuthCallbackPage = () => {
       <label>Телефон<input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" placeholder="+7 900 000-00-00" /></label>
       {error && <p role="alert">{error}</p>}
       <button type="button" onClick={async () => {
-        if (!phone.trim() || (fullNameRequired && fullName.trim().split(/\s+/).filter(Boolean).length < 2)) { setError(fullNameRequired ? 'Введите ФИО и номер телефона.' : 'Введите номер телефона.'); return; }
+        const normalizedFullName = fullName.trim().replace(/\s+/g, ' ');
+        const fullNameValid = normalizedFullName.length >= 3
+          && normalizedFullName.length <= 120
+          && /^[A-Za-zА-Яа-яЁё\-\s]+$/.test(normalizedFullName)
+          && normalizedFullName.split(/\s+/).filter(Boolean).length >= 2;
+        if (!phone.trim() || (fullNameRequired && !fullNameValid)) { setError(fullNameRequired ? 'Введите ФИО: минимум два слова, только буквы, пробел и дефис.' : 'Введите номер телефона.'); return; }
         try { const request = await authApi.requestOtp({ phone, purpose: 'oauth_phone_binding' }, onboardingToken); if (!request) throw new Error(); setOtpRequest(request); } catch { setError('Не удалось начать подтверждение номера.'); }
       }}>Продолжить</button>
     </section>;

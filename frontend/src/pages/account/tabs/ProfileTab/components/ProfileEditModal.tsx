@@ -2,10 +2,11 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useAuthStore } from '../../../../../app/store/authStore';
 import { api } from '../../../../../shared/api';
 import { Button } from '../../../../../shared/ui/Button';
+import { OtpStep } from '../../../../OtpStep';
 import { useBodyScrollLock } from '../../../../../shared/lib/useBodyScrollLock';
 import { useOverlayClose } from '../../../../../shared/lib/useOverlayClose';
 import { useSwipeToClose } from '../../../../../shared/lib/useSwipeToClose';
-import { formatRuPhoneInput, formatRuPhone, toTelHref, isRuPhone, toE164Ru } from '../../../../../shared/lib/validation';
+import { formatRuPhoneInput, isRuPhone, toE164Ru } from '../../../../../shared/lib/validation';
 import styles from './ProfileEditModal.module.css';
 
 interface ProfileEditModalProps {
@@ -24,7 +25,6 @@ export const ProfileEditModal = ({ isOpen, onClose, onSaved }: ProfileEditModalP
   const verifyOtp = useAuthStore((s) => s.verifyOtp);
   const checkOtpStatus = useAuthStore((s) => s.checkOtpStatus);
 
-  const [name, setName] = useState('');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -32,13 +32,11 @@ export const ProfileEditModal = ({ isOpen, onClose, onSaved }: ProfileEditModalP
   const [phoneStep, setPhoneStep] = useState<PhoneStep>('view');
   const [editPhone, setEditPhone] = useState('');
   const [phoneEditError, setPhoneEditError] = useState('');
-  const [otpMeta, setOtpMeta] = useState<{ requestId: string; callToAuthNumber?: string | null } | null>(null);
-  const [otpError, setOtpError] = useState('');
+  const [otpMeta, setOtpMeta] = useState<{ requestId: string; verificationType: 'call_to_auth'; callToAuthNumber?: string | null; phone?: string } | null>(null);
   const [isOtpBusy, setIsOtpBusy] = useState(false);
 
   const initialValues = useMemo(
     () => ({
-      name: user?.name ?? '',
       fullName: user?.fullName ?? '',
       email: user?.email ?? '',
       phone: user?.phone ?? '',
@@ -48,12 +46,10 @@ export const ProfileEditModal = ({ isOpen, onClose, onSaved }: ProfileEditModalP
 
   useEffect(() => {
     if (!isOpen) return;
-    setName(initialValues.name);
     setFullName(initialValues.fullName);
     setEmail(initialValues.email);
     setPhoneStep('view');
     setPhoneEditError('');
-    setOtpError('');
     setOtpMeta(null);
     if (user && !user.phone) {
       api.me().then((res) => {
@@ -62,36 +58,6 @@ export const ProfileEditModal = ({ isOpen, onClose, onSaved }: ProfileEditModalP
       }).catch(() => {});
     }
   }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Poll OTP status
-  useEffect(() => {
-    if (phoneStep !== 'otp' || !otpMeta) return;
-    let cancelled = false;
-    const poll = async () => {
-      while (!cancelled) {
-        await new Promise((r) => setTimeout(r, 3000));
-        if (cancelled) break;
-        try {
-          const status = await checkOtpStatus(otpMeta.requestId);
-          if (status === 'verified') {
-            try {
-              await verifyOtp({ phone: toE164Ru(editPhone), requestId: otpMeta.requestId, purpose: 'buyer_change_phone' });
-            } catch { /* void */ }
-            setPhoneStep('view');
-            setOtpMeta(null);
-            break;
-          }
-          if (status === 'expired' || status === 'failed' || status === 'cancelled') {
-            setOtpError('Звонок не прошёл. Запросите повторно.');
-            break;
-          }
-        } catch { break; }
-      }
-    };
-    void poll();
-    return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phoneStep, otpMeta]);
 
   useBodyScrollLock(isOpen);
   const { handlePointerDown, handleClick } = useOverlayClose(onClose);
@@ -108,7 +74,6 @@ export const ProfileEditModal = ({ isOpen, onClose, onSaved }: ProfileEditModalP
   const handleCancelEditPhone = () => {
     setPhoneStep('view');
     setPhoneEditError('');
-    setOtpError('');
     setOtpMeta(null);
   };
 
@@ -122,8 +87,7 @@ export const ProfileEditModal = ({ isOpen, onClose, onSaved }: ProfileEditModalP
     try {
       const result = await requestOtp({ phone: toE164Ru(editPhone), purpose: 'buyer_change_phone' });
       if (!result) throw new Error('empty');
-      setOtpMeta({ requestId: result.requestId, callToAuthNumber: result.callToAuthNumber });
-      setOtpError('');
+      setOtpMeta({ requestId: result.requestId, verificationType: 'call_to_auth', callToAuthNumber: result.callToAuthNumber, phone: toE164Ru(editPhone) });
       setPhoneStep('otp');
     } catch {
       setPhoneEditError('Не удалось запустить подтверждение. Попробуйте ещё раз.');
@@ -132,27 +96,17 @@ export const ProfileEditModal = ({ isOpen, onClose, onSaved }: ProfileEditModalP
     }
   };
 
-  const handleRetryOtp = async () => {
-    setIsOtpBusy(true);
-    setOtpError('');
-    try {
-      const result = await requestOtp({ phone: toE164Ru(editPhone), purpose: 'buyer_change_phone' });
-      if (!result) throw new Error('empty');
-      setOtpMeta({ requestId: result.requestId, callToAuthNumber: result.callToAuthNumber });
-    } catch {
-      setOtpError('Не удалось повторить звонок. Попробуйте позже.');
-    } finally {
-      setIsOtpBusy(false);
-    }
-  };
-
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
+    const normalizedFullName = fullName.trim().replace(/\s+/g, ' ');
+    if (normalizedFullName.length < 3 || normalizedFullName.length > 120 || !/^[A-Za-zА-Яа-яЁё\-\s]+$/.test(normalizedFullName) || normalizedFullName.split(/\s+/).filter(Boolean).length < 2) {
+      setPhoneEditError('Введите ФИО: минимум два слова, только буквы, пробел и дефис.');
+      return;
+    }
     setIsSaving(true);
     try {
       await updateProfile({
-        name: name.trim() || undefined,
-        fullName: fullName.trim() || undefined,
+        fullName: normalizedFullName,
         email: email.trim() || undefined,
       });
       onSaved();
@@ -186,12 +140,8 @@ export const ProfileEditModal = ({ isOpen, onClose, onSaved }: ProfileEditModalP
 
         <form className={styles.form} onSubmit={handleSubmit}>
           <label className={styles.field}>
-            Никнейм
-            <input value={name} onChange={(event) => setName(event.target.value)} />
-          </label>
-          <label className={styles.field}>
             ФИО
-            <input value={fullName} readOnly disabled className={styles.readOnlyInput} />
+            <input value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="Иванов Иван Иванович" />
           </label>
           <label className={styles.field}>
             Email
@@ -250,39 +200,26 @@ export const ProfileEditModal = ({ isOpen, onClose, onSaved }: ProfileEditModalP
           )}
 
           {phoneStep === 'otp' && otpMeta && (
-            <div className={styles.otpBlock}>
-              <button type="button" className={styles.otpBackBtn} onClick={handleCancelEditPhone}>
-                ← Назад
-              </button>
-              <p className={styles.otpTitle}>Позвоните на номер</p>
-              <a href={toTelHref(otpMeta.callToAuthNumber ?? null)} className={styles.otpCallNumber}>
-                {otpMeta.callToAuthNumber ? formatRuPhone(otpMeta.callToAuthNumber) : ''}
-              </a>
-              <p className={styles.otpHint}>
-                Позвоните с номера <strong>{toE164Ru(editPhone)}</strong>.
-                Звонок бесплатный — подтверждение автоматически.
-              </p>
-              {otpError ? (
-                <>
-                  <span className={styles.fieldError}>{otpError}</span>
-                  <Button type="button" variant="secondary" onClick={() => void handleRetryOtp()} isLoading={isOtpBusy}>
-                    Получить новый номер
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <div className={styles.otpSpinner} />
-                  <button
-                    type="button"
-                    className={styles.otpRetryLink}
-                    onClick={() => void handleRetryOtp()}
-                    disabled={isOtpBusy}
-                  >
-                    {isOtpBusy ? 'Запрашиваем…' : 'Не удалось позвонить? Повторить'}
-                  </button>
-                </>
-              )}
-            </div>
+            <OtpStep
+              purpose="buyer_change_phone"
+              tempToken={null}
+              initialPhone={editPhone}
+              initialRequest={otpMeta}
+              hidePhoneInput
+              onRequestOtp={async (payload) => ({
+                otpRequest: await requestOtp({ phone: payload.phone, purpose: 'buyer_change_phone' }),
+              })}
+              onCheckOtpStatus={(requestId) => checkOtpStatus(requestId)}
+              onVerifyOtp={(payload) => verifyOtp(payload)}
+              onSuccess={() => {
+                if (user) setUser({ ...user, phone: toE164Ru(editPhone) });
+                setOtpMeta(null);
+                setPhoneStep('view');
+              }}
+              setMessage={() => undefined}
+              setError={(message) => setPhoneEditError(message)}
+              onBack={handleCancelEditPhone}
+            />
           )}
 
           {phoneStep !== 'otp' && (
