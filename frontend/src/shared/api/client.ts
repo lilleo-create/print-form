@@ -62,6 +62,7 @@ export type NormalizedApiError = {
   message: string;
   issues?: { path: string[]; message: string }[];
   status?: number;
+  retryAfterMs?: number;
 };
 
 export const normalizeApiError = (error: unknown): NormalizedApiError => {
@@ -76,6 +77,10 @@ export const normalizeApiError = (error: unknown): NormalizedApiError => {
       : undefined;
   const payload =
     'payload' in error ? (error as { payload?: unknown }).payload : undefined;
+  const retryAfterMs =
+    'retryAfterMs' in error && typeof error.retryAfterMs === 'number'
+      ? error.retryAfterMs
+      : undefined;
 
   if (payload && typeof payload === 'object' && 'error' in payload) {
     const inner = (payload as { error?: unknown }).error;
@@ -92,12 +97,12 @@ export const normalizeApiError = (error: unknown): NormalizedApiError => {
         'issues' in inner && Array.isArray(inner.issues)
           ? (inner.issues as { path: string[]; message: string }[])
           : undefined;
-      return { code, issues, message: message ?? code ?? fallback.message, status };
+      return { code, issues, message: message ?? code ?? fallback.message, status, retryAfterMs };
     }
   }
 
   if (error instanceof Error) {
-    return { message: error.message || fallback.message, status };
+    return { message: error.message || fallback.message, status, retryAfterMs };
   }
 
   return fallback;
@@ -289,10 +294,15 @@ export function createFetchClient(baseUrl: string) {
       const error = new Error(message) as Error & {
         status?: number;
         payload?: unknown;
+        retryAfterMs?: number;
       };
 
       error.status = res.status;
       error.payload = payload;
+      const retryAfterSeconds = Number(res.headers.get('retry-after'));
+      if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) {
+        error.retryAfterMs = Math.ceil(retryAfterSeconds * 1000);
+      }
 
       throw error;
     }

@@ -17,6 +17,7 @@ type OtpRequestData = {
 type OtpUiState = 'idle' | 'requesting' | 'call_to_auth' | 'error';
 
 const POLL_INTERVAL_MS = 3000;
+const MAX_POLL_BACKOFF_MS = 60_000;
 
 
 type ActiveOtpChallenge = {
@@ -65,6 +66,7 @@ export function OtpStep(props: {
   const [verifyStatus, setVerifyStatus] = useState<OtpVerifyStatus>('idle');
   const [now, setNow] = useState(() => Date.now());
   const pollingRef = useRef<number | null>(null);
+  const pollRetryAfterRef = useRef(0);
   const autoRequestedRef = useRef(false);
   const requestIdRef = useRef<string | null>(null);
   const challengeKeyRef = useRef<string | null>(null);
@@ -154,10 +156,14 @@ export function OtpStep(props: {
       props.setMessage(props.introMessage ?? 'Ожидаем автоматическое подтверждение после звонка.');
 
       stopPolling();
+      pollRetryAfterRef.current = 0;
       pollingRef.current = window.setInterval(() => {
         void (async () => {
           try {
             if (challengeKeyRef.current !== challengeKey) {
+              return;
+            }
+            if (Date.now() < pollRetryAfterRef.current) {
               return;
             }
             const status = await props.onCheckOtpStatus(requestData.requestId, activeTokenRef.current);
@@ -180,7 +186,18 @@ export function OtpStep(props: {
               setOtpUiState('error');
               props.setError('Время ожидания звонка истекло. Запросите подтверждение снова.');
             }
-          } catch {
+          } catch (error) {
+            const normalized = normalizeApiError(error);
+            if (normalized.status === 429) {
+              const retryAfterMs = Math.min(
+                MAX_POLL_BACKOFF_MS,
+                Math.max(POLL_INTERVAL_MS * 2, normalized.retryAfterMs ?? POLL_INTERVAL_MS * 2),
+              );
+              pollRetryAfterRef.current = Date.now() + retryAfterMs;
+              setVerifyStatus('pending');
+              props.setMessage('Проверка временно ограничена. Продолжаем ожидание подтверждения звонка.');
+              return;
+            }
             stopPolling();
             setOtpUiState('error');
             setVerifyStatus('error');
