@@ -21,7 +21,7 @@ const getDeliveryLabel = (days: number | null | undefined): string => {
 
 export const CheckoutLayout = () => {
   const {
-    data, error, isLoading, isSubmittingOrder,
+    data, error, isLoading, isSubmittingOrder, isQuoteLoading, deliveryAmountKopecks,
     fetchCheckout, setDeliveryMethod, setPickupPoint,
     updateRecipient, placeOrder,
   } = useCheckoutStore();
@@ -40,6 +40,13 @@ export const CheckoutLayout = () => {
   );
 
   const selectedMethod = data?.selectedDeliveryMethod ?? 'PICKUP_POINT';
+  const deliveryPriceLabel = deliveryAmountKopecks !== null
+    ? formatPrice(deliveryAmountKopecks)
+    : !data?.selectedPickupPoint?.pvzId
+      ? 'Выберите ПВЗ'
+      : error
+        ? 'Не рассчитана'
+        : 'Рассчитываем…';
   const methods = data?.deliveryMethods ?? [];
   const firstItem = data?.cartItems[0];
 
@@ -49,7 +56,7 @@ export const CheckoutLayout = () => {
 
   const hasPhone = !!(data?.recipient.phone?.trim());
   const hasName  = !!(data?.recipient.name?.trim());
-  const canPay   = hasPhone && hasName;
+  const canPay   = hasPhone && hasName && deliveryAmountKopecks !== null && !isQuoteLoading;
 
   const handlePay = async () => {
     if (isPaying || !canPay) return;
@@ -155,7 +162,7 @@ export const CheckoutLayout = () => {
           <button type="button" className={styles.expandTrigger}>
             Доставка и сервисы <span className={styles.caret}>∨</span>
           </button>
-          <span>0 ₽</span>
+          <span>{deliveryPriceLabel}</span>
         </div>
 
         {/* Promo */}
@@ -178,12 +185,14 @@ export const CheckoutLayout = () => {
       {/* Total */}
       <div className={styles.totalRow}>
         <span className={styles.totalLabel}>Оплата онлайн</span>
-        <strong className={styles.totalAmount}>{formatPrice(total)}</strong>
+        <strong className={styles.totalAmount}>
+          {deliveryAmountKopecks === null ? '—' : formatPrice(total + deliveryAmountKopecks)}
+        </strong>
       </div>
     </div>
   );
 
-  const phoneHint = !canPay && (
+  const phoneHint = (!hasName || !hasPhone) && (
     <p className={styles.phoneHint}>
       {!hasName && !hasPhone
         ? 'Укажите ФИО и телефон получателя — '

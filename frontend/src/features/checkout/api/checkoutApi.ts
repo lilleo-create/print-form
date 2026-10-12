@@ -15,6 +15,12 @@ export type CdekPvzSelection = {
 };
 
 export type PickupPoint = CdekPvzSelection;
+export type ShippingSnapshot = {
+  packages: Array<{ weightGrams: number; lengthCm: number; widthCm: number; heightCm: number }>;
+  items: Array<{ productId: string; quantity: number; weightGrossG: number }>;
+  totalWeightGrams: number;
+  source: 'checkout';
+};
 
 export type CheckoutDto = {
   recipient: { name: string; phone: string; email: string };
@@ -116,6 +122,15 @@ const normalizePickupPoint = (pickupPoint: unknown): CdekPvzSelection | null => 
 };
 
 export const checkoutApi = {
+  quoteShipping: async (payload: {
+    buyerPickupPvz: CdekPvzSelection;
+    items: Array<{ productId: string; quantity: number }>;
+  }, signal?: AbortSignal) => {
+    const response = await client.request<{ deliveryAmountKopecks: number; shippingSnapshot: ShippingSnapshot }>('/payments/quote', {
+      method: 'POST', body: payload, signal
+    });
+    return response.data;
+  },
   fetchCheckout: async (signal?: AbortSignal) => {
     const response = await client.request<CheckoutDto>('/checkout', { signal });
     return {
@@ -239,6 +254,8 @@ export const checkoutApi = {
       paymentAttemptKey: string;
       recipient: { name: string; phone: string; email?: string | null };
       packagesCount?: number;
+      expectedDeliveryAmountKopecks?: number;
+      expectedShippingSnapshot?: ShippingSnapshot;
       buyerPickupPvz: CdekPvzSelection;
       items: Array<{ productId: string; quantity: number }>;
     },
