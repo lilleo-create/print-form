@@ -1484,6 +1484,10 @@ export const SellerDashboardPage = () => {
     id?: string | null;
     addressFull?: string;
     provider?: string;
+    cityCode?: number;
+    cityName?: string;
+    latitude?: number;
+    longitude?: number;
     raw?: unknown;
     [key: string]: unknown;
   }) => {
@@ -1507,6 +1511,10 @@ export const SellerDashboardPage = () => {
           pvzId: selectedId,
           provider: (selection.provider as string) ?? 'CDEK',
           addressFull: selection.addressFull,
+          cityCode: selection.cityCode,
+          cityName: selection.cityName,
+          latitude: selection.latitude,
+          longitude: selection.longitude,
           raw: selection.raw
         }
       });
@@ -4079,6 +4087,10 @@ export const SellerDashboardPage = () => {
                     id: selection.pvzCode,
                     addressFull: selection.addressFull,
                     provider: 'CDEK',
+                    cityCode: selection.cityCode,
+                    cityName: selection.cityName,
+                    latitude: selection.latitude,
+                    longitude: selection.longitude,
                     raw: selection.raw
                   });
                 }}

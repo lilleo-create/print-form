@@ -625,6 +625,10 @@ export const api = {
       pvzId: string;
       provider?: string;
       addressFull?: string;
+      cityCode?: number;
+      cityName?: string;
+      latitude?: number;
+      longitude?: number;
       raw?: unknown;
     };
   }) {
