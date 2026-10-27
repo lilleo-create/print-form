@@ -68,7 +68,9 @@ const menuItems = [
 
 const statusFlow: OrderStatus[] = [
   'CREATED',
+  'PAID',
   'PRINTING',
+  'READY_FOR_SHIPMENT',
   'HANDED_TO_DELIVERY',
   'IN_TRANSIT',
   'DELIVERED'
@@ -663,9 +665,6 @@ export const SellerDashboardPage = () => {
   const [ordersError, setOrdersError] = useState<string | null>(null);
 
   const [orderUpdateError, setOrderUpdateError] = useState<string | null>(null);
-  const [markReceivedOrderId, setMarkReceivedOrderId] = useState<string | null>(
-    null
-  );
 
   const [labelDownloaded, setLabelDownloaded] = useState<
     Record<string, boolean>
@@ -753,10 +752,6 @@ export const SellerDashboardPage = () => {
   const autoCalcAttemptedRef = useRef<Set<string>>(new Set());
 
   const canSell = kycSubmission?.status === 'APPROVED';
-  const shouldShowTestOrderActions =
-    import.meta.env.DEV ||
-    import.meta.env.MODE === 'test' ||
-    import.meta.env.VITE_ENABLE_TEST_ORDER_RECEIPT === 'true';
   const user = useAuthStore((state) => state.user);
   const userId = user?.id;
 
@@ -1549,6 +1544,16 @@ export const SellerDashboardPage = () => {
     }
   };
 
+  const handleStartProduction = async (orderId: string) => {
+    setOrderUpdateError(null);
+    try {
+      await api.updateSellerOrderStatus(orderId, { status: 'PRINTING' });
+      await loadOrders();
+    } catch {
+      setOrderUpdateError('Не удалось начать производство заказа.');
+    }
+  };
+
   const handleReadyToShip = async (orderId: string) => {
     setOrderUpdateError(null);
 
@@ -1572,22 +1577,6 @@ export const SellerDashboardPage = () => {
       setOrderUpdateError(
         'Не удалось создать заявку доставки. Проверьте точку отгрузки и данные ПВЗ.'
       );
-    }
-  };
-
-  const handleMarkOrderReceived = async (orderId: string) => {
-    setOrderUpdateError(null);
-    setMarkReceivedOrderId(orderId);
-    try {
-      await ordersApi.markReceived(orderId);
-      await Promise.all([loadOrders(), loadFinanceData()]);
-    } catch (error) {
-      const normalized = normalizeApiError(error);
-      setOrderUpdateError(
-        normalized.message ?? 'Не удалось выполнить тестовое завершение заказа.'
-      );
-    } finally {
-      setMarkReceivedOrderId(null);
     }
   };
 
@@ -1651,14 +1640,16 @@ export const SellerDashboardPage = () => {
 
   const readyToShipDisabledReason = (order: Order) => {
     if (order.status === 'CANCELLED') return 'Заказ отменён';
-    if (!order.paidAt && order.status !== 'PAID') return 'Ожидает оплаты';
+    if (['REFUND_PENDING', 'PARTIALLY_REFUNDED', 'REFUNDED', 'CANCELLED'].includes(order.paymentStatus ?? '')) {
+      return 'Оплата возвращается';
+    }
+    if (!order.paidAt && order.paymentStatus !== 'PAID') return 'Ожидает оплаты';
+    if (order.status !== 'PRINTING') return 'Сначала начните производство';
     if (!order.isPacked) return 'Сначала отметьте упаковку';
     if (!order.sellerDropoffPvzMeta && !dropoffPvzId)
       return 'Не выбран ПВЗ сдачи';
     if (!order.buyerPickupPvzMeta && !order.shippingAddressId)
       return 'Не указан адрес доставки';
-    if (order.shipment?.id) return 'Заявка уже создана';
-    if (order.status === 'HANDED_TO_DELIVERY') return 'Уже передан в доставку';
     if (
       order.shipment?.status &&
       ['DELIVERED', 'CANCELLED', 'FAILED'].includes(order.shipment.status)
@@ -2863,13 +2854,9 @@ export const SellerDashboardPage = () => {
                           0
                         );
                         const isCancelled = order.status === 'CANCELLED';
-                        const isTestReceiptOrder =
-                          !isCancelled &&
-                          !isCompletedOrder(order) &&
-                          (Boolean(order.paidAt) ||
-                            ['PAID', 'READY_FOR_SHIPMENT', 'PRINTING'].includes(
-                              order.status
-                            ));
+                        const preparationPaymentOpen =
+                          (order.paymentStatus === 'PAID' || Boolean(order.paidAt)) &&
+                          !['REFUND_PENDING', 'PARTIALLY_REFUNDED', 'REFUNDED', 'CANCELLED'].includes(order.paymentStatus ?? '');
                         const cancelPaymentHint =
                           order.paymentStatus === 'REFUND_PENDING'
                             ? 'Деньги возвращаются покупателю'
@@ -2999,22 +2986,36 @@ export const SellerDashboardPage = () => {
                               {/* ── Действия (только активные заказы) ── */}
                               {!isCancelled && !isCompletedOrder(order) && (
                                 <>
-                                  {/* Шаг 1: упаковка */}
-                                  <Button
-                                    type="button"
-                                    variant={order.isPacked ? 'ghost' : 'secondary'}
-                                    size="sm"
-                                    onClick={() => handleTogglePacked(order)}
-                                    disabled={!order.paidAt && order.status !== 'PAID'}
-                                  >
-                                    {order.isPacked
-                                      ? 'Снять отметку упаковки'
-                                      : 'Отметить упаковку'}
-                                  </Button>
+                                  {order.status === 'PAID' && (
+                                    <Button
+                                      type="button"
+                                      variant="primary"
+                                      size="sm"
+                                      onClick={() => handleStartProduction(order.id)}
+                                      disabled={!preparationPaymentOpen}
+                                    >
+                                      Начать производство
+                                    </Button>
+                                  )}
 
-                                  {/* Шаг 2: создать доставку / синхронизировать */}
-                                  {order.isPacked && (
-                                    !order.shipment?.id ? (
+                                  {order.status === 'PRINTING' &&
+                                    preparationPaymentOpen &&
+                                    !order.shipment?.id &&
+                                    !order.readyForShipmentAt && (
+                                      <Button
+                                        type="button"
+                                        variant={order.isPacked ? 'ghost' : 'secondary'}
+                                        size="sm"
+                                        onClick={() => handleTogglePacked(order)}
+                                      >
+                                        {order.isPacked
+                                          ? 'Снять отметку упаковки'
+                                          : 'Товар упакован'}
+                                      </Button>
+                                    )}
+
+                                  {/* После подготовки создание отправления; далее статус только для чтения. */}
+                                  {order.status === 'PRINTING' && preparationPaymentOpen && order.isPacked && !order.readyForShipmentAt && (
                                       <>
                                         <Button
                                           type="button"
@@ -3031,16 +3032,16 @@ export const SellerDashboardPage = () => {
                                           </p>
                                         )}
                                       </>
-                                    ) : (
-                                      <Button
-                                        type="button"
-                                        variant="secondary"
-                                        size="sm"
-                                        onClick={() => handleSyncShipment(order)}
-                                      >
-                                        Синхронизировать СДЭК
-                                      </Button>
-                                    )
+                                  )}
+                                  {order.shipment?.id && (
+                                    <Button
+                                      type="button"
+                                      variant="secondary"
+                                      size="sm"
+                                      onClick={() => handleSyncShipment(order)}
+                                    >
+                                      Синхронизировать СДЭК
+                                    </Button>
                                   )}
 
                                   {/* Шаг 3: документы — появляются после создания доставки */}
@@ -3076,22 +3077,6 @@ export const SellerDashboardPage = () => {
                                     </>
                                   )}
 
-                                  {/* Тестовые действия */}
-                                  {shouldShowTestOrderActions && isTestReceiptOrder && (
-                                    <>
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => void handleMarkOrderReceived(order.id)}
-                                        disabled={markReceivedOrderId === order.id}
-                                      >
-                                        {markReceivedOrderId === order.id
-                                          ? 'Обновляем...'
-                                          : 'Заказ получен (test-only)'}
-                                      </Button>
-                                    </>
-                                  )}
                                 </>
                               )}
 

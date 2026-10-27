@@ -225,10 +225,6 @@ export const ordersApi = {
     const result = await api.readyToShip(orderId);
     return result.data;
   },
-  markReceived: async (orderId: string) => {
-    const result = await api.markOrderReceived(orderId);
-    return mapOrder(result.data as unknown as ApiOrder);
-  },
   syncShipment: async (shipmentId: string) => {
     return api.syncShipment(shipmentId);
   },
