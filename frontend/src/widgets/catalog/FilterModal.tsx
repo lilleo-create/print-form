@@ -4,6 +4,7 @@ import { useModalFocus } from '../../shared/lib/useModalFocus';
 import { useBodyScrollLock } from '../../shared/lib/useBodyScrollLock';
 import { useOverlayClose } from '../../shared/lib/useOverlayClose';
 import styles from './FilterModal.module.css';
+import { CatalogFiltersState, toggleFilterValue } from '../../features/catalog/catalogFilterState';
 
 const COLOR_SWATCHES: Record<string, string> = {
   white: '#e8ecf4', 'белый': '#e8ecf4',
@@ -39,20 +40,14 @@ const RATING_OPTIONS: Array<[string, string]> = [
 
 interface FilterModalProps {
   isOpen: boolean;
-  filters: {
-    category: string;
-    material: string;
-    price: string;
-    color: string;
-    minRating: string;
-    inStock: boolean;
-  };
+  filters: CatalogFiltersState;
   filterOptions: {
     categories: string[];
     materials: string[];
     colors: string[];
   };
-  onChange: (key: 'category' | 'material' | 'price' | 'color' | 'minRating', value: string) => void;
+  onChange: (key: 'price' | 'minRating', value: string) => void;
+  onChangeMulti: (key: 'categories' | 'materials' | 'colors', value: string[]) => void;
   onToggleStock: (next: boolean) => void;
   onApply: () => void;
   onReset: () => void;
@@ -64,6 +59,7 @@ export const FilterModal = ({
   filters,
   filterOptions,
   onChange,
+  onChangeMulti,
   onToggleStock,
   onApply,
   onReset,
@@ -131,8 +127,8 @@ export const FilterModal = ({
                 {filterOptions.materials.map((m) => (
                   <button
                     key={m}
-                    className={filters.material === m ? styles.chipActive : styles.chip}
-                    onClick={() => onChange('material', filters.material === m ? '' : m)}
+                    className={filters.materials.includes(m) ? styles.chipActive : styles.chip}
+                    onClick={() => onChangeMulti('materials', toggleFilterValue(filters.materials, m))}
                   >
                     {m}
                   </button>
@@ -148,8 +144,8 @@ export const FilterModal = ({
                 {filterOptions.colors.map((c) => (
                   <button
                     key={c}
-                    className={filters.color === c ? styles.chipColorActive : styles.chipColor}
-                    onClick={() => onChange('color', filters.color === c ? '' : c)}
+                    className={filters.colors.includes(c) ? styles.chipColorActive : styles.chipColor}
+                    onClick={() => onChangeMulti('colors', toggleFilterValue(filters.colors, c))}
                   >
                     <span className={styles.chipColorDot} style={{ backgroundColor: getColorSwatch(c) }} />
                     {c}
@@ -166,8 +162,8 @@ export const FilterModal = ({
                 {filterOptions.categories.map((cat) => (
                   <button
                     key={cat}
-                    className={filters.category === cat ? styles.chipActive : styles.chip}
-                    onClick={() => onChange('category', filters.category === cat ? '' : cat)}
+                    className={filters.categories.includes(cat) ? styles.chipActive : styles.chip}
+                    onClick={() => onChangeMulti('categories', toggleFilterValue(filters.categories, cat))}
                   >
                     {cat}
                   </button>

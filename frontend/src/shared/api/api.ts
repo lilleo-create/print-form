@@ -140,6 +140,9 @@ export interface SellerOnboardingPayload {
 export const api = {
   async getProducts(
     filters?: {
+      categories?: string[];
+      materials?: string[];
+      colors?: string[];
       category?: string;
       material?: string;
       price?: string;
@@ -155,8 +158,11 @@ export const api = {
     opts?: { signal?: AbortSignal }
   ) {
     const params = new URLSearchParams();
-    if (filters?.category) params.set('category', filters.category);
-    if (filters?.material) params.set('material', filters.material);
+    filters?.categories?.forEach((value) => params.append('category', value));
+    filters?.materials?.forEach((value) => params.append('material', value));
+    filters?.colors?.forEach((value) => params.append('color', value));
+    if (filters?.category) params.append('category', filters.category);
+    if (filters?.material) params.append('material', filters.material);
     if (filters?.price) {
       const [min, max] = filters.price.split('-');
       if (min) params.set('minPrice', min);
@@ -398,15 +404,9 @@ export const api = {
 
   async getFilters(opts?: { signal?: AbortSignal } | AbortSignal) {
     const signal = opts instanceof AbortSignal ? opts : opts?.signal;
-    const categoriesResponse = await apiClient.request<
-      { id: string; slug: string; title: string }[]
-    >('/filters/reference-categories', { signal });
-    return {
-      data: {
-        categories: categoriesResponse.data.map((category) => category.title),
-        materials: []
-      }
-    };
+    return apiClient.request<{ categories: string[]; materials: string[]; colors: string[] }>(
+      '/products/filters/meta', { signal }
+    );
   },
 
   async getReferenceCategories() {

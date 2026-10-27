@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '../../shared/api';
 
 export const useFilters = (enabled = true) => {
-  const [filters, setFilters] = useState({ categories: [] as string[], materials: [] as string[] });
+  const [filters, setFilters] = useState({ categories: [] as string[], materials: [] as string[], colors: [] as string[] });
   const isMountedRef = useRef(true);
 
   useEffect(() => {
@@ -26,7 +26,7 @@ export const useFilters = (enabled = true) => {
         if ((error as { status?: number })?.status === 429) {
           return;
         }
-        setFilters({ categories: [], materials: [] });
+        setFilters({ categories: [], materials: [], colors: [] });
       });
 
     return () => {
@@ -40,7 +40,7 @@ export const useFilters = (enabled = true) => {
 
 type FiltersEntry = {
   controller: AbortController;
-  promise: Promise<{ categories: string[]; materials: string[] }>;
+  promise: Promise<{ categories: string[]; materials: string[]; colors: string[] }>;
   subscribers: number;
   abortTimeout?: ReturnType<typeof setTimeout>;
 };

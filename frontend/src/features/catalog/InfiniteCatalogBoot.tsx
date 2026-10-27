@@ -88,14 +88,16 @@ export const InfiniteCatalogBoot = ({
     () => [
       'catalog',
       'infinite',
-      filters.category ?? '',
-      filters.material ?? '',
+      filters.categories ?? [],
+      filters.materials ?? [],
+      filters.colors ?? [],
       filters.price ?? '',
+      filters.q ?? '',
       filters.sort ?? '',
       filters.order ?? '',
       limit
     ],
-    [filters.category, filters.material, filters.price, filters.sort, filters.order, limit]
+    [filters.categories, filters.materials, filters.colors, filters.price, filters.q, filters.sort, filters.order, limit]
   );
 
   const query = useInfiniteQuery({

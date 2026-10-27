@@ -7,17 +7,9 @@ import { Button } from '../shared/ui/Button';
 import { Select } from '../shared/ui/Select';
 import { Skeleton } from '../shared/ui/Skeleton';
 import styles from './CatalogPage.module.css';
+import { CatalogFiltersState, activeFilterGroupCount, emptyCatalogFilters, readFiltersFromUrl, toggleFilterValue, writeFiltersToUrl } from '../features/catalog/catalogFilterState';
 
 type SortValue = 'createdAt' | 'rating' | 'price';
-
-type CatalogFiltersState = {
-  category: string;
-  material: string;
-  price: string;
-  color: string;
-  minRating: string;
-  inStock: boolean;
-};
 
 const sortOptions: Record<SortValue, string> = {
   createdAt: 'Сначала новые',
@@ -31,15 +23,6 @@ const parsePrice = (value: string) => {
   const max = Number(maxRaw || Number.POSITIVE_INFINITY);
   return { min, max };
 };
-
-const readFiltersFromUrl = (searchParams: URLSearchParams): CatalogFiltersState => ({
-  category: searchParams.get('category') ?? '',
-  material: searchParams.get('material') ?? '',
-  price: searchParams.get('price') ?? '',
-  color: searchParams.get('color') ?? '',
-  minRating: searchParams.get('minRating') ?? '',
-  inStock: searchParams.get('inStock') === '1'
-});
 
 const parsePriceInputs = (price: string) => {
   const [minRaw = '', maxRaw = ''] = price.split('-');
@@ -101,8 +84,9 @@ export const CatalogPage = () => {
 
   const catalogParams = useMemo(
     () => ({
-      category: searchParams.get('category') ?? '',
-      material: '',
+      categories: searchParams.getAll('category'),
+      materials: searchParams.getAll('material'),
+      colors: searchParams.getAll('color'),
       price: searchParams.get('price') ?? '',
       q: searchParams.get('q') ?? '',
       sort,
@@ -119,6 +103,14 @@ export const CatalogPage = () => {
     setSearchParams(params);
   };
 
+  const updateMultiParam = (key: 'category' | 'material' | 'color', values: string[]) => {
+    const params = new URLSearchParams(searchParams);
+    params.delete(key);
+    values.forEach((value) => params.append(key, value));
+    params.delete('page');
+    setSearchParams(params);
+  };
+
   const setStockFilter = (isEnabled: boolean) => {
     const params = new URLSearchParams(searchParams);
     if (isEnabled) params.set('inStock', '1');
@@ -128,42 +120,15 @@ export const CatalogPage = () => {
   };
 
   const applyFilters = () => {
-    const params = new URLSearchParams(searchParams);
-    if (filters.category) params.set('category', filters.category);
-    else params.delete('category');
-
-    if (filters.material) params.set('material', filters.material);
-    else params.delete('material');
-
-    if (filters.price) params.set('price', filters.price);
-    else params.delete('price');
-
-    if (filters.color) params.set('color', filters.color);
-    else params.delete('color');
-
-    if (filters.minRating) params.set('minRating', filters.minRating);
-    else params.delete('minRating');
-
-    if (filters.inStock) params.set('inStock', '1');
-    else params.delete('inStock');
-
-    params.delete('page');
-    setSearchParams(params);
+    setSearchParams(writeFiltersToUrl(searchParams, filters));
     setModalOpen(false);
   };
 
   const resetFilters = () => {
     const params = new URLSearchParams(searchParams);
-    ['category', 'material', 'price', 'color', 'minRating', 'inStock', 'sort'].forEach((key) => params.delete(key));
+    ['category', 'material', 'price', 'color', 'minRating', 'inStock', 'sort', 'page'].forEach((key) => params.delete(key));
     setSearchParams(params);
-    setFilters({
-      category: '',
-      material: '',
-      price: '',
-      color: '',
-      minRating: '',
-      inStock: false
-    });
+    setFilters(emptyCatalogFilters());
   };
 
   const handleSortChange = (value: SortValue) => {
@@ -175,14 +140,12 @@ export const CatalogPage = () => {
   const urlFilters = readFiltersFromUrl(searchParams);
 
   return (
-    <CatalogBoot filters={catalogParams}>
+    <CatalogBoot key={searchParams.toString()} filters={catalogParams}>
       {({ filterData, products, loading, error }) => {
 
-        const colors = Array.from(new Set(products.map((product) => product.color).filter(Boolean))).slice(0, 12);
+        const colors = filterData.colors;
 
         const filteredProducts = products.filter((product) => {
-          if (urlFilters.color && product.color !== urlFilters.color) return false;
-          if (urlFilters.material && product.material !== urlFilters.material) return false;
           if (urlFilters.minRating && (product.ratingAvg ?? 0) < Number(urlFilters.minRating)) return false;
           if (urlFilters.inStock && typeof product.stock === 'number' && product.stock <= 0) return false;
           if (urlFilters.inStock && typeof product.stock !== 'number') return false;
@@ -215,24 +178,23 @@ export const CatalogPage = () => {
                       <path d="M3 5h14M5 10h10M7 15h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                     </svg>
                   </button>
-                  <button className={styles.mobileBarBtn} aria-label="Фильтры" onClick={() => setModalOpen(true)}>
+                  <button className={styles.mobileBarBtn} aria-label={`Фильтры: ${activeFilterGroupCount(urlFilters)}`} onClick={() => setModalOpen(true)}>
                     <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                       <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                       <circle cx="7" cy="5" r="2" fill="var(--card)" stroke="currentColor" strokeWidth="1.5" />
                       <circle cx="13" cy="10" r="2" fill="var(--card)" stroke="currentColor" strokeWidth="1.5" />
                       <circle cx="7" cy="15" r="2" fill="var(--card)" stroke="currentColor" strokeWidth="1.5" />
                     </svg>
+                    {activeFilterGroupCount(urlFilters) > 0 && <span className={styles.mobileFilterCount}>{activeFilterGroupCount(urlFilters)}</span>}
                   </button>
                   <div className={styles.mobileBarSep} />
                   <div className={styles.mobileChips}>
-                    {urlFilters.category && (
-                      <button
-                        className={styles.mobileChipActive}
-                        onClick={() => updateParam('category', null)}
-                      >
-                        {urlFilters.category} ×
+                    {urlFilters.categories.map((category) => (
+                      <button key={category} className={styles.mobileChipActive}
+                        onClick={() => updateMultiParam('category', toggleFilterValue(urlFilters.categories, category))}>
+                        {category} ×
                       </button>
-                    )}
+                    ))}
                     <button
                       className={urlFilters.inStock ? styles.mobileChipActive : styles.mobileChip}
                       onClick={() => {
@@ -280,10 +242,11 @@ export const CatalogPage = () => {
                     <button
                       key={category}
                       type="button"
-                      className={urlFilters.category === category ? styles.listItemActive : styles.listItem}
+                      className={urlFilters.categories.includes(category) ? styles.listItemActive : styles.listItem}
                       onClick={() => {
-                        setFilters((prev) => ({ ...prev, category }));
-                        updateParam('category', category);
+                        const categories = toggleFilterValue(urlFilters.categories, category);
+                        setFilters((prev) => ({ ...prev, categories }));
+                        updateMultiParam('category', categories);
                       }}
                     >
                       <span className={styles.optionBullet} aria-hidden="true" />
@@ -330,11 +293,11 @@ export const CatalogPage = () => {
                         <button
                           key={color}
                           type="button"
-                          className={urlFilters.color === color ? styles.colorItemActive : styles.colorItem}
+                          className={urlFilters.colors.includes(color) ? styles.colorItemActive : styles.colorItem}
                           onClick={() => {
-                            const nextColor = urlFilters.color === color ? '' : color;
-                            setFilters((prev) => ({ ...prev, color: nextColor }));
-                            updateParam('color', nextColor || null);
+                            const colors = toggleFilterValue(urlFilters.colors, color);
+                            setFilters((prev) => ({ ...prev, colors }));
+                            updateMultiParam('color', colors);
                           }}
                         >
                           <span
@@ -356,11 +319,11 @@ export const CatalogPage = () => {
                       <button
                         key={material}
                         type="button"
-                        className={urlFilters.material === material ? styles.listItemActive : styles.listItem}
+                        className={urlFilters.materials.includes(material) ? styles.listItemActive : styles.listItem}
                         onClick={() => {
-                          const nextMaterial = urlFilters.material === material ? '' : material;
-                          setFilters((prev) => ({ ...prev, material: nextMaterial }));
-                          updateParam('material', nextMaterial || null);
+                          const materials = toggleFilterValue(urlFilters.materials, material);
+                          setFilters((prev) => ({ ...prev, materials }));
+                          updateMultiParam('material', materials);
                         }}
                       >
                         <span className={styles.optionBullet} aria-hidden="true" />
@@ -465,6 +428,7 @@ export const CatalogPage = () => {
                   [key]: value
                 }))
               }
+              onChangeMulti={(key, value) => setFilters((prev) => ({ ...prev, [key]: value }))}
               onToggleStock={(value) => setFilters((prev) => ({ ...prev, inStock: value }))}
               onApply={applyFilters}
               onReset={resetFilters}

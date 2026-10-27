@@ -4,8 +4,9 @@ import { Product } from '../../shared/types';
 import { groupCatalogProducts } from '../../shared/lib/productGrouping';
 
 export interface CatalogFilters {
-  category?: string;
-  material?: string;
+  categories?: string[];
+  materials?: string[];
+  colors?: string[];
   price?: string;
   q?: string;
   sort?: 'createdAt' | 'rating' | 'price';
@@ -22,8 +23,9 @@ export const useCatalog = (filters: CatalogFilters, enabled = true) => {
   const requestKey = useMemo(
     () =>
       JSON.stringify({
-        category: filters.category ?? '',
-        material: filters.material ?? '',
+        categories: filters.categories ?? [],
+        materials: filters.materials ?? [],
+        colors: filters.colors ?? [],
         price: filters.price ?? '',
         q: filters.q ?? '',
         sort: filters.sort ?? '',
@@ -32,8 +34,9 @@ export const useCatalog = (filters: CatalogFilters, enabled = true) => {
         limit: filters.limit ?? ''
       }),
     [
-      filters.category,
-      filters.material,
+      filters.categories,
+      filters.materials,
+      filters.colors,
       filters.price,
       filters.q,
       filters.sort,

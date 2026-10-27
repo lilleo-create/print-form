@@ -266,6 +266,7 @@
 }
 
 .mobileBarBtn {
+  position: relative;
   flex-shrink: 0;
   width: 42px;
   height: 44px;
@@ -277,6 +278,21 @@
   align-items: center;
   justify-content: center;
   -webkit-tap-highlight-color: transparent;
+}
+
+.mobileFilterCount {
+  position: absolute;
+  top: 2px;
+  right: 0;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  border-radius: 8px;
+  background: var(--primary, #495cff);
+  color: #fff;
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
 }
 
 .mobileBarSep {
