@@ -21,6 +21,7 @@ import {
 } from '../../shared/lib/productPrice';
 import { cmToMm, mmToCm } from '../../shared/lib/productDimensions';
 import styles from './SellerProductModal.module.css';
+import { RequiredMark } from './RequiredMark';
 import {
   detectProductMediaKind,
   formatSize,
@@ -51,7 +52,7 @@ const TECHNOLOGY_OPTIONS = [
   'Смола (Resin)',
 ];
 
-const productSchema = z.object({
+export const productSchema = z.object({
   title: z.string().min(2, 'Введите название'),
   descriptionShort: z.string().min(5, 'Добавьте краткое описание'),
   descriptionFull: z.string().min(10, 'Добавьте описание'),
@@ -72,13 +73,26 @@ const productSchema = z.object({
   technology: z.string().min(2, 'Введите технологию'),
   productionTimeHours: z.number().int().min(1, 'Минимум 1 час').max(720, 'Максимум 720 часов'),
   color: z.string().min(2, 'Выберите цвет'),
-  weightGrossG: z.number().int().positive('Укажите вес (г)').optional(),
-  dxCm: z.number().int().positive('Укажите ширину (мм)').optional(),
-  dyCm: z.number().int().positive('Укажите глубину (мм)').optional(),
-  dzCm: z.number().int().positive('Укажите высоту (мм)').optional(),
+  weightGrossG: z.number({ required_error: 'Укажите вес брутто (г).', invalid_type_error: 'Укажите вес брутто (г).' })
+    .int('Вес должен быть целым числом граммов.').positive('Вес должен быть больше нуля.').optional()
+    .refine((value) => value !== undefined, 'Укажите вес брутто (г).'),
+  dxCm: z.number({ required_error: 'Укажите ширину (мм).', invalid_type_error: 'Укажите ширину (мм).' })
+    .positive('Ширина должна быть больше нуля.').optional()
+    .refine((value) => value !== undefined, 'Укажите ширину (мм).'),
+  dyCm: z.number({ required_error: 'Укажите глубину (мм).', invalid_type_error: 'Укажите глубину (мм).' })
+    .positive('Глубина должна быть больше нуля.').optional()
+    .refine((value) => value !== undefined, 'Укажите глубину (мм).'),
+  dzCm: z.number({ required_error: 'Укажите высоту (мм).', invalid_type_error: 'Укажите высоту (мм).' })
+    .positive('Высота должна быть больше нуля.').optional()
+    .refine((value) => value !== undefined, 'Укажите высоту (мм).'),
 });
 
-type ProductFormValues = z.infer<typeof productSchema>;
+type ProductFormValues = Omit<z.infer<typeof productSchema>, 'weightGrossG' | 'dxCm' | 'dyCm' | 'dzCm'> & {
+  weightGrossG?: number;
+  dxCm?: number;
+  dyCm?: number;
+  dzCm?: number;
+};
 
 type MediaItem = {
   id: string;
@@ -742,6 +756,10 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
     setSkuError('');
 
     const currentMediaItems = toArray<MediaItem>(activeVariant.mediaItems);
+    if (!currentMediaItems.some((item) => item.kind === 'image')) {
+      setUploadError('Добавьте хотя бы одно изображение.');
+      return;
+    }
     const newItems = currentMediaItems.filter((item): item is MediaItem & { source: 'new'; file: File } => item.source === 'new' && Boolean(item.file));
     const uploadedById = new Map<string, string>();
 
@@ -861,7 +879,11 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
 
 
 
-        <form className={styles.form} onSubmit={handleSubmit(handleFormSubmit)}>
+        <form className={styles.form} onSubmit={handleSubmit(handleFormSubmit, () => {
+          if (!activeVariant?.mediaItems.some((item) => item.kind === 'image')) {
+            setUploadError('Добавьте хотя бы одно изображение.');
+          }
+        })}>
           {product ? (
             <section className={styles.section}>
               <div className={styles.variantHeaderRow}>
@@ -973,24 +995,23 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
 
           <section className={styles.section}>
             <h4 className={styles.sectionTitle}>Главное о товаре</h4>
-            <p className={styles.muted}><span className={styles.requiredMark}>*</span> — обязательные поля</p>
             <label>
-              <span>Название <span className={styles.requiredMark}>*</span></span>
+              <span>Название <RequiredMark /></span>
               <input className={errors.title ? styles.inputError : styles.input} placeholder="Название товара" {...register('title')} />
               {errors.title && <span className={styles.errorText}>{errors.title.message}</span>}
             </label>
             <label>
-              <span>Материал <span className={styles.requiredMark}>*</span></span>
+              <span>Материал <RequiredMark /></span>
               <input className={errors.material ? styles.inputError : styles.input} placeholder="Материал / ключевая особенность" {...register('material')} />
               {errors.material && <span className={styles.errorText}>{errors.material.message}</span>}
             </label>
             <label>
-              <span>Краткое описание <span className={styles.requiredMark}>*</span></span>
+              <span>Краткое описание <RequiredMark /></span>
               <input className={errors.descriptionShort ? styles.inputError : styles.input} placeholder="Коротко о товаре" {...register('descriptionShort')} />
               {errors.descriptionShort && <span className={styles.errorText}>{errors.descriptionShort.message}</span>}
             </label>
             <label>
-              <span>Описание <span className={styles.requiredMark}>*</span></span>
+              <span>Описание <RequiredMark /></span>
               <textarea
                 rows={4}
                 className={errors.descriptionFull ? styles.inputError : styles.input}
@@ -1018,7 +1039,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
               {skuError && <span className={styles.errorText}>{skuError}</span>}
             </label>
             <label>
-              <span>Категория <span className={styles.requiredMark}>*</span></span>
+              <span>Категория <RequiredMark /></span>
               <select className={errors.category ? styles.inputError : styles.input} {...register('category')}>
                 <option value="">Выберите категорию</option>
                 {categories.map((category) => (
@@ -1032,7 +1053,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
             </label>
             <div className={styles.inlineFields}>
               <label>
-                <span>Технология <span className={styles.requiredMark}>*</span></span>
+                <span>Технология <RequiredMark /></span>
                 <select
                   className={errors.technology && !technologyCustom ? styles.inputError : styles.input}
                   value={technologyCustom ? 'other' : (watch('technology') ?? '')}
@@ -1063,12 +1084,12 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
                 {errors.technology && <span className={styles.errorText}>{errors.technology.message}</span>}
               </label>
               <label>
-                <span>Срок изготовления (часы) <span className={styles.requiredMark}>*</span></span>
+                <span>Срок изготовления (часы) <RequiredMark /></span>
                 <input type="number" min={1} max={720} className={errors.productionTimeHours ? styles.inputError : styles.input} placeholder="24" {...register('productionTimeHours', { valueAsNumber: true })} />
                 {errors.productionTimeHours && <span className={styles.errorText}>{errors.productionTimeHours.message}</span>}
               </label>
               <label>
-                <span>Цена <span className={styles.requiredMark}>*</span></span>
+                <span>Цена <RequiredMark /></span>
                 <input
                   type="text"
                   inputMode="decimal"
@@ -1098,7 +1119,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
             <h4 className={styles.sectionTitle}>Параметры товара</h4>
             <div className={styles.inlineFields}>
               <label>
-                <span>Цвет товара <span className={styles.requiredMark}>*</span></span>
+                <span>Цвет товара <RequiredMark /></span>
                 <Controller
                   control={control}
                   name="color"
@@ -1142,22 +1163,22 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
             <h4 className={styles.sectionTitle}>Вес и габариты с упаковкой</h4>
             <div className={styles.inlineFields}>
               <label>
-                Вес брутто (г)
+                <span>Вес брутто (г) <RequiredMark /></span>
                 <input type="number" min={1} className={errors.weightGrossG ? styles.inputError : styles.input} {...register('weightGrossG', { setValueAs: (value) => (value === '' ? undefined : Number(value)) })} />
                 {errors.weightGrossG && <span className={styles.errorText}>{errors.weightGrossG.message}</span>}
               </label>
               <label>
-                Ширина (мм)
+                <span>Ширина (мм) <RequiredMark /></span>
                 <input type="number" min={1} className={errors.dxCm ? styles.inputError : styles.input} {...register('dxCm', { setValueAs: (value) => (value === '' ? undefined : Number(value)) })} />
                 {errors.dxCm && <span className={styles.errorText}>{errors.dxCm.message}</span>}
               </label>
               <label>
-                Глубина (мм)
+                <span>Глубина (мм) <RequiredMark /></span>
                 <input type="number" min={1} className={errors.dyCm ? styles.inputError : styles.input} {...register('dyCm', { setValueAs: (value) => (value === '' ? undefined : Number(value)) })} />
                 {errors.dyCm && <span className={styles.errorText}>{errors.dyCm.message}</span>}
               </label>
               <label>
-                Высота (мм)
+                <span>Высота (мм) <RequiredMark /></span>
                 <input type="number" min={1} className={errors.dzCm ? styles.inputError : styles.input} {...register('dzCm', { setValueAs: (value) => (value === '' ? undefined : Number(value)) })} />
                 {errors.dzCm && <span className={styles.errorText}>{errors.dzCm.message}</span>}
               </label>
@@ -1175,6 +1196,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
 
           <section className={styles.section}>
             <h4 className={styles.sectionTitle}>Изображения и видео товара</h4>
+            <p className={styles.photoRequired}>Фото <RequiredMark /></p>
             <p className={styles.muted}>
               Фото: JPG, PNG, WEBP, HEIC/HEIF · <strong>рекомендуемый размер 800×800 px (1:1, квадрат)</strong> · до {formatSize(IMAGE_MAX_SIZE_BYTES)}.<br />
               Видео: MP4, MOV, WEBM · до {formatSize(VIDEO_MAX_SIZE_BYTES)}, до {VIDEO_MAX_DURATION_SECONDS} сек.
