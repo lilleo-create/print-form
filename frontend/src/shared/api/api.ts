@@ -415,6 +415,12 @@ export const api = {
     );
   },
 
+  async getReferenceCategoriesWithCounts(opts?: { signal?: AbortSignal }) {
+    return apiClient.request<Array<{ id: string; slug: string; title: string; productsCount: number }>>(
+      '/filters/reference-categories/with-counts', { signal: opts?.signal }
+    );
+  },
+
   async getCities() {
     return apiClient.request<{ id: string; name: string }[]>('/filters/cities');
   },

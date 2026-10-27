@@ -1,32 +1,25 @@
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { api } from '../../shared/api';
+import { formatModelCount } from '../../shared/lib/modelCount';
 import styles from './QuickCategories.module.css';
 
-const CATS = [
-  {
-    id: 'mini', name: 'Миниатюры', count: 312,
-    icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><circle cx="12" cy="5" r="2"/><path d="M9 21V12l-2-3 4-2 4 2-2 3v9"/></svg>,
-  },
-  {
-    id: 'dec', name: 'Декор', count: 188,
-    icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M8 3h8v3l-1 2c1 2 2 4 2 6 0 4-3 7-5 7s-5-3-5-7c0-2 1-4 2-6L8 6V3z"/></svg>,
-  },
-  {
-    id: 'auto', name: 'Автозапчасти', count: 96,
-    icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M3 17V12l2-5h14l2 5v5"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M5 12h14"/></svg>,
-  },
-  {
-    id: 'home', name: 'Для быта', count: 224,
-    icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M3 11l9-8 9 8v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V11z"/><path d="M9 21v-7h6v7"/></svg>,
-  },
-  {
-    id: 'eng', name: 'Инженерные', count: 178,
-    icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3 1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8 1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>,
-  },
-  {
-    id: 'spare', name: 'Корпуса', count: 108,
-    icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>,
-  },
-];
+type CategoryWithCount = {
+  id: string;
+  slug: string;
+  title: string;
+  productsCount: number | null;
+};
+
+const CATEGORY_ICONS = {
+  souvenirs: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M3 8h18v13H3zM2 8h20V5H2zM12 5v16M7 5C4 3 6 1 9 3l3 2M17 5c3-2 1-4-2-2l-3 2"/></svg>,
+  decor: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M8 3h8v3l-1 2c1 2 2 4 2 6 0 4-3 7-5 7s-5-3-5-7c0-2 1-4 2-6L8 6V3z"/></svg>,
+  figures: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><circle cx="12" cy="5" r="2"/><path d="M9 21V12l-2-3 4-2 4 2-2 3v9"/></svg>,
+  gifts: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M3 8h18v13H3zM2 8h20V5H2zM12 5v16M7 5C4 3 6 1 9 3l3 2M17 5c3-2 1-4-2-2l-3 2"/></svg>,
+  prototypes: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4M4.9 4.9l2.8 2.8m8.6 8.6 2.8 2.8m0-14.2-2.8 2.8m-8.6 8.6-2.8 2.8"/></svg>
+};
+
+const FALLBACK_ICON = <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M3 7l9-4 9 4v10l-9 4-9-4V7zM3 7l9 4 9-4M12 11v10"/></svg>;
 
 const ArrowIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
@@ -36,6 +29,24 @@ const ArrowIcon = () => (
 
 export const QuickCategories = () => {
   const navigate = useNavigate();
+  const [categories, setCategories] = useState<CategoryWithCount[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    const controller = new AbortController();
+    api.getReferenceCategoriesWithCounts({ signal: controller.signal })
+      .then((response) => { if (active) setCategories(response.data); })
+      .catch(async () => {
+        if (!active) return;
+        try {
+          const response = await api.getReferenceCategories();
+          if (active) setCategories(response.data.map((category) => ({ ...category, productsCount: null })));
+        } catch {
+          if (active) setCategories([]);
+        }
+      });
+    return () => { active = false; controller.abort(); };
+  }, []);
 
   return (
     <section>
@@ -46,16 +57,18 @@ export const QuickCategories = () => {
         </button>
       </div>
       <div className={styles.grid}>
-        {CATS.map((cat) => (
+        {categories.map((category) => (
           <button
-            key={cat.id}
+            key={category.id}
             className={styles.tile}
-            onClick={() => navigate(`/catalog?category=${encodeURIComponent(cat.name)}`)}
+            onClick={() => navigate(`/catalog?category=${encodeURIComponent(category.title)}`)}
           >
-            <span className={styles.icon}>{cat.icon}</span>
+            <span className={styles.icon}>{CATEGORY_ICONS[category.slug as keyof typeof CATEGORY_ICONS] ?? FALLBACK_ICON}</span>
             <div>
-              <div className={styles.name}>{cat.name}</div>
-              <div className={styles.count}>{cat.count} моделей</div>
+              <div className={styles.name}>{category.title}</div>
+              {category.productsCount !== null && (
+                <div className={styles.count}>{formatModelCount(category.productsCount)}</div>
+              )}
             </div>
           </button>
         ))}
