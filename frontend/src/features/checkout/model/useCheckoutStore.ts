@@ -4,8 +4,7 @@ import {
   type CheckoutDto,
   type DeliveryMethodCode,
   type PaymentMethodCode,
-  type CdekPvzSelection,
-  type ShippingSnapshot
+  type CdekPvzSelection
 } from '../api/checkoutApi';
 import { useCartStore } from '../../../app/store/cartStore';
 import { useBuyNowStore } from '../../../app/store/buyNowStore';
@@ -38,7 +37,6 @@ const mapItemsToCheckoutItems = (
 type CheckoutState = {
   data: CheckoutDto | null;
   deliveryAmountKopecks: number | null;
-  shippingSnapshot: ShippingSnapshot | null;
   isQuoteLoading: boolean;
   isLoading: boolean;
   error: string | null;
@@ -79,7 +77,6 @@ const withRefetch = async (
 export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   data: null,
   deliveryAmountKopecks: null,
-  shippingSnapshot: null,
   isQuoteLoading: false,
   isLoading: false,
   error: null,
@@ -89,7 +86,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     fetchController?.abort();
     const controller = new AbortController();
     fetchController = controller;
-    set({ isLoading: true, isQuoteLoading: true, deliveryAmountKopecks: null, shippingSnapshot: null, error: null });
+    set({ isLoading: true, isQuoteLoading: true, deliveryAmountKopecks: null, error: null });
     try {
       const data = await checkoutApi.fetchCheckout(controller.signal);
       const buyNowState = useBuyNowStore.getState();
@@ -119,8 +116,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
           items: cartItems.map(item => ({ productId: item.productId, quantity: item.quantity }))
         }, controller.signal);
         if (controller.signal.aborted) return;
-        set({ deliveryAmountKopecks: quote.deliveryAmountKopecks,
-          shippingSnapshot: quote.shippingSnapshot, isQuoteLoading: false });
+        set({ deliveryAmountKopecks: quote.deliveryAmountKopecks, isQuoteLoading: false });
       } else {
         set({ isQuoteLoading: false });
       }
@@ -130,7 +126,6 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         isLoading: false,
         isQuoteLoading: false,
         deliveryAmountKopecks: null,
-        shippingSnapshot: null,
         error:
           error instanceof Error
             ? error.message
@@ -243,7 +238,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     }
     const data = get().data;
     if (!data) return null;
-    if (get().deliveryAmountKopecks == null || !get().shippingSnapshot) {
+    if (get().deliveryAmountKopecks == null) {
       set({ error: 'Стоимость доставки ещё не рассчитана. Выберите ПВЗ и дождитесь расчёта.' });
       return null;
     }
@@ -305,17 +300,13 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
           email: data.recipient.email || null
         },
         packagesCount: 1,
-        expectedDeliveryAmountKopecks: get().deliveryAmountKopecks!,
-        expectedShippingSnapshot: get().shippingSnapshot!,
         buyerPickupPvz,
         items: data.cartItems.map((item) => ({
           productId: item.productId,
-          quantity: item.quantity
+          quantity: item.quantity,
+          expectedPriceKopecks: item.price
         }))
       };
-
-      // Лог всегда — чтобы видеть payload при DATABASE_VALIDATION_ERROR
-      console.log('[Checkout] startPayment payload:', JSON.stringify(startPaymentPayload, null, 2));
 
       const response = await checkoutApi.startPayment(startPaymentPayload);
 

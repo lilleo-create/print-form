@@ -41,7 +41,7 @@ export const CheckoutLayout = () => {
 
   const selectedMethod = data?.selectedDeliveryMethod ?? 'PICKUP_POINT';
   const deliveryPriceLabel = deliveryAmountKopecks !== null
-    ? formatPrice(deliveryAmountKopecks)
+    ? 'Бесплатно'
     : !data?.selectedPickupPoint?.pvzId
       ? 'Выберите ПВЗ'
       : error
@@ -160,7 +160,7 @@ export const CheckoutLayout = () => {
         </div>
         <div className={styles.priceRow}>
           <button type="button" className={styles.expandTrigger}>
-            Доставка и сервисы <span className={styles.caret}>∨</span>
+            Доставка <span className={styles.caret}>∨</span>
           </button>
           <span>{deliveryPriceLabel}</span>
         </div>
@@ -186,7 +186,7 @@ export const CheckoutLayout = () => {
       <div className={styles.totalRow}>
         <span className={styles.totalLabel}>Оплата онлайн</span>
         <strong className={styles.totalAmount}>
-          {deliveryAmountKopecks === null ? '—' : formatPrice(total + deliveryAmountKopecks)}
+          {deliveryAmountKopecks === null ? '—' : formatPrice(total)}
         </strong>
       </div>
     </div>

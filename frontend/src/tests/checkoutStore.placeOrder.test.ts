@@ -35,6 +35,8 @@ describe('useCheckoutStore.placeOrder payload', () => {
     vi.clearAllMocks();
     useCheckoutStore.setState({
       data: null,
+      deliveryAmountKopecks: 20475,
+      isQuoteLoading: false,
       isLoading: false,
       error: null,
       isSubmittingOrder: false
@@ -80,9 +82,11 @@ describe('useCheckoutStore.placeOrder payload', () => {
           provider: 'CDEK',
           pvzId: 'pvz-123'
         }),
-        items: [{ productId: 'p1', quantity: 1 }]
+        items: [{ productId: 'p1', quantity: 1, expectedPriceKopecks: 100 }]
       })
     );
+    expect(vi.mocked(checkoutApi.startPayment).mock.calls[0][0]).not.toHaveProperty('expectedShippingSnapshot');
+    expect(vi.mocked(checkoutApi.startPayment).mock.calls[0][0]).not.toHaveProperty('expectedDeliveryAmountKopecks');
   });
 
 
@@ -169,6 +173,15 @@ describe('useCheckoutStore.placeOrder payload', () => {
     expect(result).toBeNull();
     expect(checkoutApi.startPayment).not.toHaveBeenCalled();
     expect(useCheckoutStore.getState().error).toContain('Выберите ПВЗ');
+  });
+
+  it('does not start payment when the CDEK quote is unavailable', async () => {
+    useCheckoutStore.setState({
+      data: { ...baseData, selectedPickupPoint: { provider: 'CDEK', pvzId: 'MSK123' } },
+      deliveryAmountKopecks: null
+    });
+    expect(await useCheckoutStore.getState().placeOrder()).toBeNull();
+    expect(checkoutApi.startPayment).not.toHaveBeenCalled();
   });
 
   it('hydrates checkout cartItems from all cart store items', async () => {

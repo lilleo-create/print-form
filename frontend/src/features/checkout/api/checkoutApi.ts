@@ -254,10 +254,8 @@ export const checkoutApi = {
       paymentAttemptKey: string;
       recipient: { name: string; phone: string; email?: string | null };
       packagesCount?: number;
-      expectedDeliveryAmountKopecks?: number;
-      expectedShippingSnapshot?: ShippingSnapshot;
       buyerPickupPvz: CdekPvzSelection;
-      items: Array<{ productId: string; quantity: number }>;
+      items: Array<{ productId: string; quantity: number; expectedPriceKopecks: number }>;
     },
     signal?: AbortSignal
   ) => {
