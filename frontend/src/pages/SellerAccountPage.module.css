@@ -1547,3 +1547,25 @@
     justify-content: flex-start;
   }
 }
+.packingActionRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+}
+
+.packingGuideLink {
+  padding: 6px 2px;
+  border: 0;
+  background: transparent;
+  color: var(--primary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.packingGuideLink:hover { color: var(--text); }
+.packingGuideLink:focus-visible { outline: none; border-radius: 4px; box-shadow: var(--focus-ring); }

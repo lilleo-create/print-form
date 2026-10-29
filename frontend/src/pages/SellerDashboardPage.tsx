@@ -1694,8 +1694,8 @@ export const SellerDashboardPage = () => {
     if (!orders.some(order => ['PAID', 'PRINTING'].includes(order.status) &&
       order.paymentStatus === 'PAID' && Boolean(order.paidAt) && !order.isPacked)) return;
     try {
-      if (localStorage.getItem('seller-packing-guide-v1')) return;
-      localStorage.setItem('seller-packing-guide-v1', 'seen');
+      if (localStorage.getItem('seller-packing-guide-v2')) return;
+      localStorage.setItem('seller-packing-guide-v2', 'seen');
       setPackingGuideOpen(true);
     } catch { /* Storage may be unavailable; manual guide remains accessible. */ }
   }, [activeItem, orders, ordersLoading, packingGuideOpen]);
@@ -3010,24 +3010,18 @@ export const SellerDashboardPage = () => {
                                     </Button>
                                   )}
 
-                                  {order.status === 'PRINTING' &&
-                                    preparationPaymentOpen &&
-                                    !order.shipment?.id &&
-                                    !order.readyForShipmentAt && (
-                                      <Button
-                                        type="button"
-                                        variant={order.isPacked ? 'ghost' : 'secondary'}
-                                        size="sm"
-                                        onClick={() => setPackingOrder(order)}
-                                      >
-                                        {order.isPacked
-                                          ? 'Изменить параметры посылки'
-                                          : 'Товар упакован'}
-                                      </Button>
-                                    )}
-                                  {['PAID', 'PRINTING', 'READY_FOR_SHIPMENT'].includes(order.status) && (
-                                    <Button type="button" variant="ghost" size="sm"
-                                      onClick={() => setPackingGuideOpen(true)}>Как упаковать?</Button>
+                                  {order.paymentStatus === 'PAID' && (
+                                    <div className={styles.packingActionRow}>
+                                      {order.status === 'PRINTING' && preparationPaymentOpen &&
+                                        !order.shipment?.id && !order.readyForShipmentAt && (
+                                          <Button type="button" variant={order.isPacked ? 'ghost' : 'secondary'}
+                                            size="sm" onClick={() => setPackingOrder(order)}>
+                                            {order.isPacked ? 'Изменить параметры посылки' : 'Товар упакован'}
+                                          </Button>
+                                        )}
+                                      <button type="button" className={styles.packingGuideLink}
+                                        onClick={() => setPackingGuideOpen(true)}>Как правильно упаковать?</button>
+                                    </div>
                                   )}
 
                                   {/* После подготовки создание отправления; далее статус только для чтения. */}
@@ -4105,6 +4099,7 @@ export const SellerDashboardPage = () => {
                 />
               )}
               {packingOrder && <PackedOrderModal
+                sellerNetBeforeDeliveryKopecks={packingOrder.financials?.sellerNetAmount ?? packingOrder.total}
                 initial={{ weightGrams: packingOrder.packedWeightGrams ?? undefined,
                   lengthCm: packingOrder.packedLengthCm ?? undefined,
                   widthCm: packingOrder.packedWidthCm ?? undefined,
