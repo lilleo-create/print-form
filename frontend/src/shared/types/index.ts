@@ -306,6 +306,12 @@ export interface DeliveryEvent {
 export interface OrderFinancials {
   itemsSubtotal: number;     // копейки
   deliveryAmount: number;    // копейки
+  checkoutDeliveryEstimateAmount?: number;
+  packedDeliveryAmount?: number | null;
+  confirmedActualDeliveryAmount?: number | null;
+  effectiveDeliveryCost?: number;
+  acquiringFeeAmount?: number;
+  sellerNetAfterDeliveryAmount?: number;
   total: number;             // копейки
   platformFeePercent: number | null;
   platformFeeAmount: number; // копейки
@@ -325,6 +331,13 @@ export interface Order {
   paidAt?: string | null;
   readyForShipmentAt?: string | null;
   isPacked?: boolean | null;
+  packedWeightGrams?: number | null;
+  packedLengthCm?: number | null;
+  packedWidthCm?: number | null;
+  packedHeightCm?: number | null;
+  packedDeliveryAmountKopecks?: number | null;
+  checkoutDeliveryEstimateKopecks?: number | null;
+  actualDeliveryAmountKopecks?: number | null;
   total: number;
   totalKopecks?: number;
   totalRubles?: number;

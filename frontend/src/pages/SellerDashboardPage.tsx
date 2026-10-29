@@ -33,6 +33,8 @@ import { SellerHeader } from '../components/seller/SellerHeader';
 import { SellerStatsCard } from '../components/seller/SellerStatsCard';
 import { CopyableOrderNumber } from '../components/seller/CopyableOrderNumber';
 import { OrderFinancialsSummary } from '../components/orders/OrderFinancialsSummary';
+import { PackedOrderModal } from '../components/orders/PackedOrderModal';
+import { PackingGuideModal } from '../components/orders/PackingGuideModal';
 import { DeliveryTimeline } from '../components/orders/DeliveryTimeline';
 import { SellerFinanceTable } from '../components/seller/SellerFinanceTable';
 import { SellerFinanceMobileCard } from '../components/seller/SellerFinanceMobileCard';
@@ -665,6 +667,8 @@ export const SellerDashboardPage = () => {
   const [ordersError, setOrdersError] = useState<string | null>(null);
 
   const [orderUpdateError, setOrderUpdateError] = useState<string | null>(null);
+  const [packingOrder, setPackingOrder] = useState<Order | null>(null);
+  const [packingGuideOpen, setPackingGuideOpen] = useState(false);
 
   const [labelDownloaded, setLabelDownloaded] = useState<
     Record<string, boolean>
@@ -1526,24 +1530,6 @@ export const SellerDashboardPage = () => {
     }
   };
 
-  const handleTogglePacked = async (order: Order) => {
-    setOrderUpdateError(null);
-
-    try {
-      await api.updateOrderFulfillmentSteps(order.id, {
-        isPacked: !order.isPacked
-      });
-      await loadOrders();
-    } catch (error) {
-      const normalized = normalizeApiError(error);
-      if (normalized.code === 'PAYMENT_REQUIRED') {
-        setOrderUpdateError('Заказ не оплачен.');
-        return;
-      }
-      setOrderUpdateError('Не удалось обновить отметку упаковки.');
-    }
-  };
-
   const handleStartProduction = async (orderId: string) => {
     setOrderUpdateError(null);
     try {
@@ -1572,6 +1558,14 @@ export const SellerDashboardPage = () => {
       }
       if (normalized.code === 'BUYER_PICKUP_REQUIRED') {
         setOrderUpdateError('Не выбран ПВЗ покупателя.');
+        return;
+      }
+      if (normalized.code === 'PACKED_PARCEL_REQUIRED') {
+        setOrderUpdateError('Сначала укажите вес и размеры готовой посылки.');
+        return;
+      }
+      if (normalized.code === 'DELIVERY_COST_EXCEEDS_SELLER_NET') {
+        setOrderUpdateError('Стоимость доставки превышает сумму к выплате.');
         return;
       }
       setOrderUpdateError(
@@ -1643,9 +1637,15 @@ export const SellerDashboardPage = () => {
     if (['REFUND_PENDING', 'PARTIALLY_REFUNDED', 'REFUNDED', 'CANCELLED'].includes(order.paymentStatus ?? '')) {
       return 'Оплата возвращается';
     }
-    if (!order.paidAt && order.paymentStatus !== 'PAID') return 'Ожидает оплаты';
+    if (!order.paidAt || order.paymentStatus !== 'PAID') return 'Ожидает оплаты';
     if (order.status !== 'PRINTING') return 'Сначала начните производство';
-    if (!order.isPacked) return 'Сначала отметьте упаковку';
+    if (!order.isPacked || !order.packedWeightGrams || !order.packedLengthCm ||
+        !order.packedWidthCm || !order.packedHeightCm || !order.packedDeliveryAmountKopecks) {
+      return 'Сначала укажите параметры готовой посылки';
+    }
+    if ((order.financials?.sellerNetAfterDeliveryAmount ?? 0) < 0) {
+      return 'Стоимость доставки превышает сумму к выплате';
+    }
     if (!order.sellerDropoffPvzMeta && !dropoffPvzId)
       return 'Не выбран ПВЗ сдачи';
     if (!order.buyerPickupPvzMeta && !order.shippingAddressId)
@@ -1688,6 +1688,17 @@ export const SellerDashboardPage = () => {
       return !isCancelledOrder(order) && !isCompletedOrder(order);
     });
   }, [ordersTab, searchedOrders]);
+
+  useEffect(() => {
+    if (activeItem !== 'Заказы' || ordersLoading || packingGuideOpen) return;
+    if (!orders.some(order => ['PAID', 'PRINTING'].includes(order.status) &&
+      order.paymentStatus === 'PAID' && Boolean(order.paidAt) && !order.isPacked)) return;
+    try {
+      if (localStorage.getItem('seller-packing-guide-v1')) return;
+      localStorage.setItem('seller-packing-guide-v1', 'seen');
+      setPackingGuideOpen(true);
+    } catch { /* Storage may be unavailable; manual guide remains accessible. */ }
+  }, [activeItem, orders, ordersLoading, packingGuideOpen]);
 
   const ordersTabCounts = useMemo(() => {
     const visibleOrders = searchedOrders.filter(
@@ -2855,7 +2866,7 @@ export const SellerDashboardPage = () => {
                         );
                         const isCancelled = order.status === 'CANCELLED';
                         const preparationPaymentOpen =
-                          (order.paymentStatus === 'PAID' || Boolean(order.paidAt)) &&
+                          order.paymentStatus === 'PAID' && Boolean(order.paidAt) &&
                           !['REFUND_PENDING', 'PARTIALLY_REFUNDED', 'REFUNDED', 'CANCELLED'].includes(order.paymentStatus ?? '');
                         const cancelPaymentHint =
                           order.paymentStatus === 'REFUND_PENDING'
@@ -2976,6 +2987,7 @@ export const SellerDashboardPage = () => {
                               {order.financials && (
                                 <OrderFinancialsSummary
                                   financials={order.financials}
+                                  isPaid={order.paymentStatus === 'PAID' && Boolean(order.paidAt)}
                                   deliveryEtaText={
                                     order.deliveryEta?.text ??
                                     buildDeliveryEtaLabel(order)
@@ -3006,13 +3018,17 @@ export const SellerDashboardPage = () => {
                                         type="button"
                                         variant={order.isPacked ? 'ghost' : 'secondary'}
                                         size="sm"
-                                        onClick={() => handleTogglePacked(order)}
+                                        onClick={() => setPackingOrder(order)}
                                       >
                                         {order.isPacked
-                                          ? 'Снять отметку упаковки'
+                                          ? 'Изменить параметры посылки'
                                           : 'Товар упакован'}
                                       </Button>
                                     )}
+                                  {['PAID', 'PRINTING', 'READY_FOR_SHIPMENT'].includes(order.status) && (
+                                    <Button type="button" variant="ghost" size="sm"
+                                      onClick={() => setPackingGuideOpen(true)}>Как упаковать?</Button>
+                                  )}
 
                                   {/* После подготовки создание отправления; далее статус только для чтения. */}
                                   {order.status === 'PRINTING' && preparationPaymentOpen && order.isPacked && !order.readyForShipmentAt && (
@@ -4088,6 +4104,20 @@ export const SellerDashboardPage = () => {
                   onSubmit={handleSaveProduct}
                 />
               )}
+              {packingOrder && <PackedOrderModal
+                initial={{ weightGrams: packingOrder.packedWeightGrams ?? undefined,
+                  lengthCm: packingOrder.packedLengthCm ?? undefined,
+                  widthCm: packingOrder.packedWidthCm ?? undefined,
+                  heightCm: packingOrder.packedHeightCm ?? undefined }}
+                onClose={() => setPackingOrder(null)}
+                onQuote={async parcel => (await api.quotePackedOrder(packingOrder.id, parcel)).data}
+                onConfirm={async (parcel, expectedAmount) => {
+                  await api.confirmPackedOrder(packingOrder.id, parcel, expectedAmount);
+                  await loadOrders();
+                  setPackingOrder(null);
+                }}
+              />}
+              {packingGuideOpen && <PackingGuideModal onClose={() => setPackingGuideOpen(false)} />}
             </>
           )}
         </div>

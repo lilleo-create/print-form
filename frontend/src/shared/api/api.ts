@@ -654,6 +654,21 @@ export const api = {
     });
   },
 
+  async quotePackedOrder(orderId: string, parcel: {
+    weightGrams: number; lengthCm: number; widthCm: number; heightCm: number;
+  }) {
+    return apiClient.request<{ deliveryAmountKopecks: number; deliveryDaysMin: number; deliveryDaysMax: number }>(
+      `/seller/orders/${orderId}/pack/quote`, { method: 'POST', body: parcel });
+  },
+
+  async confirmPackedOrder(orderId: string, parcel: {
+    weightGrams: number; lengthCm: number; widthCm: number; heightCm: number;
+  }, expectedDeliveryAmountKopecks: number) {
+    return apiClient.request<{ order: Order }>(`/seller/orders/${orderId}/pack`, {
+      method: 'POST', body: { ...parcel, expectedDeliveryAmountKopecks }
+    });
+  },
+
   async updateOrderFulfillmentSteps(
     orderId: string,
     payload: {

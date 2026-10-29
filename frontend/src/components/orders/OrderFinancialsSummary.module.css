@@ -81,6 +81,8 @@
   padding: 2px 0;
 }
 
+.error { color: var(--danger); font-size: 12px; margin: 3px 0 0; }
+
 .eta {
   margin-top: 4px;
   font-size: 12px;
