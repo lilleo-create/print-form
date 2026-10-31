@@ -336,8 +336,11 @@ export interface Order {
   packedWidthCm?: number | null;
   packedHeightCm?: number | null;
   packedDeliveryAmountKopecks?: number | null;
+  packedAt?: string | null;
+  packedQuoteCalculatedAt?: string | null;
   checkoutDeliveryEstimateKopecks?: number | null;
   actualDeliveryAmountKopecks?: number | null;
+  actualDeliveryUpdatedAt?: string | null;
   total: number;
   totalKopecks?: number;
   totalRubles?: number;

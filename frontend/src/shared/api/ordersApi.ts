@@ -25,6 +25,16 @@ type ApiOrder = {
   paidAt?: string | null;
   readyForShipmentAt?: string | null;
   isPacked?: boolean | null;
+  packedWeightGrams?: number | null;
+  packedLengthCm?: number | null;
+  packedWidthCm?: number | null;
+  packedHeightCm?: number | null;
+  packedDeliveryAmountKopecks?: number | null;
+  packedAt?: string | null;
+  packedQuoteCalculatedAt?: string | null;
+  checkoutDeliveryEstimateKopecks?: number | null;
+  actualDeliveryAmountKopecks?: number | null;
+  actualDeliveryUpdatedAt?: string | null;
   total: number;
   recipientName?: string | null;
   recipientPhone?: string | null;
@@ -94,6 +104,16 @@ const mapOrder = (order: ApiOrder): Order => ({
   paidAt: order.paidAt ?? null,
   readyForShipmentAt: order.readyForShipmentAt ?? null,
   isPacked: order.isPacked ?? null,
+  packedWeightGrams: order.packedWeightGrams ?? null,
+  packedLengthCm: order.packedLengthCm ?? null,
+  packedWidthCm: order.packedWidthCm ?? null,
+  packedHeightCm: order.packedHeightCm ?? null,
+  packedDeliveryAmountKopecks: order.packedDeliveryAmountKopecks ?? null,
+  packedAt: order.packedAt ?? null,
+  packedQuoteCalculatedAt: order.packedQuoteCalculatedAt ?? null,
+  checkoutDeliveryEstimateKopecks: order.checkoutDeliveryEstimateKopecks ?? null,
+  actualDeliveryAmountKopecks: order.actualDeliveryAmountKopecks ?? null,
+  actualDeliveryUpdatedAt: order.actualDeliveryUpdatedAt ?? null,
   total: order.total,
   recipientName: order.recipientName ?? null,
   recipientPhone: order.recipientPhone ?? null,
