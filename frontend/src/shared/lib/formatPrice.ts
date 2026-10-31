@@ -24,6 +24,13 @@ export const formatPriceNoKopecks = (valueKopecks: number, currency = 'RUB') => 
   }).format(safeValue / 100);
 };
 
+export const formatPriceWithKopecks = (valueKopecks: number, currency = 'RUB') => {
+  const safeValue = toSafeKopecks(valueKopecks);
+  return new Intl.NumberFormat('ru-RU', {
+    style: 'currency', currency, minimumFractionDigits: 0, maximumFractionDigits: 2
+  }).format(safeValue / 100);
+};
+
 export const formatPriceNumber = (valueKopecks: number) => {
   const safeValue = toSafeKopecks(valueKopecks);
   return safeValue / 100;

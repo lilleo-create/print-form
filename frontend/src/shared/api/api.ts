@@ -455,7 +455,6 @@ export const api = {
     description: string;
     descriptionShort?: string;
     descriptionFull?: string;
-    sku?: string;
     weightGrossG?: number;
     dxCm?: number;
     dyCm?: number;
@@ -482,7 +481,6 @@ export const api = {
       description?: string;
       descriptionShort?: string;
       descriptionFull?: string;
-      sku?: string;
       weightGrossG?: number;
       dxCm?: number;
       dyCm?: number;
@@ -657,7 +655,9 @@ export const api = {
   async quotePackedOrder(orderId: string, parcel: {
     weightGrams: number; lengthCm: number; widthCm: number; heightCm: number;
   }) {
-    return apiClient.request<{ requestId: string; deliveryAmountKopecks: number; deliveryDaysMin: number; deliveryDaysMax: number }>(
+    return apiClient.request<{ requestId: string; deliveryAmountKopecks: number;
+      physicalWeightGrams: number; billableWeightGrams: number | null;
+      deliveryDaysMin: number; deliveryDaysMax: number }>(
       `/seller/orders/${orderId}/pack/quote`, { method: 'POST', body: parcel });
   },
 

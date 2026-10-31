@@ -56,10 +56,6 @@ export const productSchema = z.object({
   title: z.string().min(2, 'Введите название'),
   descriptionShort: z.string().min(5, 'Добавьте краткое описание'),
   descriptionFull: z.string().min(10, 'Добавьте описание'),
-  sku: z.preprocess(
-    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
-    z.string().regex(/^PF-\d{1,8}$/, 'Формат: PF-0001').optional()
-  ),
   price: z.preprocess(
     (value) => normalizeRublesInput(value),
     z
@@ -116,7 +112,6 @@ export interface SellerProductPayload {
   descriptionShort: string;
   description: string;
   descriptionFull: string;
-  sku?: string;
   imageUrls: string[];
   videoUrls: string[];
   weightGrossG?: number;
@@ -226,7 +221,6 @@ const getDefaultFormValues = (): ProductFormValues => ({
   title: '',
   descriptionShort: '',
   descriptionFull: '',
-  sku: '',
   price: '',
   material: '',
   category: '',
@@ -245,7 +239,6 @@ const getProductFormValues = (product: Product): ProductFormValues => {
     title: editableProduct?.title ?? '',
     descriptionShort: editableProduct?.descriptionShort ?? '',
     descriptionFull: editableProduct?.descriptionFull ?? editableProduct?.description ?? '',
-    sku: editableProduct?.sku ?? '',
     price: editableProduct ? formatPriceFromMinorUnits(editableProduct.price) : '',
     material: editableProduct?.material ?? '',
     category: editableProduct?.category ?? '',
@@ -342,7 +335,6 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
   const fileInputRef = useRef<HTMLInputElement>(null);
   const variantDraftsRef = useRef<VariantDraft[]>([]);
   const [uploadError, setUploadError] = useState('');
-  const [skuError, setSkuError] = useState('');
   const [technologyCustom, setTechnologyCustom] = useState(false);
   const [cropTarget, setCropTarget] = useState<{ itemId: string; previewUrl: string; fileName: string } | null>(null);
   const [fileErrors, setFileErrors] = useState<string[]>([]);
@@ -355,7 +347,6 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
   const [variantForm, setVariantForm] = useState({
     name: '',
     color: '',
-    sku: '',
     stock: '',
     priceDelta: '',
   });
@@ -519,7 +510,6 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
       setVariantForm({
         name: '',
         color: '',
-        sku: '',
         stock: '',
         priceDelta: '',
       });
@@ -529,7 +519,6 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
     setVariantForm({
       name: activeProductVariant.name,
       color: activeProductVariant.options?.color?.[0] ?? 'Без цвета',
-      sku: activeProductVariant.sku ?? '',
       stock: activeProductVariant.stock !== undefined ? String(activeProductVariant.stock) : '',
       priceDelta:
         activeProductVariant.priceDelta !== undefined ? String(activeProductVariant.priceDelta) : '',
@@ -713,7 +702,6 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
       const nextColor = variantForm.color.trim();
       await sellerProductVariantsService.update(product.id, activeProductVariant.id, {
         name: variantForm.name.trim() || activeProductVariant.name,
-        sku: variantForm.sku.trim() || undefined,
         stock: nextStock && !Number.isNaN(Number(nextStock)) ? Number(nextStock) : undefined,
         priceDelta:
           nextPriceDelta && !Number.isNaN(Number(nextPriceDelta))
@@ -753,7 +741,6 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
   const handleFormSubmit = async (values: ProductFormValues) => {
     if (!activeVariant) return;
     setUploadError('');
-    setSkuError('');
 
     const currentMediaItems = toArray<MediaItem>(activeVariant.mediaItems);
     if (!currentMediaItems.some((item) => item.kind === 'image')) {
@@ -821,7 +808,6 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
       descriptionShort: values.descriptionShort,
       description: values.descriptionFull,
       descriptionFull: values.descriptionFull,
-      sku: values.sku?.trim() || undefined,
       imageUrls,
       videoUrls,
       weightGrossG: values.weightGrossG,
@@ -834,17 +820,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
       await onSubmit(payload);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
-      const isSkuConflict =
-        message.toLowerCase().includes('sku') ||
-        message.toLowerCase().includes('артикул') ||
-        message.includes('409') ||
-        message.toLowerCase().includes('conflict') ||
-        message.toLowerCase().includes('duplicate');
-      if (isSkuConflict) {
-        setSkuError('Этот артикул уже занят. Введите другой.');
-      } else {
-        setUploadError(message || 'Не удалось сохранить товар. Попробуйте снова.');
-      }
+      setUploadError(message || 'Не удалось сохранить товар. Попробуйте снова.');
       return;
     }
     if (ENABLE_PRODUCT_EDIT_DRAFT) {
@@ -945,17 +921,6 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
                     />
                   </label>
                   <label>
-                    SKU (необязательно)
-                    <input
-                      className={styles.input}
-                      value={variantForm.sku}
-                      onChange={(event) => {
-                        setVariantError(null);
-                        setVariantForm((prev) => ({ ...prev, sku: event.target.value }));
-                      }}
-                    />
-                  </label>
-                  <label>
                     Остаток
                     <input
                       className={styles.input}
@@ -1020,24 +985,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
               />
               {errors.descriptionFull && <span className={styles.errorText}>{errors.descriptionFull.message}</span>}
             </label>
-            <label>
-              <span>Артикул</span>
-              <input
-                {...register('sku')}
-                className={(errors.sku || skuError) ? styles.inputError : styles.input}
-                placeholder="PF-0001"
-                value={watch('sku') ?? ''}
-                onChange={(e) => {
-                  setSkuError('');
-                  const raw = e.target.value;
-                  const suffix = (raw.startsWith('PF-') ? raw.slice(3) : raw).replace(/\D/g, '').slice(0, 8);
-                  setValue('sku', suffix ? `PF-${suffix}` : undefined, { shouldValidate: true });
-                }}
-              />
-              <span className={styles.muted}>Если не заполнить — артикул будет присвоен автоматически</span>
-              {errors.sku && <span className={styles.errorText}>{errors.sku.message}</span>}
-              {skuError && <span className={styles.errorText}>{skuError}</span>}
-            </label>
+            {product?.sku && <p className={styles.muted}>Артикул Print-Form: {product.sku}</p>}
             <label>
               <span>Категория <RequiredMark /></span>
               <select className={errors.category ? styles.inputError : styles.input} {...register('category')}>

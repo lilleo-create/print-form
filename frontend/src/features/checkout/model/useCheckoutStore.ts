@@ -18,7 +18,7 @@ const mapItemsToCheckoutItems = (
     price: item.product.price,
     quantity: item.quantity,
     image: item.product.image,
-    shortSpec: item.product.descriptionShort || item.product.sku,
+    shortSpec: item.product.descriptionShort || '',
     productionTimeHours: item.product.productionTimeHours ?? 24,
     deliveryDays: null,
     etaMinDays: null,

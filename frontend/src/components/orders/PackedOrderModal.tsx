@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { normalizeApiError } from '../../shared/api/client';
-import { formatPrice } from '../../shared/lib/formatPrice';
+import { formatPriceWithKopecks } from '../../shared/lib/formatPrice';
 import styles from './PackedOrderModal.module.css';
 
 export type PackedParcelInput = {
@@ -18,7 +18,8 @@ type Props = {
   initial?: Partial<PackedParcelInput>;
   sellerNetBeforeDeliveryKopecks: number;
   onClose: () => void;
-  onQuote: (parcel: PackedParcelInput) => Promise<{ deliveryAmountKopecks: number }>;
+  onQuote: (parcel: PackedParcelInput) => Promise<{ deliveryAmountKopecks: number;
+    physicalWeightGrams?: number; billableWeightGrams?: number | null }>;
   onConfirm: (parcel: PackedParcelInput, expectedDeliveryAmountKopecks: number) => Promise<void>;
 };
 
@@ -63,6 +64,7 @@ export const PackedOrderModal = ({ initial, sellerNetBeforeDeliveryKopecks, onCl
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [error, setError] = useState<string | null>(null);
   const [quote, setQuote] = useState<number | null>(null);
+  const [billableWeightGrams, setBillableWeightGrams] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
   const afterDelivery = quote === null ? null : sellerNetBeforeDeliveryKopecks - quote;
@@ -76,6 +78,7 @@ export const PackedOrderModal = ({ initial, sellerNetBeforeDeliveryKopecks, onCl
     setFieldErrors(previous => ({ ...previous, [field]: undefined }));
     setError(null);
     setQuote(null);
+    setBillableWeightGrams(null);
   };
 
   const checkedParcel = () => {
@@ -92,8 +95,10 @@ export const PackedOrderModal = ({ initial, sellerNetBeforeDeliveryKopecks, onCl
     try {
       const result = await onQuote(parcel);
       setQuote(result.deliveryAmountKopecks);
+      setBillableWeightGrams(result.billableWeightGrams ?? null);
     } catch (cause) {
       setQuote(null);
+      setBillableWeightGrams(null);
       const code = normalizeApiError(cause).code ?? (cause instanceof Error ? cause.message : '');
       if (code === 'PACKED_WEIGHT_TOO_LOW') {
         setFieldErrors(previous => ({ ...previous, weightGrams: 'Вес посылки не может быть меньше веса товаров.' }));
@@ -173,12 +178,17 @@ export const PackedOrderModal = ({ initial, sellerNetBeforeDeliveryKopecks, onCl
             <div className={styles.quote} aria-live="polite">
               <div className={styles.quoteHeading}>
                 <span>РАСЧЁТ CDEK</span>
-                <strong>Расчётная стоимость доставки: {formatPrice(quote)}</strong>
+                <strong>Расчётная стоимость доставки: {formatPriceWithKopecks(quote)}</strong>
               </div>
+              <p>Вес посылки: {values.weightGrams} г</p>
+              {billableWeightGrams !== null && <p>Расчётный вес CDEK: {billableWeightGrams} г</p>}
+              {billableWeightGrams !== null && <small>
+                CDEK рассчитывает стоимость по большему из физического и объёмного веса.
+              </small>}
               <p>Покупатель доставку не оплачивает. Стоимость доставки будет удержана с продавца при расчёте по заказу.</p>
               <div className={styles.netRow}>
                 <span>После вычета доставки</span>
-                <strong>{afterDelivery !== null && afterDelivery >= 0 ? formatPrice(afterDelivery) : '—'}</strong>
+                <strong>{afterDelivery !== null && afterDelivery >= 0 ? formatPriceWithKopecks(afterDelivery) : '—'}</strong>
               </div>
               {afterDelivery !== null && afterDelivery < 0 &&
                 <p className={styles.error}>Стоимость доставки превышает сумму к выплате. Отправление создать нельзя.</p>}

@@ -5,6 +5,18 @@ import { PackedOrderModal } from './PackedOrderModal';
 afterEach(cleanup);
 
 describe('PackedOrderModal', () => {
+  it('shows CDEK billable weight without changing the physical weight', async () => {
+    const onQuote = vi.fn().mockResolvedValue({ deliveryAmountKopecks: 20475,
+      physicalWeightGrams: 400, billableWeightGrams: 675 });
+    render(<PackedOrderModal sellerNetBeforeDeliveryKopecks={149900}
+      initial={{ weightGrams: 400, lengthCm: 15, widthCm: 15, heightCm: 15 }}
+      onClose={() => undefined} onQuote={onQuote} onConfirm={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Рассчитать доставку' }));
+    await waitFor(() => expect(screen.getByText('Расчётный вес CDEK: 675 г')).toBeTruthy());
+    expect(screen.getByText('Вес посылки: 400 г')).toBeTruthy();
+    expect(screen.getByText(/большему из физического и объёмного веса/)).toBeTruthy();
+    expect(screen.getByText(/204,75/)).toBeTruthy();
+  });
   it('shows the packed quote before confirming physical packing', async () => {
     const onQuote = vi.fn().mockResolvedValue({ deliveryAmountKopecks: 24700 });
     const onConfirm = vi.fn().mockResolvedValue(undefined);

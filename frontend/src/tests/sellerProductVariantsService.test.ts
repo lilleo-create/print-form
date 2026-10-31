@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { sanitizeVariantPayload } from '../shared/api/sellerProductVariantsService';
 
 describe('sanitizeVariantPayload', () => {
-  it('removes empty sku from payload', () => {
+  it('never transmits a stale manually entered article', () => {
     const payload = sanitizeVariantPayload({
       name: 'Variant 1',
-      sku: '   ',
+      sku: 'SKU-42',
       stock: 10,
-    });
+    } as any);
 
     expect(payload).toEqual({
       name: 'Variant 1',
@@ -16,15 +16,15 @@ describe('sanitizeVariantPayload', () => {
     expect('sku' in payload).toBe(false);
   });
 
-  it('keeps non-empty sku trimmed', () => {
+  it('keeps ordinary variant fields', () => {
     const payload = sanitizeVariantPayload({
       name: 'Variant 2',
-      sku: '  SKU-42  ',
+      options: { color: ['White'] },
     });
 
     expect(payload).toEqual({
       name: 'Variant 2',
-      sku: 'SKU-42',
+      options: { color: ['White'] },
     });
   });
 });

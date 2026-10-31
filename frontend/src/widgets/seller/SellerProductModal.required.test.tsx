@@ -9,12 +9,12 @@ beforeEach(() => {
 
 const validForm = {
   title: 'Test product', descriptionShort: 'Short text', descriptionFull: 'Long description text',
-  sku: undefined, price: '1200', material: 'PLA', category: 'Decor', technology: 'FDM',
+  price: '1200', material: 'PLA', category: 'Decor', technology: 'FDM',
   productionTimeHours: 24, color: 'Белый', weightGrossG: 500, dxCm: 190, dyCm: 50, dzCm: 25
 };
 
 describe('SellerProductModal required fields', () => {
-  it('marks shipping fields and photo but leaves SKU optional, without a global legend', async () => {
+  it('marks shipping fields and photo and has no editable article, without a global legend', async () => {
     render(<SellerProductModal product={null} onClose={vi.fn()} onSubmit={vi.fn()} />);
     expect(screen.queryByText('* — обязательные поля')).not.toBeInTheDocument();
     for (const name of ['Вес брутто', 'Ширина', 'Глубина', 'Высота']) {
@@ -22,8 +22,8 @@ describe('SellerProductModal required fields', () => {
       expect(label).not.toBeNull();
       expect(within(label!).getByLabelText('Обязательное поле')).toHaveTextContent('*');
     }
-    const skuLabel = screen.getByText('Артикул').closest('label');
-    expect(within(skuLabel!).queryByLabelText('Обязательное поле')).not.toBeInTheDocument();
+    expect(screen.queryByText('Артикул')).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('PF-0001')).not.toBeInTheDocument();
     expect(screen.getByText(/Изображения и видео товара/).closest('section')).toHaveTextContent('Фото');
     expect(within(screen.getByText(/Изображения и видео товара/).closest('section')!).getByLabelText('Обязательное поле')).toBeInTheDocument();
   });

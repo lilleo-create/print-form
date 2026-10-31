@@ -198,7 +198,7 @@ export const AdminProductsPage = () => {
   const productMeta: ProductField[] = selectedProduct
     ? [
         { label: 'Название', value: toDisplayValue(selectedProduct.title) },
-        { label: 'SKU', value: toDisplayValue(selectedProduct.sku) },
+        { label: 'Артикул Print-Form', value: toDisplayValue(selectedProduct.sku) },
         { label: 'Категория', value: toDisplayValue(selectedProduct.category) },
         {
           label: 'Цена',

@@ -182,7 +182,7 @@ export const SellerProductDetailPage = () => {
               />
             </label>
             <label>
-              <span>SKU</span>
+              <span>Артикул Print-Form</span>
               <input value={editableProduct?.sku || product.sku || '—'} readOnly />
             </label>
             <label>

@@ -5,32 +5,23 @@ export type SellerProductVariantInput = {
   name: string;
   options?: Record<string, string[]>;
   priceDelta?: number;
-  sku?: string;
   stock?: number;
-};
-
-const normalizeSku = (sku: unknown) => {
-  if (typeof sku !== 'string') return undefined;
-  const trimmed = sku.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
 };
 
 export const sanitizeVariantPayload = <T extends Partial<SellerProductVariantInput>>(
   payload: T
 ) => {
-  const { sku, options, ...rest } = payload;
-  const normalizedSku = normalizeSku(sku);
+  const { options, ...rest } = payload;
   const normalizedOptions =
     options && Object.keys(options).length > 0 ? options : undefined;
   const compactRest = Object.fromEntries(
-    Object.entries(rest).filter(([, value]) => value !== undefined)
-  ) as Omit<T, 'sku' | 'options'>;
+    Object.entries(rest).filter(([key, value]) => key !== 'sku' && value !== undefined)
+  ) as Omit<T, 'options'>;
 
   return {
     ...compactRest,
     ...(normalizedOptions ? { options: normalizedOptions } : {}),
-    ...(normalizedSku ? { sku: normalizedSku } : {}),
-  } as Omit<T, 'sku' | 'options'> & { sku?: string; options?: Record<string, string[]> };
+  } as Omit<T, 'options'> & { options?: Record<string, string[]> };
 };
 
 export const sellerProductVariantsService = {

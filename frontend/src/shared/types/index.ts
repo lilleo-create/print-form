@@ -309,6 +309,9 @@ export interface OrderFinancials {
   checkoutDeliveryEstimateAmount?: number;
   packedDeliveryAmount?: number | null;
   confirmedActualDeliveryAmount?: number | null;
+  cdekBaseDeliveryAmount?: number | null;
+  cdekAdditionalServicesAmount?: number | null;
+  cdekCurrentTotalAmount?: number | null;
   effectiveDeliveryCost?: number;
   acquiringFeeAmount?: number;
   sellerNetAfterDeliveryAmount?: number;
