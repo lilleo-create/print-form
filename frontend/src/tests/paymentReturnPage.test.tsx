@@ -1,15 +1,16 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { PaymentReturnPage } from '../pages/PaymentReturnPage';
 import { ordersApi } from '../shared/api/ordersApi';
 import type { Order } from '../shared/types';
+import { api } from '../shared/api';
 
 vi.mock('../shared/api/ordersApi', () => ({
   ordersApi: { getById: vi.fn() }
 }));
 
 const orderWithStatus = (paymentStatus: string): Order =>
-  ({ id: 'order-123', paymentStatus } as Order);
+  ({ id: 'order-123', paymentStatus, items: [] } as unknown as Order);
 
 const renderPage = (path = '/payment/return?orderId=order-123') =>
   render(
@@ -28,6 +29,8 @@ describe('PaymentReturnPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useRealTimers();
+    vi.spyOn(api, 'getProducts').mockResolvedValue({ data: [] } as never);
+    vi.spyOn(api, 'getProduct').mockResolvedValue({ data: { category: 'Декор' } } as never);
   });
 
   afterEach(() => {
@@ -71,6 +74,26 @@ describe('PaymentReturnPage', () => {
     renderPage();
     expect(await screen.findByRole('heading', { name: 'Заказ оплачен' })).toBeInTheDocument();
     expect(ordersApi.getById).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows approved recommendations and excludes the bought product', async () => {
+    const order = { ...orderWithStatus('PAID'), items: [{ productId: 'bought', sellerId: 'seller' }] } as Order;
+    vi.mocked(ordersApi.getById).mockResolvedValue(order);
+    vi.mocked(api.getProducts).mockResolvedValue({ data: [
+      { id: 'bought', title: 'Куплен', category: 'Декор', moderationStatus: 'APPROVED', price: 1000, image: '/one.jpg' },
+      { id: 'other', title: 'Другая модель', category: 'Декор', moderationStatus: 'APPROVED', price: 2000, image: '/two.jpg' }
+    ] } as never);
+    renderPage();
+    expect(await screen.findByText('Другая модель')).toBeInTheDocument();
+    expect(screen.queryByText('Куплен')).not.toBeInTheDocument();
+  });
+
+  it('keeps payment success visible when recommendations fail', async () => {
+    vi.mocked(ordersApi.getById).mockResolvedValue(orderWithStatus('PAID'));
+    vi.mocked(api.getProducts).mockRejectedValue(new Error('recommendations unavailable'));
+    renderPage();
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Заказ оплачен' })).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Перейти к заказу' })).toBeInTheDocument();
   });
 
   it.each([

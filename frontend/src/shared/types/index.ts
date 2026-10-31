@@ -331,6 +331,11 @@ export interface Order {
   shippingAddressId: string;
   status: OrderStatus;
   statusUpdatedAt?: string;
+  deliveryStatus?: string | null;
+  deliveryStatusCode?: string | null;
+  deliveryStatusUpdatedAt?: string | null;
+  deliveredToRecipientAt?: string | null;
+  completedAt?: string | null;
   paidAt?: string | null;
   readyForShipmentAt?: string | null;
   isPacked?: boolean | null;

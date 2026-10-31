@@ -32,17 +32,14 @@ import { SellerErrorState } from '../components/seller/SellerErrorState';
 import { SellerHeader } from '../components/seller/SellerHeader';
 import { SellerStatsCard } from '../components/seller/SellerStatsCard';
 import { CopyableOrderNumber } from '../components/seller/CopyableOrderNumber';
-import { OrderFinancialsSummary } from '../components/orders/OrderFinancialsSummary';
 import { PackedOrderModal } from '../components/orders/PackedOrderModal';
 import { PackingGuideModal } from '../components/orders/PackingGuideModal';
-import { DeliveryTimeline } from '../components/orders/DeliveryTimeline';
+import { SellerOrderListCard } from '../components/orders/SellerOrderListCard';
 import { SellerFinanceTable } from '../components/seller/SellerFinanceTable';
 import { SellerFinanceMobileCard } from '../components/seller/SellerFinanceMobileCard';
 import { BottomNav } from '../widgets/layout/BottomNav';
 import { CdekPvzPickerModal } from '../components/checkout/CdekPvzPickerModal';
 import { normalizeSellerType } from '../shared/lib/sellerType';
-import { canCreateCdekShipment, readyToShipDisabledReason as getReadyToShipDisabledReason } from '../shared/lib/orderFulfillment';
-import { cdekReadbackLabel } from '../shared/lib/cdekReadback';
 import {
   getModerationStatusLabelRu,
   getModerationStatusTone
@@ -121,17 +118,6 @@ const formatMoney = (params: {
     return formatMoneyRub(displayRubles);
   }
   return formatPrice(typeof kopecks === 'number' ? kopecks : 0);
-};
-
-const formatCountdown = (seconds: number) => {
-  const safe = Math.max(0, seconds);
-  const minutes = Math.floor(safe / 60)
-    .toString()
-    .padStart(2, '0');
-  const rest = Math.floor(safe % 60)
-    .toString()
-    .padStart(2, '0');
-  return `${minutes}:${rest}`;
 };
 
 const getErrorMessage = (error: unknown) =>
@@ -354,40 +340,11 @@ const normalizeFinanceDashboard = (
   };
 };
 
-const resolveOrderItemLineTotalKopecks = (item: Order['items'][number]) => {
-  if (typeof item.lineTotalKopecks === 'number') return item.lineTotalKopecks;
-  if (typeof item.lineTotal === 'number') return item.lineTotal;
-  return toKopecks(item.lineTotalRubles);
-};
-
 const resolveOrderKopecks = (order: Order) => {
   if (typeof order.sellerNetAmount === 'number') return order.sellerNetAmount;
   if (typeof order.totalKopecks === 'number') return order.totalKopecks;
   if (typeof order.total === 'number') return order.total;
   return toKopecks(order.totalRubles);
-};
-
-const isValidDateString = (v: string | null | undefined): boolean => {
-  if (!v || typeof v !== 'string') return false;
-  const d = new Date(v);
-  return !isNaN(d.getTime()) && d.getFullYear() > 2000;
-};
-
-const buildDeliveryEtaLabel = (order: Order): string | null => {
-  if (order.deliveryEta?.text) return order.deliveryEta.text;
-  const { estimatedDeliveryDateMin, estimatedDeliveryDateMax, deliveryDaysMin, deliveryDaysMax } = order;
-  if (isValidDateString(estimatedDeliveryDateMin)) {
-    const fmt = (d: string) =>
-      new Date(d).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' });
-    const min = fmt(estimatedDeliveryDateMin!);
-    const max = isValidDateString(estimatedDeliveryDateMax) ? fmt(estimatedDeliveryDateMax!) : min;
-    return min === max ? `к ${min}` : `${min} — ${max}`;
-  }
-  if (deliveryDaysMin !== null && deliveryDaysMin !== undefined) {
-    const d2 = deliveryDaysMax ?? deliveryDaysMin;
-    return deliveryDaysMin === d2 ? `${deliveryDaysMin} дн.` : `${deliveryDaysMin}–${d2} дн.`;
-  }
-  return null;
 };
 
 const payoutStatusLabelRu = (value?: string | null) => {
@@ -672,13 +629,6 @@ export const SellerDashboardPage = () => {
   const [packingOrder, setPackingOrder] = useState<Order | null>(null);
   const [packingGuideOpen, setPackingGuideOpen] = useState(false);
 
-  const [labelDownloaded, setLabelDownloaded] = useState<
-    Record<string, boolean>
-  >({});
-  const [actDownloaded, setActDownloaded] = useState<Record<string, boolean>>(
-    {}
-  );
-
   const [kycSubmission, setKycSubmission] =
     useState<SellerKycSubmission | null>(null);
   const [kycLoading, setKycLoading] = useState(false);
@@ -752,7 +702,7 @@ export const SellerDashboardPage = () => {
   >(null);
 
   // === Delivery calculation per order ===
-  const [deliveryCalcLoading, setDeliveryCalcLoading] = useState<Set<string>>(
+  const [, setDeliveryCalcLoading] = useState<Set<string>>(
     new Set()
   );
   const autoCalcAttemptedRef = useRef<Set<string>>(new Set());
@@ -1575,66 +1525,6 @@ export const SellerDashboardPage = () => {
       );
     }
   };
-
-  const handleSyncShipment = async (order: Order) => {
-    setOrderUpdateError(null);
-    const shipmentId = order.shipment?.id;
-    const cdekOrderId = String(order.cdekOrderId ?? '').trim();
-
-    if (!shipmentId && !cdekOrderId) {
-      setOrderUpdateError('Синхронизация доступна после создания shipment.');
-      return;
-    }
-
-    try {
-      if (shipmentId) {
-        await ordersApi.syncShipment(shipmentId);
-      } else {
-        await ordersApi.syncCdekOrder(order.id);
-      }
-      await loadOrders();
-    } catch {
-      setOrderUpdateError('Не удалось синхронизировать отправление CDEK.');
-    }
-  };
-
-  const handleDownloadLabel = async (_shipmentId: string, orderId: string) => {
-    setOrderUpdateError(null);
-
-    try {
-      const result = await ordersApi.downloadShippingLabel(orderId);
-
-      const url = URL.createObjectURL(result.blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `shipping-label-${orderId}.pdf`;
-      link.click();
-      URL.revokeObjectURL(url);
-      setLabelDownloaded((prev) => ({ ...prev, [orderId]: true }));
-    } catch {
-      setOrderUpdateError('Не удалось скачать ярлык.');
-    }
-  };
-
-  const handleDownloadAct = async (shipmentId: string, orderId: string) => {
-    setOrderUpdateError(null);
-    try {
-      const blob = (await api.downloadShipmentAct(
-        shipmentId
-      )) as unknown as Blob;
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `cdek-act-${orderId}.pdf`;
-      link.click();
-      URL.revokeObjectURL(url);
-      setActDownloaded((prev) => ({ ...prev, [orderId]: true }));
-    } catch {
-      setOrderUpdateError('Не удалось скачать акт.');
-    }
-  };
-
-  const readyToShipDisabledReason = (order: Order) => getReadyToShipDisabledReason(order, dropoffPvzId);
 
   const isCancelledOrder = (order: Order) => order.status === 'CANCELLED';
   const isCompletedOrder = (order: Order) =>
@@ -2836,291 +2726,8 @@ export const SellerDashboardPage = () => {
                   ) : (
                     <div className={styles.ordersList}>
                       {ordersView.map((order) => {
-                        const total = order.items.reduce(
-                          (sum, item) =>
-                            sum + resolveOrderItemLineTotalKopecks(item),
-                          0
-                        );
-                        const isCancelled = order.status === 'CANCELLED';
-                        const preparationPaymentOpen =
-                          order.paymentStatus === 'PAID' && Boolean(order.paidAt) &&
-                          !['REFUND_PENDING', 'PARTIALLY_REFUNDED', 'REFUNDED', 'CANCELLED'].includes(order.paymentStatus ?? '');
-                        const cancelPaymentHint =
-                          order.paymentStatus === 'REFUND_PENDING'
-                            ? 'Деньги возвращаются покупателю'
-                            : order.paymentStatus === 'REFUNDED'
-                              ? 'Деньги возвращены покупателю'
-                              : null;
-
-                        return (
-                          <div key={order.id} className={styles.orderCard}>
-                            <div className={styles.orderCardTop}>
-                              <div className={styles.orderCardLeft}>
-                                <div className={styles.cellTruncate}>
-                                  <CopyableOrderNumber
-                                    orderId={order.id}
-                                    publicNumber={order.publicNumber}
-                                    className={styles.orderIdText}
-                                  />
-                                  <p className={styles.muted}>
-                                    {formatDate(order.createdAt)}
-                                  </p>
-                                </div>
-
-                                <div className={styles.cellTruncate}>
-                                  <p>
-                                    {order.contact?.name ??
-                                      order.buyer?.name ??
-                                      '—'}
-                                  </p>
-                                  <p className={styles.muted}>
-                                    {order.contact?.phone ??
-                                      order.buyer?.email ??
-                                      ''}
-                                  </p>
-                                </div>
-                              </div>
-
-                              <div className={styles.orderCardRight}>
-                                <p className={styles.orderAmount}>
-                                  {formatPrice(order.financials?.total ?? total)}
-                                </p>
-                                {isCancelled ? (
-                                  <span className={styles.cancelledOrderBadge}>
-                                    Заказ отменён
-                                  </span>
-                                ) : (
-                                  <p className={styles.muted}>
-                                    {/* Пустая строка от бэка = нет статуса */}
-                                    {(order.deliveryStatusLabel || undefined) ??
-                                      (!order.isPacked
-                                        ? 'Ожидает упаковки'
-                                        : !order.shipment?.id
-                                          ? 'Упакован · ожидает создания доставки'
-                                          : 'Готово к сдаче в СДЭК')}
-                                  </p>
-                                )}
-                                {cancelPaymentHint && (
-                                  <p className={styles.muted}>
-                                    {cancelPaymentHint}
-                                  </p>
-                                )}
-                                {order.paymentStatus === 'PENDING' &&
-                                  !order.isExpired &&
-                                  typeof order.secondsUntilExpiry === 'number' && (
-                                    <p className={styles.pendingPaymentTimer}>
-                                      Ожидает оплату:{' '}
-                                      {formatCountdown(order.secondsUntilExpiry)}
-                                    </p>
-                                  )}
-                              </div>
-                            </div>
-
-                            <div className={styles.deliveryInputs}>
-                              {/* Адрес ПВЗ покупателя */}
-                              <p className={styles.muted}>
-                                ПВЗ покупателя:{' '}
-                                {order.buyerPickupPvzMeta?.addressFull ?? '—'}
-                              </p>
-
-                              {/* ПВЗ сдачи продавца — только адрес, без сырого ID */}
-                              {order.sellerDropoffPvzMeta?.addressFull && (
-                                <p className={styles.muted}>
-                                  ПВЗ сдачи: {order.sellerDropoffPvzMeta.addressFull}
-                                </p>
-                              )}
-
-                              {/* Авто-расчёт доставки */}
-                              {deliveryCalcLoading.has(order.id) && (
-                                <p className={styles.muted}>
-                                  Рассчитываем стоимость доставки...
-                                </p>
-                              )}
-
-                              {/* Трек-номер */}
-                              {order.trackingNumber ? (
-                                <a
-                                  href={`https://www.cdek.ru/ru/tracking?order_id=${encodeURIComponent(order.trackingNumber)}`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className={styles.inlineLink}
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  СДЭК: {order.trackingNumber}
-                                </a>
-                              ) : order.shipment?.id ? (
-                                <p className={styles.muted}>Трек-номер формируется...</p>
-                              ) : null}
-
-                              {cdekReadbackLabel(order.shipment?.readbackStatus) && (
-                                <p className={styles.muted}>{cdekReadbackLabel(order.shipment?.readbackStatus)}</p>
-                              )}
-
-                              {/* История СДЭК — только когда есть реальные события */}
-                              {(order.deliveryEvents?.length ?? 0) > 0 && (
-                                <DeliveryTimeline
-                                  events={order.deliveryEvents ?? []}
-                                  cdekStatus={order.cdekStatus}
-                                />
-                              )}
-
-                              {/* Финансовая разбивка */}
-                              {order.financials && (
-                                <OrderFinancialsSummary
-                                  financials={order.financials}
-                                  isPaid={order.paymentStatus === 'PAID' && Boolean(order.paidAt)}
-                                  deliveryEtaText={
-                                    order.deliveryEta?.text ??
-                                    buildDeliveryEtaLabel(order)
-                                  }
-                                />
-                              )}
-
-                              {/* ── Действия (только активные заказы) ── */}
-                              {!isCancelled && !isCompletedOrder(order) && (
-                                <>
-                                  {order.status === 'PAID' && (
-                                    <Button
-                                      type="button"
-                                      variant="primary"
-                                      size="sm"
-                                      onClick={() => handleStartProduction(order.id)}
-                                      disabled={!preparationPaymentOpen}
-                                    >
-                                      Начать производство
-                                    </Button>
-                                  )}
-
-                                  {order.paymentStatus === 'PAID' && (
-                                    <div className={styles.packingActionRow}>
-                                      {order.status === 'PRINTING' && preparationPaymentOpen &&
-                                        !order.shipment?.id && !order.readyForShipmentAt && (
-                                          <Button type="button" variant={order.isPacked ? 'ghost' : 'secondary'}
-                                            size="sm" onClick={() => setPackingOrder(order)}>
-                                            {order.isPacked ? 'Изменить параметры посылки' : 'Товар упакован'}
-                                          </Button>
-                                        )}
-                                      <button type="button" className={styles.packingGuideLink}
-                                        onClick={() => setPackingGuideOpen(true)}>Как правильно упаковать?</button>
-                                    </div>
-                                  )}
-
-                                  {/* После подготовки создание отправления; далее статус только для чтения. */}
-                                  {canCreateCdekShipment(order, preparationPaymentOpen) && (
-                                      <>
-                                        <Button
-                                          type="button"
-                                          variant="primary"
-                                          size="sm"
-                                          onClick={() => handleReadyToShip(order.id)}
-                                          disabled={Boolean(readyToShipDisabledReason(order))}
-                                        >
-                                          Создать доставку в СДЭК
-                                        </Button>
-                                        {readyToShipDisabledReason(order) && (
-                                          <p className={styles.muted}>
-                                            {readyToShipDisabledReason(order)}
-                                          </p>
-                                        )}
-                                      </>
-                                  )}
-                                  {order.shipment?.id && (
-                                    <Button
-                                      type="button"
-                                      variant="secondary"
-                                      size="sm"
-                                      onClick={() => handleSyncShipment(order)}
-                                    >
-                                      Синхронизировать СДЭК
-                                    </Button>
-                                  )}
-
-                                  {/* Шаг 3: документы — появляются после создания доставки */}
-                                  {order.isPacked && order.shipment?.id && (
-                                    <>
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        className={labelDownloaded[order.id] ? styles.downloadedButton : ''}
-                                        onClick={() =>
-                                          order.shipment?.id &&
-                                          handleDownloadLabel(order.shipment.id, order.id)
-                                        }
-                                        disabled={!order.trackingNumber || order.shipment?.readbackStatus === 'PENDING' ||
-                                          order.shipment?.readbackStatus === 'AUTH_FAILED'}
-                                      >
-                                        Скачать ярлык
-                                        {!order.trackingNumber ? ' (ещё формируется)' : ''}
-                                      </Button>
-
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        className={actDownloaded[order.id] ? styles.downloadedButton : ''}
-                                        onClick={() =>
-                                          order.shipment?.id &&
-                                          handleDownloadAct(order.shipment.id, order.id)
-                                        }
-                                        disabled={order.shipment?.readbackStatus === 'PENDING' ||
-                                          order.shipment?.readbackStatus === 'AUTH_FAILED'}
-                                      >
-                                        Скачать акт
-                                      </Button>
-                                    </>
-                                  )}
-
-                                </>
-                              )}
-
-                              {/* Завершённый заказ */}
-                              {!isCancelled && isCompletedOrder(order) && order.shipment?.id && (
-                                <>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className={labelDownloaded[order.id] ? styles.downloadedButton : ''}
-                                    onClick={() =>
-                                      order.shipment?.id &&
-                                      handleDownloadLabel(order.shipment.id, order.id)
-                                    }
-                                    disabled={!order.trackingNumber}
-                                  >
-                                    Скачать ярлык
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className={actDownloaded[order.id] ? styles.downloadedButton : ''}
-                                    onClick={() =>
-                                      order.shipment?.id &&
-                                      handleDownloadAct(order.shipment.id, order.id)
-                                    }
-                                  >
-                                    Скачать акт
-                                  </Button>
-                                </>
-                              )}
-
-                              {/* Данные получателя (свёрнуто) */}
-                              <details>
-                                <summary>Данные получателя</summary>
-                                <p className={styles.muted}>ФИО: {order.recipientName ?? '—'}</p>
-                                <p className={styles.muted}>Телефон: {order.recipientPhone ?? '—'}</p>
-                                <p className={styles.muted}>Email: {order.recipientEmail ?? '—'}</p>
-                                <p className={styles.muted}>Грузомест: {order.packagesCount ?? 1}</p>
-                                <p className={styles.muted}>
-                                  Товары:{' '}
-                                  {order.items.map((i) => `${i.title} ×${i.qty}`).join(', ') || '—'}
-                                </p>
-                              </details>
-
-                            </div>
-                          </div>
-                        );
+                        return <SellerOrderListCard key={order.id} order={order}
+                          onStart={handleStartProduction} onPack={setPackingOrder} onShipment={handleReadyToShip} />;
                       })}
                     </div>
                   )}

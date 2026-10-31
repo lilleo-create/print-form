@@ -35,6 +35,8 @@ import { RouteScrollManager } from './app/providers/RouteScrollManager';
 import { RouteProgressBar } from './app/providers/RouteProgressBar';
 import { SellerProductDetailPage } from './pages/SellerProductDetailPage';
 import { PaymentReturnPage } from './pages/PaymentReturnPage';
+import { SellerOrderDetailPage } from './pages/SellerOrderDetailPage';
+import { BuyerOrderDetailPage } from './pages/BuyerOrderDetailPage';
 
 const OrderRedirect = () => {
   const { orderId } = useParams<{ orderId: string }>();
@@ -108,6 +110,7 @@ const App = () => {
             </ProtectedRoute>
           }
         />
+        <Route path="/account/orders/:id" element={<ProtectedRoute><BuyerOrderDetailPage /></ProtectedRoute>} />
         <Route
           path="/seller"
           element={
@@ -116,6 +119,7 @@ const App = () => {
             </ProtectedRoute>
           }
         />
+        <Route path="/seller/orders/:id" element={<ProtectedRoute><SellerOrderDetailPage /></ProtectedRoute>} />
         <Route
           path="/seller/products/:productId"
           element={

@@ -1,17 +1,9 @@
 import type { MouseEvent } from 'react';
-import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Order } from '../../shared/types';
-import {
-  hasHandoverStarted,
-  isCancellableDeliveryStage
-} from '../../shared/lib/deliveryStatus';
+import { hasHandoverStarted, isCancellableDeliveryStage } from '../../shared/lib/deliveryStatus';
 import { getOrderDeliveryLabel } from '../../shared/lib/deliveryLabel';
-import {
-  formatEtaDateRange,
-  formatEtaDateRangeFromDates,
-  formatEtaDays
-} from '../../shared/lib/deliveryEta';
+import { getHumanOrderStatus } from '../../shared/lib/orderPresentation';
 import { ProductMiniCard } from './ProductMiniCard';
 import { CopyableOrderNumber } from '../seller/CopyableOrderNumber';
 import styles from './OrdersComponents.module.css';
@@ -25,212 +17,25 @@ interface OrderCompactCardProps {
   onRetryPayment?: (orderId: string) => void;
 }
 
-const getPaymentStatusLabel = (paymentStatus?: string | null) => {
-  switch (paymentStatus) {
-    case 'PAID':
-      return 'Оплачено';
-    case 'REFUND_PENDING':
-      return 'Возврат обрабатывается';
-    case 'REFUNDED':
-      return 'Деньги возвращены';
-    case 'PARTIALLY_REFUNDED':
-      return 'Частичный возврат';
-    case 'PAYMENT_EXPIRED':
-      return 'Оплата не прошла';
-    case 'PENDING':
-    default:
-      return 'Ожидает оплаты';
-  }
-};
-
-const getOrderStatusLabel = (status: string) => {
-  switch (status) {
-    case 'DELIVERED':
-      return 'Получен покупателем';
-    case 'CANCELLED':
-      return 'Отменён';
-    case 'RETURNED':
-      return 'Возврат';
-    case 'EXPIRED':
-      return 'Просрочен';
-    default:
-      return 'В работе';
-  }
-};
-
-export const OrderCompactCard = ({
-  order,
-  highlighted = false,
-  hasActiveReturn = false,
-  onCancelOrder,
-  onRetryPayment
-}: OrderCompactCardProps) => {
+export const OrderCompactCard = ({ order, highlighted = false, hasActiveReturn = false, onCancelOrder, onRetryPayment }: OrderCompactCardProps) => {
   const navigate = useNavigate();
-  const firstItem = order.items[0];
-  const moreCount = Math.max(0, order.items.length - 1);
-  const deliveryLabel = getOrderDeliveryLabel(order);
-  const isCancelled = order.status === 'CANCELLED';
-  const isRefundPending = order.paymentStatus === 'REFUND_PENDING';
-  const isRefunded = order.paymentStatus === 'REFUNDED';
-  const isPaid = order.paymentStatus === 'PAID';
-  const isShipped = hasHandoverStarted(order);
-  const isSafeDealMode = Boolean(order.yookassaDealId);
-  const isHeldBySafeDeal =
-    isSafeDealMode &&
-    ['HOLD', 'PENDING'].includes(
-      String(order.yookassaDealStatus ?? order.payoutStatus ?? '').toUpperCase()
-    );
-
-  const orderStatusLabel = getOrderStatusLabel(String(order.status ?? '').toUpperCase());
-  const status = isCancelled ? 'Заказ отменён' : `Заказ: ${orderStatusLabel}`;
-  const subStatus = useMemo(() => {
-    if (isCancelled) {
-      if (isRefundPending) {
-        return 'Деньги вернутся на карту в течение 1–5 дней';
-      }
-      if (isRefunded) {
-        return 'Деньги возвращены';
-      }
-      return 'Возврат оформлен';
-    }
-
-    if (isHeldBySafeDeal) {
-      return 'Средства станут доступны после получения заказа';
-    }
-
-    if (orderStatusLabel === 'Получен покупателем') {
-      return 'Завершён автоматически после вручения';
-    }
-
-    return `Статус оплаты: ${getPaymentStatusLabel(order.paymentStatus)}`;
-  }, [isCancelled, isHeldBySafeDeal, isRefundPending, isRefunded, order.paymentStatus, orderStatusLabel]);
-
-  const canCancel = !isCancelled && !hasActiveReturn && !isRefunded && isPaid && isCancellableDeliveryStage(order);
-  const canCreateReturn = !isCancelled && !hasActiveReturn && !isRefunded && isPaid && isShipped;
-
-  const handleAction = (event: MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation();
-    if (canCancel) {
-      if (onCancelOrder) {
-        onCancelOrder(order);
-        return;
-      }
-      navigate(`/cancel?orderId=${order.id}`);
-      return;
-    }
-
-    if (canCreateReturn) {
-      navigate(`/returns?orderId=${order.id}`);
-    }
-  };
-
-  const handleRetry = (event: MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation();
-    if (!onRetryPayment) return;
-    onRetryPayment(order.id);
-  };
-
-  return (
-    <article
-      className={`${styles.card} ${highlighted ? styles.cardHighlighted : ''}`.trim()}
-      role="button"
-      tabIndex={0}
-      onClick={() => firstItem?.productId && navigate(`/product/${firstItem.productId}`)}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          if (firstItem?.productId) {
-            navigate(`/product/${firstItem.productId}`);
-          }
-        }
-      }}
-    >
-      <div className={styles.cardHeader}>
-        <div className={styles.headerMeta}>
-          <h3>
-            <CopyableOrderNumber
-              orderId={order.id}
-              publicNumber={order.publicNumber}
-            />
-          </h3>
-          <span>{new Date(order.createdAt).toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric' })}</span>
-        </div>
-        <div className={styles.total}>
-          {formatPrice(order.financials?.total ?? order.total)}
-          {order.financials && order.financials.deliveryAmount > 0 && (
-            <span className={styles.caption} style={{ display: 'block', fontWeight: 400, fontSize: 12 }}>
-              товары {formatPrice(order.financials.itemsSubtotal)}
-              {' + '}доставка {formatPrice(order.financials.deliveryAmount)}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {firstItem ? <ProductMiniCard title={firstItem.title} price={firstItem.price} qty={firstItem.qty} image={firstItem.image} /> : null}
-      {moreCount > 0 ? <span className={styles.caption}>+ ещё {moreCount} товаров</span> : null}
-
-      <div className={styles.statusSection}>
-        <span className={`${styles.badge} ${isCancelled ? styles.badgeDanger : styles.badgeNeutral}`}>{status}</span>
-        <p className={styles.substatus}>{subStatus}</p>
-
-        {!isCancelled ? (
-          <>
-            {/* Человекочитаемый статус от бэка */}
-            {order.deliveryStatusLabel && (
-              <p className={styles.caption}>{order.deliveryStatusLabel}</p>
-            )}
-
-            {/* Адрес пвз / способ доставки */}
-            {deliveryLabel ? <p className={styles.caption}>{deliveryLabel}</p> : null}
-
-            {/* Трек СДЭК */}
-            {order.trackingNumber ? (
-              <a
-                href={`https://www.cdek.ru/ru/tracking?order_id=${encodeURIComponent(order.trackingNumber)}`}
-                target="_blank"
-                rel="noreferrer"
-                onClick={(event) => event.stopPropagation()}
-                className={styles.link}
-              >
-                СДЭК: {order.trackingNumber}
-              </a>
-            ) : null}
-
-            {/* Срок доставки — из нового поля ETA или fallback на старое */}
-            {order.deliveryEta?.text ? (
-              <p className={styles.caption}>Срок: {order.deliveryEta.text}</p>
-            ) : formatEtaDays(order.deliveryDaysMin ?? null, order.deliveryDaysMax ?? null) ? (
-              <>
-                <p className={styles.caption}>{formatEtaDays(order.deliveryDaysMin ?? null, order.deliveryDaysMax ?? null)}</p>
-                <p className={styles.caption}>
-                  {formatEtaDateRangeFromDates(order.estimatedDeliveryDateMin ?? null, order.estimatedDeliveryDateMax ?? null) ??
-                    formatEtaDateRange(order.createdAt, order.deliveryDaysMin ?? null, order.deliveryDaysMax ?? null)}
-                </p>
-              </>
-            ) : null}
-          </>
-        ) : null}
-      </div>
-
-      <div className={styles.actionsRow}>
-        {order.isExpired && order.canRetryPayment && onRetryPayment ? (
-          <button type="button" className={styles.actionButtonSecondary} onClick={handleRetry}>
-            Повторить оплату
-          </button>
-        ) : null}
-
-        {!isCancelled && !isRefunded && hasActiveReturn ? (
-          <button type="button" className={styles.actionButtonSecondary} disabled>
-            Возврат оформлен
-          </button>
-        ) : null}
-
-        {(canCreateReturn || canCancel) ? (
-          <button type="button" className={styles.actionButton} onClick={handleAction}>
-            {canCancel ? 'Отменить заказ' : 'Оформить возврат'}
-          </button>
-        ) : null}
-      </div>
-    </article>
-  );
+  const item = order.items[0];
+  const cancelled = order.status === 'CANCELLED';
+  const refunded = order.paymentStatus === 'REFUNDED';
+  const paid = order.paymentStatus === 'PAID';
+  const canCancel = !cancelled && !hasActiveReturn && !refunded && paid && isCancellableDeliveryStage(order);
+  const canReturn = !cancelled && !hasActiveReturn && !refunded && paid && hasHandoverStarted(order);
+  const open = () => navigate(`/account/orders/${order.id}`);
+  const stop = (event: MouseEvent<HTMLButtonElement>, callback: () => void) => { event.stopPropagation(); callback(); };
+  return <article className={`${styles.card} ${highlighted ? styles.cardHighlighted : ''}`} role="link" tabIndex={0} onClick={open} onKeyDown={event => { if (event.target !== event.currentTarget) return; if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } }}>
+    <div className={styles.cardHeader}><div className={styles.headerMeta}><h3 onClick={event => event.stopPropagation()}><CopyableOrderNumber orderId={order.id} publicNumber={order.publicNumber} /></h3><time dateTime={order.createdAt}>{new Date(order.createdAt).toLocaleDateString('ru-RU')}</time></div><strong className={styles.total}>{formatPrice(order.financials?.total ?? order.total)}</strong></div>
+    {item && <ProductMiniCard title={item.title} price={item.price} qty={item.qty} image={item.image} />}
+    {order.items.length > 1 && <span className={styles.caption}>+ ещё {order.items.length - 1} товаров</span>}
+    <div className={styles.statusSection}><span className={`${styles.badge} ${cancelled ? styles.badgeDanger : styles.badgeNeutral}`}>{getHumanOrderStatus(order)}</span><p className={styles.caption}>{getOrderDeliveryLabel(order) || 'Доставка бесплатно'}</p>{order.trackingNumber && <span className={styles.caption}>CDEK: {order.trackingNumber}</span>}</div>
+    {(canCancel || canReturn || (order.isExpired && order.canRetryPayment)) && <div className={styles.actionsRow}>
+      {order.isExpired && order.canRetryPayment && onRetryPayment && <button type="button" className={styles.actionButtonSecondary} onClick={event => stop(event, () => onRetryPayment(order.id))}>Повторить оплату</button>}
+      {canCancel && <button type="button" className={styles.actionButtonSecondary} onClick={event => stop(event, () => onCancelOrder?.(order))}>Отменить заказ</button>}
+      {canReturn && <button type="button" className={styles.actionButtonSecondary} onClick={event => stop(event, () => navigate(`/account?tab=returns&orderId=${order.id}`))}>Оформить возврат</button>}
+    </div>}
+  </article>;
 };

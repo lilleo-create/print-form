@@ -22,6 +22,11 @@ type ApiOrder = {
   shippingAddressId?: string | null;
   status?: string;
   statusUpdatedAt?: string;
+  deliveryStatus?: string | null;
+  deliveryStatusCode?: string | null;
+  deliveryStatusUpdatedAt?: string | null;
+  deliveredToRecipientAt?: string | null;
+  completedAt?: string | null;
   paidAt?: string | null;
   readyForShipmentAt?: string | null;
   isPacked?: boolean | null;
@@ -101,6 +106,11 @@ const mapOrder = (order: ApiOrder): Order => ({
   shippingAddressId: order.shippingAddressId ?? '',
   status: mapStatus(order.status),
   statusUpdatedAt: order.statusUpdatedAt,
+  deliveryStatus: order.deliveryStatus ?? null,
+  deliveryStatusCode: order.deliveryStatusCode ?? null,
+  deliveryStatusUpdatedAt: order.deliveryStatusUpdatedAt ?? null,
+  deliveredToRecipientAt: order.deliveredToRecipientAt ?? null,
+  completedAt: order.completedAt ?? null,
   paidAt: order.paidAt ?? null,
   readyForShipmentAt: order.readyForShipmentAt ?? null,
   isPacked: order.isPacked ?? null,

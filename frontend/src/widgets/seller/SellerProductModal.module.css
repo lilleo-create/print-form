@@ -92,6 +92,19 @@
   flex: 1;
 }
 
+.wizardProgress{padding:18px 24px 4px;background:var(--card);border-bottom:1px solid var(--border)}
+.progressTrack{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:0 0 9px}
+.progressTrack span{height:5px;border-radius:99px;background:var(--border)}
+.progressTrack .progressDone{background:var(--primary)}
+.progressLabels{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;color:var(--muted);font-size:11px}
+.progressCurrent{color:var(--text);font-weight:700}
+.mobileProgress{display:none}
+.form [data-wizard-section],.form [data-wizard-field]{display:none}
+.form[data-step="0"] [data-wizard-section="main"],.form[data-step="1"] [data-wizard-section="main"],.form[data-step="2"] [data-wizard-section="main"],.form[data-step="1"] [data-wizard-section="characteristics"],.form[data-step="2"] [data-wizard-section="variants"],.form[data-step="3"] [data-wizard-section="dimensions"],.form[data-step="4"] [data-wizard-section="media"]{display:flex}
+.form[data-step="0"] [data-wizard-field="0"],.form[data-step="1"] [data-wizard-field="1"],.form[data-step="2"] [data-wizard-field="2"]{display:flex}
+.reviewGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 20px}.reviewGrid p{margin:0;line-height:1.5}.reviewGrid strong{color:var(--muted);font-size:12px}.reviewMedia{display:flex;gap:8px;overflow:auto}.reviewMedia img{width:72px;height:72px;border-radius:10px;object-fit:cover}
+@media(max-width:640px){.wizardProgress{padding:16px}.mobileProgress{display:block;font-size:13px;font-weight:700;margin-bottom:12px}.progressLabels{display:none}.reviewGrid{grid-template-columns:1fr}.form .actions{position:sticky;bottom:0;background:var(--bg);z-index:5;padding:14px 0 4px}}
+
 /* ── Section card ── */
 .section {
   display: flex;

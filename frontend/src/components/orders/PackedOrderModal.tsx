@@ -134,7 +134,12 @@ export const PackedOrderModal = ({ initial, sellerNetBeforeDeliveryKopecks, onCl
     <div className={styles.overlay} role="presentation" onMouseDown={event => {
       if (event.target === event.currentTarget && !busy) onClose();
     }}>
-      <div className={styles.dialog} role="dialog" aria-modal="true" aria-labelledby="packed-order-title">
+      <div className={styles.dialog} role="dialog" aria-modal="true" aria-labelledby="packed-order-title" onKeyDown={event => {
+        if (event.key === 'Enter' && (event.target as HTMLElement).tagName === 'INPUT') {
+          event.preventDefault();
+          if (!busy) void calculate();
+        }
+      }}>
         <div className={styles.header}>
           <div>
             <span className={styles.eyebrow}>ПОДГОТОВКА К ОТПРАВКЕ</span>

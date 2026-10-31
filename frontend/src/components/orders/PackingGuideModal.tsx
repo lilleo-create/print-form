@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { PackingStepIllustration } from './PackingStepIllustration';
 import styles from './PackingGuideModal.module.css';
 
@@ -18,6 +18,15 @@ export const PackingGuideModal = ({ onClose }: Props) => {
   const current = steps[step];
   const previous = () => setStep(value => Math.max(0, value - 1));
   const next = () => setStep(value => Math.min(steps.length - 1, value + 1));
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+      else if (event.key === 'ArrowRight' || (event.key === 'Enter' && (event.target as HTMLElement).tagName !== 'BUTTON')) { event.preventDefault(); next(); }
+      else if (event.key === 'ArrowLeft') { event.preventDefault(); previous(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
 
   return (
     <div className={styles.overlay} role="presentation" onMouseDown={event => {

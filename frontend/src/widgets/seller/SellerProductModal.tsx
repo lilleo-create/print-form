@@ -331,6 +331,8 @@ const parseProductVariants = (payload: unknown): ProductVariant[] => {
 };
 
 export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProductModalProps) => {
+  const wizardSteps = ['Главное', 'Характеристики', 'Цена', 'Размеры', 'Медиа', 'Проверка'] as const;
+  const [wizardStep, setWizardStep] = useState(0);
   const modalRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const variantDraftsRef = useRef<VariantDraft[]>([]);
@@ -378,11 +380,35 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
     control,
     register,
     handleSubmit,
+    trigger,
+    setFocus,
     reset,
     watch,
     setValue,
     formState: { errors }
   } = useForm<ProductFormValues>({ resolver: zodResolver(productSchema) });
+
+  const stepFields: Array<Array<keyof ProductFormValues>> = [
+    ['title', 'category', 'descriptionShort', 'descriptionFull'],
+    ['material', 'technology', 'color', 'productionTimeHours'],
+    ['price'], ['weightGrossG', 'dxCm', 'dyCm', 'dzCm'], [], []
+  ];
+  const advanceWizard = async () => {
+    if (wizardStep >= wizardSteps.length - 1) return;
+    if (wizardStep === 4 && !activeVariant?.mediaItems.some(item => item.kind === 'image')) {
+      setUploadError('Добавьте хотя бы одно изображение.');
+      fileInputRef.current?.focus();
+      return;
+    }
+    const fields = stepFields[wizardStep];
+    if (fields.length && !await trigger(fields)) {
+      const parsed = productSchema.safeParse(watch());
+      const invalid = parsed.success ? undefined : fields.find(field => parsed.error.issues.some(issue => issue.path[0] === field));
+      if (invalid) setFocus(invalid);
+      return;
+    }
+    setWizardStep(value => value + 1);
+  };
 
   useModalFocus(true, onClose, modalRef);
   const { handlePointerDown, handleClick } = useOverlayClose(onClose);
@@ -855,13 +881,28 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
 
 
 
-        <form className={styles.form} onSubmit={handleSubmit(handleFormSubmit, () => {
+        <div className={styles.wizardProgress} aria-label="Шаги создания товара">
+          <span className={styles.mobileProgress}>Шаг {wizardStep + 1} из {wizardSteps.length} · {wizardSteps[wizardStep]}</span>
+          <div className={styles.progressTrack}>{wizardSteps.map((step, index) => <span key={step} className={index <= wizardStep ? styles.progressDone : ''} />)}</div>
+          <div className={styles.progressLabels}>{wizardSteps.map((step, index) => <span key={step} className={index === wizardStep ? styles.progressCurrent : ''}>{step}</span>)}</div>
+        </div>
+        <form className={styles.form} data-step={wizardStep} onKeyDown={event => {
+          if (event.key !== 'Enter' || event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return;
+          const target = event.target as HTMLElement;
+          if (target.tagName !== 'INPUT' || (target as HTMLInputElement).type === 'file') return;
+          event.preventDefault();
+          if (wizardStep === wizardSteps.length - 1) event.currentTarget.requestSubmit();
+          else void advanceWizard();
+        }} onSubmit={event => {
+          if (wizardStep < wizardSteps.length - 1) { event.preventDefault(); void advanceWizard(); return; }
+          void handleSubmit(handleFormSubmit, () => {
           if (!activeVariant?.mediaItems.some((item) => item.kind === 'image')) {
             setUploadError('Добавьте хотя бы одно изображение.');
           }
-        })}>
+          })(event);
+        }}>
           {product ? (
-            <section className={styles.section}>
+            <section className={styles.section} data-wizard-section="variants">
               <div className={styles.variantHeaderRow}>
                 <h4 className={styles.sectionTitle}>Варианты товара</h4>
                 <Button
@@ -958,24 +999,24 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
             </section>
           ) : null}
 
-          <section className={styles.section}>
-            <h4 className={styles.sectionTitle}>Главное о товаре</h4>
-            <label>
+          <section className={styles.section} data-wizard-section="main">
+            <h4 className={styles.sectionTitle}>{wizardSteps[wizardStep]}</h4>
+            <label data-wizard-field="0">
               <span>Название <RequiredMark /></span>
               <input className={errors.title ? styles.inputError : styles.input} placeholder="Название товара" {...register('title')} />
               {errors.title && <span className={styles.errorText}>{errors.title.message}</span>}
             </label>
-            <label>
+            <label data-wizard-field="1">
               <span>Материал <RequiredMark /></span>
               <input className={errors.material ? styles.inputError : styles.input} placeholder="Материал / ключевая особенность" {...register('material')} />
               {errors.material && <span className={styles.errorText}>{errors.material.message}</span>}
             </label>
-            <label>
+            <label data-wizard-field="0">
               <span>Краткое описание <RequiredMark /></span>
               <input className={errors.descriptionShort ? styles.inputError : styles.input} placeholder="Коротко о товаре" {...register('descriptionShort')} />
               {errors.descriptionShort && <span className={styles.errorText}>{errors.descriptionShort.message}</span>}
             </label>
-            <label>
+            <label data-wizard-field="0">
               <span>Описание <RequiredMark /></span>
               <textarea
                 rows={4}
@@ -985,8 +1026,8 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
               />
               {errors.descriptionFull && <span className={styles.errorText}>{errors.descriptionFull.message}</span>}
             </label>
-            {product?.sku && <p className={styles.muted}>Артикул Print-Form: {product.sku}</p>}
-            <label>
+            {product?.sku && wizardStep === 0 && <p className={styles.muted}>Артикул Print-Form: {product.sku}</p>}
+            <label data-wizard-field="0">
               <span>Категория <RequiredMark /></span>
               <select className={errors.category ? styles.inputError : styles.input} {...register('category')}>
                 <option value="">Выберите категорию</option>
@@ -1000,7 +1041,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
               {errors.category && <span className={styles.errorText}>{errors.category.message}</span>}
             </label>
             <div className={styles.inlineFields}>
-              <label>
+              <label data-wizard-field="1">
                 <span>Технология <RequiredMark /></span>
                 <select
                   className={errors.technology && !technologyCustom ? styles.inputError : styles.input}
@@ -1031,12 +1072,12 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
                 )}
                 {errors.technology && <span className={styles.errorText}>{errors.technology.message}</span>}
               </label>
-              <label>
+              <label data-wizard-field="1">
                 <span>Срок изготовления (часы) <RequiredMark /></span>
                 <input type="number" min={1} max={720} className={errors.productionTimeHours ? styles.inputError : styles.input} placeholder="24" {...register('productionTimeHours', { valueAsNumber: true })} />
                 {errors.productionTimeHours && <span className={styles.errorText}>{errors.productionTimeHours.message}</span>}
               </label>
-              <label>
+              <label data-wizard-field="2">
                 <span>Цена <RequiredMark /></span>
                 <input
                   type="text"
@@ -1048,7 +1089,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
                 {errors.price && <span className={styles.errorText}>{errors.price.message}</span>}
               </label>
               {product ? (
-                <label>
+                <label data-wizard-field="2">
                   Статус модерации
                   <input
                     className={styles.input}
@@ -1063,7 +1104,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
             </div>
           </section>
 
-          <section className={styles.section}>
+          <section className={styles.section} data-wizard-section="characteristics">
             <h4 className={styles.sectionTitle}>Параметры товара</h4>
             <div className={styles.inlineFields}>
               <label>
@@ -1107,8 +1148,9 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
             </div>
           </section>
 
-          <section className={styles.section}>
-            <h4 className={styles.sectionTitle}>Вес и габариты с упаковкой</h4>
+          <section className={styles.section} data-wizard-section="dimensions">
+            <h4 className={styles.sectionTitle}>Вес и габариты товара</h4>
+            <p className={styles.muted}>Используем для предварительной оценки доставки. Вес и размеры готовой коробки вы укажете перед отправкой.</p>
             <div className={styles.inlineFields}>
               <label>
                 <span>Вес брутто (г) <RequiredMark /></span>
@@ -1142,7 +1184,7 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
             })()}
           </section>
 
-          <section className={styles.section}>
+          <section className={styles.section} data-wizard-section="media">
             <h4 className={styles.sectionTitle}>Изображения и видео товара</h4>
             <p className={styles.photoRequired}>Фото <RequiredMark /></p>
             <p className={styles.muted}>
@@ -1273,13 +1315,16 @@ export const SellerProductModal = ({ product, onClose, onSubmit }: SellerProduct
             {uploadError && <span className={styles.errorText}>{uploadError}</span>}
           </section>
 
+          {wizardStep === 5 && <section className={styles.section}>
+            <h4 className={styles.sectionTitle}>Проверьте товар перед сохранением</h4>
+            <div className={styles.reviewGrid}><p><strong>Название</strong><br />{watch('title') || '—'}</p><p><strong>Категория</strong><br />{watch('category') || '—'}</p><p><strong>Характеристики</strong><br />{watch('material') || '—'} · {watch('technology') || '—'} · {watch('color') || '—'}</p><p><strong>Цена</strong><br />{watch('price') || '—'} ₽</p><p><strong>Размеры товара</strong><br />{watch('dxCm') || '—'} × {watch('dyCm') || '—'} × {watch('dzCm') || '—'} мм · {watch('weightGrossG') || '—'} г</p><p><strong>Фото и видео</strong><br />{activeMediaItems.length} файлов</p>{product?.sku && <p><strong>Артикул Print-Form</strong><br />{product.sku}</p>}</div>
+            <div className={styles.reviewMedia}>{activeMediaItems.filter(item => item.kind === 'image').slice(0, 4).map(item => <img key={item.id} src={item.previewUrl} alt={item.name} />)}</div>
+          </section>}
           <div className={styles.actions}>
-            <Button type="submit" disabled={isUploading}>
-              {isUploading ? 'Загрузка…' : 'Сохранить'}
-            </Button>
-            <Button type="button" variant="secondary" onClick={onClose}>
-              Отмена
-            </Button>
+            {wizardStep > 0 && <Button type="button" variant="secondary" onClick={() => setWizardStep(value => value - 1)}>Назад</Button>}
+            {wizardStep < wizardSteps.length - 1
+              ? <Button type="button" onClick={() => void advanceWizard()}>Далее</Button>
+              : <Button type="submit" disabled={isUploading}>{isUploading ? 'Загрузка…' : 'Сохранить'}</Button>}
           </div>
         </form>
       </div>

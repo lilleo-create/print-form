@@ -4,6 +4,7 @@ import { api } from './index';
 import { ordersApi } from './ordersApi';
 import { PackedOrderModal } from '../../components/orders/PackedOrderModal';
 import { canCreateCdekShipment, readyToShipDisabledReason } from '../lib/orderFulfillment';
+import { getHumanOrderStatus } from '../lib/orderPresentation';
 
 vi.mock('./index', () => ({ api: { getSellerOrders: vi.fn() } }));
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
@@ -31,6 +32,15 @@ const rawOrder = (isPacked = true) => ({
 });
 
 describe('seller packed order mapping', () => {
+  it('preserves carrier delivery state for the buyer timeline', async () => {
+    const raw = { ...rawOrder(), status: 'IN_TRANSIT', deliveryStatus: 'READY_FOR_PICKUP',
+      deliveryStatusCode: 'READY_FOR_RECEIVE', deliveryStatusUpdatedAt: '2026-11-01T08:00:00.000Z' };
+    vi.mocked(api.getSellerOrders).mockResolvedValue({ data: { data: [raw] } } as never);
+    const [order] = await ordersApi.listBySeller('seller-1');
+    expect(order.deliveryStatus).toBe('READY_FOR_PICKUP');
+    expect(order.deliveryStatusUpdatedAt).toBe('2026-11-01T08:00:00.000Z');
+    expect(getHumanOrderStatus(order)).toBe('Ждёт в пункте выдачи');
+  });
   it('keeps pending CDEK readback from seller orders and hides another create action', async () => {
     const raw = { ...rawOrder(), cdekOrderId: 'cdek-uuid',
       shipment: { id: 'shipment-1', provider: 'CDEK', status: 'READY_TO_SHIP',

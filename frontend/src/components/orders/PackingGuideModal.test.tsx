@@ -1,4 +1,4 @@
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { PackingGuideModal } from './PackingGuideModal';
 
@@ -21,4 +21,17 @@ it('shows five illustrated steps and changes them only with manual controls', ()
   expect(screen.getByText('Сдача в CDEK')).toBeTruthy();
   expect(screen.getByRole('img', { name: /пункт CDEK/i })).toBeTruthy();
   expect(screen.getByText('5 / 5')).toBeTruthy();
+});
+
+it('supports keyboard next, back and Escape', () => {
+  const onClose = vi.fn();
+  render(<PackingGuideModal onClose={onClose} />);
+  fireEvent.keyDown(window, { key: 'ArrowRight' });
+  expect(screen.getByText('Защитите товар')).toBeTruthy();
+  fireEvent.keyDown(window, { key: 'ArrowLeft' });
+  expect(screen.getByText('Подготовьте товар')).toBeTruthy();
+  fireEvent.keyDown(window, { key: 'Enter' });
+  expect(screen.getByText('Защитите товар')).toBeTruthy();
+  fireEvent.keyDown(window, { key: 'Escape' });
+  expect(onClose).toHaveBeenCalledOnce();
 });

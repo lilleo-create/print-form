@@ -3,6 +3,10 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '../shared/ui/Button';
 import { ordersApi } from '../shared/api/ordersApi';
 import type { Order } from '../shared/types';
+import type { Product } from '../shared/types';
+import { api } from '../shared/api';
+import { rankOrderRecommendations } from '../shared/lib/orderRecommendations';
+import { formatPriceWithKopecks } from '../shared/lib/formatPrice';
 import styles from './PaymentReturnPage.module.css';
 import CheckIcon from '@shared/assets/check.svg?react';
 
@@ -17,6 +21,25 @@ export const PaymentReturnPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [pollingFinished, setPollingFinished] = useState(false);
+  const [recommendations, setRecommendations] = useState<Product[]>([]);
+
+  useEffect(() => {
+    if (order?.paymentStatus !== 'PAID') return;
+    let active = true;
+    void (async () => {
+      try {
+        const purchased = await Promise.all((order.items ?? []).slice(0, 3).map(item => api.getProduct(item.productId).then(result => result.data).catch(() => null)));
+        const categories = [...new Set(purchased.filter((product): product is Product => Boolean(product)).map(product => product.category))];
+        const [categoryProducts, catalog] = await Promise.all([
+          Promise.all(categories.map(category => api.getProducts({ categories: [category], limit: 12 }).then(result => result.data).catch(() => [] as Product[]))),
+          api.getProducts({ sort: 'createdAt', order: 'desc', limit: 40 })
+        ]);
+        const candidates = [...new Map([...categoryProducts.flat(), ...catalog.data].map(product => [product.id, product])).values()];
+        if (active) setRecommendations(rankOrderRecommendations(order, candidates, 6, categories));
+      } catch { if (active) setRecommendations([]); }
+    })();
+    return () => { active = false; };
+  }, [order?.paymentStatus, order?.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -108,7 +131,7 @@ export const PaymentReturnPage = () => {
             <div className={styles.actions}>
               <Button
                 type="button"
-                onClick={() => navigate(`/account?tab=orders&orderId=${encodeURIComponent(orderId)}`)}
+                onClick={() => navigate(`/account/orders/${encodeURIComponent(orderId)}`)}
                 disabled={!orderId}
                 className={styles.actionButton}
               >
@@ -117,12 +140,19 @@ export const PaymentReturnPage = () => {
               <Button
                 type="button"
                 variant="secondary"
-                onClick={() => navigate('/')}
+                onClick={() => navigate('/catalog')}
                 className={styles.actionButton}
               >
-                На главную
+                Продолжить покупки
               </Button>
             </div>
+            {order?.paymentStatus === 'PAID' && recommendations.length > 0 && <div className={styles.recommendations}>
+              <h2>Может, что-то ещё?</h2><div className={styles.recommendationRow}>
+                {recommendations.map(product => <button key={product.id} type="button" className={styles.recommendation} onClick={() => navigate(`/product/${product.id}`)}>
+                  <img src={product.imageUrl || product.image} alt="" /><strong>{product.title}</strong><span>{formatPriceWithKopecks(product.price)}</span>
+                </button>)}
+              </div>
+            </div>}
           </div>
         </div>
       </div>

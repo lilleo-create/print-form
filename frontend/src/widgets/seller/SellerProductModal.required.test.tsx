@@ -28,15 +28,12 @@ describe('SellerProductModal required fields', () => {
     expect(within(screen.getByText(/Изображения и видео товара/).closest('section')!).getByLabelText('Обязательное поле')).toBeInTheDocument();
   });
 
-  it('blocks empty shipping fields and missing image with inline Russian errors', async () => {
+  it('blocks navigation when the current wizard step is invalid', async () => {
     const onSubmit = vi.fn();
     render(<SellerProductModal product={null} onClose={vi.fn()} onSubmit={onSubmit} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
-    await waitFor(() => expect(screen.getByText('Укажите вес брутто (г).')).toBeInTheDocument());
-    expect(screen.getByText('Укажите ширину (мм).')).toBeInTheDocument();
-    expect(screen.getByText('Укажите глубину (мм).')).toBeInTheDocument();
-    expect(screen.getByText('Укажите высоту (мм).')).toBeInTheDocument();
-    expect(screen.getByText('Добавьте хотя бы одно изображение.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Далее' }));
+    await waitFor(() => expect(screen.getByText('Введите название')).toBeInTheDocument());
+    expect(screen.getByText('Шаг 1 из 6 · Главное')).toBeInTheDocument();
     expect(onSubmit).not.toHaveBeenCalled();
   });
 

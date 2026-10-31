@@ -5,6 +5,17 @@ import { PackedOrderModal } from './PackedOrderModal';
 afterEach(cleanup);
 
 describe('PackedOrderModal', () => {
+  it('uses Enter in a numeric field to calculate, never to confirm', async () => {
+    const onQuote = vi.fn().mockResolvedValue({ deliveryAmountKopecks: 20475 });
+    const onConfirm = vi.fn();
+    render(<PackedOrderModal sellerNetBeforeDeliveryKopecks={149900}
+      initial={{ weightGrams: 400, lengthCm: 15, widthCm: 15, heightCm: 15 }}
+      onClose={vi.fn()} onQuote={onQuote} onConfirm={onConfirm} />);
+    fireEvent.keyDown(screen.getByLabelText('Вес упаковки, г'), { key: 'Enter' });
+    await waitFor(() => expect(onQuote).toHaveBeenCalledOnce());
+    fireEvent.keyDown(screen.getByLabelText('Вес упаковки, г'), { key: 'Enter' });
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
   it('shows CDEK billable weight without changing the physical weight', async () => {
     const onQuote = vi.fn().mockResolvedValue({ deliveryAmountKopecks: 20475,
       physicalWeightGrams: 400, billableWeightGrams: 675 });
