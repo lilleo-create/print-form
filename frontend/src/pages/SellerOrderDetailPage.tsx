@@ -8,6 +8,7 @@ import { getHumanOrderStatus, getSellerNextAction } from '../shared/lib/orderPre
 import { readyToShipDisabledReason } from '../shared/lib/orderFulfillment';
 import { formatPriceWithKopecks } from '../shared/lib/formatPrice';
 import { OrderTimeline } from '../components/orders/OrderTimeline';
+import { OrderHero } from '../components/orders/OrderHero';
 import { PackedOrderModal } from '../components/orders/PackedOrderModal';
 import { PackingGuideModal } from '../components/orders/PackingGuideModal';
 import styles from './OrderDetailPage.module.css';
@@ -63,11 +64,7 @@ export const SellerOrderDetailPage = () => {
   const canDocuments = Boolean(order.shipment?.id && order.shipment.readbackStatus !== 'PENDING' && order.shipment.readbackStatus !== 'AUTH_FAILED');
   return <main className={styles.page}>
     <button className={styles.back} type="button" onClick={() => navigate('/seller', { state: { activeTab: 'Заказы' } })}>← К заказам</button>
-    <header className={styles.hero}>
-      <div><span className={styles.eyebrow}>ЗАКАЗ ПРОДАВЦА</span><h1>{order.publicNumber || order.id}</h1>
-        <p>{new Date(order.createdAt).toLocaleString('ru-RU')}</p></div>
-      <div><strong className={styles.status}>{getHumanOrderStatus(order)}</strong>{order.trackingNumber && <p>Трек CDEK: {order.trackingNumber}</p>}</div>
-    </header>
+    <OrderHero order={order} audience="seller" />
     {error && <p role="alert" className={styles.error}>{error}</p>}
     <div className={styles.grid}>
       <div className={styles.main}>

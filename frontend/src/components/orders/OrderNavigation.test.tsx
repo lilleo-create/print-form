@@ -22,4 +22,11 @@ describe('order list navigation', () => {
     fireEvent.click(screen.getByRole('link'));
     expect(screen.getByRole('heading', { name: 'Buyer detail' })).toBeInTheDocument();
   });
+  it('keeps the buyer card action separate from navigation', () => {
+    const onCancelOrder = vi.fn();
+    render(<MemoryRouter initialEntries={['/account']}><Routes><Route path="/account" element={<OrderCompactCard order={order} onCancelOrder={onCancelOrder} />} /><Route path="/account/orders/:id" element={<h1>Buyer detail</h1>} /></Routes></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: 'Отменить заказ' }));
+    expect(onCancelOrder).toHaveBeenCalledWith(order);
+    expect(screen.queryByRole('heading', { name: 'Buyer detail' })).not.toBeInTheDocument();
+  });
 });
