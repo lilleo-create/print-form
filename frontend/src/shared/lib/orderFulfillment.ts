@@ -1,5 +1,9 @@
 import type { Order } from '../types';
 
+export const canCreateCdekShipment = (order: Order, preparationPaymentOpen: boolean): boolean =>
+  order.status === 'PRINTING' && preparationPaymentOpen && Boolean(order.isPacked) &&
+  !order.readyForShipmentAt && !order.shipment?.id && !order.cdekOrderId;
+
 export const readyToShipDisabledReason = (order: Order, dropoffPvzId?: string | null): string | null => {
   if (order.status === 'CANCELLED') return 'Заказ отменён';
   if (['REFUND_PENDING', 'PARTIALLY_REFUNDED', 'REFUNDED', 'CANCELLED'].includes(order.paymentStatus ?? '')) {

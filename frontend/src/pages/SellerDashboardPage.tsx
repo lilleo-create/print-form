@@ -41,7 +41,8 @@ import { SellerFinanceMobileCard } from '../components/seller/SellerFinanceMobil
 import { BottomNav } from '../widgets/layout/BottomNav';
 import { CdekPvzPickerModal } from '../components/checkout/CdekPvzPickerModal';
 import { normalizeSellerType } from '../shared/lib/sellerType';
-import { readyToShipDisabledReason as getReadyToShipDisabledReason } from '../shared/lib/orderFulfillment';
+import { canCreateCdekShipment, readyToShipDisabledReason as getReadyToShipDisabledReason } from '../shared/lib/orderFulfillment';
+import { cdekReadbackLabel } from '../shared/lib/cdekReadback';
 import {
   getModerationStatusLabelRu,
   getModerationStatusTone
@@ -2951,6 +2952,10 @@ export const SellerDashboardPage = () => {
                                 <p className={styles.muted}>Трек-номер формируется...</p>
                               ) : null}
 
+                              {cdekReadbackLabel(order.shipment?.readbackStatus) && (
+                                <p className={styles.muted}>{cdekReadbackLabel(order.shipment?.readbackStatus)}</p>
+                              )}
+
                               {/* История СДЭК — только когда есть реальные события */}
                               {(order.deliveryEvents?.length ?? 0) > 0 && (
                                 <DeliveryTimeline
@@ -3001,7 +3006,7 @@ export const SellerDashboardPage = () => {
                                   )}
 
                                   {/* После подготовки создание отправления; далее статус только для чтения. */}
-                                  {order.status === 'PRINTING' && preparationPaymentOpen && order.isPacked && !order.readyForShipmentAt && (
+                                  {canCreateCdekShipment(order, preparationPaymentOpen) && (
                                       <>
                                         <Button
                                           type="button"
@@ -3042,7 +3047,8 @@ export const SellerDashboardPage = () => {
                                           order.shipment?.id &&
                                           handleDownloadLabel(order.shipment.id, order.id)
                                         }
-                                        disabled={!order.trackingNumber}
+                                        disabled={!order.trackingNumber || order.shipment?.readbackStatus === 'PENDING' ||
+                                          order.shipment?.readbackStatus === 'AUTH_FAILED'}
                                       >
                                         Скачать ярлык
                                         {!order.trackingNumber ? ' (ещё формируется)' : ''}
@@ -3057,6 +3063,8 @@ export const SellerDashboardPage = () => {
                                           order.shipment?.id &&
                                           handleDownloadAct(order.shipment.id, order.id)
                                         }
+                                        disabled={order.shipment?.readbackStatus === 'PENDING' ||
+                                          order.shipment?.readbackStatus === 'AUTH_FAILED'}
                                       >
                                         Скачать акт
                                       </Button>

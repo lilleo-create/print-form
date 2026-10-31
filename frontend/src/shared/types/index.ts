@@ -390,6 +390,7 @@ export interface Order {
     id: string;
     provider: string;
     status: string;
+    readbackStatus?: 'VERIFIED' | 'PENDING' | 'AUTH_FAILED' | null;
     sourceStationId: string;
     destinationStationId?: string;
     lastSyncAt?: string | null;

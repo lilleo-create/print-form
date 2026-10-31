@@ -3,7 +3,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { api } from './index';
 import { ordersApi } from './ordersApi';
 import { PackedOrderModal } from '../../components/orders/PackedOrderModal';
-import { readyToShipDisabledReason } from '../lib/orderFulfillment';
+import { canCreateCdekShipment, readyToShipDisabledReason } from '../lib/orderFulfillment';
 
 vi.mock('./index', () => ({ api: { getSellerOrders: vi.fn() } }));
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
@@ -31,6 +31,15 @@ const rawOrder = (isPacked = true) => ({
 });
 
 describe('seller packed order mapping', () => {
+  it('keeps pending CDEK readback from seller orders and hides another create action', async () => {
+    const raw = { ...rawOrder(), cdekOrderId: 'cdek-uuid',
+      shipment: { id: 'shipment-1', provider: 'CDEK', status: 'READY_TO_SHIP',
+        sourceStationId: 'SPB123', readbackStatus: 'PENDING' } };
+    vi.mocked(api.getSellerOrders).mockResolvedValue({ data: { data: [raw] } } as never);
+    const [order] = await ordersApi.listBySeller('seller-1');
+    expect(order.shipment?.readbackStatus).toBe('PENDING');
+    expect(canCreateCdekShipment(order, true)).toBe(false);
+  });
   it('keeps packed parcel and delivery economics fields, enabling ready-to-ship', async () => {
     vi.mocked(api.getSellerOrders).mockResolvedValue({ data: { data: [rawOrder()] } } as never);
     const [order] = await ordersApi.listBySeller('seller-1');
