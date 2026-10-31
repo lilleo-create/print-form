@@ -657,7 +657,7 @@ export const api = {
   async quotePackedOrder(orderId: string, parcel: {
     weightGrams: number; lengthCm: number; widthCm: number; heightCm: number;
   }) {
-    return apiClient.request<{ deliveryAmountKopecks: number; deliveryDaysMin: number; deliveryDaysMax: number }>(
+    return apiClient.request<{ requestId: string; deliveryAmountKopecks: number; deliveryDaysMin: number; deliveryDaysMax: number }>(
       `/seller/orders/${orderId}/pack/quote`, { method: 'POST', body: parcel });
   },
 
