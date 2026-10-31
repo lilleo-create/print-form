@@ -29,6 +29,7 @@ type ApiOrder = {
   completedAt?: string | null;
   paidAt?: string | null;
   readyForShipmentAt?: string | null;
+  dropoffDeadlineAt?: string | null;
   isPacked?: boolean | null;
   packedWeightGrams?: number | null;
   packedLengthCm?: number | null;
@@ -113,6 +114,7 @@ const mapOrder = (order: ApiOrder): Order => ({
   completedAt: order.completedAt ?? null,
   paidAt: order.paidAt ?? null,
   readyForShipmentAt: order.readyForShipmentAt ?? null,
+  dropoffDeadlineAt: order.dropoffDeadlineAt ?? null,
   isPacked: order.isPacked ?? null,
   packedWeightGrams: order.packedWeightGrams ?? null,
   packedLengthCm: order.packedLengthCm ?? null,

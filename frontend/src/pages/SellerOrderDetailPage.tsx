@@ -75,7 +75,7 @@ export const SellerOrderDetailPage = () => {
           {next === 'production' && <button className={styles.primary} disabled={busy} onClick={() => void run(() => api.updateSellerOrderStatus(order.id, { status: 'PRINTING' }))}>Начать производство</button>}
           {next === 'pack' && <><button className={styles.primary} onClick={() => setPacking(true)}>Товар упакован</button><button className={styles.textButton} onClick={() => setGuide(true)}>Как правильно упаковать?</button></>}
           {next === 'shipment' && <><button className={styles.primary} disabled={busy || Boolean(readyToShipDisabledReason(order))} onClick={() => void run(() => ordersApi.readyToShip(order.id))}>Создать доставку в CDEK</button>{readyToShipDisabledReason(order) && <p>{readyToShipDisabledReason(order)}</p>}<button className={styles.textButton} onClick={() => setPacking(true)}>Изменить параметры посылки</button></>}
-          {next === 'handoff' && <><h3>Передайте заказ в CDEK</h3><p>ПВЗ сдачи: {order.sellerDropoffPvzMeta?.addressFull || 'Уточняется'}</p>{order.estimatedDeliveryDateMax && <p>Срок: {new Date(order.estimatedDeliveryDateMax).toLocaleDateString('ru-RU')}</p>}<p>Трек: {order.trackingNumber || 'Формируется'}</p></>}
+          {next === 'handoff' && <><h3>Передайте заказ в CDEK</h3><p>ПВЗ сдачи: {order.sellerDropoffPvzMeta?.addressFull || 'Уточняется'}</p>{order.dropoffDeadlineAt && <p>Сдать до: {new Date(order.dropoffDeadlineAt).toLocaleString('ru-RU')}</p>}<p>Трек: {order.trackingNumber || 'Формируется'}</p></>}
           {next === 'tracking' && <p>Следите за доставкой. Статус обновится автоматически.</p>}
           {next === null && <p>{getHumanOrderStatus(order)}</p>}
           {order.shipment?.id && <div className={styles.actionRow}>

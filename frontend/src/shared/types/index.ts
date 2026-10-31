@@ -338,6 +338,7 @@ export interface Order {
   completedAt?: string | null;
   paidAt?: string | null;
   readyForShipmentAt?: string | null;
+  dropoffDeadlineAt?: string | null;
   isPacked?: boolean | null;
   packedWeightGrams?: number | null;
   packedLengthCm?: number | null;
