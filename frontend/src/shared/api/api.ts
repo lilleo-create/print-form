@@ -40,7 +40,12 @@ export type QuickSupportMessageResponse = {
 export type ChatSendPayload = { text: string; files?: File[]; topic?: string };
 
 const chatMessageBody = (payload: ChatSendPayload) => {
-  if (!payload.files?.length) return payload;
+  if (!payload.files?.length) {
+    return {
+      text: payload.text,
+      ...(payload.topic ? { topic: payload.topic } : {})
+    };
+  }
   const body = new FormData();
   body.append('text', payload.text);
   if (payload.topic) body.append('topic', payload.topic);

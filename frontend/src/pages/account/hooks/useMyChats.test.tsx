@@ -70,6 +70,18 @@ describe('useMyChats single active support lifecycle', () => {
     unmount();
   });
 
+  it('sends manual text to the same thread after a quick question', async () => {
+    const { result, unmount } = renderHook(() => useMyChats('chats', null));
+    await waitFor(() => expect(listMy).toHaveBeenCalled());
+    await act(async () => expect(await result.current.sendQuickSupportQuestion('Доставка', 'Где заказ?')).toBe(true));
+    expect(result.current.selectedThread?.id).toBe('support-1');
+    await act(async () => expect(await result.current.handleSendMessage({ text: 'привет' })).toBe(true));
+    expect(sendMessage).toHaveBeenCalledWith('support-1', { text: 'привет' });
+    expect(sendSupportMessage).not.toHaveBeenCalled();
+    expect(sendQuickSupportMessage).toHaveBeenCalledTimes(1);
+    unmount();
+  });
+
   it('moves a closed support thread to archive and restores start state on polling refresh', async () => {
     listMy.mockResolvedValue({ data: { active: [active], closed: [] } });
     const { result, unmount } = renderHook(() => useMyChats('chats', null));

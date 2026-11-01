@@ -41,7 +41,7 @@ export const MessageComposer = ({ onSend, disabled, placeholder, draft, focusKey
     sendingRef.current = true;
     setSending(true);
     try {
-      const sent = await onSend({ text: trimmed, files: images.map(image => image.file) });
+      const sent = await onSend({ text: trimmed, ...(images.length ? { files: images.map(image => image.file) } : {}) });
       if (sent !== false) {
         setValue('');
         onValueChange?.('');

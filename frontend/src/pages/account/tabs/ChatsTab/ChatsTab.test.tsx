@@ -186,7 +186,7 @@ describe('buyer support bot flow', () => {
     fireEvent.change(input, { target: { value: 'Помогите разобраться' } });
     expect(props.onSubmitSupportQuestion).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Отправить' }));
-    await waitFor(() => expect(props.onSubmitSupportQuestion).toHaveBeenCalledWith('Произвольный вопрос', { text: 'Помогите разобраться', files: [] }));
+    await waitFor(() => expect(props.onSubmitSupportQuestion).toHaveBeenCalledWith('Произвольный вопрос', { text: 'Помогите разобраться' }));
     expect(props.onSubmitSupportQuestion).toHaveBeenCalledTimes(1);
   });
 
@@ -195,7 +195,7 @@ describe('buyer support bot flow', () => {
     fireEvent.click(screen.getByRole('button', { name: /PF-18/ }));
     fireEvent.change(screen.getByPlaceholderText('Напишите ваш вопрос...'), { target: { value: 'Вопрос по заказу' } });
     fireEvent.click(screen.getByRole('button', { name: 'Отправить' }));
-    await waitFor(() => expect(props.onSubmitSupportQuestion).toHaveBeenCalledWith('Проблема с заказом', { text: 'Вопрос по заказу', files: [] }));
+    await waitFor(() => expect(props.onSubmitSupportQuestion).toHaveBeenCalledWith('Проблема с заказом', { text: 'Вопрос по заказу' }));
   });
 
   it('returns from a mobile archived conversation to archive list, then main chats', () => {
@@ -253,7 +253,7 @@ describe('buyer support bot flow', () => {
     const { props } = setup({ selectedThread: thread('active') });
     fireEvent.change(screen.getByPlaceholderText('Написать сообщение...'), { target: { value: 'Где заказ?' } });
     fireEvent.click(screen.getByRole('button', { name: 'Отправить' }));
-    await waitFor(() => expect(props.onSendMessage).toHaveBeenCalledWith({ text: 'Где заказ?', files: [] }));
+    await waitFor(() => expect(props.onSendMessage).toHaveBeenCalledWith({ text: 'Где заказ?' }));
     expect(props.onSubmitSupportQuestion).not.toHaveBeenCalled();
   });
 

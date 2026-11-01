@@ -12,7 +12,7 @@ describe('MessageComposer', () => {
     fireEvent.change(field, { target: { value: 'Привет' } });
     fireEvent.keyDown(field, { key: 'Enter' });
     await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
-    expect(onSend).toHaveBeenCalledWith({ text: 'Привет', files: [] });
+    expect(onSend).toHaveBeenCalledWith({ text: 'Привет' });
     await waitFor(() => expect(field).toHaveValue(''));
   });
 
