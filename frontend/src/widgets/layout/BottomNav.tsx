@@ -54,7 +54,7 @@ export const BottomNav = ({ forceShow = false, onNavigate }: { forceShow?: boole
   const isFav = location.pathname === '/favorites';
   const isCart = location.pathname === '/cart';
   const isProfile = location.pathname === '/account' || location.pathname === '/returns';
-  const isOrders = location.pathname === '/orders' || (location.pathname === '/account' && (searchParams.get('tab') === 'orders' || searchParams.get('tab') === 'purchases'));
+  const isOrders = location.pathname.startsWith('/account/orders/') || (location.pathname === '/account' && (searchParams.get('tab') === 'orders' || searchParams.get('tab') === 'purchases'));
 
   const item = (active: boolean) =>
     `${styles.bottomNavItem} ${active ? styles.bottomNavItemActive : ''}`;

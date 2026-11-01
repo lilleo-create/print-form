@@ -59,18 +59,6 @@
   padding-top: 14px;
 }
 
-.product {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 12px 0;
-  border-top: 1px solid var(--border);
-}
-.product:first-of-type { border: 0; }
-.product img { width: 72px; height: 72px; object-fit: cover; border-radius: 12px; }
-.product p { color: var(--muted); margin: 4px 0; }
-.product .textButton { margin-right: 15px; }
-
 .primary,
 .actionRow button {
   background: var(--primary);
@@ -94,9 +82,11 @@
 .summaryCard { position: sticky; top: 88px; }
 .sellerNextAction { border-color: color-mix(in srgb, var(--primary) 38%, var(--border)); background: linear-gradient(145deg, color-mix(in srgb, var(--primary) 7%, var(--card)), var(--card)); margin-bottom: 20px; }
 .sellerNextAction h2 { color: var(--text); }
-.inlineActions, .detailActions { display: flex; gap: 14px; flex-wrap: wrap; }
+.detailActions { display: flex; gap: 14px; flex-wrap: wrap; }
 .detailActions { border-top: 1px solid var(--border); margin-top: 18px; padding-top: 10px; }
 .detailActions .textButton { font-size: 14px; }
+.productActionGroup { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; width: 100%; }
+.productActionGroup span { color: var(--muted); font-size: 13px; width: 100%; }
 @media (min-width: 761px) { .grid { grid-template-columns: minmax(0, 1.7fr) minmax(280px, .9fr); gap: 24px; } .main, .side { gap: 16px; } }
 
 @media (max-width: 760px) {
@@ -106,7 +96,6 @@
   .side { gap: 14px; }
   .card { padding: 19px; border-radius: 16px; }
   .card dl { grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); }
-  .product img { width: 60px; height: 60px; }
   .summaryCard { position: static; }
   .deliveredHeading h2 { font-size: 22px; }
 }

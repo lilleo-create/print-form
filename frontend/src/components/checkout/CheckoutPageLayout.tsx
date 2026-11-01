@@ -271,7 +271,7 @@ export const CheckoutPageLayout = () => {
     }
 
     clear();
-    navigate('/orders', { state: { paymentIntent: createdPaymentIntent } });
+    navigate('/account?tab=orders', { state: { paymentIntent: createdPaymentIntent } });
   };
 
   const selectedAddressText = selectedAddress

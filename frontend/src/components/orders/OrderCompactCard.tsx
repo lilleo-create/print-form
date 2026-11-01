@@ -20,7 +20,7 @@ export const OrderCompactCard = ({ order, highlighted = false }: OrderCompactCar
 
   return <article className={`${styles.marketOrderCard} ${highlighted ? styles.cardHighlighted : ''}`} role="link" tabIndex={0} aria-label={`Открыть заказ ${order.publicNumber || order.id}`} onClick={open} onKeyDown={event => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); open(); } }}>
     <div className={styles.marketStatusRow}>
-      <span className={styles.marketStatusIcon} aria-hidden="true">{order.status === 'DELIVERED' ? '✓' : '●'}</span>
+      <span className={styles.marketStatusIcon} aria-hidden="true">{order.status === 'DELIVERED' ? '✓' : <span className={styles.marketStatusDot} />}</span>
       <div className={styles.marketStatusCopy}>
         <strong>{status}{deliveredDate ? ` ${deliveredDate}` : ''}</strong>
         <span>{order.buyerPickupPvzMeta?.addressFull ? `ПВЗ · ${order.buyerPickupPvzMeta.addressFull}` : 'Доставка CDEK'}</span>

@@ -32,6 +32,8 @@ describe('order detail pages', () => {
     expect(within(hero).getByText('PF-18')).toBeInTheDocument();
     expect(within(hero).getByText('Сумма заказа')).toBeInTheDocument();
     expect(hero.querySelector('img')).toBeInTheDocument();
+    expect(screen.getAllByText('Модель')).toHaveLength(1);
+    expect(screen.queryByRole('heading', { name: 'Товары' })).not.toBeInTheDocument();
     expect(screen.getAllByText('Заявка создана в CDEK, подтверждаем данные').length).toBeGreaterThan(0);
     expect(screen.getByRole('heading', { name: 'Передайте заказ в CDEK' })).toBeInTheDocument();
     expect(screen.getByText(/Сдать до:/)).toBeInTheDocument();
@@ -47,16 +49,25 @@ describe('order detail pages', () => {
     expect(within(hero).getByText('PF-18')).toBeInTheDocument();
     expect(within(hero).getByText('Сумма заказа')).toBeInTheDocument();
     expect(hero.querySelector('img')).toBeInTheDocument();
+    expect(screen.getAllByText('Модель')).toHaveLength(1);
+    expect(screen.queryByRole('heading', { name: 'Товары' })).not.toBeInTheDocument();
     expect(screen.getByText('Бесплатно')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Купить ещё раз' })).toBeInTheDocument();
+    expect(within(screen.getByRole('heading', { name: 'Сумма заказа', level: 2 }).closest('section')!).getByRole('button', { name: 'Купить ещё раз' })).toBeInTheDocument();
     expect(screen.getByRole('list', { name: 'Этапы заказа' })).toBeInTheDocument();
   });
   it('shows delivered details with receipt date and product actions without a dominant timeline', async () => {
     vi.mocked(ordersApi.getById).mockResolvedValue({ ...order, status: 'DELIVERED', deliveredToRecipientAt: '2026-10-31T12:00:00Z' });
     render(<MemoryRouter initialEntries={['/account/orders/order-18']}><Routes><Route path="/account/orders/:id" element={<BuyerOrderDetailPage />} /></Routes></MemoryRouter>);
     expect(await screen.findByRole('heading', { name: 'Получен 31 октября' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Товары и магазин' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Товары и магазин' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Оставить отзыв' })).toBeInTheDocument();
     expect(screen.queryByRole('list', { name: 'Этапы заказа' })).not.toBeInTheDocument();
+  });
+  it('keeps repeat purchase actions explicit for each item in a multi-item order', async () => {
+    vi.mocked(ordersApi.getById).mockResolvedValue({ ...order, items: [...order.items, { ...order.items[0], id: 'item-2', productId: 'product-2', title: 'Вторая модель' }] });
+    render(<MemoryRouter initialEntries={['/account/orders/order-18']}><Routes><Route path="/account/orders/:id" element={<BuyerOrderDetailPage />} /></Routes></MemoryRouter>);
+    expect(await screen.findByRole('heading', { name: 'Модель', level: 1 })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Купить ещё раз' })).toHaveLength(2);
+    expect(screen.getByText('Вторая модель')).toBeInTheDocument();
   });
 });

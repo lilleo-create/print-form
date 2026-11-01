@@ -18,7 +18,7 @@ export const Footer = () => (
         <div className={styles.col}>
           <h5 className={styles.colHead}>Покупателю</h5>
           <Link to="/catalog">Каталог</Link>
-          <Link to="/orders">Заказы</Link>
+          <Link to="/account?tab=orders">Заказы</Link>
           <Link to="/favorites">Избранные</Link>
           <Link to="/account?tab=returns">Возвраты</Link>
         </div>

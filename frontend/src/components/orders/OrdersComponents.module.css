@@ -149,7 +149,8 @@
 .marketOrderCard:hover { border-color: var(--primary); transform: translateY(-1px); }
 .marketOrderCard:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .marketStatusRow { display: flex; align-items: flex-start; gap: 11px; min-width: 0; }
-.marketStatusIcon { width: 21px; height: 21px; flex: none; display: grid; place-items: center; border-radius: 50%; background: color-mix(in srgb, var(--primary) 18%, transparent); color: var(--primary); font-size: 13px; }
+.marketStatusIcon { width: 21px; height: 21px; flex: none; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: color-mix(in srgb, var(--primary) 18%, transparent); color: var(--primary); font-size: 13px; line-height: 1; }
+.marketStatusDot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
 .marketStatusCopy { display: grid; gap: 4px; min-width: 0; }
 .marketStatusCopy strong { font-size: 16px; line-height: 1.25; }
 .marketStatusCopy span { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

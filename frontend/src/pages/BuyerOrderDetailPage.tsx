@@ -6,7 +6,6 @@ import type { Order, ReturnRequest } from '../shared/types';
 import { formatPriceWithKopecks } from '../shared/lib/formatPrice';
 import { getHumanOrderStatus } from '../shared/lib/orderPresentation';
 import { hasHandoverStarted } from '../shared/lib/deliveryStatus';
-import { resolveImageUrl } from '../shared/lib/resolveImageUrl';
 import { OrderTimeline } from '../components/orders/OrderTimeline';
 import { OrderHero } from '../components/orders/OrderHero';
 import styles from './OrderDetailPage.module.css';
@@ -28,11 +27,20 @@ export const BuyerOrderDetailPage = () => {
   const deliveryDate = delivered && order.deliveredToRecipientAt ? new Date(order.deliveredToRecipientAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' }) : null;
   const canCancel = order.paymentStatus === 'PAID' && !hasActiveReturn && !hasHandoverStarted(order) && !['CANCELLED', 'RETURNED', 'EXPIRED'].includes(order.status);
   const canReturn = order.paymentStatus === 'PAID' && !hasActiveReturn && hasHandoverStarted(order) && !['CANCELLED', 'RETURNED'].includes(order.status);
-  const products = <section className={styles.card}><h2>{delivered ? 'Товары и магазин' : 'Товары'}</h2>{order.items.map(item => <div key={item.id || item.productId} className={styles.product}>{item.image && <img src={resolveImageUrl(item.image)} alt="" />}<div><strong>{item.title}</strong><p>{item.qty} шт. · {amount(item.priceKopecks ?? item.price)}</p><div className={styles.inlineActions}><button className={styles.textButton} onClick={() => navigate(`/product/${item.productId}`)}>Купить ещё раз</button>{delivered && <button className={styles.textButton} onClick={() => navigate(`/product/${item.productId}/reviews`)}>Оставить отзыв</button>}</div></div></div>)}</section>;
   const delivery = <section className={styles.card}><h2>Доставка</h2><dl><dt>Получение</dt><dd>Пункт выдачи CDEK</dd><dt>Адрес ПВЗ</dt><dd>{order.buyerPickupPvzMeta?.addressFull || '—'}</dd>{deliveryDate && <><dt>Получен</dt><dd>{deliveryDate}</dd></>}<dt>Статус</dt><dd>{getHumanOrderStatus(order)}</dd>{order.trackingNumber && <><dt>Трек CDEK</dt><dd><a href={`https://www.cdek.ru/ru/tracking?order_id=${encodeURIComponent(order.trackingNumber)}`} target="_blank" rel="noreferrer">{order.trackingNumber}</a></dd></>}</dl></section>;
   const recipient = <section className={styles.card}><h2>Получатель</h2><p>{order.recipientName || '—'}</p><p>{order.recipientPhone || '—'}</p><p>{order.recipientEmail || '—'}</p></section>;
   const help = <section className={styles.card}><h2>Помощь</h2><button className={styles.textButton} onClick={() => navigate('/account?tab=chats')}>Написать в поддержку</button></section>;
-  const summary = <section className={`${styles.card} ${styles.summaryCard}`}><h2>Сумма заказа</h2><dl><dt>Товары</dt><dd>{amount(order.financials?.itemsSubtotal ?? order.total)}</dd><dt>Доставка</dt><dd>{order.financials?.deliveryAmount ? amount(order.financials.deliveryAmount) : 'Бесплатно'}</dd><dt className={styles.strong}>Итого</dt><dd className={styles.strong}>{amount(order.financials?.total ?? order.total)}</dd></dl>{(canCancel || canReturn || (order.isExpired && order.canRetryPayment)) && <div className={styles.detailActions}>{canCancel && <button className={styles.textButton} onClick={() => navigate(`/cancel?orderId=${order.id}`)}>Отменить заказ</button>}{canReturn && <button className={styles.textButton} onClick={() => navigate(`/account?tab=returns&orderId=${order.id}`)}>Оформить возврат</button>}{order.isExpired && order.canRetryPayment && <button className={styles.textButton} onClick={() => { void api.retryMyOrderPayment(order.id).then(response => { if (response.data?.paymentUrl) window.location.assign(response.data.paymentUrl); }).catch(() => undefined); }}>Повторить оплату</button>}</div>}</section>;
+  const summary = <section className={`${styles.card} ${styles.summaryCard}`}><h2>Сумма заказа</h2><dl><dt>Товары</dt><dd>{amount(order.financials?.itemsSubtotal ?? order.total)}</dd><dt>Доставка</dt><dd>{order.financials?.deliveryAmount ? amount(order.financials.deliveryAmount) : 'Бесплатно'}</dd><dt className={styles.strong}>Итого</dt><dd className={styles.strong}>{amount(order.financials?.total ?? order.total)}</dd></dl>
+    <div className={styles.detailActions}>{order.items.map(item => <div key={item.id || item.productId} className={styles.productActionGroup}>
+      {order.items.length > 1 && <span>{item.title}</span>}
+      <button className={styles.textButton} onClick={() => navigate(`/product/${item.productId}`)}>Купить ещё раз</button>
+      {delivered && <button className={styles.textButton} onClick={() => navigate(`/product/${item.productId}/reviews`)}>Оставить отзыв</button>}
+    </div>)}
+      {canCancel && <button className={styles.textButton} onClick={() => navigate(`/cancel?orderId=${order.id}`)}>Отменить заказ</button>}
+      {canReturn && <button className={styles.textButton} onClick={() => navigate(`/account?tab=returns&orderId=${order.id}`)}>Оформить возврат</button>}
+      {order.isExpired && order.canRetryPayment && <button className={styles.textButton} onClick={() => { void api.retryMyOrderPayment(order.id).then(response => { if (response.data?.paymentUrl) window.location.assign(response.data.paymentUrl); }).catch(() => undefined); }}>Повторить оплату</button>}
+    </div>
+  </section>;
 
   return <main className={styles.page}>
     <button className={styles.back} onClick={() => navigate('/account?tab=orders')}>← К заказам</button>
@@ -42,9 +50,7 @@ export const BuyerOrderDetailPage = () => {
       {!delivered && <section className={styles.card}><h2>Этапы заказа</h2><OrderTimeline order={order} role="buyer" /></section>}
       {delivery}
       {recipient}
-      {delivered && products}
       {help}
-      {!delivered && products}
     </div><aside className={styles.side}>{summary}</aside></div>
   </main>;
 };

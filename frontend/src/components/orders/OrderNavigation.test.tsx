@@ -23,9 +23,11 @@ describe('order list navigation', () => {
     expect(screen.getByRole('heading', { name: 'Buyer detail' })).toBeInTheDocument();
   });
   it('keeps order actions out of the compact card', () => {
-    render(<MemoryRouter><OrderCompactCard order={order} /></MemoryRouter>);
+    const { container } = render(<MemoryRouter><OrderCompactCard order={order} /></MemoryRouter>);
     expect(screen.getByText('Модель')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Отменить заказ' })).not.toBeInTheDocument();
     expect(screen.getByRole('link')).toHaveAttribute('aria-label', 'Открыть заказ PF-18');
+    expect(container.querySelector('[class*="marketStatusDot"]')).toBeInTheDocument();
+    expect(screen.queryByText('●')).not.toBeInTheDocument();
   });
 });

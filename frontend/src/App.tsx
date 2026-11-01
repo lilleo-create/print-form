@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes, useParams } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import { Layout } from './widgets/layout/Layout';
 import { LandingPage } from './pages/LandingPage';
 import { CatalogPage } from './pages/CatalogPage';
@@ -17,7 +17,6 @@ import { ServiceRulesPage } from './pages/ServiceRulesPage';
 import { OfferPage } from './pages/OfferPage';
 import { CategoriesPage } from './pages/CategoriesPage';
 import { SellerOnboardingPage } from './pages/SellerOnboardingPage';
-import { OrdersPage } from './pages/OrdersPage';
 import { CartSavedPage } from './pages/CartSavedPage';
 import { CartSharedPage } from './pages/CartSharedPage';
 import { AdminLayout } from './pages/admin/AdminLayout';
@@ -37,11 +36,7 @@ import { SellerProductDetailPage } from './pages/SellerProductDetailPage';
 import { PaymentReturnPage } from './pages/PaymentReturnPage';
 import { SellerOrderDetailPage } from './pages/SellerOrderDetailPage';
 import { BuyerOrderDetailPage } from './pages/BuyerOrderDetailPage';
-
-const OrderRedirect = () => {
-  const { orderId } = useParams<{ orderId: string }>();
-  return <Navigate to={`/account?tab=orders${orderId ? `&orderId=${orderId}` : ''}`} replace />;
-};
+import { LegacyOrdersRedirect } from './app/routes/LegacyOrdersRedirect';
 
 const App = () => {
   return (
@@ -66,7 +61,7 @@ const App = () => {
           path="/cancel"
           element={
             <ProtectedRoute>
-              <OrdersPage />
+              <BuyerAccountPage />
             </ProtectedRoute>
           }
         />
@@ -74,7 +69,7 @@ const App = () => {
           path="/orders"
           element={
             <ProtectedRoute>
-              <OrdersPage />
+              <LegacyOrdersRedirect />
             </ProtectedRoute>
           }
         />
@@ -82,7 +77,7 @@ const App = () => {
           path="/orders/:orderId"
           element={
             <ProtectedRoute>
-              <OrderRedirect />
+              <LegacyOrdersRedirect />
             </ProtectedRoute>
           }
         />

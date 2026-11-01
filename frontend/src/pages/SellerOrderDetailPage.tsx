@@ -82,7 +82,6 @@ export const SellerOrderDetailPage = () => {
     <div className={styles.grid}>
       <div className={styles.main}>
         <section className={styles.card}><h2>Этапы заказа</h2><OrderTimeline order={order} role="seller" /></section>
-        <section className={styles.card}><h2>Товары</h2>{order.items.map(item => <div key={item.id || item.productId} className={styles.product}>{item.image && <img src={item.image} alt="" />}<div><strong>{item.title}</strong><p>{item.qty} шт. · {amount(item.priceKopecks ?? item.price)}</p></div></div>)}</section>
         <section className={styles.card}><h2>Доставка</h2><dl><dt>ПВЗ сдачи</dt><dd>{order.sellerDropoffPvzMeta?.addressFull || '—'}</dd><dt>ПВЗ покупателя</dt><dd>{order.buyerPickupPvzMeta?.addressFull || '—'}</dd><dt>Статус</dt><dd>{getHumanOrderStatus(order)}</dd><dt>Трек CDEK</dt><dd>{order.trackingNumber || 'Формируется'}</dd>{order.packedWeightGrams && <><dt>Вес коробки</dt><dd>{order.packedWeightGrams} г</dd></>}</dl></section>
       </div>
       <aside className={styles.side}>

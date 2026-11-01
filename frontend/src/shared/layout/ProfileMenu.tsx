@@ -102,8 +102,8 @@ export const ProfileMenu = ({
               <div className={styles.profileMenuSectionLabel}>Покупки</div>
 
               <Link
-                to={user ? '/orders' : `/auth/login?redirectTo=${encodeURIComponent('/orders')}`}
-                className={`${styles.profileMenuItem} ${pathname === '/orders' ? styles.profileMenuItemActive : ''}`}
+                to={user ? '/account?tab=orders' : `/auth/login?redirectTo=${encodeURIComponent('/account?tab=orders')}`}
+                className={`${styles.profileMenuItem} ${isAccountTab('orders') ? styles.profileMenuItemActive : ''}`}
                 onClick={onClose}
               >
                 <span className={styles.profileMenuIcon}><IcOrders /></span>Заказы
