@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../../app/store/authStore';
 import { Button } from '../../shared/ui/Button';
 import { OrdersTab } from './tabs/OrdersTab/OrdersTab';
@@ -10,11 +10,13 @@ import { ProfileTab } from './tabs/ProfileTab/ProfileTab';
 import { useBuyerOrders } from './hooks/useBuyerOrders';
 import { useMyReturns } from './hooks/useMyReturns';
 import { useMyChats } from './hooks/useMyChats';
+import { AdSidebar } from '../../components/product/AdSidebar';
+import { OrdersRecommendations } from './OrdersRecommendations';
 import styles from './BuyerAccountPage.module.css';
 
 export const BuyerAccountPage = () => {
   const user = useAuthStore((state) => state.user);
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') ?? 'profile';
   const threadIdParam = searchParams.get('threadId');
   const [showReturnCreate, setShowReturnCreate] = useState(false);
@@ -33,8 +35,11 @@ export const BuyerAccountPage = () => {
     }
   }, [activeTab]);
 
-  const { activeOrders, purchasedItems, returnCandidates, reloadOrders } =
+  const { activeOrders, completedOrders, purchasedItems, returnCandidates, reloadOrders } =
     useBuyerOrders(user);
+  const orderFilter = searchParams.get('view') === 'completed' ? 'completed' : 'active';
+  const isOrdersArea = activeTab === 'orders' || activeTab === 'purchases';
+  const visibleOrders = orderFilter === 'completed' ? completedOrders : activeOrders;
 
   const {
     returns,
@@ -119,7 +124,7 @@ export const BuyerAccountPage = () => {
   return (
     <section className={styles.page}>
       <div className="container">
-        {!isProfile && (
+        {!isProfile && !isOrdersArea && (
           <div className={styles.pageHeader}>
             {isReturns && showReturnCreate ? (
               <div className={styles.flowHeader}>
@@ -149,9 +154,25 @@ export const BuyerAccountPage = () => {
 
         {activeTab === 'profile' && <ProfileTab user={user} />}
 
-        {activeTab === 'orders' && <OrdersTab orders={activeOrders} />}
-
-        {activeTab === 'purchases' && <PurchasesTab items={purchasedItems} />}
+        {isOrdersArea && <div className={styles.ordersLayout}>
+          <div className={styles.ordersContent}>
+            <nav className={styles.mainTabs} aria-label="Раздел заказов">
+              <Link to="/account?tab=orders" className={activeTab === 'orders' ? styles.mainTabActive : styles.mainTab} aria-current={activeTab === 'orders' ? 'page' : undefined}>Заказы</Link>
+              <Link to="/account?tab=purchases" className={activeTab === 'purchases' ? styles.mainTabActive : styles.mainTab} aria-current={activeTab === 'purchases' ? 'page' : undefined}>Товары</Link>
+            </nav>
+            {activeTab === 'orders' ? <>
+              <div className={styles.orderFilters} role="group" aria-label="Состояние заказов">
+                <button type="button" className={orderFilter === 'active' ? styles.filterActive : styles.filter} aria-pressed={orderFilter === 'active'} onClick={() => { const next = new URLSearchParams(searchParams); next.delete('view'); setSearchParams(next); }}>Активные</button>
+                <button type="button" className={orderFilter === 'completed' ? styles.filterActive : styles.filter} aria-pressed={orderFilter === 'completed'} onClick={() => { const next = new URLSearchParams(searchParams); next.set('view', 'completed'); setSearchParams(next); }}>Завершённые</button>
+              </div>
+              {visibleOrders.length ? <OrdersTab orders={visibleOrders} /> : <>
+                <div className={styles.orderEmpty}><span className={styles.emptyIcon} aria-hidden="true">▧</span><h2>{orderFilter === 'active' ? 'Нет активных заказов' : 'Нет завершённых заказов'}</h2><p>{orderFilter === 'active' ? 'Здесь будут заказы, которые готовятся, едут или ждут получения.' : 'Здесь появятся полученные, отменённые и возвращённые заказы.'}</p></div>
+                <OrdersRecommendations />
+              </>}
+            </> : <PurchasesTab items={purchasedItems} />}
+          </div>
+          <div className={styles.ordersSidebar}><AdSidebar /></div>
+        </div>}
 
         {activeTab === 'returns' && (
           <ReturnsTab

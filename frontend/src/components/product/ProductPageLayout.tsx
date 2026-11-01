@@ -14,6 +14,7 @@ import { ProductDetails } from './ProductDetails';
 import { ProductPurchasePanel } from './ProductPurchasePanel';
 import { ProductReviewsPreview } from './ProductReviewsPreview';
 import { ProductFeed } from './ProductFeed';
+import { AdSidebar } from './AdSidebar';
 import { type SpecItem } from '../../pages/ProductPage/components/ProductSpecs/ProductSpecs';
 import { api } from '../../shared/api';
 import { getProductGroupKey, getProductVariants } from '../../shared/lib/productGrouping';
@@ -437,9 +438,7 @@ export const ProductPageLayout = ({ productId }: ProductPageLayoutProps) => {
             {/* Sentinel marks the natural bottom of buyBoxCard — used for header trigger */}
             <div ref={buyBoxSentinelRef} />
 
-            <div className={styles.adBlock}>
-              <span>Реклама</span>
-            </div>
+            <AdSidebar />
           </div>
         </div>
       </div>

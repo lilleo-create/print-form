@@ -51,4 +51,12 @@ describe('order detail pages', () => {
     expect(screen.getByRole('button', { name: 'Купить ещё раз' })).toBeInTheDocument();
     expect(screen.getByRole('list', { name: 'Этапы заказа' })).toBeInTheDocument();
   });
+  it('shows delivered details with receipt date and product actions without a dominant timeline', async () => {
+    vi.mocked(ordersApi.getById).mockResolvedValue({ ...order, status: 'DELIVERED', deliveredToRecipientAt: '2026-10-31T12:00:00Z' });
+    render(<MemoryRouter initialEntries={['/account/orders/order-18']}><Routes><Route path="/account/orders/:id" element={<BuyerOrderDetailPage />} /></Routes></MemoryRouter>);
+    expect(await screen.findByRole('heading', { name: 'Получен 31 октября' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Товары и магазин' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Оставить отзыв' })).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Этапы заказа' })).not.toBeInTheDocument();
+  });
 });

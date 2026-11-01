@@ -21,9 +21,10 @@ export const PurchasedItemsList = ({ items }: PurchasedItemsListProps) => {
     return <p className={styles.empty}>Пока нет купленных товаров.</p>;
   }
 
+  const uniqueItems = [...new Map(items.map(item => [item.productId, item])).values()];
   return (
     <div className={styles.grid}>
-      {items.map((item) => {
+      {uniqueItems.map((item) => {
         const imageSrc = resolveImageUrl(item.image);
         return (
           <Link to={`/product/${item.productId}`} key={`${item.orderId}-${item.productId}`} className={styles.card}>

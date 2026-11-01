@@ -468,22 +468,6 @@
   font-size: 13px;
 }
 
-.adBlock {
-  position: sticky;
-  top: 88px;
-  margin-top: 16px;
-  border: 1px dashed var(--border);
-  border-radius: 16px;
-  padding: 24px 16px;
-  min-height: 180px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--muted);
-  font-size: 12px;
-  background: var(--bg-2);
-}
-
 /* ══════════════════════════════════════════
    Content sections below gallery
    (О товаре / Характеристики / Отзывы)
@@ -948,7 +932,6 @@
   .purchasePanel { display: none; }
   .mobileBuyBar { display: flex; }
   .productTopRow { display: none; }
-  .adBlock { display: none; }
   .stickyBar { display: none; }
 
   .heroRow { gap: 16px; margin-bottom: 0; }

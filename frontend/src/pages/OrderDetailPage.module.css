@@ -87,6 +87,17 @@
 .actionRow button { background: var(--bg-2); color: var(--text); border: 1px solid var(--border); }
 .menu { position: relative; display: flex; gap: 8px; flex-wrap: wrap; }
 .error { color: #ff8282; }
+.deliveredHeading { display: flex; align-items: center; gap: 13px; margin: 2px 0 18px; }
+.deliveredHeading h2 { margin: 0; font-size: 26px; }
+.deliveredHeading p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+.deliveredIcon { width: 39px; height: 39px; display: grid; place-items: center; border-radius: 50%; color: var(--primary); background: color-mix(in srgb, var(--primary) 16%, transparent); font-weight: 800; }
+.summaryCard { position: sticky; top: 88px; }
+.sellerNextAction { border-color: color-mix(in srgb, var(--primary) 38%, var(--border)); background: linear-gradient(145deg, color-mix(in srgb, var(--primary) 7%, var(--card)), var(--card)); margin-bottom: 20px; }
+.sellerNextAction h2 { color: var(--text); }
+.inlineActions, .detailActions { display: flex; gap: 14px; flex-wrap: wrap; }
+.detailActions { border-top: 1px solid var(--border); margin-top: 18px; padding-top: 10px; }
+.detailActions .textButton { font-size: 14px; }
+@media (min-width: 761px) { .grid { grid-template-columns: minmax(0, 1.7fr) minmax(280px, .9fr); gap: 24px; } .main, .side { gap: 16px; } }
 
 @media (max-width: 760px) {
   .page { padding: 14px 16px 100px; }
@@ -96,4 +107,6 @@
   .card { padding: 19px; border-radius: 16px; }
   .card dl { grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); }
   .product img { width: 60px; height: 60px; }
+  .summaryCard { position: static; }
+  .deliveredHeading h2 { font-size: 22px; }
 }

@@ -6,17 +6,11 @@ import styles from './OrdersComponents.module.css';
 interface OrdersListProps {
   orders: Order[];
   highlightedOrderId?: string | null;
-  activeReturnOrderIds?: Set<string>;
-  onCancelOrder?: (order: Order) => void;
-  onRetryPayment?: (orderId: string) => void;
 }
 
 export const OrdersList = ({
   orders,
   highlightedOrderId = null,
-  activeReturnOrderIds,
-  onCancelOrder,
-  onRetryPayment
 }: OrdersListProps) => {
   const orderNodesRef = useRef<Record<string, HTMLDivElement | null>>({});
 
@@ -44,9 +38,6 @@ export const OrdersList = ({
           <OrderCompactCard
             order={order}
             highlighted={highlightedOrderId === order.id}
-            hasActiveReturn={Boolean(activeReturnOrderIds?.has(order.id))}
-            onCancelOrder={onCancelOrder}
-            onRetryPayment={onRetryPayment}
           />
         </div>
       ))}

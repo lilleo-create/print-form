@@ -1,0 +1,16 @@
+.adBlock {
+  position: sticky;
+  top: 88px;
+  margin-top: 16px;
+  border: 1px dashed var(--border);
+  border-radius: 16px;
+  min-height: 180px;
+  padding: 24px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-2);
+  color: var(--muted);
+  font-size: 12px;
+}
+@media (max-width: 720px) { .adBlock { display: none; } }

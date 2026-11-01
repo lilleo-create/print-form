@@ -33,18 +33,18 @@ export const useBuyerOrders = (user: User | null) => {
   }, [loadBuyerOrders, user]);
 
   const activeOrders = useMemo(
-    () => orders.filter((order) => !['DELIVERED', 'RETURNED'].includes(order.status)),
+    () => orders.filter((order) => !['DELIVERED', 'RETURNED', 'CANCELLED', 'EXPIRED'].includes(order.status)),
     [orders]
   );
 
-  const deliveredOrders = useMemo(
-    () => orders.filter((order) => order.status === 'DELIVERED'),
+  const completedOrders = useMemo(
+    () => orders.filter((order) => ['DELIVERED', 'RETURNED', 'CANCELLED', 'EXPIRED'].includes(order.status)),
     [orders]
   );
 
   const purchasedItems = useMemo(
     () =>
-      deliveredOrders.flatMap((order) =>
+      orders.filter(order => order.paymentStatus === 'PAID' && !['CANCELLED', 'RETURNED'].includes(order.status)).flatMap((order) =>
         (order.items ?? []).map((item) => ({
           productId: item.productId,
           title: item.title,
@@ -54,7 +54,7 @@ export const useBuyerOrders = (user: User | null) => {
           orderId: order.id
         }))
       ),
-    [deliveredOrders]
+    [orders]
   );
 
   const returnCandidates = useMemo(
@@ -78,5 +78,5 @@ export const useBuyerOrders = (user: User | null) => {
     [orders]
   );
 
-  return { activeOrders, purchasedItems, returnCandidates, reloadOrders: () => user ? loadBuyerOrders(user) : Promise.resolve() };
+  return { activeOrders, completedOrders, purchasedItems, returnCandidates, reloadOrders: () => user ? loadBuyerOrders(user) : Promise.resolve() };
 };

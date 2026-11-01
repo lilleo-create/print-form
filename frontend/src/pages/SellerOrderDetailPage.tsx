@@ -66,9 +66,7 @@ export const SellerOrderDetailPage = () => {
     <button className={styles.back} type="button" onClick={() => navigate('/seller', { state: { activeTab: 'Заказы' } })}>← К заказам</button>
     <OrderHero order={order} audience="seller" />
     {error && <p role="alert" className={styles.error}>{error}</p>}
-    <div className={styles.grid}>
-      <div className={styles.main}>
-        <section className={styles.card}><h2>Что дальше</h2>
+    <section className={`${styles.card} ${styles.sellerNextAction}`}><h2>Что дальше</h2>
           {next === 'production' && <button className={styles.primary} disabled={busy} onClick={() => void run(() => api.updateSellerOrderStatus(order.id, { status: 'PRINTING' }))}>Начать производство</button>}
           {next === 'pack' && <><button className={styles.primary} onClick={() => setPacking(true)}>Товар упакован</button><button className={styles.textButton} onClick={() => setGuide(true)}>Как правильно упаковать?</button></>}
           {next === 'shipment' && <><button className={styles.primary} disabled={busy || Boolean(readyToShipDisabledReason(order))} onClick={() => void run(() => ordersApi.readyToShip(order.id))}>Создать доставку в CDEK</button>{readyToShipDisabledReason(order) && <p>{readyToShipDisabledReason(order)}</p>}<button className={styles.textButton} onClick={() => setPacking(true)}>Изменить параметры посылки</button></>}
@@ -80,7 +78,9 @@ export const SellerOrderDetailPage = () => {
             <button disabled={!canDocuments} onClick={() => void run(async () => download(await api.downloadShipmentAct(order.shipment!.id) as Blob, `act-${order.publicNumber || order.id}.pdf`))}>Скачать акт</button>
             <div className={styles.menu}><button aria-label="Дополнительные действия" aria-expanded={menuOpen} onClick={() => setMenuOpen(value => !value)}>⋯</button>{menuOpen && <button onClick={() => { setMenuOpen(false); void run(() => order.shipment?.id ? ordersApi.syncShipment(order.shipment.id) : ordersApi.syncCdekOrder(order.id)); }}>Обновить статус доставки</button>}</div>
           </div>}
-        </section>
+    </section>
+    <div className={styles.grid}>
+      <div className={styles.main}>
         <section className={styles.card}><h2>Этапы заказа</h2><OrderTimeline order={order} role="seller" /></section>
         <section className={styles.card}><h2>Товары</h2>{order.items.map(item => <div key={item.id || item.productId} className={styles.product}>{item.image && <img src={item.image} alt="" />}<div><strong>{item.title}</strong><p>{item.qty} шт. · {amount(item.priceKopecks ?? item.price)}</p></div></div>)}</section>
         <section className={styles.card}><h2>Доставка</h2><dl><dt>ПВЗ сдачи</dt><dd>{order.sellerDropoffPvzMeta?.addressFull || '—'}</dd><dt>ПВЗ покупателя</dt><dd>{order.buyerPickupPvzMeta?.addressFull || '—'}</dd><dt>Статус</dt><dd>{getHumanOrderStatus(order)}</dd><dt>Трек CDEK</dt><dd>{order.trackingNumber || 'Формируется'}</dd>{order.packedWeightGrams && <><dt>Вес коробки</dt><dd>{order.packedWeightGrams} г</dd></>}</dl></section>
