@@ -22,6 +22,8 @@ export const useMyChats = (activeTab: string, threadIdParam: string | null) => {
   const [chatError, setChatError] = useState<string | null>(null);
   const [creatingSupportThread, setCreatingSupportThread] = useState(false);
   const createInFlight = useRef(false);
+  const submitInFlight = useRef(false);
+  const pendingSupportThreads = useRef<Record<string, ChatThread>>({});
 
   const refreshThreads = useCallback(
     async (preferredThreadId?: string | null) => {
@@ -125,6 +127,36 @@ export const useMyChats = (activeTab: string, threadIdParam: string | null) => {
     [chatThreads.active, loadChatThread, refreshThreads]
   );
 
+  const sendNewSupportQuestion = useCallback(
+    async (topic: string, text: string): Promise<boolean> => {
+      if (submitInFlight.current || !text.trim()) return false;
+      submitInFlight.current = true;
+      setCreatingSupportThread(true);
+      setChatError(null);
+      try {
+        let thread = chatThreads.active.find(item => item.kind === 'SUPPORT' && !item.returnRequest && item.supportTopic === topic)
+          ?? pendingSupportThreads.current[topic];
+        if (!thread) {
+          const response = await api.chats.createSupportThread({ topic });
+          thread = response.data;
+          pendingSupportThreads.current[topic] = thread;
+        }
+        await api.chats.sendMessage(thread.id, { text: text.trim() });
+        delete pendingSupportThreads.current[topic];
+        setSelectedThread(thread);
+        await Promise.allSettled([loadChatThread(thread.id), refreshThreads(thread.id)]);
+        return true;
+      } catch {
+        setChatError('Не удалось отправить вопрос. Попробуйте ещё раз.');
+        return false;
+      } finally {
+        submitInFlight.current = false;
+        setCreatingSupportThread(false);
+      }
+    },
+    [chatThreads.active, loadChatThread, refreshThreads]
+  );
+
   return {
     chatThreads,
     selectedThread,
@@ -134,6 +166,7 @@ export const useMyChats = (activeTab: string, threadIdParam: string | null) => {
     chatError,
     creatingSupportThread,
     handleSendMessage,
-    createSupportThread
+    createSupportThread,
+    sendNewSupportQuestion
   };
 };

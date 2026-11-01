@@ -62,7 +62,7 @@ export const BuyerAccountPage = () => {
     chatError,
     handleSendMessage,
     creatingSupportThread,
-    createSupportThread
+    sendNewSupportQuestion
   } = useMyChats(activeTab, threadIdParam);
 
   const isProfile = activeTab === 'profile';
@@ -119,9 +119,18 @@ export const BuyerAccountPage = () => {
           chatError={chatError}
           creatingSupportThread={creatingSupportThread}
           onSelectThread={setSelectedThread}
-          onShowSupportStart={() => setSelectedThread(null)}
+          onShowSupportStart={() => {
+            setSelectedThread(null);
+            if (threadIdParam) {
+              setSearchParams(previous => {
+                const next = new URLSearchParams(previous);
+                next.delete('threadId');
+                return next;
+              }, { replace: true });
+            }
+          }}
           onSendMessage={handleSendMessage}
-          onCreateSupportThread={createSupportThread}
+          onSubmitSupportQuestion={sendNewSupportQuestion}
         />
       </section>
     );

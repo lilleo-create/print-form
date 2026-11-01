@@ -6,15 +6,15 @@ import { ChatsTab } from './ChatsTab';
 
 const thread = (id: string, topic = 'Доставка', status: ChatThread['status'] = 'ACTIVE') =>
   ({ id, kind: 'SUPPORT', userId: 'buyer', status, supportTopic: topic, createdAt: '2026-10-31T12:00:00Z' }) as ChatThread;
-const order = (id: string, number: string) =>
-  ({ id, publicNumber: number, status: 'PAID', paymentStatus: 'PAID', createdAt: '2026-10-31T12:00:00Z',
-    items: [{ productId: id, title: `Товар ${number}`, qty: 1 }] }) as Order;
+const order = (id: string, number: string, status = 'PAID') =>
+  ({ id, publicNumber: number, status, paymentStatus: 'PAID', paidAt: '2026-10-31T12:00:00Z',
+    createdAt: '2026-10-31T12:00:00Z', items: [{ productId: id, title: `Товар ${number}`, qty: 1 }] }) as Order;
 
 const setup = (overrides: Partial<Parameters<typeof ChatsTab>[0]> = {}) => {
   const props = {
     recentOrders: [order('1', 'PF-18'), order('2', 'PF-17'), order('3', 'PF-16')],
     chatThreads: { active: [thread('active')], closed: [thread('closed', 'Возврат', 'CLOSED')] },
-    selectedThread: null,
+    selectedThread: null as ChatThread | null,
     chatMessages: [],
     chatLoading: false,
     chatError: null,
@@ -22,107 +22,176 @@ const setup = (overrides: Partial<Parameters<typeof ChatsTab>[0]> = {}) => {
     onSelectThread: vi.fn(),
     onShowSupportStart: vi.fn(),
     onSendMessage: vi.fn(),
-    onCreateSupportThread: vi.fn().mockResolvedValue(thread('created', 'Проблема с заказом')),
+    onSubmitSupportQuestion: vi.fn().mockResolvedValue(true),
     ...overrides
   };
-  render(<MemoryRouter><ChatsTab {...props} /></MemoryRouter>);
-  return props;
+  const view = render(<MemoryRouter><ChatsTab {...props} /></MemoryRouter>);
+  return { props, view };
 };
 
-describe('buyer chats workspace', () => {
-  it('shows a useful start screen with at most two recent orders', () => {
-    setup();
-    expect(screen.getAllByRole('heading', { name: 'Чем помочь?' }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole('button', { name: /PF-18/ }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole('button', { name: /PF-17/ }).length).toBeGreaterThan(0);
+describe('buyer support bot flow', () => {
+  it('opens the compact virtual support chat with two orders and no composer', () => {
+    const { props } = setup();
+    expect(screen.getByText('Здравствуйте! С чем помочь?')).toBeInTheDocument();
+    expect(screen.queryByText(/Сообщение отправится только после/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /PF-18/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /PF-17/ })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /PF-16/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Оплата' })).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Напишите ваш вопрос...')).not.toBeInTheDocument();
+    expect(props.onSubmitSupportQuestion).not.toHaveBeenCalled();
+    expect(screen.queryByText('Мои диалоги')).not.toBeInTheDocument();
+    expect(screen.queryByText('Активные')).not.toBeInTheDocument();
+    expect(screen.queryByText('Завершённые')).not.toBeInTheDocument();
+    expect(screen.queryByText('Нет чатов.')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Показать архив/ })).toBeInTheDocument();
+    expect(screen.getByText('Здравствуйте! С чем помочь?').closest('[class*="flowContent"]')).toBeInTheDocument();
   });
 
-  it('starts a quick order conversation without sending a message', async () => {
-    const props = setup();
-    fireEvent.click(screen.getAllByRole('button', { name: /PF-18/ })[0]);
-    await waitFor(() => expect(props.onCreateSupportThread).toHaveBeenCalledWith('Проблема с заказом'));
-    expect(props.onSendMessage).not.toHaveBeenCalled();
-    expect(props.onSelectThread).toHaveBeenCalledWith(expect.objectContaining({ id: 'created' }));
+  it('opens archived threads in a separate local left-panel view and returns', () => {
+    const { props } = setup();
+    expect(screen.queryByRole('button', { name: /Поддержка · Возврат/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Показать архив/ }));
+    expect(screen.getByRole('heading', { name: 'Архив' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Поддержка · Возврат/ }));
+    expect(props.onSelectThread).toHaveBeenCalledWith(expect.objectContaining({ id: 'closed' }));
+    fireEvent.click(screen.getByRole('button', { name: '← Назад' }));
+    expect(screen.getByRole('button', { name: /Показать архив/ })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Архив' })).not.toBeInTheDocument();
   });
 
-  it('prefills the order context when the selected thread opens', async () => {
-    const created = thread('created', 'Проблема с заказом');
-    const props = {
-      recentOrders: [order('1', 'PF-18')],
-      chatThreads: { active: [], closed: [] },
-      selectedThread: null as ChatThread | null,
-      chatMessages: [],
-      chatLoading: false,
-      chatError: null,
-      creatingSupportThread: false,
-      onSelectThread: vi.fn(),
-      onShowSupportStart: vi.fn(),
-      onSendMessage: vi.fn(),
-      onCreateSupportThread: vi.fn().mockResolvedValue(created)
-    };
-    const view = render(<MemoryRouter><ChatsTab {...props} /></MemoryRouter>);
-    fireEvent.click(screen.getAllByRole('button', { name: /PF-18/ })[0]);
-    await waitFor(() => expect(props.onSelectThread).toHaveBeenCalled());
-    view.rerender(<MemoryRouter><ChatsTab {...props} selectedThread={created} /></MemoryRouter>);
-    expect(screen.getByPlaceholderText('Написать сообщение...')).toHaveValue('Вопрос по заказу PF-18: ');
-    expect(props.onSendMessage).not.toHaveBeenCalled();
+  it('shows a small empty archive message', () => {
+    setup({ chatThreads: { active: [], closed: [] } });
+    fireEvent.click(screen.getByRole('button', { name: /Показать архив/ }));
+    expect(screen.getByText('В архиве пока ничего нет')).toBeInTheDocument();
+    expect(screen.queryByText('Нет чатов.')).not.toBeInTheDocument();
+  });
+
+  it('shows order questions without creating a thread or sending', () => {
+    const { props } = setup();
+    fireEvent.click(screen.getByRole('button', { name: /PF-18/ }));
+    expect(screen.getByText('Что хотите уточнить по заказу PF-18?')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Когда придёт/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Оплата' })).not.toBeInTheDocument();
+    expect(props.onSubmitSupportQuestion).not.toHaveBeenCalled();
+  });
+
+  it('hides arrival questions for an already delivered order', () => {
+    setup({ recentOrders: [order('done', 'PF-17', 'DELIVERED')] });
+    fireEvent.click(screen.getByRole('button', { name: /PF-17/ }));
+    expect(screen.queryByRole('button', { name: /Когда придёт/ })).not.toBeInTheDocument();
+  });
+
+  it('shows delivery subcategories without creating a thread', () => {
+    const { props } = setup();
+    fireEvent.click(screen.getByRole('button', { name: 'Доставка' }));
+    expect(screen.getByText('Что хотите уточнить о доставке?')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Срок доставки/ })).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Напишите ваш вопрос...')).not.toBeInTheDocument();
+    expect(props.onSubmitSupportQuestion).not.toHaveBeenCalled();
   });
 
   it.each([
-    ['Оплата', 'Оплата и возврат средств'],
-    ['Возврат', 'Оплата и возврат средств'],
-    ['Доставка', 'Доставка'],
-    ['Работа сервиса', 'Произвольный вопрос'],
-    ['Другой вопрос', 'Произвольный вопрос']
-  ])('uses the existing support topic for %s', async (label, value) => {
-    const props = setup();
-    fireEvent.click(screen.getAllByRole('button', { name: label })[0]);
-    await waitFor(() => expect(props.onCreateSupportThread).toHaveBeenCalledWith(value));
+    ['Оплата', 'Что произошло с оплатой?', 'Оплата не проходит'],
+    ['Возврат', 'Что хотите узнать о возврате?', 'Статус возврата'],
+    ['Работа сервиса', 'С чем возник вопрос?', 'Ошибка на сайте']
+  ])('shows %s questions', (category, prompt, option) => {
+    setup();
+    fireEvent.click(screen.getByRole('button', { name: category }));
+    expect(screen.getByText(prompt)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: new RegExp(option) })).toBeInTheDocument();
   });
 
-  it('keeps existing active and closed thread selection', () => {
-    const props = setup();
+  it('opens an empty editable composer for another question', () => {
+    const { props } = setup();
+    fireEvent.click(screen.getByRole('button', { name: 'Другой вопрос' }));
+    const input = screen.getByPlaceholderText('Напишите ваш вопрос...');
+    expect(input).toHaveValue('');
+    fireEvent.change(input, { target: { value: 'Мой вопрос' } });
+    expect(input).toHaveValue('Мой вопрос');
+    expect(props.onSubmitSupportQuestion).not.toHaveBeenCalled();
+  });
+
+  it('prefills a leaf draft, allows editing and sends only on explicit submit', async () => {
+    const { props } = setup();
+    fireEvent.click(screen.getByRole('button', { name: 'Оплата' }));
+    fireEvent.click(screen.getByRole('button', { name: /Деньги списались/ }));
+    const input = screen.getByPlaceholderText('Напишите ваш вопрос...');
+    expect(input).toHaveValue('Деньги списались, но заказ не отображается как оплаченный. ');
+    expect(props.onSubmitSupportQuestion).not.toHaveBeenCalled();
+    fireEvent.change(input, { target: { value: 'Платёж прошёл, заказ ожидает оплаты.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Отправить' }));
+    await waitFor(() => expect(props.onSubmitSupportQuestion).toHaveBeenCalledWith('Оплата и возврат средств', 'Платёж прошёл, заказ ожидает оплаты.'));
+    expect(props.onSubmitSupportQuestion).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps order number in an editable draft', () => {
+    setup();
+    fireEvent.click(screen.getByRole('button', { name: /PF-18/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Когда придёт/ }));
+    expect(screen.getByPlaceholderText('Напишите ваш вопрос...')).toHaveValue('Заказ PF-18. Хочу уточнить срок доставки: ');
+  });
+
+  it('backs from composer to category and from category to root', () => {
+    setup();
+    fireEvent.click(screen.getByRole('button', { name: 'Доставка' }));
+    fireEvent.click(screen.getByRole('button', { name: /Срок доставки/ }));
+    fireEvent.click(screen.getByRole('button', { name: '← Назад' }));
+    expect(screen.getByText('Что хотите уточнить о доставке?')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '← Назад' }));
+    expect(screen.getByText('Здравствуйте! С чем помочь?')).toBeInTheDocument();
+  });
+
+  it('opens existing threads directly with messages and return details', () => {
+    const returnsThread = {
+      ...thread('return'), returnRequest: { id: 'return-1', status: 'REQUESTED',
+        statusLabelRu: 'На рассмотрении', reason: 'DAMAGED', items: [], photos: [],
+        createdAt: '2026-10-31T12:00:00Z' }
+    } as unknown as ChatThread;
+    const { props, view } = setup();
     fireEvent.click(screen.getByRole('button', { name: /Поддержка · Доставка/ }));
     expect(props.onSelectThread).toHaveBeenCalledWith(expect.objectContaining({ id: 'active' }));
-    fireEvent.click(screen.getByRole('button', { name: /Поддержка · Возврат/ }));
-    expect(props.onSelectThread).toHaveBeenCalledWith(expect.objectContaining({ id: 'closed' }));
-  });
-
-  it('renders messages and sends only when the user submits', () => {
-    const props = setup({ selectedThread: thread('active'), chatMessages: [{
-      id: 'm1', threadId: 'active', authorRole: 'ADMIN', authorId: 'admin', text: 'Здравствуйте',
-      createdAt: '2026-10-31T12:00:00Z'
-    }] });
+    view.rerender(<MemoryRouter><ChatsTab {...props} selectedThread={returnsThread} chatMessages={[{
+      id: 'm1', threadId: 'return', authorRole: 'ADMIN', authorId: 'admin',
+      text: 'Здравствуйте', createdAt: '2026-10-31T12:00:00Z'
+    }]} /></MemoryRouter>);
     expect(screen.getByText('Здравствуйте')).toBeInTheDocument();
-    fireEvent.change(screen.getByPlaceholderText('Написать сообщение...'), { target: { value: 'Мой вопрос' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Отправить' }));
-    expect(props.onSendMessage).toHaveBeenCalledWith('Мой вопрос');
-    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
-    expect(screen.getByRole('heading', { name: 'Чаты' })).toBeInTheDocument();
-  });
-
-  it('keeps the return conversation and its detail card', () => {
-    const returnsThread = {
-      ...thread('return'),
-      returnRequest: { id: 'return-1', status: 'REQUESTED', statusLabelRu: 'На рассмотрении',
-        reason: 'DAMAGED', items: [], photos: [], createdAt: '2026-10-31T12:00:00Z' }
-    } as unknown as ChatThread;
-    setup({ selectedThread: returnsThread });
     expect(screen.getByText('Заявка на возврат')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Заявка на возврат/ }));
     expect(screen.getByText('Детали возврата')).toBeInTheDocument();
+    expect(props.onSubmitSupportQuestion).not.toHaveBeenCalled();
   });
 
-  it('prevents a second create while the first one is pending', async () => {
-    let resolve!: (value: ChatThread) => void;
-    const pending = new Promise<ChatThread>(r => { resolve = r; });
-    const create = vi.fn().mockReturnValue(pending);
-    setup({ onCreateSupportThread: create });
-    fireEvent.click(screen.getAllByRole('button', { name: 'Оплата' })[0]);
-    fireEvent.click(screen.getAllByRole('button', { name: 'Возврат' })[0]);
-    expect(create).toHaveBeenCalledTimes(1);
-    resolve(thread('created'));
-    await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+  it('keeps grouped support/user bubbles, a date separator, and a closed read-only chat', () => {
+    const closed = thread('closed', 'Доставка', 'CLOSED');
+    const now = new Date().toISOString();
+    setup({ selectedThread: closed, chatMessages: [
+      { id: 'a', threadId: 'closed', authorRole: 'ADMIN', authorId: 'admin', text: 'Первый ответ', createdAt: now },
+      { id: 'b', threadId: 'closed', authorRole: 'ADMIN', authorId: 'admin', text: 'Второй ответ', createdAt: now },
+      { id: 'c', threadId: 'closed', authorRole: 'USER', authorId: 'buyer', text: 'Спасибо', createdAt: now }
+    ] });
+    expect(screen.getByText('Первый ответ').closest('[class*="messageAdmin"]')).toBeInTheDocument();
+    expect(screen.getByText('Спасибо').closest('[class*="messageUser"]')).toBeInTheDocument();
+    expect(screen.getAllByText('Поддержка Print-Form')).toHaveLength(2);
+    expect(screen.getByText('Сегодня')).toBeInTheDocument();
+    expect(screen.getByText('Диалог завершён')).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Написать сообщение...')).not.toBeInTheDocument();
+  });
+
+  it('keeps sending from an existing active thread', async () => {
+    const { props } = setup({ selectedThread: thread('active') });
+    fireEvent.change(screen.getByPlaceholderText('Написать сообщение...'), { target: { value: 'Где заказ?' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Отправить' }));
+    await waitFor(() => expect(props.onSendMessage).toHaveBeenCalledWith('Где заказ?'));
+    expect(props.onSubmitSupportQuestion).not.toHaveBeenCalled();
+  });
+
+  it('uses the support entry to restart the local flow and mobile back to show the list', () => {
+    const { props } = setup();
+    fireEvent.click(screen.getByRole('button', { name: 'Оплата' }));
+    fireEvent.click(screen.getByRole('button', { name: 'К списку чатов' }));
+    fireEvent.click(screen.getByRole('button', { name: /Поддержка Print-Form Поможем/ }));
+    expect(props.onShowSupportStart).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('Здравствуйте! С чем помочь?')).toBeInTheDocument();
   });
 });

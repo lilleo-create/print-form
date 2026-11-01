@@ -360,11 +360,12 @@
 .messages {
   flex: 1;
   overflow-y: auto;
-  padding: 16px 18px;
+  padding: 16px max(18px, calc((100% - 620px) / 2));
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-height: 0;
+  background: var(--bg);
   /* Hide native scrollbar — preserves scroll functionality */
   scrollbar-width: none;
 }
@@ -392,10 +393,7 @@
   font-size: 11px;
   font-weight: 600;
   color: var(--muted);
-  background: var(--bg-2);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 3px 12px;
+  padding: 3px 0;
   letter-spacing: 0.02em;
 }
 
@@ -404,7 +402,7 @@
 .messageAdmin {
   display: flex;
   flex-direction: column;
-  max-width: 72%;
+  max-width: 75%;
   margin-top: 10px;
 }
 
@@ -443,7 +441,6 @@
 
 .messageAdmin .bubble {
   background: var(--bg-2);
-  border: 1px solid var(--border);
   color: var(--text);
   border-bottom-left-radius: 4px;
 }

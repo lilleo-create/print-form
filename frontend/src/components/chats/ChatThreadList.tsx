@@ -2,10 +2,11 @@ import { ChatThread } from '../../shared/types';
 import styles from './ChatThreadList.module.css';
 
 interface ChatThreadListProps {
-  title: string;
+  title?: string;
   threads: ChatThread[];
   activeId?: string | null;
   onSelect: (thread: ChatThread) => void;
+  showEmpty?: boolean;
 }
 
 const getThreadTitle = (thread: ChatThread) => {
@@ -16,12 +17,12 @@ const getThreadTitle = (thread: ChatThread) => {
   return thread.sellerShopName ? `Продавец · ${thread.sellerShopName}` : 'Продавец';
 };
 
-export const ChatThreadList = ({ title, threads, activeId, onSelect }: ChatThreadListProps) => {
+export const ChatThreadList = ({ title, threads, activeId, onSelect, showEmpty = true }: ChatThreadListProps) => {
   return (
     <section className={styles.section}>
-      <h3 className={styles.sectionTitle}>{title}</h3>
+      {title && <h3 className={styles.sectionTitle}>{title}</h3>}
       {threads.length === 0 ? (
-        <p className={styles.empty}>Нет чатов.</p>
+        showEmpty ? <p className={styles.empty}>Нет чатов.</p> : null
       ) : (
         <div className={styles.list}>
           {threads.map((thread) => (

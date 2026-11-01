@@ -105,7 +105,7 @@ export const ChatWindow = ({ thread, messages, loading, error, onSend, onBack, d
           </button>
         )}
         <div className={styles.threadHeaderText}>
-          <strong>{thread.returnRequest ? 'Возврат' : thread.kind === 'SELLER' ? 'Чат с продавцом' : 'Поддержка Print-Form'}</strong>
+          <strong>{thread.returnRequest ? 'Возврат' : thread.kind === 'SELLER' ? 'Чат с продавцом' : 'Чат с поддержкой'}</strong>
           <p>{getThreadSubtitle(thread)}</p>
         </div>
         {thread.status === 'CLOSED' && (
@@ -216,8 +216,8 @@ export const ChatWindow = ({ thread, messages, loading, error, onSend, onBack, d
                 </div>
               )}
               <div className={`${isUser ? styles.messageUser : styles.messageAdmin} ${prevSame ? styles.messageContinued : ''}`}>
-                {!prevSame && (
-                  <span className={styles.senderLabel}>{isUser ? 'Вы' : <><span className={styles.senderAvatar} aria-hidden="true">PF</span> Поддержка</>}</span>
+                {!isUser && !prevSame && (
+                  <span className={styles.senderLabel}><span className={styles.senderAvatar} aria-hidden="true">{thread.kind === 'SELLER' ? '✦' : 'PF'}</span> {thread.kind === 'SELLER' ? 'Продавец' : 'Поддержка Print-Form'}</span>
                 )}
                 <div className={styles.bubble}>
                   <p>{message.text}</p>
@@ -236,7 +236,7 @@ export const ChatWindow = ({ thread, messages, loading, error, onSend, onBack, d
       {/* Composer */}
       <div className={styles.composerWrap}>
         {thread.status === 'CLOSED' ? (
-          <p className={styles.closedNote}>Диалог закрыт. Отправка сообщений недоступна.</p>
+          <p className={styles.closedNote}>Диалог завершён</p>
         ) : (
           <MessageComposer onSend={onSend} draft={draft} focusKey={focusKey} />
         )}

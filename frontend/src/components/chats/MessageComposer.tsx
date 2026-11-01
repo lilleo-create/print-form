@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useRef, useState } from 'react';
 import styles from './MessageComposer.module.css';
 
 type MessageComposerProps = {
-  onSend: (text: string) => void;
+  onSend: (text: string) => Promise<boolean | void> | boolean | void;
   disabled?: boolean;
   placeholder?: string;
   draft?: string;
@@ -11,6 +11,8 @@ type MessageComposerProps = {
 
 export const MessageComposer = ({ onSend, disabled, placeholder, draft, focusKey }: MessageComposerProps) => {
   const [value, setValue] = useState('');
+  const [sending, setSending] = useState(false);
+  const sendingRef = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (!focusKey) return;
@@ -18,12 +20,19 @@ export const MessageComposer = ({ onSend, disabled, placeholder, draft, focusKey
     inputRef.current?.focus();
   }, [focusKey, draft]);
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     const trimmed = value.trim();
-    if (!trimmed) return;
-    onSend(trimmed);
-    setValue('');
+    if (!trimmed || sendingRef.current) return;
+    sendingRef.current = true;
+    setSending(true);
+    try {
+      const sent = await onSend(trimmed);
+      if (sent !== false) setValue('');
+    } finally {
+      sendingRef.current = false;
+      setSending(false);
+    }
   };
 
   return (
@@ -34,12 +43,12 @@ export const MessageComposer = ({ onSend, disabled, placeholder, draft, focusKey
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder={placeholder ?? 'Написать сообщение...'}
-        disabled={disabled}
+        disabled={disabled || sending}
       />
       <button
         type="submit"
         className={styles.sendBtn}
-        disabled={disabled || !value.trim()}
+        disabled={disabled || sending || !value.trim()}
         aria-label="Отправить"
       >
         <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
