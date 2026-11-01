@@ -14,6 +14,8 @@ interface ChatWindowProps {
   error?: string | null;
   onSend: (text: string) => Promise<void> | void;
   onBack?: () => void;
+  draft?: string;
+  focusKey?: number;
 }
 
 const reasonLabels: Record<string, string> = {
@@ -23,13 +25,11 @@ const reasonLabels: Record<string, string> = {
 };
 
 const getThreadSubtitle = (thread: ChatThread) => {
-  if (thread.returnRequest) return 'Чат по заявке на возврат';
+  if (thread.returnRequest) return getReturnStatusLabel(thread.returnRequest.status, thread.returnRequest.statusLabelRu);
   if (thread.kind === 'SELLER') {
-    return thread.sellerShopName
-      ? `Диалог с магазином «${thread.sellerShopName}»`
-      : 'Диалог с продавцом';
+    return thread.sellerShopName || 'Диалог с продавцом';
   }
-  return thread.supportTopic ? `Тема: ${thread.supportTopic}` : 'Обращение в поддержку';
+  return thread.supportTopic || 'Обращение в поддержку';
 };
 
 const getDateKey = (dateStr: string) => new Date(dateStr).toDateString();
@@ -48,7 +48,7 @@ const getDateLabel = (dateStr: string): string => {
   });
 };
 
-export const ChatWindow = ({ thread, messages, loading, error, onSend, onBack }: ChatWindowProps) => {
+export const ChatWindow = ({ thread, messages, loading, error, onSend, onBack, draft, focusKey }: ChatWindowProps) => {
   const messagesRef = useRef<HTMLDivElement>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
 
@@ -105,7 +105,7 @@ export const ChatWindow = ({ thread, messages, loading, error, onSend, onBack }:
           </button>
         )}
         <div className={styles.threadHeaderText}>
-          <strong>{thread.kind === 'SELLER' ? 'Чат с продавцом' : 'Чат поддержки'}</strong>
+          <strong>{thread.returnRequest ? 'Возврат' : thread.kind === 'SELLER' ? 'Чат с продавцом' : 'Поддержка Print-Form'}</strong>
           <p>{getThreadSubtitle(thread)}</p>
         </div>
         {thread.status === 'CLOSED' && (
@@ -217,7 +217,7 @@ export const ChatWindow = ({ thread, messages, loading, error, onSend, onBack }:
               )}
               <div className={`${isUser ? styles.messageUser : styles.messageAdmin} ${prevSame ? styles.messageContinued : ''}`}>
                 {!prevSame && (
-                  <span className={styles.senderLabel}>{isUser ? 'Вы' : 'Поддержка'}</span>
+                  <span className={styles.senderLabel}>{isUser ? 'Вы' : <><span className={styles.senderAvatar} aria-hidden="true">PF</span> Поддержка</>}</span>
                 )}
                 <div className={styles.bubble}>
                   <p>{message.text}</p>
@@ -238,7 +238,7 @@ export const ChatWindow = ({ thread, messages, loading, error, onSend, onBack }:
         {thread.status === 'CLOSED' ? (
           <p className={styles.closedNote}>Диалог закрыт. Отправка сообщений недоступна.</p>
         ) : (
-          <MessageComposer onSend={onSend} />
+          <MessageComposer onSend={onSend} draft={draft} focusKey={focusKey} />
         )}
       </div>
     </div>

@@ -102,6 +102,19 @@
   min-width: 0;
 }
 
+.senderAvatar {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-right: 4px;
+  border-radius: 6px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 9px;
+  font-weight: 800;
+}
+
 .threadHeaderText strong {
   font-size: 14px;
   font-weight: 700;

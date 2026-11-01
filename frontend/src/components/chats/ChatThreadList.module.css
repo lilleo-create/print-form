@@ -46,6 +46,19 @@
   border-left-color: var(--primary);
 }
 
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 10px;
+  background: var(--bg-2);
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 800;
+}
+
 .itemBody {
   flex: 1;
   min-width: 0;

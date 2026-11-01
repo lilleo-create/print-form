@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../../../shared/api';
 import { ChatMessage, ChatThread } from '../../../shared/types';
 
@@ -21,6 +21,7 @@ export const useMyChats = (activeTab: string, threadIdParam: string | null) => {
   const [chatLoading, setChatLoading] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
   const [creatingSupportThread, setCreatingSupportThread] = useState(false);
+  const createInFlight = useRef(false);
 
   const refreshThreads = useCallback(
     async (preferredThreadId?: string | null) => {
@@ -40,7 +41,7 @@ export const useMyChats = (activeTab: string, threadIdParam: string | null) => {
         }
         return prev
           ? (allThreads.find((thread) => thread.id === prev.id) ?? prev)
-          : (allThreads[0] ?? null);
+          : null;
       });
       return data;
     },
@@ -99,6 +100,13 @@ export const useMyChats = (activeTab: string, threadIdParam: string | null) => {
 
   const createSupportThread = useCallback(
     async (topic: string) => {
+      if (createInFlight.current) return null;
+      const existing = chatThreads.active.find(thread => thread.kind === 'SUPPORT' && !thread.returnRequest && thread.supportTopic === topic);
+      if (existing) {
+        setSelectedThread(existing);
+        return existing;
+      }
+      createInFlight.current = true;
       setCreatingSupportThread(true);
       setChatError(null);
       try {
@@ -110,10 +118,11 @@ export const useMyChats = (activeTab: string, threadIdParam: string | null) => {
         setChatError('Не удалось создать обращение в поддержку.');
         return null;
       } finally {
+        createInFlight.current = false;
         setCreatingSupportThread(false);
       }
     },
-    [loadChatThread, refreshThreads]
+    [chatThreads.active, loadChatThread, refreshThreads]
   );
 
   return {

@@ -29,8 +29,10 @@ export const ChatThreadList = ({ title, threads, activeId, onSelect }: ChatThrea
               type="button"
               key={thread.id}
               className={activeId === thread.id ? styles.itemActive : styles.item}
+              aria-pressed={activeId === thread.id}
               onClick={() => onSelect(thread)}
             >
+              <span className={styles.avatar} aria-hidden="true">{thread.returnRequest ? '↩' : thread.kind === 'SUPPORT' ? 'PF' : '✦'}</span>
               <div className={styles.itemBody}>
                 <span className={styles.itemTitle}>{getThreadTitle(thread)}</span>
                 <span className={styles.preview}>

@@ -1,14 +1,22 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import styles from './MessageComposer.module.css';
 
 type MessageComposerProps = {
   onSend: (text: string) => void;
   disabled?: boolean;
   placeholder?: string;
+  draft?: string;
+  focusKey?: number;
 };
 
-export const MessageComposer = ({ onSend, disabled, placeholder }: MessageComposerProps) => {
+export const MessageComposer = ({ onSend, disabled, placeholder, draft, focusKey }: MessageComposerProps) => {
   const [value, setValue] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!focusKey) return;
+    setValue(draft ?? '');
+    inputRef.current?.focus();
+  }, [focusKey, draft]);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -21,6 +29,7 @@ export const MessageComposer = ({ onSend, disabled, placeholder }: MessageCompos
   return (
     <form className={styles.form} onSubmit={handleSubmit}>
       <input
+        ref={inputRef}
         className={styles.input}
         value={value}
         onChange={(e) => setValue(e.target.value)}

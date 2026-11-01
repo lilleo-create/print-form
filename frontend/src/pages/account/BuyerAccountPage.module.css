@@ -3,13 +3,10 @@
   align-self: stretch;
 }
 
-/* Чат занимает всё доступное пространство без скролла страницы */
 .pageChats {
   width: 100%;
   align-self: stretch;
-  display: flex;
-  flex-direction: column;
-  padding: 0;
+  padding: 24px 16px 64px;
 }
 
 .pageHeader {

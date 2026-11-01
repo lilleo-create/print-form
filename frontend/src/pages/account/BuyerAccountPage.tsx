@@ -40,6 +40,11 @@ export const BuyerAccountPage = () => {
   const orderFilter = searchParams.get('view') === 'completed' ? 'completed' : 'active';
   const isOrdersArea = activeTab === 'orders' || activeTab === 'purchases';
   const visibleOrders = orderFilter === 'completed' ? completedOrders : activeOrders;
+  const byNewest = (a: { createdAt: string }, b: { createdAt: string }) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  const recentOrders = [
+    ...activeOrders.filter(order => order.paymentStatus === 'PAID').sort(byNewest),
+    ...completedOrders.filter(order => order.status === 'DELIVERED').sort(byNewest)
+  ].slice(0, 2);
 
   const {
     returns,
@@ -102,11 +107,11 @@ export const BuyerAccountPage = () => {
     closeReturnCreate();
   };
 
-  // Chat tab renders outside the normal container so it fills the viewport
   if (isChats) {
     return (
       <section className={styles.pageChats}>
         <ChatsTab
+          recentOrders={recentOrders}
           chatThreads={chatThreads}
           selectedThread={selectedThread}
           chatMessages={chatMessages}
@@ -114,6 +119,7 @@ export const BuyerAccountPage = () => {
           chatError={chatError}
           creatingSupportThread={creatingSupportThread}
           onSelectThread={setSelectedThread}
+          onShowSupportStart={() => setSelectedThread(null)}
           onSendMessage={handleSendMessage}
           onCreateSupportThread={createSupportThread}
         />
