@@ -7,9 +7,10 @@ type MessageComposerProps = {
   placeholder?: string;
   draft?: string;
   focusKey?: number;
+  onValueChange?: (value: string) => void;
 };
 
-export const MessageComposer = ({ onSend, disabled, placeholder, draft, focusKey }: MessageComposerProps) => {
+export const MessageComposer = ({ onSend, disabled, placeholder, draft, focusKey, onValueChange }: MessageComposerProps) => {
   const [value, setValue] = useState('');
   const [sending, setSending] = useState(false);
   const sendingRef = useRef(false);
@@ -18,7 +19,7 @@ export const MessageComposer = ({ onSend, disabled, placeholder, draft, focusKey
     if (!focusKey) return;
     setValue(draft ?? '');
     inputRef.current?.focus();
-  }, [focusKey, draft]);
+  }, [focusKey]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -28,7 +29,10 @@ export const MessageComposer = ({ onSend, disabled, placeholder, draft, focusKey
     setSending(true);
     try {
       const sent = await onSend(trimmed);
-      if (sent !== false) setValue('');
+      if (sent !== false) {
+        setValue('');
+        onValueChange?.('');
+      }
     } finally {
       sendingRef.current = false;
       setSending(false);
@@ -41,7 +45,10 @@ export const MessageComposer = ({ onSend, disabled, placeholder, draft, focusKey
         ref={inputRef}
         className={styles.input}
         value={value}
-        onChange={(e) => setValue(e.target.value)}
+        onChange={(e) => {
+          setValue(e.target.value);
+          onValueChange?.(e.target.value);
+        }}
         placeholder={placeholder ?? 'Написать сообщение...'}
         disabled={disabled || sending}
       />

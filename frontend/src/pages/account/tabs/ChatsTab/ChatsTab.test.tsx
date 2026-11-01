@@ -30,7 +30,7 @@ const setup = (overrides: Partial<Parameters<typeof ChatsTab>[0]> = {}) => {
 };
 
 describe('buyer support bot flow', () => {
-  it('opens the compact virtual support chat with two orders and no composer', () => {
+  it('opens the support chat with two orders, a composer, and no global close control', () => {
     const { props } = setup();
     expect(screen.getByText('Здравствуйте! С чем помочь?')).toBeInTheDocument();
     expect(screen.queryByText(/Сообщение отправится только после/)).not.toBeInTheDocument();
@@ -38,7 +38,9 @@ describe('buyer support bot flow', () => {
     expect(screen.getByRole('button', { name: /PF-17/ })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /PF-16/ })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Оплата' })).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText('Напишите ваш вопрос...')).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Напишите ваш вопрос...')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Чаты' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Закрыть чаты' })).not.toBeInTheDocument();
     expect(props.onSubmitSupportQuestion).not.toHaveBeenCalled();
     expect(screen.queryByText('Мои диалоги')).not.toBeInTheDocument();
     expect(screen.queryByText('Активные')).not.toBeInTheDocument();
@@ -52,10 +54,11 @@ describe('buyer support bot flow', () => {
     const { props } = setup();
     expect(screen.queryByRole('button', { name: /Поддержка · Возврат/ })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Показать архив/ }));
-    expect(screen.getByRole('heading', { name: 'Архив' })).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { name: 'Архив' })).toHaveLength(1);
+    expect(screen.queryByText('← Назад')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Поддержка · Возврат/ }));
     expect(props.onSelectThread).toHaveBeenCalledWith(expect.objectContaining({ id: 'closed' }));
-    fireEvent.click(screen.getByRole('button', { name: '← Назад' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Вернуться к чатам' }));
     expect(screen.getByRole('button', { name: /Показать архив/ })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Архив' })).not.toBeInTheDocument();
   });
@@ -73,6 +76,9 @@ describe('buyer support bot flow', () => {
     expect(screen.getByText('Что хотите уточнить по заказу PF-18?')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Когда придёт/ })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Оплата' })).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Напишите ваш вопрос...')).toBeInTheDocument();
+    expect(screen.getByText('Заказ PF-18')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Изменить' })).toBeInTheDocument();
     expect(props.onSubmitSupportQuestion).not.toHaveBeenCalled();
   });
 
@@ -87,7 +93,8 @@ describe('buyer support bot flow', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Доставка' }));
     expect(screen.getByText('Что хотите уточнить о доставке?')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Срок доставки/ })).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText('Напишите ваш вопрос...')).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Напишите ваш вопрос...')).toBeInTheDocument();
+    expect(screen.getByText('Доставка', { selector: 'span' })).toBeInTheDocument();
     expect(props.onSubmitSupportQuestion).not.toHaveBeenCalled();
   });
 
@@ -109,6 +116,7 @@ describe('buyer support bot flow', () => {
     expect(input).toHaveValue('');
     fireEvent.change(input, { target: { value: 'Мой вопрос' } });
     expect(input).toHaveValue('Мой вопрос');
+    expect(screen.getByText('Здравствуйте! С чем помочь?')).toBeInTheDocument();
     expect(props.onSubmitSupportQuestion).not.toHaveBeenCalled();
   });
 
@@ -132,14 +140,57 @@ describe('buyer support bot flow', () => {
     expect(screen.getByPlaceholderText('Напишите ваш вопрос...')).toHaveValue('Заказ PF-18. Хочу уточнить срок доставки: ');
   });
 
-  it('backs from composer to category and from category to root', () => {
+  it('replaces an untouched suggested draft when a different leaf is chosen', () => {
+    setup();
+    fireEvent.click(screen.getByRole('button', { name: 'Доставка' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Срок доставки' }));
+    expect(screen.getByPlaceholderText('Напишите ваш вопрос...')).toHaveValue('Хочу уточнить срок доставки: ');
+    fireEvent.click(screen.getByRole('button', { name: 'Изменить' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Трек CDEK' }));
+    expect(screen.getByPlaceholderText('Напишите ваш вопрос...')).toHaveValue('Хочу уточнить трек-номер CDEK. ');
+  });
+
+  it('changes context from a leaf to its category and then to root', () => {
     setup();
     fireEvent.click(screen.getByRole('button', { name: 'Доставка' }));
     fireEvent.click(screen.getByRole('button', { name: /Срок доставки/ }));
-    fireEvent.click(screen.getByRole('button', { name: '← Назад' }));
+    expect(screen.queryByRole('button', { name: '← Назад' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Изменить' }));
     expect(screen.getByText('Что хотите уточнить о доставке?')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '← Назад' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Изменить' }));
     expect(screen.getByText('Здравствуйте! С чем помочь?')).toBeInTheDocument();
+  });
+
+  it('sends a directly typed question with the generic support topic', async () => {
+    const { props } = setup();
+    const input = screen.getByPlaceholderText('Напишите ваш вопрос...');
+    fireEvent.change(input, { target: { value: 'Помогите разобраться' } });
+    expect(props.onSubmitSupportQuestion).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Отправить' }));
+    await waitFor(() => expect(props.onSubmitSupportQuestion).toHaveBeenCalledWith('Произвольный вопрос', 'Помогите разобраться'));
+    expect(props.onSubmitSupportQuestion).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps composer usable while choosing an order or category', async () => {
+    const { props } = setup();
+    fireEvent.click(screen.getByRole('button', { name: /PF-18/ }));
+    fireEvent.change(screen.getByPlaceholderText('Напишите ваш вопрос...'), { target: { value: 'Вопрос по заказу' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Отправить' }));
+    await waitFor(() => expect(props.onSubmitSupportQuestion).toHaveBeenCalledWith('Проблема с заказом', 'Вопрос по заказу'));
+  });
+
+  it('returns from a mobile archived conversation to archive list, then main chats', () => {
+    const closed = thread('closed', 'Возврат', 'CLOSED');
+    const { props, view } = setup();
+    fireEvent.click(screen.getByRole('button', { name: 'К списку чатов' }));
+    fireEvent.click(screen.getByRole('button', { name: /Показать архив/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Поддержка · Возврат/ }));
+    view.rerender(<MemoryRouter><ChatsTab {...props} selectedThread={closed} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    expect(screen.getByRole('heading', { name: 'Архив' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Вернуться к чатам' }));
+    expect(screen.getByRole('heading', { name: 'Чаты' })).toBeInTheDocument();
+    expect(props.onShowSupportStart).toHaveBeenCalledTimes(1);
   });
 
   it('opens existing threads directly with messages and return details', () => {
