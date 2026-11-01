@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../../../shared/api';
+import type { ChatSendPayload } from '../../../shared/api/api';
 import { ChatMessage, ChatThread } from '../../../shared/types';
 
 const emptyThreads = { active: [], closed: [] } as {
@@ -21,16 +22,17 @@ export const useMyChats = (activeTab: string, threadIdParam: string | null) => {
   const [chatLoading, setChatLoading] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
   const [creatingSupportThread, setCreatingSupportThread] = useState(false);
-  const createInFlight = useRef(false);
   const submitInFlight = useRef(false);
   const quickInFlight = useRef(false);
-  const pendingSupportThreads = useRef<Record<string, ChatThread>>({});
+
+  const isOrdinarySupport = (thread: ChatThread) => thread.kind === 'SUPPORT' && !thread.returnRequestId && !thread.returnRequest;
 
   const refreshThreads = useCallback(
     async (preferredThreadId?: string | null) => {
       const response = await api.chats.listMy();
       const data = response.data ?? emptyThreads;
       const allThreads = mergeThreads(data);
+      const activeSupport = data.active.find(isOrdinarySupport) ?? null;
       setChatThreads(data);
       setSelectedThread((prev) => {
         const targetId = preferredThreadId ?? threadIdParam;
@@ -38,13 +40,13 @@ export const useMyChats = (activeTab: string, threadIdParam: string | null) => {
           return (
             allThreads.find((thread) => thread.id === targetId) ??
             prev ??
-            allThreads[0] ??
-            null
+            activeSupport
           );
         }
-        return prev
-          ? (allThreads.find((thread) => thread.id === prev.id) ?? prev)
-          : null;
+        if (!prev) return activeSupport;
+        const refreshed = allThreads.find(thread => thread.id === prev.id);
+        if (isOrdinarySupport(prev) && prev.status === 'ACTIVE' && refreshed?.status !== 'ACTIVE') return activeSupport;
+        return refreshed ?? activeSupport;
       });
       return data;
     },
@@ -68,7 +70,10 @@ export const useMyChats = (activeTab: string, threadIdParam: string | null) => {
     setChatError(null);
     try {
       const response = await api.chats.getThread(threadId);
-      setSelectedThread(response.data.thread);
+      setSelectedThread(prev => {
+        if (response.data.thread.status === 'CLOSED' && prev?.status === 'ACTIVE' && isOrdinarySupport(response.data.thread)) return null;
+        return response.data.thread;
+      });
       setChatMessages(response.data.messages ?? []);
     } catch {
       setChatMessages([]);
@@ -83,15 +88,16 @@ export const useMyChats = (activeTab: string, threadIdParam: string | null) => {
     loadChatThread(selectedThread.id);
     const interval = window.setInterval(() => {
       loadChatThread(selectedThread.id);
+      refreshThreads().catch(() => undefined);
     }, 7000);
     return () => window.clearInterval(interval);
-  }, [activeTab, loadChatThread, selectedThread?.id]);
+  }, [activeTab, loadChatThread, refreshThreads, selectedThread?.id]);
 
   const handleSendMessage = useCallback(
-    async (text: string) => {
+    async (payload: ChatSendPayload) => {
       if (!selectedThread) return false;
       try {
-        await api.chats.sendMessage(selectedThread.id, { text });
+        await api.chats.sendMessage(selectedThread.id, payload);
         await loadChatThread(selectedThread.id);
         await refreshThreads(selectedThread.id);
         return true;
@@ -103,50 +109,17 @@ export const useMyChats = (activeTab: string, threadIdParam: string | null) => {
     [loadChatThread, refreshThreads, selectedThread]
   );
 
-  const createSupportThread = useCallback(
-    async (topic: string) => {
-      if (createInFlight.current) return null;
-      const existing = chatThreads.active.find(thread => thread.kind === 'SUPPORT' && !thread.returnRequest && thread.supportTopic === topic);
-      if (existing) {
-        setSelectedThread(existing);
-        return existing;
-      }
-      createInFlight.current = true;
-      setCreatingSupportThread(true);
-      setChatError(null);
-      try {
-        const response = await api.chats.createSupportThread({ topic });
-        await refreshThreads(response.data.thread.id);
-        await loadChatThread(response.data.thread.id);
-        return response.data.thread;
-      } catch {
-        setChatError('Не удалось создать обращение в поддержку.');
-        return null;
-      } finally {
-        createInFlight.current = false;
-        setCreatingSupportThread(false);
-      }
-    },
-    [chatThreads.active, loadChatThread, refreshThreads]
-  );
-
   const sendNewSupportQuestion = useCallback(
-    async (topic: string, text: string): Promise<boolean> => {
-      if (submitInFlight.current || !text.trim()) return false;
+    async (topic: string, payload: ChatSendPayload): Promise<boolean> => {
+      if (submitInFlight.current || (!payload.text.trim() && !payload.files?.length)) return false;
       submitInFlight.current = true;
       setCreatingSupportThread(true);
       setChatError(null);
       try {
-        let thread = chatThreads.active.find(item => item.kind === 'SUPPORT' && !item.returnRequest && item.supportTopic === topic)
-          ?? pendingSupportThreads.current[topic];
-        if (!thread) {
-          const response = await api.chats.createSupportThread({ topic });
-          thread = response.data.thread;
-          pendingSupportThreads.current[topic] = thread;
-        }
-        await api.chats.sendMessage(thread.id, { text: text.trim() });
-        delete pendingSupportThreads.current[topic];
+        const response = await api.chats.sendSupportMessage({ ...payload, text: payload.text.trim(), topic });
+        const { thread, userMessage, acknowledgementMessage } = response.data;
         setSelectedThread(thread);
+        setChatMessages([userMessage, ...(acknowledgementMessage ? [acknowledgementMessage] : [])]);
         await Promise.allSettled([loadChatThread(thread.id), refreshThreads(thread.id)]);
         return true;
       } catch {
@@ -157,7 +130,7 @@ export const useMyChats = (activeTab: string, threadIdParam: string | null) => {
         setCreatingSupportThread(false);
       }
     },
-    [chatThreads.active, loadChatThread, refreshThreads]
+    [loadChatThread, refreshThreads]
   );
 
   const sendQuickSupportQuestion = useCallback(
@@ -170,7 +143,7 @@ export const useMyChats = (activeTab: string, threadIdParam: string | null) => {
         const response = await api.chats.sendQuickSupportMessage({ topic, text: text.trim() });
         const { thread, userMessage, acknowledgementMessage } = response.data;
         setSelectedThread(thread);
-        setChatMessages([userMessage, acknowledgementMessage]);
+        setChatMessages([userMessage, ...(acknowledgementMessage ? [acknowledgementMessage] : [])]);
         await Promise.allSettled([loadChatThread(thread.id), refreshThreads(thread.id)]);
         return true;
       } catch {
@@ -190,10 +163,10 @@ export const useMyChats = (activeTab: string, threadIdParam: string | null) => {
     setSelectedThread,
     chatMessages,
     chatLoading,
+    refreshThreads,
     chatError,
     creatingSupportThread,
     handleSendMessage,
-    createSupportThread,
     sendNewSupportQuestion,
     sendQuickSupportQuestion
   };

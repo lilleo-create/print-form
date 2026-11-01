@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { ChatMessage, ChatThread, ReturnStatus } from '../../shared/types';
 import { Button } from '../../shared/ui/Button';
 import { MessageComposer } from '../chats/MessageComposer';
+import { ChatMessageImages } from '../chats/ChatMessageImages';
+import type { ChatSendPayload } from '../../shared/api/api';
 import styles from './AdminChatDetailsPanel.module.css';
 import { resolveMediaUrl } from '../../shared/lib/resolveMediaUrl';
 import { getProductMainImage } from '../../shared/lib/productMedia';
@@ -11,7 +13,8 @@ import { formatPrice } from '../../utils/money';
 interface AdminChatDetailsPanelProps {
   thread: ChatThread | null;
   messages: ChatMessage[];
-  onSend: (text: string) => Promise<void> | void;
+  sendError?: string | null;
+  onSend: (payload: ChatSendPayload) => Promise<boolean | void> | boolean | void;
   onUpdateReturnStatus: (
     status: ReturnStatus,
     comment?: string
@@ -28,6 +31,7 @@ const reasonLabels: Record<string, string> = {
 export const AdminChatDetailsPanel = ({
   thread,
   messages,
+  sendError,
   onSend,
   onUpdateReturnStatus,
   onUpdateThreadStatus
@@ -161,7 +165,8 @@ export const AdminChatDetailsPanel = ({
                 : styles.messageUser
             }
           >
-            <p>{message.text}</p>
+            {message.text && <p>{message.text}</p>}
+            <ChatMessageImages attachments={message.attachments} />
             <span>
               {new Date(message.createdAt).toLocaleTimeString('ru-RU', {
                 hour: '2-digit',
@@ -172,7 +177,8 @@ export const AdminChatDetailsPanel = ({
         ))}
       </div>
 
-      <MessageComposer onSend={onSend} disabled={thread.status === 'CLOSED'} />
+      {sendError && <p role="alert">{sendError}</p>}
+      {thread.status === 'CLOSED' ? <p>Диалог завершён</p> : <MessageComposer onSend={onSend} />}
     </div>
   );
 };

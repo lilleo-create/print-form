@@ -5,6 +5,7 @@ import { getHumanOrderStatus, getOrderSteps } from '../../../../shared/lib/order
 import { ChatThreadList } from '../../../../components/chats/ChatThreadList';
 import { ChatWindow } from '../../../../components/chats/ChatWindow';
 import { MessageComposer } from '../../../../components/chats/MessageComposer';
+import type { ChatSendPayload } from '../../../../shared/api/api';
 import { ORDER_SUPPORT_TOPIC, SUPPORT_QUESTIONS, SUPPORT_TOPICS, quickQuestionText, type SupportTopic } from '../../../../components/chats/supportTopics';
 import styles from './ChatsTab.module.css';
 
@@ -18,8 +19,8 @@ interface ChatsTabProps {
   creatingSupportThread: boolean;
   onSelectThread: (thread: ChatThread) => void;
   onShowSupportStart: () => void;
-  onSendMessage: (text: string) => Promise<boolean | void> | boolean | void;
-  onSubmitSupportQuestion: (topic: string, text: string) => Promise<boolean>;
+  onSendMessage: (payload: ChatSendPayload) => Promise<boolean | void> | boolean | void;
+  onSubmitSupportQuestion: (topic: string, payload: ChatSendPayload) => Promise<boolean>;
   onSubmitQuickQuestion: (topic: string, text: string) => Promise<boolean>;
 }
 
@@ -109,9 +110,9 @@ export const ChatsTab = ({ recentOrders, chatThreads, selectedThread, chatMessag
     setOrder(null);
     setCategory(null);
   };
-  const submitQuestion = async (text: string) => {
+  const submitQuestion = async (payload: ChatSendPayload) => {
     const topic = order ? ORDER_SUPPORT_TOPIC : category?.value ?? 'Произвольный вопрос';
-    const sent = await onSubmitSupportQuestion(topic, text);
+    const sent = await onSubmitSupportQuestion(topic, payload);
     if (sent) resetFlow();
     return sent;
   };
@@ -132,6 +133,8 @@ export const ChatsTab = ({ recentOrders, chatThreads, selectedThread, chatMessag
     : step === 'ORDER' ? `Что хотите уточнить по заказу ${orderNumber}?`
       : SUPPORT_QUESTIONS[category?.label ?? '']?.prompt;
   const showThread = selectedThread && (!archiveOpen || selectedThread.status === 'CLOSED');
+  const ordinarySupport = chatThreads.active.find(item => item.kind === 'SUPPORT' && !item.returnRequestId && !item.returnRequest);
+  const otherActiveThreads = chatThreads.active.filter(item => item.id !== ordinarySupport?.id);
   const backArchive = () => {
     setArchiveOpen(false);
     setShowMobileChat(false);
@@ -154,13 +157,13 @@ export const ChatsTab = ({ recentOrders, chatThreads, selectedThread, chatMessag
               : <p className={styles.archiveEmpty}>В архиве пока ничего нет</p>}
           </div>
         </> : <>
-          <button type="button" className={styles.supportEntry} onClick={showStart}>
+          <button type="button" className={`${styles.supportEntry} ${selectedThread?.id === ordinarySupport?.id && ordinarySupport ? styles.supportEntryActive : ''}`} aria-pressed={Boolean(selectedThread?.id === ordinarySupport?.id && ordinarySupport)} onClick={showStart}>
             <span className={styles.supportAvatar} aria-hidden="true">PF</span>
             <span><strong>Поддержка Print-Form</strong><small>Поможем с заказом, доставкой и оплатой</small></span>
             <span aria-hidden="true">›</span>
           </button>
           <div className={styles.threadLists}>
-            <ChatThreadList threads={chatThreads.active ?? []} activeId={selectedThread?.id} onSelect={selectThread} showEmpty={false} />
+            <ChatThreadList threads={otherActiveThreads} activeId={selectedThread?.id} onSelect={selectThread} showEmpty={false} />
             <button type="button" className={styles.archiveLink} onClick={() => {
               setArchiveOpen(true);
               setShowMobileChat(false);

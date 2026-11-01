@@ -27,7 +27,7 @@ export const AdminChatList = ({ title, threads, activeId, onSelect, onDelete }: 
               >
                 <div>
                   <strong>{thread.user?.name ?? 'Пользователь'}</strong>
-                  <p className={styles.preview}>{thread.lastMessage?.text ?? 'Нет сообщений'}</p>
+                  <p className={styles.preview}>{thread.lastMessage?.text || (thread.lastMessage?.attachments?.length ? 'Фото' : 'Нет сообщений')}</p>
                 </div>
               </button>
               <div className={styles.threadMeta}>

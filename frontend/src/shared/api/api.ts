@@ -34,7 +34,18 @@ export type SellerThreadCreateResponse = {
 export type QuickSupportMessageResponse = {
   thread: ChatThread;
   userMessage: ChatMessage;
-  acknowledgementMessage: ChatMessage;
+  acknowledgementMessage: ChatMessage | null;
+};
+
+export type ChatSendPayload = { text: string; files?: File[]; topic?: string };
+
+const chatMessageBody = (payload: ChatSendPayload) => {
+  if (!payload.files?.length) return payload;
+  const body = new FormData();
+  body.append('text', payload.text);
+  if (payload.topic) body.append('topic', payload.topic);
+  payload.files.forEach(file => body.append('files', file));
+  return body;
 };
 
 export type SellerDropoffStation = {
@@ -1331,10 +1342,16 @@ export const api = {
         body: { kind: 'SUPPORT', ...payload }
       });
     },
-    async sendQuickSupportMessage(payload: { topic: string; text: string }) {
+    async sendQuickSupportMessage(payload: ChatSendPayload) {
       return apiClient.request<QuickSupportMessageResponse>('/chats/support/quick-message', {
         method: 'POST',
-        body: payload
+        body: chatMessageBody(payload)
+      });
+    },
+    async sendSupportMessage(payload: ChatSendPayload) {
+      return apiClient.request<QuickSupportMessageResponse>('/chats/support/messages', {
+        method: 'POST',
+        body: chatMessageBody(payload)
       });
     },
     async getThread(id: string) {
@@ -1342,11 +1359,11 @@ export const api = {
         `/chats/${id}`
       );
     },
-    async sendMessage(id: string, payload: { text: string }) {
+    async sendMessage(id: string, payload: ChatSendPayload) {
       if (!id || id === 'undefined') throw new Error('CHAT_THREAD_ID_REQUIRED');
       return apiClient.request<ChatMessage>(`/chats/${id}/messages`, {
         method: 'POST',
-        body: payload
+        body: chatMessageBody(payload)
       });
     }
   },
@@ -1370,10 +1387,10 @@ export const api = {
         `/admin/chats/${id}`
       );
     },
-    async sendMessage(id: string, payload: { text: string }) {
+    async sendMessage(id: string, payload: ChatSendPayload) {
       return apiClient.request<ChatMessage>(`/admin/chats/${id}/messages`, {
         method: 'POST',
-        body: payload
+        body: chatMessageBody(payload)
       });
     },
     async updateThreadStatus(

@@ -240,6 +240,18 @@ export interface ChatMessage {
   authorId: string;
   text: string;
   createdAt: string;
+  attachments?: ChatMessageAttachment[];
+}
+
+export interface ChatMessageAttachment {
+  id: string;
+  messageId: string;
+  type: 'IMAGE';
+  url: string;
+  fileName: string;
+  mime: string;
+  size: number;
+  createdAt: string;
 }
 
 export interface ChatThread {

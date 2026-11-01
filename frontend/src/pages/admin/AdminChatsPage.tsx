@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../shared/api';
+import type { ChatSendPayload } from '../../shared/api/api';
 import { ChatMessage, ChatThread, ReturnStatus } from '../../shared/types';
 import { AdminChatList } from '../../components/admin/AdminChatList';
 import { AdminChatDetailsPanel } from '../../components/admin/AdminChatDetailsPanel';
@@ -15,6 +16,7 @@ export const AdminChatsPage = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sendError, setSendError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
 
   const loadThreads = async (query?: string) => {
@@ -25,6 +27,7 @@ export const AdminChatsPage = () => {
   const loadThread = async (id: string) => {
     setLoading(true);
     setError(null);
+    setSendError(null);
     try {
       const response = await api.adminChats.getThread(id);
       setSelectedThread(response.data.thread);
@@ -48,11 +51,18 @@ export const AdminChatsPage = () => {
     }
   }, [threads, selectedThread]);
 
-  const handleSend = async (text: string) => {
-    if (!selectedThread) return;
-    await api.adminChats.sendMessage(selectedThread.id, { text });
-    await loadThread(selectedThread.id);
-    await loadThreads();
+  const handleSend = async (payload: ChatSendPayload) => {
+    if (!selectedThread) return false;
+    try {
+      setSendError(null);
+      await api.adminChats.sendMessage(selectedThread.id, payload);
+      await loadThread(selectedThread.id);
+      await loadThreads();
+      return true;
+    } catch {
+      setSendError('Не удалось отправить сообщение. Попробуйте ещё раз.');
+      return false;
+    }
   };
 
   const handleUpdateReturnStatus = async (status: ReturnStatus, comment?: string) => {
@@ -126,6 +136,7 @@ export const AdminChatsPage = () => {
             <AdminChatDetailsPanel
               thread={selectedThread}
               messages={messages}
+              sendError={sendError}
               onSend={handleSend}
               onUpdateReturnStatus={handleUpdateReturnStatus}
               onUpdateThreadStatus={handleUpdateThreadStatus}

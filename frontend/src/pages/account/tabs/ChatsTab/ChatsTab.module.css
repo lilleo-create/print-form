@@ -7,6 +7,7 @@
 .chatLayout { display: grid; grid-template-columns: minmax(260px, 32%) minmax(0, 1fr); height: min(70dvh, 720px); min-height: 480px; }
 .chatList { display: flex; min-height: 0; flex-direction: column; border-right: 1px solid var(--border); background: var(--bg); }
 .supportEntry { display: flex; align-items: center; gap: 12px; width: 100%; padding: 18px; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--text); text-align: left; cursor: pointer; font: inherit; }
+.supportEntryActive { background: var(--primary-soft); box-shadow: inset 3px 0 var(--primary); }
 .supportEntry:hover { background: var(--bg-2); }
 .supportEntry > span:nth-child(2) { flex: 1; min-width: 0; }
 .supportEntry strong, .supportEntry small { display: block; }

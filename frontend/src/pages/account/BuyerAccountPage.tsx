@@ -121,7 +121,7 @@ export const BuyerAccountPage = () => {
           creatingSupportThread={creatingSupportThread}
           onSelectThread={setSelectedThread}
           onShowSupportStart={() => {
-            setSelectedThread(null);
+            setSelectedThread(chatThreads.active.find(thread => thread.kind === 'SUPPORT' && !thread.returnRequestId && !thread.returnRequest) ?? null);
             if (threadIdParam) {
               setSearchParams(previous => {
                 const next = new URLSearchParams(previous);

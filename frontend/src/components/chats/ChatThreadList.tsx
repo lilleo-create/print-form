@@ -37,7 +37,7 @@ export const ChatThreadList = ({ title, threads, activeId, onSelect, showEmpty =
               <div className={styles.itemBody}>
                 <span className={styles.itemTitle}>{getThreadTitle(thread)}</span>
                 <span className={styles.preview}>
-                  {thread.lastMessage?.text ?? 'Нет сообщений'}
+                  {thread.lastMessage?.text || (thread.lastMessage?.attachments?.length ? 'Фото' : 'Нет сообщений')}
                 </span>
               </div>
               {thread.lastMessageAt && (

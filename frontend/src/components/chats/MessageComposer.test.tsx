@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { MessageComposer } from './MessageComposer';
 
 describe('MessageComposer', () => {
+  Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:chat-preview') });
+  Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() });
   it('sends once on Enter and clears after success', async () => {
     const onSend = vi.fn().mockResolvedValue(true);
     render(<MessageComposer onSend={onSend} />);
@@ -10,7 +12,7 @@ describe('MessageComposer', () => {
     fireEvent.change(field, { target: { value: 'Привет' } });
     fireEvent.keyDown(field, { key: 'Enter' });
     await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
-    expect(onSend).toHaveBeenCalledWith('Привет');
+    expect(onSend).toHaveBeenCalledWith({ text: 'Привет', files: [] });
     await waitFor(() => expect(field).toHaveValue(''));
   });
 
@@ -47,5 +49,28 @@ describe('MessageComposer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Отправить' }));
     await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
     expect(field).toHaveValue('Повторить');
+  });
+
+  it('previews and sends a photo-only message, then clears the preview', async () => {
+    const onSend = vi.fn().mockResolvedValue(true);
+    render(<MessageComposer onSend={onSend} />);
+    const photo = new File(['png'], 'photo.png', { type: 'image/png' });
+    fireEvent.change(screen.getByLabelText('Выбрать фотографии'), { target: { files: [photo] } });
+    expect(screen.getByAltText('photo.png')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Отправить' }));
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith({ text: '', files: [photo] }));
+    await waitFor(() => expect(screen.queryByAltText('photo.png')).not.toBeInTheDocument());
+  });
+
+  it('keeps selected photos after a failed message send and allows removal', async () => {
+    const onSend = vi.fn().mockResolvedValue(false);
+    render(<MessageComposer onSend={onSend} />);
+    const photo = new File(['png'], 'photo.png', { type: 'image/png' });
+    fireEvent.change(screen.getByLabelText('Выбрать фотографии'), { target: { files: [photo] } });
+    fireEvent.click(screen.getByRole('button', { name: 'Отправить' }));
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+    expect(screen.getByAltText('photo.png')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Убрать photo.png' }));
+    expect(screen.queryByAltText('photo.png')).not.toBeInTheDocument();
   });
 });

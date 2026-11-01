@@ -1,6 +1,8 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { ChatMessage, ChatThread } from '../../shared/types';
 import { MessageComposer } from './MessageComposer';
+import { ChatMessageImages } from './ChatMessageImages';
+import type { ChatSendPayload } from '../../shared/api/api';
 import styles from './ChatWindow.module.css';
 import { resolveMediaUrl } from '../../shared/lib/resolveMediaUrl';
 import { getProductMainImage } from '../../shared/lib/productMedia';
@@ -12,7 +14,7 @@ interface ChatWindowProps {
   messages: ChatMessage[];
   loading: boolean;
   error?: string | null;
-  onSend: (text: string) => Promise<boolean | void> | boolean | void;
+  onSend: (payload: ChatSendPayload) => Promise<boolean | void> | boolean | void;
   onBack?: () => void;
   draft?: string;
   focusKey?: number;
@@ -220,7 +222,8 @@ export const ChatWindow = ({ thread, messages, loading, error, onSend, onBack, d
                   <span className={styles.senderLabel}><span className={styles.senderAvatar} aria-hidden="true">{thread.kind === 'SELLER' ? '✦' : 'PF'}</span> {thread.kind === 'SELLER' ? 'Продавец' : 'Поддержка Print-Form'}</span>
                 )}
                 <div className={styles.bubble}>
-                  <p>{message.text}</p>
+                  {message.text && <p>{message.text}</p>}
+                  <ChatMessageImages attachments={message.attachments} />
                   <span className={styles.time}>
                     {new Date(message.createdAt).toLocaleTimeString('ru-RU', {
                       hour: '2-digit', minute: '2-digit'
