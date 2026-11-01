@@ -3,6 +3,7 @@
 .workspaceHeader h1 { margin: 0; font-size: 22px; }
 .archiveBack { display: grid; place-items: center; width: 32px; height: 32px; flex: none; border: 1px solid var(--border); border-radius: 9px; background: var(--bg-2); color: var(--text); cursor: pointer; font: inherit; font-size: 20px; }
 .archiveBack:hover { background: var(--primary-soft); }
+.archiveBack svg { display: block; width: 20px; height: 20px; }
 .chatLayout { display: grid; grid-template-columns: minmax(260px, 32%) minmax(0, 1fr); height: min(70dvh, 720px); min-height: 480px; }
 .chatList { display: flex; min-height: 0; flex-direction: column; border-right: 1px solid var(--border); background: var(--bg); }
 .supportEntry { display: flex; align-items: center; gap: 12px; width: 100%; padding: 18px; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--text); text-align: left; cursor: pointer; font: inherit; }
@@ -25,9 +26,6 @@
 .flowContent { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; padding: 22px max(24px, calc((100% - 620px) / 2)) 18px; background: var(--bg); }
 .flowInner { width: 100%; margin-top: auto; }
 .mobileBack { display: none; }
-.flowContext { display: flex; align-items: center; justify-content: space-between; gap: 12px; max-width: 500px; margin: 0 0 14px 33px; color: var(--muted); font-size: 12px; }
-.flowContext span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.flowContext button { flex: none; padding: 4px 0; border: 0; background: transparent; color: var(--primary); cursor: pointer; font: inherit; font-size: 12px; }
 .botMessage { display: flex; align-items: flex-start; gap: 9px; }
 .botAvatar { display: grid; place-items: center; flex: none; width: 24px; height: 24px; border-radius: 7px; background: var(--primary-soft); color: var(--primary); font-size: 9px; font-weight: 800; }
 .botGroup { min-width: 0; }
@@ -53,6 +51,7 @@
 .flowOptions { display: flex; flex-wrap: wrap; gap: 8px; max-width: 500px; margin: 16px 0 0 33px; }
 .flowOptions button { padding: 8px 13px; border: 1px solid var(--border); border-radius: 999px; background: var(--card); color: var(--text); text-align: left; cursor: pointer; font: inherit; font-size: 13px; }
 .flowOptions button:hover { border-color: var(--primary); background: var(--primary-soft); }
+.flowOptions button:disabled { opacity: .55; cursor: wait; }
 .flowComposer { padding: 12px 18px; border-top: 1px solid var(--border); background: var(--card); }
 .startError { margin-left: 33px; color: var(--danger, #ef6464); font-size: 13px; }
 @media (max-width: 767px) {
@@ -68,6 +67,6 @@
   .mobileBack { display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg-2); color: var(--text); cursor: pointer; font-size: 20px; }
   .flowHeader { padding: 10px 14px; }
   .flowContent { padding: 18px 14px 26px; }
-  .quickSection, .quickOrderStatic, .flowOptions, .flowContext { margin-left: 0; }
+  .quickSection, .quickOrderStatic, .flowOptions { margin-left: 0; }
   .flowComposer { padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px)); }
 }

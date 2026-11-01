@@ -52,3 +52,8 @@ export const SUPPORT_QUESTIONS: Record<string, { prompt: string; options: { labe
     ]
   }
 };
+
+export const quickQuestionText = (draft: string) => {
+  const text = draft.trim().replace(/:+$/, '');
+  return /[.?!]$/.test(text) ? text : `${text}.`;
+};

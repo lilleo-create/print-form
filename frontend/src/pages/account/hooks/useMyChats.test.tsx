@@ -9,11 +9,13 @@ const listMy = vi.fn();
 const createSupportThread = vi.fn();
 const getThread = vi.fn();
 const sendMessage = vi.fn();
+const sendQuickSupportMessage = vi.fn();
 vi.mock('../../../shared/api', () => ({
   api: { chats: { listMy: (...args: unknown[]) => listMy(...args),
     createSupportThread: (...args: unknown[]) => createSupportThread(...args),
     getThread: (...args: unknown[]) => getThread(...args),
-    sendMessage: (...args: unknown[]) => sendMessage(...args) } }
+    sendMessage: (...args: unknown[]) => sendMessage(...args),
+    sendQuickSupportMessage: (...args: unknown[]) => sendQuickSupportMessage(...args) } }
 }));
 
 describe('useMyChats support flow', () => {
@@ -22,6 +24,7 @@ describe('useMyChats support flow', () => {
     createSupportThread.mockReset();
     getThread.mockReset().mockResolvedValue({ data: { thread: existing, messages: [] } });
     sendMessage.mockReset().mockResolvedValue({ data: {} });
+    sendQuickSupportMessage.mockReset();
   });
 
   it('opens the support start screen instead of auto-selecting a thread', async () => {
@@ -42,7 +45,7 @@ describe('useMyChats support flow', () => {
 
   it('creates a thread only on send and sends the message once', async () => {
     const created = { ...existing, id: 'new-thread', supportTopic: 'Оплата и возврат средств' };
-    createSupportThread.mockResolvedValue({ data: created });
+    createSupportThread.mockResolvedValue({ data: { thread: created, created: true, topic: created.supportTopic } });
     const { result, unmount } = renderHook(() => useMyChats('chats', null));
     await waitFor(() => expect(result.current.chatThreads.active).toHaveLength(1));
     expect(createSupportThread).not.toHaveBeenCalled();
@@ -51,6 +54,7 @@ describe('useMyChats support flow', () => {
     });
     expect(createSupportThread).toHaveBeenCalledTimes(1);
     expect(sendMessage).toHaveBeenCalledWith('new-thread', { text: 'Вопрос по оплате' });
+    expect(sendMessage).not.toHaveBeenCalledWith('undefined', expect.anything());
     expect(sendMessage).toHaveBeenCalledTimes(1);
     unmount();
   });
@@ -68,7 +72,7 @@ describe('useMyChats support flow', () => {
 
   it('does not create another empty thread when a failed send is retried', async () => {
     const created = { ...existing, id: 'new-thread', supportTopic: 'Оплата и возврат средств' };
-    createSupportThread.mockResolvedValue({ data: created });
+    createSupportThread.mockResolvedValue({ data: { thread: created, created: true, topic: created.supportTopic } });
     sendMessage.mockRejectedValueOnce(new Error('network'));
     const { result, unmount } = renderHook(() => useMyChats('chats', null));
     await waitFor(() => expect(result.current.chatThreads.active).toHaveLength(1));
@@ -85,7 +89,7 @@ describe('useMyChats support flow', () => {
 
   it('blocks concurrent sends before a thread is created', async () => {
     const created = { ...existing, id: 'new-thread', supportTopic: 'Оплата и возврат средств' };
-    let finishCreate!: (value: { data: ChatThread }) => void;
+    let finishCreate!: (value: { data: { thread: ChatThread; created: boolean; topic: string } }) => void;
     createSupportThread.mockReturnValue(new Promise(resolve => { finishCreate = resolve; }));
     const { result, unmount } = renderHook(() => useMyChats('chats', null));
     await waitFor(() => expect(result.current.chatThreads.active).toHaveLength(1));
@@ -96,10 +100,28 @@ describe('useMyChats support flow', () => {
       second = result.current.sendNewSupportQuestion('Оплата и возврат средств', 'Вопрос');
     });
     expect(await second).toBe(false);
-    finishCreate({ data: created });
+    finishCreate({ data: { thread: created, created: true, topic: created.supportTopic! } });
     await act(async () => { expect(await first).toBe(true); });
     expect(createSupportThread).toHaveBeenCalledTimes(1);
     expect(sendMessage).toHaveBeenCalledTimes(1);
+    unmount();
+  });
+
+  it('stores a quick question and provider acknowledgement through one API action', async () => {
+    const quickThread = { ...existing, id: 'quick-thread' };
+    const userMessage = { id: 'user-message', threadId: quickThread.id, authorRole: 'USER', text: 'Где заказ?' };
+    const acknowledgementMessage = { id: 'ack-message', threadId: quickThread.id, authorRole: 'ADMIN', text: 'Сейчас позову оператора.' };
+    sendQuickSupportMessage.mockResolvedValue({ data: { thread: quickThread, userMessage, acknowledgementMessage } });
+    getThread.mockResolvedValue({ data: { thread: quickThread, messages: [userMessage, acknowledgementMessage] } });
+    const { result, unmount } = renderHook(() => useMyChats('chats', null));
+    await waitFor(() => expect(result.current.chatThreads.active).toHaveLength(1));
+    await act(async () => {
+      expect(await result.current.sendQuickSupportQuestion('Доставка', 'Где заказ?')).toBe(true);
+    });
+    expect(sendQuickSupportMessage).toHaveBeenCalledWith({ topic: 'Доставка', text: 'Где заказ?' });
+    expect(result.current.chatMessages.map(message => message.text)).toEqual(['Где заказ?', 'Сейчас позову оператора.']);
+    expect(createSupportThread).not.toHaveBeenCalled();
+    expect(sendMessage).not.toHaveBeenCalled();
     unmount();
   });
 });

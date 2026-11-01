@@ -6,6 +6,10 @@
 
 .input {
   flex: 1;
+  min-width: 0;
+  max-height: 120px;
+  overflow-y: auto;
+  resize: none;
   padding: 10px 14px;
   border-radius: 22px;
   border: 1px solid var(--border);

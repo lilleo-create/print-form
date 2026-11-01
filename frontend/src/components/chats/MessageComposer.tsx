@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from 'react';
 import styles from './MessageComposer.module.css';
 
 type MessageComposerProps = {
@@ -14,17 +14,23 @@ export const MessageComposer = ({ onSend, disabled, placeholder, draft, focusKey
   const [value, setValue] = useState('');
   const [sending, setSending] = useState(false);
   const sendingRef = useRef(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const resize = () => {
+    const field = inputRef.current;
+    if (!field) return;
+    field.style.height = 'auto';
+    field.style.height = `${Math.min(field.scrollHeight, 120)}px`;
+  };
+  useEffect(resize, [value]);
   useEffect(() => {
     if (!focusKey) return;
     setValue(draft ?? '');
     inputRef.current?.focus();
   }, [focusKey]);
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
+  const send = async () => {
     const trimmed = value.trim();
-    if (!trimmed || sendingRef.current) return;
+    if (!trimmed || sendingRef.current || disabled) return;
     sendingRef.current = true;
     setSending(true);
     try {
@@ -39,16 +45,28 @@ export const MessageComposer = ({ onSend, disabled, placeholder, draft, focusKey
     }
   };
 
+  const handleSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    void send();
+  };
+  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return;
+    event.preventDefault();
+    void send();
+  };
+
   return (
     <form className={styles.form} onSubmit={handleSubmit}>
-      <input
+      <textarea
         ref={inputRef}
+        rows={1}
         className={styles.input}
         value={value}
         onChange={(e) => {
           setValue(e.target.value);
           onValueChange?.(e.target.value);
         }}
+        onKeyDown={handleKeyDown}
         placeholder={placeholder ?? 'Написать сообщение...'}
         disabled={disabled || sending}
       />

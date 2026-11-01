@@ -23,6 +23,7 @@ export const useMyChats = (activeTab: string, threadIdParam: string | null) => {
   const [creatingSupportThread, setCreatingSupportThread] = useState(false);
   const createInFlight = useRef(false);
   const submitInFlight = useRef(false);
+  const quickInFlight = useRef(false);
   const pendingSupportThreads = useRef<Record<string, ChatThread>>({});
 
   const refreshThreads = useCallback(
@@ -88,13 +89,15 @@ export const useMyChats = (activeTab: string, threadIdParam: string | null) => {
 
   const handleSendMessage = useCallback(
     async (text: string) => {
-      if (!selectedThread) return;
+      if (!selectedThread) return false;
       try {
         await api.chats.sendMessage(selectedThread.id, { text });
         await loadChatThread(selectedThread.id);
         await refreshThreads(selectedThread.id);
+        return true;
       } catch {
         setChatError('Не удалось отправить сообщение.');
+        return false;
       }
     },
     [loadChatThread, refreshThreads, selectedThread]
@@ -113,9 +116,9 @@ export const useMyChats = (activeTab: string, threadIdParam: string | null) => {
       setChatError(null);
       try {
         const response = await api.chats.createSupportThread({ topic });
-        await refreshThreads(response.data.id);
-        await loadChatThread(response.data.id);
-        return response.data;
+        await refreshThreads(response.data.thread.id);
+        await loadChatThread(response.data.thread.id);
+        return response.data.thread;
       } catch {
         setChatError('Не удалось создать обращение в поддержку.');
         return null;
@@ -138,7 +141,7 @@ export const useMyChats = (activeTab: string, threadIdParam: string | null) => {
           ?? pendingSupportThreads.current[topic];
         if (!thread) {
           const response = await api.chats.createSupportThread({ topic });
-          thread = response.data;
+          thread = response.data.thread;
           pendingSupportThreads.current[topic] = thread;
         }
         await api.chats.sendMessage(thread.id, { text: text.trim() });
@@ -157,6 +160,30 @@ export const useMyChats = (activeTab: string, threadIdParam: string | null) => {
     [chatThreads.active, loadChatThread, refreshThreads]
   );
 
+  const sendQuickSupportQuestion = useCallback(
+    async (topic: string, text: string): Promise<boolean> => {
+      if (quickInFlight.current || !text.trim()) return false;
+      quickInFlight.current = true;
+      setCreatingSupportThread(true);
+      setChatError(null);
+      try {
+        const response = await api.chats.sendQuickSupportMessage({ topic, text: text.trim() });
+        const { thread, userMessage, acknowledgementMessage } = response.data;
+        setSelectedThread(thread);
+        setChatMessages([userMessage, acknowledgementMessage]);
+        await Promise.allSettled([loadChatThread(thread.id), refreshThreads(thread.id)]);
+        return true;
+      } catch {
+        setChatError('Не удалось отправить вопрос. Попробуйте ещё раз.');
+        return false;
+      } finally {
+        quickInFlight.current = false;
+        setCreatingSupportThread(false);
+      }
+    },
+    [loadChatThread, refreshThreads]
+  );
+
   return {
     chatThreads,
     selectedThread,
@@ -167,6 +194,7 @@ export const useMyChats = (activeTab: string, threadIdParam: string | null) => {
     creatingSupportThread,
     handleSendMessage,
     createSupportThread,
-    sendNewSupportQuestion
+    sendNewSupportQuestion,
+    sendQuickSupportQuestion
   };
 };

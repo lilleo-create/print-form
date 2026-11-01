@@ -127,7 +127,7 @@ export const ShopPage = () => {
     setIsCreatingSellerThread(true);
     try {
       const response = await api.chats.createSellerThread({ sellerId: shopId });
-      navigate(`/account?tab=chats&threadId=${response.data.id}`);
+      navigate(`/account?tab=chats&threadId=${response.data.thread.id}`);
     } catch { navigate('/account?tab=chats'); }
     finally { setIsCreatingSellerThread(false); }
   };

@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ChatMessage, ChatThread, Order } from '../../../../shared/types';
 import { resolveImageUrl } from '../../../../shared/lib/resolveImageUrl';
 import { getHumanOrderStatus, getOrderSteps } from '../../../../shared/lib/orderPresentation';
 import { ChatThreadList } from '../../../../components/chats/ChatThreadList';
 import { ChatWindow } from '../../../../components/chats/ChatWindow';
 import { MessageComposer } from '../../../../components/chats/MessageComposer';
-import { ORDER_SUPPORT_TOPIC, SUPPORT_QUESTIONS, SUPPORT_TOPICS, type SupportTopic } from '../../../../components/chats/supportTopics';
+import { ORDER_SUPPORT_TOPIC, SUPPORT_QUESTIONS, SUPPORT_TOPICS, quickQuestionText, type SupportTopic } from '../../../../components/chats/supportTopics';
 import styles from './ChatsTab.module.css';
 
 interface ChatsTabProps {
@@ -18,11 +18,12 @@ interface ChatsTabProps {
   creatingSupportThread: boolean;
   onSelectThread: (thread: ChatThread) => void;
   onShowSupportStart: () => void;
-  onSendMessage: (text: string) => void;
+  onSendMessage: (text: string) => Promise<boolean | void> | boolean | void;
   onSubmitSupportQuestion: (topic: string, text: string) => Promise<boolean>;
+  onSubmitQuickQuestion: (topic: string, text: string) => Promise<boolean>;
 }
 
-type FlowStep = 'ROOT' | 'ORDER' | 'CATEGORY' | 'COMPOSER';
+type FlowStep = 'ROOT' | 'ORDER' | 'CATEGORY';
 
 const OrderShortcut = ({ order, onClick }: { order: Order; onClick?: () => void }) => {
   const item = order.items[0];
@@ -39,17 +40,18 @@ const OrderShortcut = ({ order, onClick }: { order: Order; onClick?: () => void 
 
 const orderQuestions = (order: Order) => {
   const delivered = getOrderSteps(order, 'buyer').some(step => step.key === 'delivered' && step.complete);
+  const number = order.publicNumber || order.id;
   return [
-    { label: 'Где мой заказ?', draft: 'Хочу узнать, где сейчас мой заказ. ' },
-    ...(!delivered ? [{ label: 'Когда придёт?', draft: 'Хочу уточнить срок доставки: ' }] : []),
-    { label: 'Проблема с получением / ПВЗ', draft: 'Возникла проблема с получением заказа или ПВЗ. ' },
-    ...(!delivered ? [{ label: 'Хочу отменить заказ', draft: 'Хочу уточнить отмену заказа. ' }] : []),
-    { label: 'Проблема с товаром', draft: 'Возникла проблема с товаром. ' },
-    { label: 'Другой вопрос по заказу', draft: '' }
+    { label: 'Где мой заказ?', text: `Где сейчас находится заказ ${number}?` },
+    ...(!delivered ? [{ label: 'Когда придёт?', text: `Когда придёт заказ ${number}?` }] : []),
+    { label: 'Пункт выдачи', text: `Хочу уточнить пункт выдачи заказа ${number}.` },
+    { label: 'Проблема с товаром', text: `Возникла проблема с товаром в заказе ${number}.` },
+    ...(!delivered ? [{ label: 'Хочу отменить заказ', text: `Хочу отменить заказ ${number}.` }] : []),
+    { label: 'Другой вопрос по заказу', text: null }
   ];
 };
 
-export const ChatsTab = ({ recentOrders, chatThreads, selectedThread, chatMessages, chatLoading, chatError, creatingSupportThread, onSelectThread, onShowSupportStart, onSendMessage, onSubmitSupportQuestion }: ChatsTabProps) => {
+export const ChatsTab = ({ recentOrders, chatThreads, selectedThread, chatMessages, chatLoading, chatError, creatingSupportThread, onSelectThread, onShowSupportStart, onSendMessage, onSubmitSupportQuestion, onSubmitQuickQuestion }: ChatsTabProps) => {
   const [showMobileChat, setShowMobileChat] = useState(true);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [step, setStep] = useState<FlowStep>('ROOT');
@@ -57,8 +59,9 @@ export const ChatsTab = ({ recentOrders, chatThreads, selectedThread, chatMessag
   const [category, setCategory] = useState<SupportTopic | null>(null);
   const [draft, setDraft] = useState('');
   const [draftEdited, setDraftEdited] = useState(false);
-  const [selectedLeaf, setSelectedLeaf] = useState<string | null>(null);
   const [focusVersion, setFocusVersion] = useState(0);
+  const [quickBusy, setQuickBusy] = useState(false);
+  const quickInFlight = useRef(false);
 
   useEffect(() => { if (selectedThread) setShowMobileChat(true); }, [selectedThread?.id]);
 
@@ -68,7 +71,6 @@ export const ChatsTab = ({ recentOrders, chatThreads, selectedThread, chatMessag
     setCategory(null);
     setDraft('');
     setDraftEdited(false);
-    setSelectedLeaf(null);
   };
   const showStart = () => {
     setArchiveOpen(false);
@@ -84,39 +86,28 @@ export const ChatsTab = ({ recentOrders, chatThreads, selectedThread, chatMessag
   const chooseOrder = (nextOrder: Order) => {
     setOrder(nextOrder);
     setCategory(null);
-    setSelectedLeaf(null);
     setStep('ORDER');
   };
-  const openComposer = (nextDraft: string, leaf?: string) => {
+  const focusComposer = (nextDraft: string) => {
     const preserveDraft = draftEdited && Boolean(draft.trim());
     setDraft(preserveDraft ? draft : nextDraft);
     setDraftEdited(preserveDraft);
-    setSelectedLeaf(leaf ?? null);
-    setStep('COMPOSER');
     setFocusVersion(version => version + 1);
   };
   const chooseCategory = (nextCategory: SupportTopic) => {
     setOrder(null);
     setCategory(nextCategory);
     if (nextCategory.label === 'Другой вопрос') {
-      setSelectedLeaf(null);
-      setFocusVersion(version => version + 1);
       setStep('ROOT');
+      focusComposer('');
     } else {
-      setSelectedLeaf(null);
       setStep('CATEGORY');
     }
   };
   const changeContext = () => {
-    if (step === 'COMPOSER' && selectedLeaf) {
-      setSelectedLeaf(null);
-      setStep(order ? 'ORDER' : category?.label === 'Другой вопрос' ? 'ROOT' : 'CATEGORY');
-      return;
-    }
     setStep('ROOT');
     setOrder(null);
     setCategory(null);
-    setSelectedLeaf(null);
   };
   const submitQuestion = async (text: string) => {
     const topic = order ? ORDER_SUPPORT_TOPIC : category?.value ?? 'Произвольный вопрос';
@@ -124,14 +115,22 @@ export const ChatsTab = ({ recentOrders, chatThreads, selectedThread, chatMessag
     if (sent) resetFlow();
     return sent;
   };
+  const submitQuick = async (topic: string, text: string) => {
+    if (quickInFlight.current || creatingSupportThread) return;
+    quickInFlight.current = true;
+    setQuickBusy(true);
+    try {
+      const sent = await onSubmitQuickQuestion(topic, text);
+      if (sent) resetFlow();
+    } finally {
+      quickInFlight.current = false;
+      setQuickBusy(false);
+    }
+  };
   const orderNumber = order?.publicNumber || order?.id;
   const prompt = step === 'ROOT' ? 'Здравствуйте! С чем помочь?'
     : step === 'ORDER' ? `Что хотите уточнить по заказу ${orderNumber}?`
-      : step === 'CATEGORY' ? SUPPORT_QUESTIONS[category?.label ?? '']?.prompt
-        : order ? `Что хотите уточнить по заказу ${orderNumber}?`
-          : SUPPORT_QUESTIONS[category?.label ?? '']?.prompt ?? 'Здравствуйте! С чем помочь?';
-  const contextLabel = step === 'ORDER' ? `Заказ ${orderNumber}`
-    : step === 'COMPOSER' && selectedLeaf ? selectedLeaf : category?.label;
+      : SUPPORT_QUESTIONS[category?.label ?? '']?.prompt;
   const showThread = selectedThread && (!archiveOpen || selectedThread.status === 'CLOSED');
   const backArchive = () => {
     setArchiveOpen(false);
@@ -141,7 +140,9 @@ export const ChatsTab = ({ recentOrders, chatThreads, selectedThread, chatMessag
 
   return <div className={styles.workspace}>
     <header className={styles.workspaceHeader}>
-      {archiveOpen && <button type="button" className={styles.archiveBack} aria-label="Вернуться к чатам" onClick={backArchive}>←</button>}
+      {archiveOpen && <button type="button" className={styles.archiveBack} aria-label="Вернуться к чатам" onClick={backArchive}>
+        <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      </button>}
       <h1>{archiveOpen ? 'Архив' : 'Чаты'}</h1>
     </header>
     <div className={styles.chatLayout}>
@@ -178,7 +179,6 @@ export const ChatsTab = ({ recentOrders, chatThreads, selectedThread, chatMessag
             </header>
             <div className={styles.flowContent}>
               <div className={styles.flowInner}>
-              {step !== 'ROOT' && <div className={styles.flowContext}><span>{contextLabel}</span><button type="button" onClick={changeContext}>Изменить</button></div>}
               <div className={styles.botMessage}><span className={styles.botAvatar} aria-hidden="true">PF</span><div className={styles.botGroup}><span>Поддержка Print-Form</span><p>{prompt}</p></div></div>
               {step === 'ROOT' && <>
                 {recentOrders.length > 0 && <section className={styles.quickSection} aria-label="Последние заказы">
@@ -192,16 +192,22 @@ export const ChatsTab = ({ recentOrders, chatThreads, selectedThread, chatMessag
               </>}
               {step === 'ORDER' && order && <>
                 <OrderShortcut order={order} />
-                <div className={styles.flowOptions}>{orderQuestions(order).map(item => <button key={item.label} type="button" onClick={() => openComposer(`Заказ ${orderNumber}. ${item.draft}`, item.label)}>{item.label}</button>)}</div>
+                <div className={styles.flowOptions}>
+                  {orderQuestions(order).map(item => <button key={item.label} type="button" disabled={quickBusy || creatingSupportThread} onClick={() => item.text ? void submitQuick(ORDER_SUPPORT_TOPIC, item.text) : focusComposer(`Заказ ${orderNumber}. `)}>{item.label}</button>)}
+                  <button type="button" disabled={quickBusy || creatingSupportThread} onClick={changeContext}>Другой заказ / тема</button>
+                </div>
               </>}
-              {step === 'CATEGORY' && category && <div className={styles.flowOptions}>{SUPPORT_QUESTIONS[category.label].options.map(item => <button key={item.label} type="button" onClick={() => openComposer(item.draft, item.label)}>{item.label}</button>)}</div>}
-              {step === 'COMPOSER' && chatError && <p className={styles.startError} role="alert">{chatError}</p>}
+              {step === 'CATEGORY' && category && <div className={styles.flowOptions}>
+                {SUPPORT_QUESTIONS[category.label].options.map(item => <button key={item.label} type="button" disabled={quickBusy || creatingSupportThread} onClick={() => item.label === 'Другой вопрос' ? focusComposer('') : void submitQuick(category.value, quickQuestionText(item.draft))}>{item.label}</button>)}
+                <button type="button" disabled={quickBusy || creatingSupportThread} onClick={changeContext}>Изменить тему</button>
+              </div>}
+              {chatError && <p className={styles.startError} role="alert">{chatError}</p>}
               </div>
             </div>
             <div className={styles.flowComposer}><MessageComposer onSend={submitQuestion} draft={draft} focusKey={focusVersion} onValueChange={value => {
               setDraft(value);
               setDraftEdited(true);
-            }} disabled={creatingSupportThread} placeholder="Напишите ваш вопрос..." /></div>
+            }} disabled={creatingSupportThread || quickBusy} placeholder="Напишите ваш вопрос..." /></div>
           </div>}
       </div>
     </div>

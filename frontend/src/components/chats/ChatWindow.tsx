@@ -12,7 +12,7 @@ interface ChatWindowProps {
   messages: ChatMessage[];
   loading: boolean;
   error?: string | null;
-  onSend: (text: string) => Promise<void> | void;
+  onSend: (text: string) => Promise<boolean | void> | boolean | void;
   onBack?: () => void;
   draft?: string;
   focusKey?: number;

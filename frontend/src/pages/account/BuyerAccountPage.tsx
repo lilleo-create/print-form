@@ -62,7 +62,8 @@ export const BuyerAccountPage = () => {
     chatError,
     handleSendMessage,
     creatingSupportThread,
-    sendNewSupportQuestion
+    sendNewSupportQuestion,
+    sendQuickSupportQuestion
   } = useMyChats(activeTab, threadIdParam);
 
   const isProfile = activeTab === 'profile';
@@ -131,6 +132,7 @@ export const BuyerAccountPage = () => {
           }}
           onSendMessage={handleSendMessage}
           onSubmitSupportQuestion={sendNewSupportQuestion}
+          onSubmitQuickQuestion={sendQuickSupportQuestion}
         />
       </section>
     );

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import type { ChatThread, Order } from '../../../../shared/types';
@@ -23,6 +23,7 @@ const setup = (overrides: Partial<Parameters<typeof ChatsTab>[0]> = {}) => {
     onShowSupportStart: vi.fn(),
     onSendMessage: vi.fn(),
     onSubmitSupportQuestion: vi.fn().mockResolvedValue(true),
+    onSubmitQuickQuestion: vi.fn().mockResolvedValue(true),
     ...overrides
   };
   const view = render(<MemoryRouter><ChatsTab {...props} /></MemoryRouter>);
@@ -55,6 +56,8 @@ describe('buyer support bot flow', () => {
     expect(screen.queryByRole('button', { name: /Поддержка · Возврат/ })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Показать архив/ }));
     expect(screen.getAllByRole('heading', { name: 'Архив' })).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Вернуться к чатам' }).querySelector('svg')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Вернуться к чатам' })).not.toHaveTextContent('←');
     expect(screen.queryByText('← Назад')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Поддержка · Возврат/ }));
     expect(props.onSelectThread).toHaveBeenCalledWith(expect.objectContaining({ id: 'closed' }));
@@ -77,8 +80,7 @@ describe('buyer support bot flow', () => {
     expect(screen.getByRole('button', { name: /Когда придёт/ })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Оплата' })).not.toBeInTheDocument();
     expect(screen.getByPlaceholderText('Напишите ваш вопрос...')).toBeInTheDocument();
-    expect(screen.getByText('Заказ PF-18')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Изменить' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Другой заказ / тема' })).toBeInTheDocument();
     expect(props.onSubmitSupportQuestion).not.toHaveBeenCalled();
   });
 
@@ -94,7 +96,7 @@ describe('buyer support bot flow', () => {
     expect(screen.getByText('Что хотите уточнить о доставке?')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Срок доставки/ })).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Напишите ваш вопрос...')).toBeInTheDocument();
-    expect(screen.getByText('Доставка', { selector: 'span' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Изменить тему' })).toBeInTheDocument();
     expect(props.onSubmitSupportQuestion).not.toHaveBeenCalled();
   });
 
@@ -120,44 +122,55 @@ describe('buyer support bot flow', () => {
     expect(props.onSubmitSupportQuestion).not.toHaveBeenCalled();
   });
 
-  it('prefills a leaf draft, allows editing and sends only on explicit submit', async () => {
+  it('sends a final payment question directly through the persisted quick action', async () => {
     const { props } = setup();
     fireEvent.click(screen.getByRole('button', { name: 'Оплата' }));
     fireEvent.click(screen.getByRole('button', { name: /Деньги списались/ }));
-    const input = screen.getByPlaceholderText('Напишите ваш вопрос...');
-    expect(input).toHaveValue('Деньги списались, но заказ не отображается как оплаченный. ');
+    await waitFor(() => expect(props.onSubmitQuickQuestion).toHaveBeenCalledWith('Оплата и возврат средств', 'Деньги списались, но заказ не отображается как оплаченный.'));
     expect(props.onSubmitSupportQuestion).not.toHaveBeenCalled();
-    fireEvent.change(input, { target: { value: 'Платёж прошёл, заказ ожидает оплаты.' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Отправить' }));
-    await waitFor(() => expect(props.onSubmitSupportQuestion).toHaveBeenCalledWith('Оплата и возврат средств', 'Платёж прошёл, заказ ожидает оплаты.'));
-    expect(props.onSubmitSupportQuestion).toHaveBeenCalledTimes(1);
+    expect(props.onSubmitQuickQuestion).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps order number in an editable draft', () => {
-    setup();
+  it('sends an order question with the actual order number', async () => {
+    const { props } = setup();
     fireEvent.click(screen.getByRole('button', { name: /PF-18/ }));
     fireEvent.click(screen.getByRole('button', { name: /Когда придёт/ }));
-    expect(screen.getByPlaceholderText('Напишите ваш вопрос...')).toHaveValue('Заказ PF-18. Хочу уточнить срок доставки: ');
+    await waitFor(() => expect(props.onSubmitQuickQuestion).toHaveBeenCalledWith('Проблема с заказом', 'Когда придёт заказ PF-18?'));
   });
 
-  it('replaces an untouched suggested draft when a different leaf is chosen', () => {
-    setup();
+  it('sends a delivery leaf directly and does not change the manual composer', async () => {
+    const { props } = setup();
     fireEvent.click(screen.getByRole('button', { name: 'Доставка' }));
     fireEvent.click(screen.getByRole('button', { name: 'Срок доставки' }));
-    expect(screen.getByPlaceholderText('Напишите ваш вопрос...')).toHaveValue('Хочу уточнить срок доставки: ');
-    fireEvent.click(screen.getByRole('button', { name: 'Изменить' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Трек CDEK' }));
-    expect(screen.getByPlaceholderText('Напишите ваш вопрос...')).toHaveValue('Хочу уточнить трек-номер CDEK. ');
+    await waitFor(() => expect(props.onSubmitQuickQuestion).toHaveBeenCalledWith('Доставка', 'Хочу уточнить срок доставки.'));
+    expect(screen.getByPlaceholderText('Напишите ваш вопрос...')).toHaveValue('');
   });
 
-  it('changes context from a leaf to its category and then to root', () => {
+  it('guards a quick question against a second click while sending', async () => {
+    let resolveSend!: (sent: boolean) => void;
+    const onSubmitQuickQuestion = vi.fn().mockReturnValue(new Promise<boolean>(resolve => { resolveSend = resolve; }));
+    setup({ onSubmitQuickQuestion });
+    fireEvent.click(screen.getByRole('button', { name: 'Доставка' }));
+    const leaf = screen.getByRole('button', { name: 'Срок доставки' });
+    fireEvent.click(leaf);
+    fireEvent.click(leaf);
+    expect(onSubmitQuickQuestion).toHaveBeenCalledTimes(1);
+    await act(async () => { resolveSend(true); });
+  });
+
+  it('keeps quick choices and shows an error if their send fails', async () => {
+    const { props } = setup({ onSubmitQuickQuestion: vi.fn().mockResolvedValue(false) });
+    fireEvent.click(screen.getByRole('button', { name: 'Доставка' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Срок доставки' }));
+    await waitFor(() => expect(props.onSubmitQuickQuestion).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole('button', { name: 'Срок доставки' })).toBeInTheDocument();
+  });
+
+  it('changes the topic using a quick command in the options row', () => {
     setup();
     fireEvent.click(screen.getByRole('button', { name: 'Доставка' }));
-    fireEvent.click(screen.getByRole('button', { name: /Срок доставки/ }));
-    expect(screen.queryByRole('button', { name: '← Назад' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Изменить' }));
-    expect(screen.getByText('Что хотите уточнить о доставке?')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Изменить' }));
+    expect(screen.queryByRole('button', { name: 'Изменить' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Изменить тему' }));
     expect(screen.getByText('Здравствуйте! С чем помочь?')).toBeInTheDocument();
   });
 

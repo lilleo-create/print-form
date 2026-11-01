@@ -20,6 +20,23 @@ import type {
 } from '../types';
 import { getAccessToken } from '../lib/storage';
 
+export type SupportThreadCreateResponse = {
+  thread: ChatThread;
+  created: boolean;
+  topic: string;
+};
+
+export type SellerThreadCreateResponse = {
+  thread: ChatThread;
+  created: boolean;
+};
+
+export type QuickSupportMessageResponse = {
+  thread: ChatThread;
+  userMessage: ChatMessage;
+  acknowledgementMessage: ChatMessage;
+};
+
 export type SellerDropoffStation = {
   pvzId?: string | null;
   id?: string | null;
@@ -1303,15 +1320,21 @@ export const api = {
       );
     },
     async createSellerThread(payload: { sellerId: string }) {
-      return apiClient.request<ChatThread>('/chats/threads', {
+      return apiClient.request<SellerThreadCreateResponse>('/chats/threads', {
         method: 'POST',
-        body: { kind: 'SELLER', ...payload }
+        body: { kind: 'SELLER', sellerId: payload.sellerId, shopId: payload.sellerId }
       });
     },
     async createSupportThread(payload: { topic: string }) {
-      return apiClient.request<ChatThread>('/chats/threads', {
+      return apiClient.request<SupportThreadCreateResponse>('/chats/threads', {
         method: 'POST',
         body: { kind: 'SUPPORT', ...payload }
+      });
+    },
+    async sendQuickSupportMessage(payload: { topic: string; text: string }) {
+      return apiClient.request<QuickSupportMessageResponse>('/chats/support/quick-message', {
+        method: 'POST',
+        body: payload
       });
     },
     async getThread(id: string) {
@@ -1320,6 +1343,7 @@ export const api = {
       );
     },
     async sendMessage(id: string, payload: { text: string }) {
+      if (!id || id === 'undefined') throw new Error('CHAT_THREAD_ID_REQUIRED');
       return apiClient.request<ChatMessage>(`/chats/${id}/messages`, {
         method: 'POST',
         body: payload
