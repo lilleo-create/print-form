@@ -70,4 +70,19 @@ describe('order detail pages', () => {
     expect(screen.getAllByRole('button', { name: 'Купить ещё раз' })).toHaveLength(2);
     expect(screen.getByText('Вторая модель')).toBeInTheDocument();
   });
+  it('offers buyer self cancellation only before production and support request during production', async () => {
+    vi.mocked(ordersApi.getById).mockResolvedValue({ ...order, status: 'PRINTING', cdekOrderId: null, shipment: null });
+    render(<MemoryRouter initialEntries={['/account/orders/order-18']}><Routes><Route path="/account/orders/:id" element={<BuyerOrderDetailPage />} /></Routes></MemoryRouter>);
+    expect(await screen.findByRole('button', { name: 'Запросить отмену' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Отменить заказ' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Оформить возврат' })).not.toBeInTheDocument();
+  });
+  it('shows seller only a support cancellation request', async () => {
+    const printingOrder = { ...order, status: 'PRINTING' as const, cdekOrderId: null, shipment: null, isPacked: false };
+    vi.mocked(ordersApi.getById).mockResolvedValue(printingOrder);
+    vi.mocked(ordersApi.listBySeller).mockResolvedValue([printingOrder]);
+    render(<MemoryRouter initialEntries={['/seller/orders/order-18']}><Routes><Route path="/seller/orders/:id" element={<SellerOrderDetailPage />} /></Routes></MemoryRouter>);
+    expect(await screen.findByRole('button', { name: 'Запросить отмену заказа' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Отменить заказ' })).not.toBeInTheDocument();
+  });
 });

@@ -2,18 +2,6 @@ import { useEffect, useMemo } from 'react';
 import { useOrdersStore } from '../../../app/store/ordersStore';
 import { User } from '../../../shared/types';
 
-const isShipmentSent = (order: {
-  status?: string;
-  shipment?: { status?: string } | null;
-}) => {
-  const orderStatus = String(order.status ?? '').toUpperCase();
-  const shipmentStatus = String(order.shipment?.status ?? '').toUpperCase();
-  return (
-    ['HANDED_TO_DELIVERY', 'IN_TRANSIT', 'DELIVERED', 'RETURNED'].includes(orderStatus) ||
-    ['IN_TRANSIT', 'DELIVERED', 'RETURNED'].includes(shipmentStatus)
-  );
-};
-
 export const useBuyerOrders = (user: User | null) => {
   const orders = useOrdersStore((state) => state.orders);
   const loadBuyerOrders = useOrdersStore((state) => state.loadBuyerOrders);
@@ -33,12 +21,12 @@ export const useBuyerOrders = (user: User | null) => {
   }, [loadBuyerOrders, user]);
 
   const activeOrders = useMemo(
-    () => orders.filter((order) => !['DELIVERED', 'RETURNED', 'CANCELLED', 'EXPIRED'].includes(order.status)),
+    () => orders.filter((order) => !['DELIVERED', 'RETURNED', 'CANCELLED', 'EXPIRED', 'PAYMENT_FAILED'].includes(order.status)),
     [orders]
   );
 
   const completedOrders = useMemo(
-    () => orders.filter((order) => ['DELIVERED', 'RETURNED', 'CANCELLED', 'EXPIRED'].includes(order.status)),
+    () => orders.filter((order) => ['DELIVERED', 'RETURNED', 'CANCELLED', 'EXPIRED', 'PAYMENT_FAILED'].includes(order.status)),
     [orders]
   );
 
@@ -60,7 +48,9 @@ export const useBuyerOrders = (user: User | null) => {
   const returnCandidates = useMemo(
     () =>
       orders
-        .filter((order) => !['CANCELLED', 'RETURNED', 'EXPIRED'].includes(order.status))
+        .filter((order) => order.status === 'DELIVERED' ||
+          (order.status === 'PAID' && order.paymentStatus === 'PAID') ||
+          (order.status === 'CREATED' && order.paymentStatus === 'PENDING_PAYMENT'))
         .flatMap((order) =>
           (order.items ?? [])
             .filter((item) => item.id)
@@ -72,7 +62,7 @@ export const useBuyerOrders = (user: User | null) => {
               image: item.image,
               orderDate: order.statusUpdatedAt ?? order.createdAt,
               orderId: order.id,
-              actionType: isShipmentSent(order) ? ('RETURN' as const) : ('CANCEL' as const)
+              actionType: order.status === 'DELIVERED' ? ('RETURN' as const) : ('CANCEL' as const)
             }))
         ),
     [orders]

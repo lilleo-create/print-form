@@ -6,11 +6,13 @@ import styles from './OrdersComponents.module.css';
 interface OrdersListProps {
   orders: Order[];
   highlightedOrderId?: string | null;
+  onPaymentExpired?: () => void;
 }
 
 export const OrdersList = ({
   orders,
   highlightedOrderId = null,
+  onPaymentExpired,
 }: OrdersListProps) => {
   const orderNodesRef = useRef<Record<string, HTMLDivElement | null>>({});
 
@@ -38,6 +40,7 @@ export const OrdersList = ({
           <OrderCompactCard
             order={order}
             highlighted={highlightedOrderId === order.id}
+            onPaymentExpired={onPaymentExpired}
           />
         </div>
       ))}

@@ -43,4 +43,9 @@ describe('order timeline and next action', () => {
     const order = withState({ status: 'CREATED', paymentStatus: 'PENDING_PAYMENT', paidAt: null });
     expect(getOrderSteps(order, 'buyer')[0]).toMatchObject({ label: 'Ожидает оплаты', complete: false, date: null });
   });
+  it('uses human payment and refund states', () => {
+    expect(getHumanOrderStatus(withState({ status: 'EXPIRED', paymentStatus: 'PAYMENT_EXPIRED', paidAt: null }))).toBe('Время на оплату истекло');
+    expect(getHumanOrderStatus(withState({ status: 'CANCELLED', paymentStatus: 'REFUND_PENDING' }))).toBe('Заказ отменён · Возврат денег обрабатывается');
+    expect(getHumanOrderStatus(withState({ status: 'CANCELLED', paymentStatus: 'REFUNDED' }))).toBe('Заказ отменён · Деньги возвращены');
+  });
 });

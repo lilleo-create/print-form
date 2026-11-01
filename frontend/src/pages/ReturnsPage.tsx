@@ -4,7 +4,6 @@ import { useAuthStore } from '../app/store/authStore';
 import { useOrdersStore } from '../app/store/ordersStore';
 import { api } from '../shared/api';
 import { ReturnRequest } from '../shared/types';
-import { getDeliveryStage, hasHandoverStarted } from '../shared/lib/deliveryStatus';
 import { Button } from '../shared/ui/Button';
 import { ReturnCandidatesList, ReturnCandidate } from '../components/returns/ReturnCandidatesList';
 import { ReturnCreateFlow, ReturnCreateStep } from '../components/returns/ReturnCreateFlow';
@@ -61,15 +60,11 @@ export const ReturnsPage = () => {
     loadReturns();
   }, [loadReturns, user]);
 
-  const deliveredOrders = orders.filter((order) =>
-    order.status === 'PAID' ||
-    order.status === 'READY_FOR_SHIPMENT' ||
-    hasHandoverStarted(order)
+  const deliveredOrders = orders.filter((order) => order.status === 'DELIVERED');
+  const cancellationOrders = orders.filter((order) =>
+    (order.status === 'PAID' && order.paymentStatus === 'PAID') ||
+    (order.status === 'CREATED' && order.paymentStatus === 'PENDING_PAYMENT')
   );
-  const cancellationOrders = orders.filter((order) => {
-    const stage = getDeliveryStage(order);
-    return (order.status === 'PAID' || order.status === 'READY_FOR_SHIPMENT') && (stage === 'CREATING' || stage === 'PRINTING' || stage === 'READY_FOR_DROP');
-  });
 
   const toCandidates = (sourceOrders: typeof orders) => sourceOrders.flatMap((order) =>
     (order.items ?? [])

@@ -2,14 +2,16 @@ import { useNavigate } from 'react-router-dom';
 import type { Order } from '../../shared/types';
 import { getHumanOrderStatus } from '../../shared/lib/orderPresentation';
 import { resolveImageUrl } from '../../shared/lib/resolveImageUrl';
+import { PaymentCountdown } from './PaymentCountdown';
 import styles from './OrdersComponents.module.css';
 
 interface OrderCompactCardProps {
   order: Order;
   highlighted?: boolean;
+  onPaymentExpired?: () => void;
 }
 
-export const OrderCompactCard = ({ order, highlighted = false }: OrderCompactCardProps) => {
+export const OrderCompactCard = ({ order, highlighted = false, onPaymentExpired }: OrderCompactCardProps) => {
   const navigate = useNavigate();
   const status = getHumanOrderStatus(order);
   const deliveredDate = order.status === 'DELIVERED' && order.deliveredToRecipientAt
@@ -24,6 +26,7 @@ export const OrderCompactCard = ({ order, highlighted = false }: OrderCompactCar
       <div className={styles.marketStatusCopy}>
         <strong>{status}{deliveredDate ? ` ${deliveredDate}` : ''}</strong>
         <span>{order.buyerPickupPvzMeta?.addressFull ? `ПВЗ · ${order.buyerPickupPvzMeta.addressFull}` : 'Доставка CDEK'}</span>
+        {order.status === 'CREATED' && order.paymentStatus === 'PENDING_PAYMENT' && <PaymentCountdown paymentExpiresAt={order.paymentExpiresAt} onExpire={onPaymentExpired} />}
       </div>
       <span className={styles.marketChevron} aria-hidden="true">›</span>
     </div>

@@ -32,6 +32,10 @@ export const getOrderSteps = (order: Order, role: 'seller' | 'buyer'): OrderStep
 };
 
 export const getHumanOrderStatus = (order: Order): string => {
+  if (order.status === 'EXPIRED' || order.paymentStatus === 'PAYMENT_EXPIRED' || order.isExpired) return 'Время на оплату истекло';
+  if (order.status === 'PAYMENT_FAILED') return 'Не удалось оплатить';
+  if (order.status === 'CANCELLED' && order.paymentStatus === 'REFUND_PENDING') return 'Заказ отменён · Возврат денег обрабатывается';
+  if (order.status === 'CANCELLED' && order.paymentStatus === 'REFUNDED') return 'Заказ отменён · Деньги возвращены';
   if (order.status === 'CANCELLED') return 'Заказ отменён';
   if (order.status === 'RETURNED') return 'Возврат';
   if (order.paymentStatus !== 'PAID' || !order.paidAt) return 'Ожидает оплаты';

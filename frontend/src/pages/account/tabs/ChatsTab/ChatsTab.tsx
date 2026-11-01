@@ -10,6 +10,7 @@ import { ORDER_SUPPORT_TOPIC, SUPPORT_QUESTIONS, SUPPORT_TOPICS, quickQuestionTe
 import styles from './ChatsTab.module.css';
 
 interface ChatsTabProps {
+  initialDraft?: string | null;
   recentOrders: Order[];
   chatThreads: { active: ChatThread[]; closed: ChatThread[] };
   selectedThread: ChatThread | null;
@@ -52,7 +53,7 @@ const orderQuestions = (order: Order) => {
   ];
 };
 
-export const ChatsTab = ({ recentOrders, chatThreads, selectedThread, chatMessages, chatLoading, chatError, creatingSupportThread, onSelectThread, onShowSupportStart, onSendMessage, onSubmitSupportQuestion, onSubmitQuickQuestion }: ChatsTabProps) => {
+export const ChatsTab = ({ initialDraft, recentOrders, chatThreads, selectedThread, chatMessages, chatLoading, chatError, creatingSupportThread, onSelectThread, onShowSupportStart, onSendMessage, onSubmitSupportQuestion, onSubmitQuickQuestion }: ChatsTabProps) => {
   const [showMobileChat, setShowMobileChat] = useState(true);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [step, setStep] = useState<FlowStep>('ROOT');
@@ -63,6 +64,13 @@ export const ChatsTab = ({ recentOrders, chatThreads, selectedThread, chatMessag
   const [focusVersion, setFocusVersion] = useState(0);
   const [quickBusy, setQuickBusy] = useState(false);
   const quickInFlight = useRef(false);
+
+  useEffect(() => {
+    if (!initialDraft) return;
+    setDraft(initialDraft);
+    setDraftEdited(false);
+    setFocusVersion(version => version + 1);
+  }, [initialDraft]);
 
   useEffect(() => { if (selectedThread) setShowMobileChat(true); }, [selectedThread?.id]);
 
@@ -172,7 +180,7 @@ export const ChatsTab = ({ recentOrders, chatThreads, selectedThread, chatMessag
         </>}
       </aside>
       <div className={`${styles.chatWindowPane} ${showMobileChat ? styles.chatWindowActive : ''}`}>
-        {showThread ? <ChatWindow thread={selectedThread} messages={chatMessages} loading={chatLoading} error={chatError} onSend={onSendMessage} onBack={() => setShowMobileChat(false)} />
+        {showThread ? <ChatWindow thread={selectedThread} messages={chatMessages} loading={chatLoading} error={chatError} onSend={onSendMessage} onBack={() => setShowMobileChat(false)} draft={selectedThread.kind === 'SUPPORT' && !selectedThread.returnRequestId ? draft : undefined} focusKey={focusVersion} />
           : archiveOpen ? <div className={styles.archivePrompt}>Выберите диалог из архива</div>
           : <div className={styles.flowPane}>
             <header className={styles.flowHeader}>

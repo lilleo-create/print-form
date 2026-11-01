@@ -19,6 +19,7 @@ export const BuyerAccountPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') ?? 'profile';
   const threadIdParam = searchParams.get('threadId');
+  const supportDraft = searchParams.get('draft');
   const [showReturnCreate, setShowReturnCreate] = useState(false);
   const [returnCreateStep, setReturnCreateStep] = useState<
     'select' | 'form' | 'success' | 'exists'
@@ -112,6 +113,7 @@ export const BuyerAccountPage = () => {
     return (
       <section className={styles.pageChats}>
         <ChatsTab
+          initialDraft={supportDraft}
           recentOrders={recentOrders}
           chatThreads={chatThreads}
           selectedThread={selectedThread}
@@ -182,7 +184,7 @@ export const BuyerAccountPage = () => {
                 <button type="button" className={orderFilter === 'active' ? styles.filterActive : styles.filter} aria-pressed={orderFilter === 'active'} onClick={() => { const next = new URLSearchParams(searchParams); next.delete('view'); setSearchParams(next); }}>Активные</button>
                 <button type="button" className={orderFilter === 'completed' ? styles.filterActive : styles.filter} aria-pressed={orderFilter === 'completed'} onClick={() => { const next = new URLSearchParams(searchParams); next.set('view', 'completed'); setSearchParams(next); }}>Завершённые</button>
               </div>
-              {visibleOrders.length ? <OrdersTab orders={visibleOrders} /> : <>
+              {visibleOrders.length ? <OrdersTab orders={visibleOrders} onPaymentExpired={() => { void reloadOrders(); }} /> : <>
                 <div className={styles.orderEmpty}><span className={styles.emptyIcon} aria-hidden="true">▧</span><h2>{orderFilter === 'active' ? 'Нет активных заказов' : 'Нет завершённых заказов'}</h2><p>{orderFilter === 'active' ? 'Здесь будут заказы, которые готовятся, едут или ждут получения.' : 'Здесь появятся полученные, отменённые и возвращённые заказы.'}</p></div>
                 <OrdersRecommendations />
               </>}

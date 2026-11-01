@@ -11,7 +11,8 @@ export type OrderStatus =
   | 'DELIVERED'
   | 'CANCELLED'
   | 'RETURNED'
-  | 'EXPIRED';
+  | 'EXPIRED'
+  | 'PAYMENT_FAILED';
 export type ProductModerationStatus =
   | 'DRAFT'
   | 'PENDING'

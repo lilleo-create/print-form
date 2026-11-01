@@ -73,6 +73,8 @@ export const SellerOrderDetailPage = () => {
           {next === 'handoff' && <><h3>Передайте заказ в CDEK</h3><p>ПВЗ сдачи: {order.sellerDropoffPvzMeta?.addressFull || 'Уточняется'}</p>{order.dropoffDeadlineAt && <p>Сдать до: {new Date(order.dropoffDeadlineAt).toLocaleString('ru-RU')}</p>}<p>Трек: {order.trackingNumber || 'Формируется'}</p></>}
           {next === 'tracking' && <p>Следите за доставкой. Статус обновится автоматически.</p>}
           {next === null && <p>{getHumanOrderStatus(order)}</p>}
+          {order.paymentStatus === 'PAID' && ['PAID', 'PRINTING'].includes(order.status) && !order.cdekOrderId && !order.shipment?.id &&
+            <button className={styles.textButton} onClick={() => navigate(`/account?tab=chats&draft=${encodeURIComponent(`Не могу выполнить заказ ${order.publicNumber || order.id}. Нужна помощь с отменой.`)}`)}>Запросить отмену заказа</button>}
           {order.shipment?.id && <div className={styles.actionRow}>
             <button disabled={!canDocuments || !order.trackingNumber} onClick={() => void run(async () => download((await ordersApi.downloadShippingLabel(order.id)).blob, `label-${order.publicNumber || order.id}.pdf`))}>Скачать ярлык</button>
             <button disabled={!canDocuments} onClick={() => void run(async () => download(await api.downloadShipmentAct(order.shipment!.id) as Blob, `act-${order.publicNumber || order.id}.pdf`))}>Скачать акт</button>

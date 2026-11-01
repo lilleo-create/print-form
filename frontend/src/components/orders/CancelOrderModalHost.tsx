@@ -7,16 +7,13 @@ import { Modal } from '../../shared/ui/Modal';
 import { Button } from '../../shared/ui/Button';
 import styles from './OrdersComponents.module.css';
 
-const reasons = ['Изменился адрес', 'Хочу изменить состав заказа', 'Слишком долгий срок', 'Передумал(а)'];
-
 export const CancelOrderModalHost = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const loadBuyerOrders = useOrdersStore((state) => state.loadBuyerOrders);
-  const [reason, setReason] = useState(reasons[0]);
-  const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const orderId = useMemo(() => new URLSearchParams(location.search).get('orderId'), [location.search]);
   const isOpen = location.pathname === '/cancel' && Boolean(orderId);
@@ -26,12 +23,15 @@ export const CancelOrderModalHost = () => {
   const submit = async () => {
     if (!orderId) return;
     setSubmitting(true);
+    setError(null);
     try {
       await ordersApi.cancelMyOrder(orderId);
       if (user) {
         await loadBuyerOrders(user);
       }
       close();
+    } catch {
+      setError('Не удалось отменить заказ. Его статус мог измениться — обновите страницу и попробуйте снова.');
     } finally {
       setSubmitting(false);
     }
@@ -41,12 +41,8 @@ export const CancelOrderModalHost = () => {
     <Modal isOpen={isOpen} onClose={close}>
       <div className={styles.cancelModal}>
         <h3>Отмена заказа</h3>
-        <select className={styles.select} value={reason} onChange={(e) => setReason(e.target.value)}>
-          {reasons.map((item) => (
-            <option key={item} value={item}>{item}</option>
-          ))}
-        </select>
-        <textarea className={styles.textarea} placeholder="Комментарий (необязательно)" value={comment} onChange={(e) => setComment(e.target.value)} />
+        <p>Если заказ уже оплачен, мы оформим возврат всей уплаченной суммы.</p>
+        {error && <p role="alert">{error}</p>}
         <div className={styles.cardActions}>
           <Button type="button" onClick={submit} disabled={submitting}>Отменить заказ</Button>
           <Button type="button" variant="secondary" onClick={close}>Назад</Button>

@@ -31,6 +31,17 @@ const setup = (overrides: Partial<Parameters<typeof ChatsTab>[0]> = {}) => {
 };
 
 describe('buyer support bot flow', () => {
+  it('prefills cancellation context without sending a support message', async () => {
+    const { props } = setup({ initialDraft: 'Хочу отменить заказ PF-18.' });
+    await waitFor(() => expect(screen.getByRole('textbox')).toHaveValue('Хочу отменить заказ PF-18.'));
+    expect(props.onSubmitSupportQuestion).not.toHaveBeenCalled();
+    expect(props.onSubmitQuickQuestion).not.toHaveBeenCalled();
+  });
+  it('prefills cancellation context in an existing active support chat', async () => {
+    const { props } = setup({ initialDraft: 'Хочу отменить заказ PF-18.', selectedThread: thread('active') });
+    await waitFor(() => expect(screen.getByRole('textbox')).toHaveValue('Хочу отменить заказ PF-18.'));
+    expect(props.onSendMessage).not.toHaveBeenCalled();
+  });
   it('represents an active ordinary support thread only in the main support entry', () => {
     setup({ selectedThread: thread('active'), chatThreads: { active: [thread('active')], closed: [] } });
     expect(screen.queryByText('Здравствуйте! С чем помочь?')).not.toBeInTheDocument();

@@ -9,6 +9,7 @@ import { rankOrderRecommendations } from '../shared/lib/orderRecommendations';
 import { formatPriceWithKopecks } from '../shared/lib/formatPrice';
 import styles from './PaymentReturnPage.module.css';
 import CheckIcon from '@shared/assets/check.svg?react';
+import { PaymentCountdown } from '../components/orders/PaymentCountdown';
 
 const POLLING_INTERVAL_MS = 2000;
 const MAX_POLLING_ATTEMPTS = 15;
@@ -21,6 +22,7 @@ export const PaymentReturnPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [pollingFinished, setPollingFinished] = useState(false);
+  const [countdownExpired, setCountdownExpired] = useState(false);
   const [recommendations, setRecommendations] = useState<Product[]>([]);
 
   useEffect(() => {
@@ -48,6 +50,7 @@ export const PaymentReturnPage = () => {
     const loadOrder = async () => {
       setOrder(null);
       setPollingFinished(false);
+      setCountdownExpired(false);
       if (!orderId) {
         setError('Не указан номер заказа.');
         setIsLoading(false);
@@ -98,6 +101,11 @@ export const PaymentReturnPage = () => {
         subtitle = 'Спасибо! Мы приняли оплату и передали заказ продавцу';
         break;
       case 'PENDING_PAYMENT':
+        if (countdownExpired || order.isExpired) {
+          title = 'Время на оплату истекло';
+          subtitle = 'Проверяем статус платежа. Актуальные действия будут доступны в заказе.';
+          break;
+        }
         title = pollingFinished ? 'Платеж еще обрабатывается' : 'Проверяем оплату…';
         subtitle = pollingFinished
           ? 'Платеж еще обрабатывается. Статус можно проверить в заказе.'
@@ -127,6 +135,7 @@ export const PaymentReturnPage = () => {
             </div>
             <h1 className={styles.title}>{title}</h1>
             {subtitle ? <p className={styles.subtitle}>{subtitle}</p> : null}
+            {order?.paymentStatus === 'PENDING_PAYMENT' && <p className={styles.subtitle}><PaymentCountdown paymentExpiresAt={order.paymentExpiresAt} onExpire={() => { setCountdownExpired(true); void ordersApi.getById(orderId).then(setOrder).catch(() => undefined); }} /></p>}
             {error ? <p className={styles.error}>{error}</p> : null}
             <div className={styles.actions}>
               <Button
