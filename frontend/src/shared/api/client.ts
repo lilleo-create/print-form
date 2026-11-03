@@ -316,5 +316,20 @@ export function createFetchClient(baseUrl: string) {
     return { data: payload as T };
   };
 
-  return { request };
+  const requestBlob = async (path: string, signal?: AbortSignal, retry = false): Promise<Blob> => {
+    const token = getAccessToken();
+    const res = await fetch(`${baseUrl}${path}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      credentials: 'include', signal
+    });
+    if (res.status === 401 && !retry) {
+      if (!refreshPromise) refreshPromise = refreshAccessToken().finally(() => { refreshPromise = null; });
+      const refreshed = await refreshPromise;
+      if (refreshed) return requestBlob(path, signal, true);
+    }
+    if (!res.ok) throw new ApiError(res.status, `HTTP ${res.status}`);
+    return res.blob();
+  };
+
+  return { request, requestBlob };
 }

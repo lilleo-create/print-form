@@ -33,6 +33,7 @@ const baseData = {
 describe('useCheckoutStore.placeOrder payload', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    sessionStorage.removeItem('printform:checkout-payment-attempt');
     useCheckoutStore.setState({
       data: null,
       deliveryAmountKopecks: 20475,
@@ -119,6 +120,20 @@ describe('useCheckoutStore.placeOrder payload', () => {
 
     resolveCall?.({ orderId: 'order-1', paymentId: 'pay-1', paymentUrl: 'https://pay' });
     await first;
+  });
+
+  it('reuses the payment attempt key after a network failure and does not create a second attempt', async () => {
+    useCheckoutStore.setState({
+      data: { ...baseData, selectedPickupPoint: { provider: 'CDEK', pvzId: 'pvz-123' } }
+    });
+    vi.mocked(checkoutApi.startPayment)
+      .mockRejectedValueOnce(new Error('network'))
+      .mockResolvedValueOnce({ orderId: 'order-1', paymentId: 'pay-1', paymentUrl: 'https://pay' });
+    expect(await useCheckoutStore.getState().placeOrder()).toBeNull();
+    expect(await useCheckoutStore.getState().placeOrder()).toEqual({ orderId: 'order-1', paymentId: 'pay-1', paymentUrl: 'https://pay' });
+    const calls = vi.mocked(checkoutApi.startPayment).mock.calls;
+    expect(calls[0][0].paymentAttemptKey).toBe(calls[1][0].paymentAttemptKey);
+    expect(sessionStorage.getItem('printform:checkout-payment-attempt')).toBeNull();
   });
 
 

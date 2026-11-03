@@ -225,6 +225,7 @@ export const ordersApi = {
     shippingAddressId: string;
     items: OrderItem[];
     total: number;
+    paymentAttemptKey: string;
     deliveryMethod?: 'courier' | 'cdek_pvz';
     cdekPvzCode?: string;
     cdekPvzAddress?: string;
@@ -239,6 +240,7 @@ export const ordersApi = {
     };
   }) => {
     const result = await api.createOrder({
+      paymentAttemptKey: payload.paymentAttemptKey,
       contactId: payload.contactId,
       shippingAddressId: payload.shippingAddressId,
       deliveryMethod: payload.deliveryMethod,

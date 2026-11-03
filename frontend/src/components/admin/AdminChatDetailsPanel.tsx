@@ -5,7 +5,7 @@ import { MessageComposer } from '../chats/MessageComposer';
 import { ChatMessageImages } from '../chats/ChatMessageImages';
 import type { ChatSendPayload } from '../../shared/api/api';
 import styles from './AdminChatDetailsPanel.module.css';
-import { resolveMediaUrl } from '../../shared/lib/resolveMediaUrl';
+import { PrivateImage } from '../../shared/ui/PrivateImage';
 import { getProductMainImage } from '../../shared/lib/productMedia';
 import { getChatThreadStatusLabel, getReturnStatusLabel } from '../../shared/lib/adminStatusLabels';
 import { formatPrice } from '../../utils/money';
@@ -82,17 +82,7 @@ export const AdminChatDetailsPanel = ({
           {returnRequest.photos?.length > 0 && (
             <div className={styles.photos}>
               {returnRequest.photos.map((photo) => (
-                <a
-                  key={photo.id}
-                  href={resolveMediaUrl(photo.url) ?? '#'}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <img
-                    src={resolveMediaUrl(photo.url) ?? ''}
-                    alt="Фото возврата"
-                  />
-                </a>
+                <PrivateImage key={photo.id} url={photo.url} alt="Фото возврата" openable />
               ))}
             </div>
           )}

@@ -2,6 +2,21 @@ import { create } from 'zustand';
 import { ordersApi } from '../../shared/api/ordersApi';
 import { Order, OrderItem, User } from '../../shared/types';
 
+const checkoutAttemptStorageKey = 'printform:checkout-order-attempt';
+let pendingCheckout: { signature: string; promise: Promise<Order> } | null = null;
+
+const checkoutAttemptKey = (signature: string): string => {
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = JSON.parse(window.sessionStorage.getItem(checkoutAttemptStorageKey) || 'null') as { signature?: string; key?: string } | null;
+      if (stored?.signature === signature && stored.key) return stored.key;
+    } catch { /* use a new key */ }
+  }
+  const key = crypto.randomUUID();
+  if (typeof window !== 'undefined') window.sessionStorage.setItem(checkoutAttemptStorageKey, JSON.stringify({ signature, key }));
+  return key;
+};
+
 interface OrdersState {
   orders: Order[];
   loadBuyerOrders: (user: User) => Promise<void>;
@@ -57,7 +72,12 @@ export const useOrdersStore = create<OrdersState>((set) => ({
     cdekPvzCityCode,
     cdekPvzRaw
   }) {
-    const order = await ordersApi.create({
+    const signature = JSON.stringify({ buyerId: user.id, contactId, shippingAddressId, deliveryMethod, cdekPvzCode,
+      items: items.map(item => [item.productId, item.qty]) });
+    if (pendingCheckout?.signature === signature) return pendingCheckout.promise;
+    const paymentAttemptKey = checkoutAttemptKey(signature);
+    const promise = ordersApi.create({
+      paymentAttemptKey,
       buyerId: user.id,
       buyerEmail: user.email,
       contactId,
@@ -69,8 +89,12 @@ export const useOrdersStore = create<OrdersState>((set) => ({
       cdekPvzAddress,
       cdekPvzCityCode,
       cdekPvzRaw
-    });
-    set((state) => ({ orders: [order, ...state.orders] }));
-    return order;
+    }).then(order => {
+      if (typeof window !== 'undefined') window.sessionStorage.removeItem(checkoutAttemptStorageKey);
+      set((state) => ({ orders: [order, ...state.orders] }));
+      return order;
+    }).finally(() => { pendingCheckout = null; });
+    pendingCheckout = { signature, promise };
+    return promise;
   }
 }));

@@ -830,6 +830,7 @@ export const api = {
   },
 
   async createOrder(payload: {
+    paymentAttemptKey: string;
     contactId?: string;
     shippingAddressId?: string;
     deliveryMethod?: 'courier' | 'cdek_pvz';

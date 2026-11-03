@@ -8,6 +8,18 @@ import {
 } from '../api/checkoutApi';
 import { useCartStore } from '../../../app/store/cartStore';
 import { useBuyNowStore } from '../../../app/store/buyNowStore';
+import { checkoutErrorMessage } from './checkoutErrors';
+
+const paymentAttemptStorageKey = 'printform:checkout-payment-attempt';
+const getPaymentAttemptKey = (signature: string): string => {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(paymentAttemptStorageKey) || 'null') as { signature?: string; key?: string } | null;
+    if (saved?.signature === signature && saved.key) return saved.key;
+  } catch { /* browser storage may be unavailable */ }
+  const key = crypto.randomUUID();
+  try { sessionStorage.setItem(paymentAttemptStorageKey, JSON.stringify({ signature, key })); } catch { /* in-memory request remains safe */ }
+  return key;
+};
 
 const mapItemsToCheckoutItems = (
   items: ReturnType<typeof useCartStore.getState>['items']
@@ -292,8 +304,12 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         }
       };
 
+      const attemptSignature = JSON.stringify({
+        recipient: data.recipient, pvzId,
+        items: data.cartItems.map(item => [item.productId, item.quantity, item.price])
+      });
       const startPaymentPayload = {
-        paymentAttemptKey: crypto.randomUUID(),
+        paymentAttemptKey: getPaymentAttemptKey(attemptSignature),
         recipient: {
           name: data.recipient.name,
           phone: data.recipient.phone,
@@ -310,6 +326,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
 
       const response = await checkoutApi.startPayment(startPaymentPayload);
 
+      try { sessionStorage.removeItem(paymentAttemptStorageKey); } catch { /* browser storage may be unavailable */ }
+
       useCartStore.getState().clear();
       set({
         isSubmittingOrder: false,
@@ -322,8 +340,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     } catch (error) {
       set({
         isSubmittingOrder: false,
-        error:
-          error instanceof Error ? error.message : 'Не удалось оформить заказ.'
+        error: checkoutErrorMessage(error)
       });
       return null;
     }

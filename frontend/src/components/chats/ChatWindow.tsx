@@ -4,7 +4,7 @@ import { MessageComposer } from './MessageComposer';
 import { ChatMessageImages } from './ChatMessageImages';
 import type { ChatSendPayload } from '../../shared/api/api';
 import styles from './ChatWindow.module.css';
-import { resolveMediaUrl } from '../../shared/lib/resolveMediaUrl';
+import { PrivateImage } from '../../shared/ui/PrivateImage';
 import { getProductMainImage } from '../../shared/lib/productMedia';
 import { formatPrice } from '../../utils/money';
 import { getReturnStatusLabel } from '../../shared/lib/adminStatusLabels';
@@ -188,9 +188,7 @@ export const ChatWindow = ({ thread, messages, loading, error, onSend, onBack, d
               {rr.photos?.length > 0 && (
                 <div className={styles.photos}>
                   {rr.photos.map((photo) => (
-                    <a key={photo.id} href={resolveMediaUrl(photo.url) ?? '#'} target="_blank" rel="noreferrer">
-                      <img src={resolveMediaUrl(photo.url) ?? ''} alt="Фото возврата" />
-                    </a>
+                    <PrivateImage key={photo.id} url={photo.url} alt="Фото возврата" openable />
                   ))}
                 </div>
               )}
